@@ -1,0 +1,153 @@
+# BC1 — Gestión Operativa
+
+> **Spec owner:** PM/Lead  
+> **Estado:** Draft v1  
+> **Última actualización:** 10/05/2026
+> **Responsables:** Alvaro y Eduardo (Backend)
+
+---
+
+## Propósito
+
+Es el núcleo del dominio. Modela todo lo que ocurre en la operación real: el ingreso de equipaje, su asignación a un `PlanViaje` que documenta su recorrido segmento a segmento, y la red logística sobre la que se mueve (vuelos y nodos). El `PlanVuelos` actúa como el catálogo oficial de todos los vuelos del sistema y es la fuente de verdad que consumen los otros bounded contexts.
+
+---
+
+## Aggregate Roots
+
+| Aggregate Root | Descripción |
+|---|---|
+| `Equipaje` | Unidad principal del dominio. Tiene identidad propia y ciclo de vida. |
+| `PlanViaje` | Documento que registra la ruta asignada y la ubicación actual del equipaje. |
+| `Vuelo` | Vuelo registrado en el sistema con su estado y capacidad. |
+| `NodoLogistico` | Aeropuerto o hub de la red logística. |
+| `PlanVuelos` | Catálogo que agrupa todos los vuelos del sistema (seed inicial). |
+
+---
+
+## Entidades internas (no accesibles directamente)
+
+| Entidad | Aggregate Root dueño | Descripción |
+|---|---|---|
+| `SegmentoPlan` | `PlanViaje` | Tramo individual de la ruta (un vuelo, de nodo A a nodo B). |
+
+---
+
+## Value Objects
+
+| Value Object | Dónde se usa | Descripción |
+|---|---|---|
+| `CodigoIATA` | `NodoLogistico`, `Equipaje` | Código de 3 letras del aeropuerto (ej. LIM, MIA). |
+| `Coordenada` | `NodoLogistico`, `Vuelo`, `PlanViaje` | Par latitud/longitud. |
+| `SLA` | `Equipaje`, `PlanViaje` | Fecha/hora límite de entrega comprometida. |
+| `CapacidadCarga` | `Vuelo` | Capacidad total y disponible de carga. |
+| `CapacidadAlmacen` | `NodoLogistico` | Capacidad total y ocupación actual del almacén. |
+
+---
+
+## Domain Events publicados
+
+| Evento | Cuándo se publica | Consumidor |
+|---|---|---|
+| `EquipajeIngresado` | Al confirmar el registro de un equipaje | BC2 — para disparar el cálculo de ruta |
+| `VueloCancelado` | Al cancelar un vuelo manualmente | BC2 — para disparar la replanificación |
+| `UbicacionActualizada` | Cuando el equipaje avanza al siguiente segmento | Servicio de Telemetría |
+| `PlanViajeCreado` | Cuando BC2 devuelve la ruta calculada y se persiste | Auditoría / Telemetría |
+| `SLAIncumplido` | Cuando la ruta re-planificada supera el SLA | Reporte de sesión |
+
+---
+
+## Reglas de negocio
+
+### Registro de equipaje
+- El campo `destino_iata` debe existir en la tabla `nodos_logisticos`.
+- El `vuelo_id` asignado debe tener estado `PROGRAMADO`.
+- La ocupación proyectada del almacén (`ocupacion_actual + 1`) no debe superar `capacidad_almacen`. Si supera el 100%, bloquear confirmación.
+- El origen se autocompleta con el `nodo_ref_id` del operador autenticado.
+- Al confirmar, publicar `EquipajeIngresado` para que BC2 calcule la ruta.
+
+### Cancelación de vuelo
+- Solo un vuelo con estado `PROGRAMADO` o `EN_RUTA` puede cancelarse.
+- Al cancelar, cambiar estado del vuelo a `CANCELADO` y publicar `VueloCancelado`.
+- El sistema no elimina físicamente ningún vuelo.
+
+### Plan de viaje
+- Cada equipaje tiene exactamente un `PlanViaje`.
+- El `PlanViaje` es creado por BC2 tras calcular la ruta; BC1 lo persiste.
+- `ubicacion_tipo` puede ser `NODO` o `VUELO`.
+- `ubicacion_lat` y `ubicacion_lon` reflejan la posición actual del equipaje para el mapa.
+
+### Estados del equipaje
+```
+REGISTRADO → ENRUTADO → EN_VUELO → EN_ALMACEN → ENTREGADO
+                ↓
+         EN_REPLANIFICACION → ENRUTADO | INCUMPLIMIENTO_SLA
+```
+
+### Estados del vuelo
+```
+PROGRAMADO → EN_RUTA → COMPLETADO
+     ↓
+  CANCELADO
+```
+
+---
+
+## Seed inicial (PlanVuelos)
+
+Al arrancar la aplicación, el sistema debe cargar automáticamente:
+
+**1 registro en `plan_vuelos`:**
+```sql
+INSERT INTO plan_vuelos (id, descripcion, vigencia_desde, vigencia_hasta)
+VALUES (gen_random_uuid(), 'Plan operativo inicial', '2025-06-01', '2025-12-31');
+```
+
+**5 nodos logísticos mínimos:**
+
+| codigo_iata | nombre | latitud | longitud | capacidad_almacen |
+|---|---|---|---|---|
+| LIM | Aeropuerto Jorge Chávez | -12.0219 | -77.1143 | 500 |
+| MIA | Miami International | 25.7959 | -80.2870 | 800 |
+| BOG | El Dorado | 4.7016 | -74.1469 | 600 |
+| GRU | São Paulo Guarulhos | -23.4356 | -46.4731 | 700 |
+| SCL | Arturo Merino Benítez | -33.3930 | -70.7858 | 400 |
+
+**10 vuelos mínimos entre esos nodos** cubriendo los 5 días de simulación (fechas relativas a `fecha_inicio_virtual` de la sesión).
+
+---
+
+## Dependencias externas
+
+- **BC2:** Escucha `EquipajeIngresado` para calcular rutas. Publica `PlanViajeCreado` que BC1 persiste.
+- **BC2:** Escucha `VueloCancelado` para replanificar.
+- **Redis:** BC1 escribe `nodo:{id}:ocupacion` y `vuelo:{id}:carga_disponible` al confirmar ingreso.
+
+---
+
+## Paquete Java
+
+```
+com.tasfb2b.backend.bc1/
+├── domain/
+│   ├── Equipaje.java
+│   ├── PlanViaje.java
+│   ├── SegmentoPlan.java
+│   ├── Vuelo.java
+│   ├── NodoLogistico.java
+│   └── PlanVuelos.java
+├── application/
+│   ├── EquipajeService.java       ← lógica de registro y validación
+│   ├── VueloService.java          ← lógica de cancelación y consulta
+│   └── PlanViajeService.java      ← persiste el plan devuelto por BC2
+└── infrastructure/
+    ├── EquipajeRepository.java
+    ├── PlanViajeRepository.java
+    ├── SegmentoPlanRepository.java
+    ├── VueloRepository.java
+    ├── NodoLogisticoRepository.java
+    ├── PlanVuelosRepository.java
+    ├── EquipajeController.java    ← POST /equipajes, GET /equipajes/{id}/plan-viaje
+    ├── VueloController.java       ← GET /vuelos, POST /simulacion/cancelacion
+    └── NodoController.java        ← GET /nodos
+```
