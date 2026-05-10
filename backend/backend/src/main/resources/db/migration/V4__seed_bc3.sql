@@ -1,0 +1,2 @@
+-- Seed removido - ahora se hace en codigo Java (DataSeeder)
+-- Los hashes BCrypt se generan en runtime para garantizar coincidencia con passwords
