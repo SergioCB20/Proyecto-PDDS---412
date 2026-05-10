@@ -1,8 +1,8 @@
 # database-schema.md
 > **Spec owner:** PM/Lead  
 > **Estado:** Draft v1  
-> **Última actualización:** 2025  
-> **Consumidores:** P2 (Backend) — usa este spec para crear las migraciones Flyway/Liquibase
+> **Última actualización:** 10/05/2026  
+> **Consumidores:** Backend devs — usa este spec para crear las migraciones
 
 ---
 
