@@ -71,6 +71,7 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input
+              id="correo"
               label="Correo"
               type="email"
               placeholder="correo@ejemplo.com"
@@ -80,6 +81,7 @@ export default function LoginPage() {
               autoComplete="email"
             />
             <Input
+              id="password"
               label="Contrasena"
               type="password"
               placeholder="********"
