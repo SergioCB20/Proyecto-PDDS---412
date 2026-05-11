@@ -33,3 +33,18 @@ export const auth = {
 
   isAuthenticated: () => typeof window !== 'undefined' && !!localStorage.getItem('token'),
 };
+
+export function parseJwtFromCookie(cookieValue: string): { rol: string | null; [key: string]: unknown } {
+  try {
+    const parts = cookieValue.split('.');
+    if (parts.length !== 3) return { rol: null };
+    const payload = parts[1];
+    const padded = payload + '='.repeat((4 - (payload.length % 4)) % 4);
+    const base64 = padded.replace(/-/g, '+').replace(/_/g, '/');
+    const decoded = typeof atob !== 'undefined' ? atob(base64) : Buffer.from(base64, 'base64').toString('utf-8');
+    const parsed = JSON.parse(decoded) as { rol?: string; [key: string]: unknown };
+    return { rol: parsed.rol ?? null, ...parsed };
+  } catch {
+    return { rol: null };
+  }
+}

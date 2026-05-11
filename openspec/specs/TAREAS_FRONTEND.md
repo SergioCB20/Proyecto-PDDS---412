@@ -78,13 +78,13 @@
 
 **Prioridad:** Alta | **Dependencias:** Ninguna
 
-- [ ] En `middleware.ts`: leer cookie `token`
-- [ ] Extraer rol del JWT
-- [ ] Proteger rutas:
+- [x] En `middleware.ts`: leer cookie `token`
+- [x] Extraer rol del JWT
+- [x] Proteger rutas:
   - `/admin` → solo ADMINISTRADOR
   - `/simulacion` → solo ANALISTA (y `/simulacion/[id]`)
   - `/operacion` → solo OPERADOR_LOGISTICO
-- [ ] Redirigir a `/login` si no hay token o rol incorrecto
+- [x] Redirigir a `/login` si no hay token o rol incorrecto
 
 ---
 
