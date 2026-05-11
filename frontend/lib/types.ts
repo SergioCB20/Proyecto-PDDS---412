@@ -150,3 +150,16 @@ export interface ReporteSesion {
   causa_colapso: string | null;
   serie_sla: PuntoSLA[];
 }
+
+export interface CrearEquipajeRequest {
+  id_equipaje: string;
+  destino_iata: string;
+  vuelo_id: string;
+  sla_comprometido: string;
+}
+
+export interface CrearEquipajeResponse {
+  id: string;
+  estado: string;
+  plan_viaje: PlanViajeResponse;
+}

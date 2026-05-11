@@ -64,13 +64,13 @@
 
 **Prioridad:** Alta | **Dependencias:** Ninguna (usa mock data inicialmente)
 
-- [ ] En ruta `/operacion`: formulario con campos:
+- [x] En ruta `/operacion`: formulario con campos:
   - `id_equipaje` (texto)
   - `destino_iata` (select con aeropuertos destino)
   - `vuelo_id` (select que carga desde `/vuelos?estado=PROGRAMADO`)
   - `sla_comprometido` (input numérico)
-- [ ] POST a `/api/equipajes` al enviar
-- [ ] Manejo de errores y feedback visual
+- [x] POST a `/api/equipajes` al enviar
+- [x] Manejo de errores y feedback visual
 
 ---
 
