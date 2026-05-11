@@ -133,3 +133,20 @@ export interface ApiError {
   error: string;
   mensaje: string;
 }
+
+export interface PuntoSLA {
+  momento_virtual: string;
+  sla_pct: number;
+  hubo_cancelacion: boolean;
+  vuelo_cancelado_ref_id?: string;
+}
+
+export interface ReporteSesion {
+  sesion_id: string;
+  sla_incumplido_pct: number;
+  total_replanificadas: number;
+  punto_colapso_virtual: string | null;
+  nodo_colapso_ref_id: string | null;
+  causa_colapso: string | null;
+  serie_sla: PuntoSLA[];
+}

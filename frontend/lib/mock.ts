@@ -1,4 +1,4 @@
-import type { Nodo, Vuelo, VueloEnMapa, NodoEnMapa, MetricasSimulacion } from './types';
+import type { Nodo, Vuelo, VueloEnMapa, NodoEnMapa, MetricasSimulacion, ReporteSesion, PuntoSLA } from './types';
 
 export const MOCK_NODOS: Nodo[] = [
   {
@@ -180,3 +180,30 @@ export function tickMetricasMock(
 
   return { ...metricasBase };
 }
+
+function generarSerieSLAMock(): PuntoSLA[] {
+  const serie: PuntoSLA[] = [];
+  const inicio = new Date('2025-06-01T08:00:00Z');
+  for (let i = 0; i < 24; i++) {
+    const momento = new Date(inicio.getTime() + i * 7200000);
+    const sla = Math.max(60, 100 - i * 1.8 + (Math.random() * 4 - 2));
+    const huboCancelacion = i === 5 || i === 9 || i === 14 || i === 18;
+    serie.push({
+      momento_virtual: momento.toISOString(),
+      sla_pct: Math.round(sla * 10) / 10,
+      hubo_cancelacion: huboCancelacion,
+      vuelo_cancelado_ref_id: huboCancelacion ? `mock-vuelo-cancelado-${i}` : undefined,
+    });
+  }
+  return serie;
+}
+
+export const MOCK_REPORTE_SESION: ReporteSesion = {
+  sesion_id: 'mock-sesion-reporte',
+  sla_incumplido_pct: 12.5,
+  total_replanificadas: 47,
+  punto_colapso_virtual: '2025-06-05T14:00:00Z',
+  nodo_colapso_ref_id: '00000000-0000-0000-0003-000000000001',
+  causa_colapso: 'Desbordamiento de capacidad en almacén LIM',
+  serie_sla: generarSerieSLAMock(),
+};
