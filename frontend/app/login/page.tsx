@@ -62,12 +62,12 @@ export default function LoginPage() {
             Iniciar Sesion
           </h2>
 
-          {error && (
+          {typeof error === 'string' && error ? (
             <div className="flex items-center gap-2 p-3 mb-4 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm">
               <AlertCircle size={16} />
-              {error}
+              <span>{error}</span>
             </div>
-          )}
+          ) : null}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input

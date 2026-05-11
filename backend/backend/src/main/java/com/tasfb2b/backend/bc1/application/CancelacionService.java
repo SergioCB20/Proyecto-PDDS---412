@@ -6,9 +6,12 @@ import com.tasfb2b.backend.bc1.domain.Equipaje;
 import com.tasfb2b.backend.bc1.domain.Vuelo;
 import com.tasfb2b.backend.bc1.infrastructure.EquipajeRepository;
 import com.tasfb2b.backend.bc1.infrastructure.VueloRepository;
+import com.tasfb2b.backend.shared.events.VueloCanceladoEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Service
@@ -16,10 +19,12 @@ public class CancelacionService {
 
     private final VueloRepository vueloRepository;
     private final EquipajeRepository equipajeRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public CancelacionService(VueloRepository vueloRepository, EquipajeRepository equipajeRepository) {
+    public CancelacionService(VueloRepository vueloRepository, EquipajeRepository equipajeRepository, ApplicationEventPublisher eventPublisher) {
         this.vueloRepository = vueloRepository;
         this.equipajeRepository = equipajeRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     public record CancelacionRequest(UUID vuelo_id, String causa) {}
@@ -46,6 +51,8 @@ public class CancelacionService {
 
         vuelo.setEstado(EstadoVuelo.CANCELADO);
         vueloRepository.save(vuelo);
+
+        eventPublisher.publishEvent(new VueloCanceladoEvent(vuelo.getId(), OffsetDateTime.now(), request.causa()));
 
         for (Equipaje equipaje : equipajeRepository.findAll()) {
             if (equipaje.getVueloActual() != null && equipaje.getVueloActual().getId().equals(vuelo.getId())) {

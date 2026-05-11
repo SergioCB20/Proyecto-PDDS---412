@@ -44,14 +44,9 @@ export default function GeoMapaVuelo({ vuelo, animacionActiva = false }: GeoMapa
   useEffect(() => {
     if (!animacionActiva || vuelo.estado !== 'EN_RUTA') return;
 
-    const ahora = Date.now();
     const salida = new Date(vuelo.hora_salida).getTime();
     const llegada = new Date(vuelo.hora_llegada).getTime();
     const total = llegada - salida;
-    const transcurrido = ahora - salida;
-    const prog = Math.max(0, Math.min(1, transcurrido / total));
-
-    setProgreso(prog);
 
     const interval = setInterval(() => {
       const t = Date.now();
@@ -62,10 +57,17 @@ export default function GeoMapaVuelo({ vuelo, animacionActiva = false }: GeoMapa
     return () => clearInterval(interval);
   }, [vuelo, animacionActiva]);
 
-  const origen: [number, number] = [vuelo.origen_lat, vuelo.origen_lon];
-  const destino: [number, number] = [vuelo.destino_lat, vuelo.destino_lon];
+  const origenLat = typeof vuelo.origen_lat === 'number' ? vuelo.origen_lat : 0;
+  const origenLon = typeof vuelo.origen_lon === 'number' ? vuelo.origen_lon : 0;
+  const destinoLat = typeof vuelo.destino_lat === 'number' ? vuelo.destino_lat : 0;
+  const destinoLon = typeof vuelo.destino_lon === 'number' ? vuelo.destino_lon : 0;
+
+  if (!origenLat || !origenLon || !destinoLat || !destinoLon) return null;
+
+  const origen: [number, number] = [origenLat, origenLon];
+  const destino: [number, number] = [destinoLat, destinoLon];
   const color = COLORES[vuelo.estado] || '#6b7280';
-  const posicion = calcularPosicionAvion(vuelo, progreso);
+  const posicion = calcularPosicionAvion({ ...vuelo, origen_lat: origenLat, origen_lon: origenLon, destino_lat: destinoLat, destino_lon: destinoLon }, progreso);
 
   const polylinePositions: [number, number][] = [origen, destino];
 

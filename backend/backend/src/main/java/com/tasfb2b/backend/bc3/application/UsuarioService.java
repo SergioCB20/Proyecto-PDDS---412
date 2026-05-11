@@ -102,6 +102,10 @@ public class UsuarioService {
         return toResponse(usuario);
     }
 
+    public static class ActualizacionNoPermitidaException extends RuntimeException {
+        public ActualizacionNoPermitidaException(String msg) { super(msg); }
+    }
+
     @Transactional
     public UsuarioResponse cambiarEstado(UUID actorId, UUID usuarioId, CambiarEstadoRequest request) {
         Usuario usuario = usuarioRepository.findById(usuarioId)

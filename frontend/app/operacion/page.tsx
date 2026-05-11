@@ -31,7 +31,7 @@ export default function OperacionPage() {
     { id_externo: 'MAL-2025-008', destino: 'GRU', estado: 'EN_REPLANIFICACION', tiempo: 'hace 30 min' },
   ]);
   const [loading, setLoading] = useState(false);
-  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -82,7 +82,7 @@ export default function OperacionPage() {
             <div>
               <h2 className="font-semibold text-slate-900 dark:text-slate-100">Operacion en Vivo</h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Ultima actualizacion: {lastUpdate.toLocaleTimeString('es-ES')}
+                Ultima actualizacion: {lastUpdate ? lastUpdate.toLocaleTimeString('es-ES') : '...'}
               </p>
             </div>
             <button

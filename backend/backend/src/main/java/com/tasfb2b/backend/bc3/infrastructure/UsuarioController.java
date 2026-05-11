@@ -67,6 +67,9 @@ public class UsuarioController {
         } catch (UsuarioService.UsuarioNoEncontradoException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(error(404, "NO_ENCONTRADO", e.getMessage()));
+        } catch (UsuarioService.ActualizacionNoPermitidaException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(error(403, "ACTUALIZACION_NO_PERMITIDA", e.getMessage()));
         }
     }
 
