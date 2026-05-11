@@ -10,10 +10,10 @@
 
 | Área | Estado | Notas |
 |---|---|---|
-| BC1 — Entidades, Services, Controllers | ~70% | Faltan: eventos, carga masiva, PDF, Redis |
+| BC1 — Entidades, Services, Controllers | ~85% | Faltan: carga masiva, PDF, Redis |
 | BC2 — Planificación y Replanificación | **0%** | Todo por implementar |
-| BC3 — Identidad y Acceso | ~90% | Faltan: auditoría completa, validaciones |
-| Frontend — Login, Admin, Mapa | ~60% | Faltan: reporte, registro equipaje, conexión API real |
+| BC3 — Identidad y Acceso | **100%** | ✅ Completo: auditoría, validaciones, seed |
+| Frontend — Login, Admin, Mapa | ~65% | Faltan: reporte, registro equipaje, conexión API real |
 
 ---
 
@@ -38,15 +38,15 @@ com.tasfb2b.backend.shared.events/
 
 | # | Tarea | Dep | Descripción |
 |---|---|---|---|
-| **0** | Crear eventos compartidos | — | Crear `shared/events/` con los 3 record classes |
-| 1 | Publicar eventos en BC1 | 0 | Inyectar `ApplicationEventPublisher` en `EquipajeService` → publicar `EquipajeIngresadoEvent` al confirmar registro. En `CancelacionService` → publicar `VueloCanceladoEvent` al cancelar. |
+| **0** | Crear eventos compartidos | — | ~~Crear `shared/events/` con los 3 record classes~~ ✅ Completado |
+| 1 | Publicar eventos en BC1 | 0 | ~~Inyectar `ApplicationEventPublisher` en `EquipajeService` → publicar `EquipajeIngresadoEvent`~~ ✅ Completado. En `CancelacionService` → ~~publicar `VueloCanceladoEvent`~~ ✅ Completado. |
 | 2 | Carga masiva CSV | — | `POST /equipajes/carga-masiva` → lee CSV, valida cada fila, devuelve preview con `validos`, `con_revision` |
 | 3 | Confirmar carga masiva | 2 | `POST /equipajes/carga-masiva/confirmar` → ingresa IDs válidos |
 | 4 | Manifiesto PDF | — | `GET /manifiestos/{vuelo_id}` → genera PDF con lista de equipajes del vuelo |
 | 5 | Integración Redis | — | Escribir `nodo:{id}:ocupacion` y `vuelo:{id}:carga_disponible` al registrar/cancelar. Usar `StringRedisTemplate`. |
-| 6 | Auditoría BC3 completa | — | En `UsuarioService.crear()` y `cambiarEstado()` → guardar `EntradaAuditoria`. (Login ya lo hace.) |
-| 7 | Validar PUT /usuarios | — | En `UsuarioService.actualizar()` → solo permitir cambio de `nombre`, rechazar cambio de `rol` o `nodo_ref_id` |
-| 8 | Seed plan_vuelos en SQL | — | Mover el `INSERT INTO plan_vuelos` del DataSeeder a `V5__plan_vuelos.sql` |
+| 6 | Auditoría BC3 completa | — | ~~En `UsuarioService.crear()` y `cambiarEstado()` → guardar `EntradaAuditoria`~~ ✅ Completado. |
+| 7 | Validar PUT /usuarios | — | ~~En `UsuarioService.actualizar()` → solo permitir cambio de `nombre`, rechazar cambio de `rol` o `nodo_ref_id`~~ ✅ Completado. |
+| 8 | Seed plan_vuelos en SQL | — | ~~Mover el `INSERT INTO plan_vuelos` del DataSeeder a `V5__plan_vuelos.sql`~~ ✅ Completado. |
 
 ---
 
@@ -92,6 +92,8 @@ com.tasfb2b.backend.shared.events/
 ```
 Track A (Persona 1):
   Tarea 0 → Publicar eventos BC1 → Redis → Auditoría BC3
+  ✅ Semana 1 completa — tareas 0, 1, 6, 7, 8 completadas
+  Semanas 2-3: Carga masiva → Confirmar → Manifiesto PDF → Seed SQL
 
 Track B (Persona 2):
   Tarea 0 → Migraciones BC2 → Entidades → MotorEnrutamiento
