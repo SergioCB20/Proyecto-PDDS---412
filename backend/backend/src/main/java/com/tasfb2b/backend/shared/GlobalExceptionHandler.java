@@ -32,6 +32,46 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(error(HttpStatus.BAD_REQUEST, "ARGUMENTO_INVALIDO", ex.getMessage()));
     }
 
+    @ExceptionHandler(com.tasfb2b.backend.bc1.application.EquipajeService.ValidacionException.class)
+    public ResponseEntity<?> handleEquipajeValidation(com.tasfb2b.backend.bc1.application.EquipajeService.ValidacionException ex) {
+        return ResponseEntity.badRequest().body(error(HttpStatus.BAD_REQUEST, "VALIDACION", ex.getMessage()));
+    }
+
+    @ExceptionHandler(com.tasfb2b.backend.bc1.application.CancelacionService.CancelacionInvalidaException.class)
+    public ResponseEntity<?> handleCancelacionInvalida(com.tasfb2b.backend.bc1.application.CancelacionService.CancelacionInvalidaException ex) {
+        return ResponseEntity.badRequest().body(error(HttpStatus.BAD_REQUEST, "CANCELACION_INVALIDA", ex.getMessage()));
+    }
+
+    @ExceptionHandler(com.tasfb2b.backend.bc1.application.CancelacionService.VueloNoEncontradoException.class)
+    public ResponseEntity<?> handleVueloNoEncontrado(com.tasfb2b.backend.bc1.application.CancelacionService.VueloNoEncontradoException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error(HttpStatus.NOT_FOUND, "VUELO_NO_ENCONTRADO", ex.getMessage()));
+    }
+
+    @ExceptionHandler(com.tasfb2b.backend.bc1.application.EquipajeService.EquipajeNoEncontradoException.class)
+    public ResponseEntity<?> handleEquipajeNoEncontrado(com.tasfb2b.backend.bc1.application.EquipajeService.EquipajeNoEncontradoException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error(HttpStatus.NOT_FOUND, "EQUIPAJE_NO_ENCONTRADO", ex.getMessage()));
+    }
+
+    @ExceptionHandler(com.tasfb2b.backend.bc3.application.UsuarioService.UsuarioNoEncontradoException.class)
+    public ResponseEntity<?> handleUsuarioNoEncontrado(com.tasfb2b.backend.bc3.application.UsuarioService.UsuarioNoEncontradoException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error(HttpStatus.NOT_FOUND, "USUARIO_NO_ENCONTRADO", ex.getMessage()));
+    }
+
+    @ExceptionHandler(com.tasfb2b.backend.bc3.application.UsuarioService.CorreoYaExisteException.class)
+    public ResponseEntity<?> handleCorreoYaExiste(com.tasfb2b.backend.bc3.application.UsuarioService.CorreoYaExisteException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error(HttpStatus.CONFLICT, "CORREO_YA_EXISTE", ex.getMessage()));
+    }
+
+    @ExceptionHandler(com.tasfb2b.backend.bc3.application.UsuarioService.RolNoEncontradoException.class)
+    public ResponseEntity<?> handleRolNoEncontrado(com.tasfb2b.backend.bc3.application.UsuarioService.RolNoEncontradoException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error(HttpStatus.BAD_REQUEST, "ROL_NO_ENCONTRADO", ex.getMessage()));
+    }
+
+    @ExceptionHandler(com.tasfb2b.backend.bc3.application.UsuarioService.ActualizacionNoPermitidaException.class)
+    public ResponseEntity<?> handleActualizacionNoPermitida(com.tasfb2b.backend.bc3.application.UsuarioService.ActualizacionNoPermitidaException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error(HttpStatus.FORBIDDEN, "ACTUALIZACION_NO_PERMITIDA", ex.getMessage()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<?> handleGeneral(Exception ex) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

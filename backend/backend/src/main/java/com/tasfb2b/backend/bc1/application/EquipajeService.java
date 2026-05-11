@@ -5,6 +5,8 @@ import com.tasfb2b.backend.bc1.domain.EstadoSla;
 import com.tasfb2b.backend.bc1.domain.UbicacionTipo;
 import com.tasfb2b.backend.bc1.domain.EstadoSegmento;
 import com.tasfb2b.backend.bc1.infrastructure.*;
+import com.tasfb2b.backend.shared.events.EquipajeIngresadoEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,15 +22,17 @@ public class EquipajeService {
     private final SegmentoPlanRepository segmentoPlanRepository;
     private final VueloRepository vueloRepository;
     private final NodoLogisticoRepository nodoRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public EquipajeService(EquipajeRepository equipajeRepository, PlanViajeRepository planViajeRepository,
                            SegmentoPlanRepository segmentoPlanRepository, VueloRepository vueloRepository,
-                           NodoLogisticoRepository nodoRepository) {
+                           NodoLogisticoRepository nodoRepository, ApplicationEventPublisher eventPublisher) {
         this.equipajeRepository = equipajeRepository;
         this.planViajeRepository = planViajeRepository;
         this.segmentoPlanRepository = segmentoPlanRepository;
         this.vueloRepository = vueloRepository;
         this.nodoRepository = nodoRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     public record RegistrarEquipajeRequest(
@@ -93,6 +97,8 @@ public class EquipajeService {
         equipaje.setEstado(EstadoEquipaje.ENRUTADO);
         equipaje.setVueloActual(vuelo);
         equipajeRepository.save(equipaje);
+
+        eventPublisher.publishEvent(new EquipajeIngresadoEvent(equipaje.getId(), OffsetDateTime.now()));
 
         PlanViaje planViaje = new PlanViaje();
         planViaje.setId(UUID.randomUUID());

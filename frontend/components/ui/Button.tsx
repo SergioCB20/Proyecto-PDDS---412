@@ -1,10 +1,6 @@
-export function Button({
-  variant = 'primary',
-  size = 'md',
-  children,
-  className = '',
-  ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+'use client';
+
+export function Button({ variant = 'primary', size = 'md', children, className = '', ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
   size?: 'sm' | 'md' | 'lg';
 }) {
@@ -26,6 +22,7 @@ export function Button({
   return (
     <button
       className={`${base} ${variants[variant]} ${sizes[size]} ${className}`}
+      suppressHydrationWarning
       {...props}
     >
       {children}

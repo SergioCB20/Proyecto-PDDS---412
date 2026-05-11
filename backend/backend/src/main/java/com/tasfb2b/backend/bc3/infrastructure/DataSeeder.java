@@ -100,15 +100,21 @@ public class DataSeeder {
     }
 
     private void seedBC1() {
-        System.out.println("  - Seed BC1 (plan_vuelos, nodos, vuelos)");
+        System.out.println("  - Seed BC1 (nodos, vuelos)");
 
         UUID planVuelosId = UUID.fromString("00000000-0000-0000-0002-000000000001");
         OffsetDateTime vigenciaDesde = OffsetDateTime.of(2025, 6, 1, 0, 0, 0, 0, ZoneOffset.UTC);
         OffsetDateTime vigenciaHasta = OffsetDateTime.of(2025, 12, 31, 23, 59, 59, 0, ZoneOffset.UTC);
 
-        PlanVuelos planVuelos = planVuelosRepository.save(new PlanVuelos(
-                planVuelosId, "Plan operativo inicial", vigenciaDesde, vigenciaHasta
-        ));
+        PlanVuelos planVuelos = planVuelosRepository.findById(planVuelosId)
+                .orElseGet(() -> planVuelosRepository.save(new PlanVuelos(
+                        planVuelosId, "Plan operativo inicial", vigenciaDesde, vigenciaHasta
+                )));
+
+        if (nodoRepository.count() > 0) {
+            System.out.println("    Nodos ya existen, omitiendo seed de nodos/vuelos");
+            return;
+        }
 
         NodoLogistico lim = nodoRepository.save(new NodoLogistico(
                 UUID.fromString("00000000-0000-0000-0003-000000000001"),
