@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { auth } from '@/lib/auth';
+import { parseJwtFromCookie } from '@/lib/auth';
 
 const RUTAS_PUBLICAS = ['/login', '/health'];
 
@@ -23,14 +23,18 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  const rol = auth.getRol();
-  if (rol) {
-    const rutasPermitidas = RUTAS_POR_ROL[rol] || [];
+  const payload = parseJwtFromCookie(token);
+  const rol = payload.rol;
+
+  if (rol && RUTAS_POR_ROL[rol]) {
+    const rutasPermitidas = RUTAS_POR_ROL[rol];
     const tieneAcceso = rutasPermitidas.some((r) => pathname.startsWith(r));
     if (!tieneAcceso) {
       const redirect = rutasPermitidas[0] || '/login';
       return NextResponse.redirect(new URL(redirect, request.url));
     }
+  } else {
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
   return NextResponse.next();

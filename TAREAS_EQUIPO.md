@@ -75,9 +75,9 @@ com.tasfb2b.backend.shared.events/
 
 | # | Tarea | Dep | Descripción |
 |---|---|---|---|
-| 1 | Página `/simulacion/[id]/reporte` | — | Recharts `LineChart` con `serie_sla` (mock data). Tarjetas: SLA%, replanificadas, punto colapso. Pattern `.catch(() => MOCK_DATA)`. |
-| 2 | Formulario registro equipaje | — | En `/operacion`: `id_equipaje`, `destino_iata` (select), `vuelo_id` (select `/vuelos?estado=PROGRAMADO`), `sla_comprometido` → `POST /equipajes` |
-| 3 | Middleware protección rutas | — | `middleware.ts` → lee cookie `token`, extrae rol, protege `/admin`, `/simulacion`, `/operacion` |
+| 1 | Página `/simulacion/[id]/reporte` | — | ~~Recharts `LineChart` con `serie_sla` (mock data). Tarjetas: SLA%, replanificadas, punto colapso. Pattern `.catch(() => MOCK_DATA)`.~~ ✅ Completado |
+| 2 | Formulario registro equipaje | — | ~~En `/operacion`: `id_equipaje`, `destino_iata` (select), `vuelo_id` (select `/vuelos?estado=PROGRAMADO`), `sla_comprometido` → `POST /equipajes`~~ ✅ Completado |
+| 3 | Middleware protección rutas | — | ~~`middleware.ts` → lee cookie `token`, extrae rol, protege `/admin`, `/simulacion`, `/operacion`~~ ✅ Completado |
 | 4 | UI carga masiva | Backend A2 | Upload CSV → preview → confirmar. Conecta a `POST /equipajes/carga-masiva` y `confirmar` |
 | 5 | Conectar simulación a API real | Backend B5 | Reemplazar `tickMetricasMock` por polling `GET /sesiones/{id}/metricas`. Botones iniciar/pausar/detener a sus endpoints. `POST /sesiones` al crear. |
 | 6 | Link a reporte | 1 + Backend B8 | En `/simulacion/[id]`: botón "Ver Reporte" cuando estado = FINALIZADA → redirige a `/simulacion/[id]/reporte` |
