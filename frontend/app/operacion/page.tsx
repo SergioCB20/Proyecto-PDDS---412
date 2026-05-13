@@ -126,7 +126,7 @@ export default function OperacionPage() {
     }
   };
 
-  const destinoOptions = nodos.map(n => ({ value: n.codigo_iata, label: n.codigo_iata })).sort((a, b) => a.label.localeCompare(b.label));
+  const destinoOptions = nodos.filter(n => n.codigo_iata).map(n => ({ value: n.codigo_iata, label: n.codigo_iata })).sort((a, b) => a.label.localeCompare(b.label));
 
   const vueloOptions = vuelosProgramados.map(v => ({
     value: v.id,

@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
-import type { Usuario, PageResponse, Rol } from '@/lib/types';
+import type { Usuario, PageResponse, Rol, Nodo } from '@/lib/types';
 
 const ROLES: Rol[] = ['ADMINISTRADOR', 'OPERADOR_LOGISTICO', 'ANALISTA'];
 
@@ -24,10 +24,11 @@ export default function AdminPage() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<Usuario | null>(null);
 
-  const [form, setForm] = useState({ nombre: '', correo: '', password: '', rol: 'OPERADOR_LOGISTICO' as Rol });
+  const [form, setForm] = useState({ nombre: '', correo: '', password: '', rol: 'OPERADOR_LOGISTICO' as Rol, nodo_ref_id: '' });
   const [editForm, setEditForm] = useState({ nombre: '' });
   const [formError, setFormError] = useState('');
   const [formLoading, setFormLoading] = useState(false);
+  const [nodos, setNodos] = useState<Nodo[]>([]);
 
   const fetchUsuarios = useCallback(async () => {
     setLoading(true);
@@ -45,6 +46,10 @@ export default function AdminPage() {
 
   useEffect(() => { fetchUsuarios(); }, [fetchUsuarios]);
 
+  useEffect(() => {
+    api.get<Nodo[]>('/nodos').then(setNodos).catch(() => {});
+  }, []);
+
   const filtered = search
     ? usuarios.filter(
         (u) =>
@@ -54,7 +59,7 @@ export default function AdminPage() {
     : usuarios;
 
   const openCreate = () => {
-    setForm({ nombre: '', correo: '', password: '', rol: 'OPERADOR_LOGISTICO' });
+    setForm({ nombre: '', correo: '', password: '', rol: 'OPERADOR_LOGISTICO', nodo_ref_id: '' });
     setFormError('');
     setModalOpen(true);
   };
@@ -76,7 +81,14 @@ export default function AdminPage() {
     setFormLoading(true);
     setFormError('');
     try {
-      await api.post('/usuarios', form);
+      const payload = {
+        nombre: form.nombre,
+        correo: form.correo,
+        password: form.password,
+        rol: form.rol,
+        ...(form.nodo_ref_id ? { nodo_ref_id: form.nodo_ref_id } : {})
+      };
+      await api.post('/usuarios', payload);
       setModalOpen(false);
       fetchUsuarios();
     } catch (err: unknown) {
@@ -262,7 +274,7 @@ export default function AdminPage() {
             <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Rol</label>
             <select
               value={form.rol}
-              onChange={(e) => setForm({ ...form, rol: e.target.value as Rol })}
+              onChange={(e) => setForm({ ...form, rol: e.target.value as Rol, nodo_ref_id: e.target.value === 'OPERADOR_LOGISTICO' ? form.nodo_ref_id : '' })}
               className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm"
             >
               {ROLES.map((r) => (
@@ -270,6 +282,21 @@ export default function AdminPage() {
               ))}
             </select>
           </div>
+          {form.rol === 'OPERADOR_LOGISTICO' && (
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Nodo</label>
+              <select
+                value={form.nodo_ref_id}
+                onChange={(e) => setForm({ ...form, nodo_ref_id: e.target.value })}
+                className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm"
+              >
+                <option value="">Seleccionar nodo</option>
+                {nodos.map((n) => (
+                  <option key={n.id} value={n.id}>{n.codigo_iata} - {n.nombre}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </form>
       </Modal>
 
