@@ -6,6 +6,7 @@ import com.tasfb2b.backend.bc1.domain.UbicacionTipo;
 import com.tasfb2b.backend.bc1.domain.EstadoSegmento;
 import com.tasfb2b.backend.bc1.infrastructure.*;
 import com.tasfb2b.backend.shared.events.EquipajeIngresadoEvent;
+import com.tasfb2b.backend.shared.infrastructure.RedisCacheService;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,16 +24,19 @@ public class EquipajeService {
     private final VueloRepository vueloRepository;
     private final NodoLogisticoRepository nodoRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final RedisCacheService redisCacheService;
 
     public EquipajeService(EquipajeRepository equipajeRepository, PlanViajeRepository planViajeRepository,
                            SegmentoPlanRepository segmentoPlanRepository, VueloRepository vueloRepository,
-                           NodoLogisticoRepository nodoRepository, ApplicationEventPublisher eventPublisher) {
+                           NodoLogisticoRepository nodoRepository, ApplicationEventPublisher eventPublisher,
+                           RedisCacheService redisCacheService) {
         this.equipajeRepository = equipajeRepository;
         this.planViajeRepository = planViajeRepository;
         this.segmentoPlanRepository = segmentoPlanRepository;
         this.vueloRepository = vueloRepository;
         this.nodoRepository = nodoRepository;
         this.eventPublisher = eventPublisher;
+        this.redisCacheService = redisCacheService;
     }
 
     public record RegistrarEquipajeRequest(
@@ -127,6 +131,9 @@ public class EquipajeService {
 
         vuelo.setCargaDisponible(vuelo.getCargaDisponible() - 1);
         vueloRepository.save(vuelo);
+
+        redisCacheService.actualizarOcupacionNodo(nodoOrigen.getId(), nodoOrigen.getOcupacionActual() + 1);
+        redisCacheService.actualizarCargaDisponibleVuelo(vuelo.getId(), vuelo.getCargaDisponible());
 
         return toEquipajeResponse(equipaje, planViaje, List.of(segmento));
     }
