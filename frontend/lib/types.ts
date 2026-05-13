@@ -163,3 +163,15 @@ export interface CrearEquipajeResponse {
   estado: string;
   plan_viaje: PlanViajeResponse;
 }
+
+export interface CargaMasivaFila {
+  id_equipaje: string;
+  destino_iata: string;
+  vuelo_id: string;
+  sla_comprometido: string;
+}
+
+export interface CargaMasivaPreview {
+  validos: CargaMasivaFila[];
+  con_revision: { fila: number; errores: string[] }[];
+}

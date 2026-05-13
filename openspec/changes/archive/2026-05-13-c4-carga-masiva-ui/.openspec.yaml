@@ -1,0 +1,22 @@
+name: c4-carga-masiva-ui
+title: "C4: UI de Carga Masiva de Equipaje"
+description: Implementación de interfaz de usuario para carga masiva de equipaje mediante archivo CSV
+status: completed
+schema: experimental
+created: 2026-05-13
+author: Josue
+commit: a5ed977b196b65cfc23fde46e2a404d65f150fa4
+
+tasks:
+  - id: c4-ui-carga-masiva
+    title: "Implementar UI de carga masiva"
+    description: "Crear modal, parseo CSV, validación y preview"
+    status: completed
+
+artifacts:
+  - path: frontend/app/operacion/page.tsx
+    type: frontend
+    status: done
+  - path: frontend/lib/types.ts
+    type: frontend
+    status: done
