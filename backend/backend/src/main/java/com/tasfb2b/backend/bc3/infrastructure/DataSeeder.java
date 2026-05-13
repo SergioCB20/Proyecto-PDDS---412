@@ -53,8 +53,8 @@ public class DataSeeder {
 
         System.out.println("=== DataSeeder: ejecutando seed ===");
 
-        seedBC3();
         seedBC1();
+        seedBC3();
 
         System.out.println("=== DataSeeder: seed completado ===");
     }
@@ -86,11 +86,17 @@ public class DataSeeder {
                 passwordEncoder.encode("admin123")
         ));
 
-        usuarioRepository.save(new Usuario(
+        NodoLogistico limNodo = nodoRepository.findByCodigoIata("LIM").orElse(null);
+
+        Usuario operadorUsuario = new Usuario(
                 UUID.fromString("00000000-0000-0000-0001-000000000002"),
                 operador, "Operador Lima", "operador@tasfb2b.com",
                 passwordEncoder.encode("operador123")
-        ));
+        );
+        if (limNodo != null) {
+            operadorUsuario.setNodoRefId(limNodo.getId());
+        }
+        usuarioRepository.save(operadorUsuario);
 
         usuarioRepository.save(new Usuario(
                 UUID.fromString("00000000-0000-0000-0001-000000000003"),
