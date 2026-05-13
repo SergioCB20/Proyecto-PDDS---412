@@ -6,14 +6,14 @@
 
 ---
 
-## Estado Actual
+## Estado Actual (Actualizado: 12/05/2026)
 
 | Área | Estado | Notas |
 |---|---|---|
 | BC1 — Entidades, Services, Controllers | **100%** | ✅ Completo: carga masiva, PDF, Redis |
-| BC2 — Planificación y Replanificación | **0%** | Todo por implementar |
-| BC3 — Identidad y Acceso | **100%** | ✅ Completo: auditoría, validaciones, seed |
-| Frontend — Login, Admin, Mapa | ~65% | Faltan: reporte, registro equipaje, conexión API real |
+| BC2 — Planifcación y Replanificación | ~40% | Migraciones, entidades, SesionService+Controller completados. Falta: MotorEnrutamiento, TickService, Redis |
+| BC3 — Identidad y Acceso | **100%** | ✅ Completo: auditoría, validaciones, seed, nodo_ref_id en operadores |
+| Frontend — Login, Admin, Mapa | ~75% | Simulación conectada a API real. Faltan: carga masiva UI, reporte conexión real, PDF |
 
 ---
 
@@ -56,15 +56,15 @@ com.tasfb2b.backend.shared.events/
 
 | # | Tarea | Dep | Descripción |
 |---|---|---|---|
-| **0** | Crear eventos compartidos | — | Crear `shared/events/` con los 3 record classes (si Persona 1 no lo hizo) |
-| 1 | Migraciones BC2 | — | `V11__sesiones_ejecucion.sql` a `V16__puntos_sla.sql` (tablas según spec database-schema.md) |
-| 2 | Entidades BC2 | 0 | `SesionEjecucion`, `EventoCancelacion`, `LoteReplanificacion`, `ItemLote`, `ReporteSesion`, `PuntoSLA` + enums (`EstadoSesion`, `TipoSesion`, `EstadoItemLote`) |
-| 3 | Repos BC2 | 2 | `SesionRepository`, `EventoCancelacionRepository`, `LoteReplanificacionRepository`, `ItemLoteRepository`, `ReporteSesionRepository`, `PuntoSLARepository` |
+| **0** | Crear eventos compartidos | — | ~~Crear `shared/events/` con los 3 record classes~~ ✅ Completado |
+| 1 | Migraciones BC2 | — | ~~`V12__sesiones_ejecucion.sql` a `V17__puntos_sla.sql`~~ ✅ Completado |
+| 2 | Entidades BC2 | 0 | ~~`SesionEjecucion`, `EventoCancelacion`, `LoteReplanificacion` + enums~~ ✅ Completado |
+| 3 | Repos BC2 | 2 | ~~`SesionRepository`, `EventoCancelacionRepository`, `LoteReplanificacionRepository`~~ ✅ Completado |
 | 4 | MotorEnrutamiento greedy | 2 | Algoritmo greedy: buscar vuelo directo o conexión de 2 escalas (mínimo 60 min conexión). Respeta SLA. Retorna `PlanViaje` con `SegmentoPlan[]`. Tests unitarios obligatorios. **Stateless — no deps externos.** |
-| 5 | SesionService + SesionController | 4 | `POST /sesiones`, `POST /sesiones/{id}/iniciar`, `/pausar`, `/detener`. Estados: CONFIGURADA → EN_CURSO → PAUSADA/FINALIZADA/COLAPSADA. |
+| 5 | SesionService + SesionController | 4 | ~~`POST /sesiones`, `POST /sesiones/{id}/iniciar`, `/pausar`, `/detener`~~ ✅ Completado. **NOTA: /metricas devuelve datos de BD (dummy), falta integración con TickService y Redis** |
 | 6 | ReplanificacionService | 4 + 0 | `@EventListener` de `VueloCanceladoEvent` → obtiene equipajes afectados, crea lote, ejecuta motor, evalúa SLA breach, actualiza estado equipaje |
-| 7 | TickService | 5 | Scheduler: avanza reloj virtual, evalúa probabilidad de cancelación, actualiza estados, escribe Redis (`sesion:{id}:metricas`), registra `PuntoSLA` |
-| 8 | ReporteService + MetricasController | 6 | `GET /sesiones/{id}/metricas` (lee de Redis), `GET /sesiones/{id}/reporte` (genera reporte con serie SLA, punto colapso) |
+| 7 | TickService | 5 | Scheduler: avanza reloj virtual, evalúa probabilidad de cancelación, actualiza estados, escribe Redis (`sesion:{id}:metricas`), registra `PuntoSLA`. **CRÍTICO para tener métricas reales en la simulación** |
+| 8 | ReporteService + MetricasController | 6 | `GET /sesiones/{id}/metricas` (debe leer de Redis), `GET /sesiones/{id}/reporte` (genera reporte con serie SLA, punto colapso) |
 | 9 | WebSocket teletría | 7 | Endpoint `ws://host/api/ws/telemetria?token={jwt}` → emite JSON con posiciones de nodos/vuelos cada tick |
 
 ---
@@ -79,9 +79,10 @@ com.tasfb2b.backend.shared.events/
 | 2 | Formulario registro equipaje | — | ~~En `/operacion`: `id_equipaje`, `destino_iata` (select), `vuelo_id` (select `/vuelos?estado=PROGRAMADO`), `sla_comprometido` → `POST /equipajes`~~ ✅ Completado |
 | 3 | Middleware protección rutas | — | ~~`middleware.ts` → lee cookie `token`, extrae rol, protege `/admin`, `/simulacion`, `/operacion`~~ ✅ Completado |
 | 4 | UI carga masiva | Backend A2 | Upload CSV → preview → confirmar. Conecta a `POST /equipajes/carga-masiva` y `confirmar` |
-| 5 | Conectar simulación a API real | Backend B5 | Reemplazar `tickMetricasMock` por polling `GET /sesiones/{id}/metricas`. Botones iniciar/pausar/detener a sus endpoints. `POST /sesiones` al crear. |
+| 5 | Conectar simulación a API real | Backend B5 | ~~Reemplazar `tickMetricasMock` por polling `GET /sesiones/{id}/metricas`. Botones iniciar/pausar/detener a sus endpoints. `POST /sesiones` al crear.~~ ✅ Completado. **NOTA: muestra datos dummy hasta que TickService escriba en Redis** |
 | 6 | Link a reporte | 1 + Backend B8 | En `/simulacion/[id]`: botón "Ver Reporte" cuando estado = FINALIZADA → redirige a `/simulacion/[id]/reporte` |
 | 7 | Botón manifiesto PDF | Backend A4 | Botón descarga en `/operacion` → `GET /manifiestos/{vuelo_id}` |
+| 8 | Selector nodo en Admin | — | ~~En `/admin`: selector de nodo al crear usuario OPERADOR_LOGISTICO~~ ✅ Completado (12/05/2026) |
 
 ---
 
@@ -156,6 +157,21 @@ Track C (Persona 3):
 
 ---
 
+## Estado de la Simulación (12/05/2026)
+
+La simulación ya está conectada al backend:
+- ✅ Se puede crear sesión (`POST /sesiones`)
+- ✅ Se puede iniciar, pausar, detener (`POST /sesiones/{id}/iniciar|pausar|detener`)
+- ✅ Polling de métricas funciona (`GET /sesiones/{id}/metricas`)
+- ⚠️ **Las métricas son dummy** — muestran valores estáticos (SLA=100, cancelados=0)
+
+**Para tener métricas reales en la simulación, falta:**
+1. **TickService** (Backend B7) — scheduler que calcula y actualiza métricas
+2. **Redis** — TickService debe escribir en `sesion:{id}:metricas`
+3. **SesionService.obtenerMetricas()** — debe leer de Redis en lugar de BD
+
+---
+
 ## Convenciones de commits
 
 ```bash
@@ -175,11 +191,11 @@ git commit -m "feat(bc2): implementar motor de enrutamiento greedy"
 
 ## Usuarios de prueba (ya en base de datos)
 
-| Correo | Password | Rol |
-|---|---|---|
-| admin@tasfb2b.com | admin123 | ADMINISTRADOR |
-| operador@tasfb2b.com | operador123 | OPERADOR_LOGISTICO |
-| analista@tasfb2b.com | analista123 | ANALISTA |
+| Correo | Password | Rol | Nodo Asignado |
+|---|---|---|---|
+| admin@tasfb2b.com | admin123 | ADMINISTRADOR | — |
+| operador@tasfb2b.com | operador123 | OPERADOR_LOGISTICO | LIM (Jorge Chavez) |
+| analista@tasfb2b.com | analista123 | ANALISTA | — |
 
 ---
 

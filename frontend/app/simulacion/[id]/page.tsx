@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Play, Pause, Square, Clock, AlertTriangle, RefreshCw, Activity } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { api } from '@/lib/api';
 import { MOCK_NODOS, MOCK_VUELOS, nodoToEnMapa, resetMetricasMock, tickMetricasMock } from '@/lib/mock';
 import type { NodoEnMapa, MetricasSimulacion } from '@/lib/types';
 
@@ -31,14 +32,19 @@ function MetricaCard({ label, value, icon: Icon, color }: {
 function SimulacionContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const sesionId = searchParams.get('sesionId') || '';
+  const sesionIdParam = searchParams.get('sesionId') || '';
   const probCancelacion = Number(searchParams.get('prob_cancelacion') || '15');
+  const fechaInicio = searchParams.get('fecha_inicio_virtual') || '2025-06-01';
+  const horaInicio = searchParams.get('hora_inicio_virtual') || '08:00';
 
+  const [backendSesionId, setBackendSesionId] = useState<string>('');
   const [estado, setEstado] = useState<'CONFIGURADA' | 'EN_CURSO' | 'PAUSADA' | 'FINALIZADA'>('CONFIGURADA');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>('');
   const [metricas, setMetricas] = useState<MetricasSimulacion>({
-    sesion_id: sesionId,
+    sesion_id: sesionIdParam,
     estado: 'CONFIGURADA',
-    dia_hora_virtual: `${searchParams.get('fecha_inicio_virtual') || '2025-06-01'}T${searchParams.get('hora_inicio_virtual') || '08:00'}:00Z`,
+    dia_hora_virtual: `${fechaInicio}T${horaInicio}:00Z`,
     segundos_reales_transcurridos: 0,
     sla_acumulado_pct: 100,
     vuelos_cancelados: 0,
@@ -47,35 +53,104 @@ function SimulacionContent() {
 
   const nodosEnMapa: NodoEnMapa[] = MOCK_NODOS.map(nodoToEnMapa);
   const vuelos = MOCK_VUELOS;
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+
+  const fetchMetricas = useCallback(async () => {
+    if (!backendSesionId) return;
+    try {
+      const data = await api.get<any>(`/sesiones/${backendSesionId}/metricas`);
+      setMetricas({
+        sesion_id: data.sesion_id,
+        estado: data.estado,
+        dia_hora_virtual: data.dia_hora_virtual,
+        segundos_reales_transcurridos: data.segundos_reales_transcurridos,
+        sla_acumulado_pct: Number(data.sla_acumulado_pct),
+        vuelos_cancelados: data.vuelos_cancelados,
+        maletas_replanificadas: data.maletas_replanificadas,
+      });
+      setEstado(data.estado as any);
+    } catch (err) {
+      console.error('Error fetching metricas:', err);
+    }
+  }, [backendSesionId]);
 
   useEffect(() => {
-    resetMetricasMock(sesionId, probCancelacion / 100);
-  }, [sesionId, probCancelacion]);
+    if (backendSesionId && estado === 'EN_CURSO') {
+      pollingRef.current = setInterval(fetchMetricas, 3000);
+    } else if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, [backendSesionId, estado, fetchMetricas]);
 
   useEffect(() => {
-    if (estado !== 'EN_CURSO') return;
+    resetMetricasMock(sesionIdParam, probCancelacion / 100);
+  }, [sesionIdParam, probCancelacion]);
 
-    const interval = setInterval(() => {
+  const handleIniciar = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      let sesionId = backendSesionId;
+      if (!sesionId) {
+        const createRes = await api.post<any>('/sesiones', {
+          tipo: 'SIMULADA',
+          fecha_inicio_virtual: fechaInicio,
+          hora_inicio_virtual: horaInicio + ':00',
+          prob_cancelacion: probCancelacion / 100,
+          umbrales_almacen: {
+            verde_min: 0, verde_max: 70,
+            ambar_min: 70, ambar_max: 90,
+            rojo_min: 90, rojo_max: 100
+          },
+          umbrales_vuelo: {
+            verde_min: 0, verde_max: 75,
+            ambar_min: 75, ambar_max: 90,
+            rojo_min: 90, rojo_max: 100
+          }
+        });
+        sesionId = createRes.id;
+        setBackendSesionId(sesionId);
+      }
+
+      await api.post(`/sesiones/${sesionId}/iniciar`, {});
+      setEstado('EN_CURSO');
+    } catch (err: any) {
+      setError(err.mensaje || err.message || 'Error al iniciar sesion');
       setMetricas(tickMetricasMock(true, probCancelacion / 100));
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [estado, probCancelacion]);
-
-  const handleIniciar = () => {
-    resetMetricasMock(sesionId, probCancelacion / 100);
-    setMetricas((m) => ({ ...m, estado: 'EN_CURSO' }));
-    setEstado('EN_CURSO');
+      setEstado('EN_CURSO');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handlePausar = () => {
-    setMetricas((m) => ({ ...m, estado: 'PAUSADA' }));
-    setEstado('PAUSADA');
+  const handlePausar = async () => {
+    if (!backendSesionId) return;
+    setLoading(true);
+    try {
+      await api.post(`/sesiones/${backendSesionId}/pausar`, {});
+      setEstado('PAUSADA');
+    } catch (err: any) {
+      setError(err.mensaje || 'Error al pausar');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDetener = () => {
-    setMetricas((m) => ({ ...m, estado: 'FINALIZADA' }));
-    setEstado('FINALIZADA');
+  const handleDetener = async () => {
+    if (!backendSesionId) return;
+    setLoading(true);
+    try {
+      await api.post(`/sesiones/${backendSesionId}/detener`, {});
+      setEstado('FINALIZADA');
+    } catch (err: any) {
+      setError(err.mensaje || 'Error al detener');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const slaColor = () => {
@@ -94,7 +169,7 @@ function SimulacionContent() {
   return (
     <div className="flex h-[calc(100vh-3.5rem)]">
       <div className="flex-1 p-4">
-        <GeoMapa
+<GeoMapa
           nodos={nodosEnMapa}
           vuelos={vuelos}
           mostrarAviones={true}
@@ -117,7 +192,7 @@ function SimulacionContent() {
               {estado.replace('_', ' ')}
             </Badge>
           </div>
-          <div className="text-xs text-slate-500 font-mono">{sesionId || 'sim-' + Math.random().toString(36).substring(2, 8)}</div>
+          <div className="text-xs text-slate-500 font-mono">{backendSesionId || sesionIdParam || 'sim-' + Math.random().toString(36).substring(2, 8)}</div>
         </div>
 
         <div className="p-4 space-y-3 flex-1">
