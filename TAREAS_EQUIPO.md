@@ -10,7 +10,7 @@
 
 | Área | Estado | Notas |
 |---|---|---|
-| BC1 — Entidades, Services, Controllers | ~85% | Faltan: carga masiva, PDF, Redis |
+| BC1 — Entidades, Services, Controllers | **100%** | ✅ Completo: carga masiva, PDF, Redis |
 | BC2 — Planificación y Replanificación | **0%** | Todo por implementar |
 | BC3 — Identidad y Acceso | **100%** | ✅ Completo: auditoría, validaciones, seed |
 | Frontend — Login, Admin, Mapa | ~65% | Faltan: reporte, registro equipaje, conexión API real |
@@ -40,10 +40,10 @@ com.tasfb2b.backend.shared.events/
 |---|---|---|---|
 | **0** | Crear eventos compartidos | — | ~~Crear `shared/events/` con los 3 record classes~~ ✅ Completado |
 | 1 | Publicar eventos en BC1 | 0 | ~~Inyectar `ApplicationEventPublisher` en `EquipajeService` → publicar `EquipajeIngresadoEvent`~~ ✅ Completado. En `CancelacionService` → ~~publicar `VueloCanceladoEvent`~~ ✅ Completado. |
-| 2 | Carga masiva CSV | — | `POST /equipajes/carga-masiva` → lee CSV, valida cada fila, devuelve preview con `validos`, `con_revision` |
-| 3 | Confirmar carga masiva | 2 | `POST /equipajes/carga-masiva/confirmar` → ingresa IDs válidos |
-| 4 | Manifiesto PDF | — | `GET /manifiestos/{vuelo_id}` → genera PDF con lista de equipajes del vuelo |
-| 5 | Integración Redis | — | Escribir `nodo:{id}:ocupacion` y `vuelo:{id}:carga_disponible` al registrar/cancelar. Usar `StringRedisTemplate`. |
+| 2 | Carga masiva CSV | — | ~~`POST /equipajes/carga-masiva` → lee CSV, valida cada fila, devuelve preview con `validos`, `con_revision`~~ ✅ Completado |
+| 3 | Confirmar carga masiva | 2 | ~~`POST /equipajes/carga-masiva/confirmar` → ingresa IDs válidos~~ ✅ Completado |
+| 4 | Manifiesto PDF | — | ~~`GET /manifiestos/{vuelo_id}` → genera PDF con lista de equipajes del vuelo~~ ✅ Completado |
+| 5 | Integración Redis | — | ~~Escribir `nodo:{id}:ocupacion` y `vuelo:{id}:carga_disponible` al registrar/cancelar. Usar `StringRedisTemplate`.~~ ✅ Completado |
 | 6 | Auditoría BC3 completa | — | ~~En `UsuarioService.crear()` y `cambiarEstado()` → guardar `EntradaAuditoria`~~ ✅ Completado. |
 | 7 | Validar PUT /usuarios | — | ~~En `UsuarioService.actualizar()` → solo permitir cambio de `nombre`, rechazar cambio de `rol` o `nodo_ref_id`~~ ✅ Completado. |
 | 8 | Seed plan_vuelos en SQL | — | ~~Mover el `INSERT INTO plan_vuelos` del DataSeeder a `V5__plan_vuelos.sql`~~ ✅ Completado. |

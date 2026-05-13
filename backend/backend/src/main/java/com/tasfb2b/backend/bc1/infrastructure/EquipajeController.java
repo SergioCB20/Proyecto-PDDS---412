@@ -1,14 +1,12 @@
 package com.tasfb2b.backend.bc1.infrastructure;
 
+import com.tasfb2b.backend.bc1.application.CargaMasivaService;
 import com.tasfb2b.backend.bc1.application.EquipajeService;
-import com.tasfb2b.backend.bc1.infrastructure.NodoLogisticoRepository;
-import com.tasfb2b.backend.bc3.domain.Usuario;
-import com.tasfb2b.backend.bc3.infrastructure.UsuarioRepository;
 import com.tasfb2b.backend.shared.security.JwtUtil;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
 import java.util.UUID;
@@ -18,13 +16,14 @@ import java.util.UUID;
 public class EquipajeController {
 
     private final EquipajeService equipajeService;
+    private final CargaMasivaService cargaMasivaService;
     private final JwtUtil jwtUtil;
-    private final UsuarioRepository usuarioRepository;
 
-    public EquipajeController(EquipajeService equipajeService, JwtUtil jwtUtil, UsuarioRepository usuarioRepository) {
+    public EquipajeController(EquipajeService equipajeService, CargaMasivaService cargaMasivaService,
+                              JwtUtil jwtUtil) {
         this.equipajeService = equipajeService;
+        this.cargaMasivaService = cargaMasivaService;
         this.jwtUtil = jwtUtil;
-        this.usuarioRepository = usuarioRepository;
     }
 
     @PostMapping
@@ -40,6 +39,38 @@ public class EquipajeController {
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (EquipajeService.ValidacionException e) {
             return ResponseEntity.unprocessableEntity().body(error(422, "VALIDACION_FALLIDA", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/carga-masiva")
+    public ResponseEntity<?> cargaMasiva(
+            @RequestHeader("Authorization") String authHeader,
+            @RequestParam("archivo") MultipartFile archivo) {
+        try {
+            UUID nodoId = extraerNodoIdDelToken(authHeader);
+            if (nodoId == null) {
+                nodoId = UUID.fromString("00000000-0000-0000-0003-000000000001");
+            }
+            CargaMasivaService.PreviewResponse response = cargaMasivaService.procesarCsv(archivo, nodoId);
+            return ResponseEntity.ok(response);
+        } catch (CargaMasivaService.CargaException e) {
+            return ResponseEntity.badRequest().body(error(400, "CARGA_INVALIDA", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/carga-masiva/confirmar")
+    public ResponseEntity<?> confirmarCargaMasiva(
+            @RequestHeader("Authorization") String authHeader,
+            @RequestBody CargaMasivaService.ConfirmarRequest request) {
+        try {
+            UUID nodoId = extraerNodoIdDelToken(authHeader);
+            if (nodoId == null) {
+                nodoId = UUID.fromString("00000000-0000-0000-0003-000000000001");
+            }
+            CargaMasivaService.ConfirmarResponse response = cargaMasivaService.confirmar(request, nodoId);
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (CargaMasivaService.CargaException e) {
+            return ResponseEntity.badRequest().body(error(400, "CONFIRMAR_INVALIDO", e.getMessage()));
         }
     }
 

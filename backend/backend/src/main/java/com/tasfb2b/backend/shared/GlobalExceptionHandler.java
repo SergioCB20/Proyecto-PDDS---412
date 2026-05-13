@@ -52,6 +52,21 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error(HttpStatus.NOT_FOUND, "EQUIPAJE_NO_ENCONTRADO", ex.getMessage()));
     }
 
+    @ExceptionHandler(com.tasfb2b.backend.bc1.application.CargaMasivaService.CargaException.class)
+    public ResponseEntity<?> handleCarga(com.tasfb2b.backend.bc1.application.CargaMasivaService.CargaException ex) {
+        return ResponseEntity.badRequest().body(error(HttpStatus.BAD_REQUEST, "CARGA_INVALIDA", ex.getMessage()));
+    }
+
+    @ExceptionHandler(com.tasfb2b.backend.bc1.application.ManifiestoService.VueloNoEncontradoException.class)
+    public ResponseEntity<?> handleManifiestoVueloNoEncontrado(com.tasfb2b.backend.bc1.application.ManifiestoService.VueloNoEncontradoException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error(HttpStatus.NOT_FOUND, "VUELO_NO_ENCONTRADO", ex.getMessage()));
+    }
+
+    @ExceptionHandler(com.tasfb2b.backend.bc1.application.ManifiestoService.ManifiestoVacioException.class)
+    public ResponseEntity<?> handleManifiestoVacio(com.tasfb2b.backend.bc1.application.ManifiestoService.ManifiestoVacioException ex) {
+        return ResponseEntity.unprocessableEntity().body(error(HttpStatus.UNPROCESSABLE_ENTITY, "MANIFIESTO_VACIO", ex.getMessage()));
+    }
+
     @ExceptionHandler(com.tasfb2b.backend.bc3.application.UsuarioService.UsuarioNoEncontradoException.class)
     public ResponseEntity<?> handleUsuarioNoEncontrado(com.tasfb2b.backend.bc3.application.UsuarioService.UsuarioNoEncontradoException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error(HttpStatus.NOT_FOUND, "USUARIO_NO_ENCONTRADO", ex.getMessage()));
