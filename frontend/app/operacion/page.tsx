@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Package, Clock, MapPin, RefreshCw, ChevronDown, ChevronUp, CheckCircle, XCircle, Plane, ArrowRight } from 'lucide-react';
+import { Package, Clock, MapPin, RefreshCw, ChevronDown, ChevronUp, CheckCircle, XCircle, Plane, ArrowRight, Upload, FileSpreadsheet, AlertTriangle } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { api } from '@/lib/api';
 import { MOCK_NODOS, MOCK_VUELOS, nodoToEnMapa } from '@/lib/mock';
@@ -9,7 +9,8 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import type { Nodo, Vuelo, NodoEnMapa, CrearEquipajeRequest, CrearEquipajeResponse } from '@/lib/types';
+import { Modal } from '@/components/ui/Modal';
+import type { Nodo, Vuelo, NodoEnMapa, CrearEquipajeRequest, CrearEquipajeResponse, CargaMasivaPreview, CargaMasivaFila } from '@/lib/types';
 
 const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false });
 
@@ -48,6 +49,13 @@ export default function OperacionPage() {
   const [formLoading, setFormLoading] = useState(false);
   const [formSuccess, setFormSuccess] = useState<CrearEquipajeResponse | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+
+  const [cargaMasivaOpen, setCargaMasivaOpen] = useState(false);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvPreview, setCsvPreview] = useState<CargaMasivaPreview | null>(null);
+  const [csvLoading, setCsvLoading] = useState(false);
+  const [csvError, setCsvError] = useState<string | null>(null);
+  const [csvConfirmLoading, setCsvConfirmLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -126,6 +134,98 @@ export default function OperacionPage() {
     }
   };
 
+  const parseCSV = (content: string): CargaMasivaPreview => {
+    const lines = content.trim().split('\n');
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+    
+    const idIdx = headers.findIndex(h => h === 'id_equipaje' || h === 'id');
+    const destinoIdx = headers.findIndex(h => h === 'destino_iata' || h === 'destino');
+    const vueloIdx = headers.findIndex(h => h === 'vuelo_id' || h === 'vuelo');
+    const slaIdx = headers.findIndex(h => h.includes('sla'));
+
+    const validos: CargaMasivaFila[] = [];
+    const con_revision: { fila: number; errores: string[] }[] = [];
+
+    const validDestinos = nodos.map(n => n.codigo_iata);
+    const validVuelos = allVuelos.map(v => v.id);
+
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(',').map(c => c.trim());
+      const errores: string[] = [];
+      const fila = i + 1;
+
+      if (idIdx === -1 || !cols[idIdx]) errores.push('ID de equipaje requerido');
+      if (destinoIdx === -1 || !cols[destinoIdx] || !validDestinos.includes(cols[destinoIdx].toUpperCase())) errores.push('Destino IATA inválido');
+      if (vueloIdx === -1 || !cols[vueloIdx] || !validVuelos.includes(cols[vueloIdx])) errores.push('Vuelo ID inválido');
+      if (slaIdx === -1 || !cols[slaIdx] || isNaN(parseInt(cols[slaIdx]))) errores.push('SLA inválido');
+
+      if (errores.length > 0) {
+        con_revision.push({ fila, errores });
+      } else {
+        validos.push({
+          id_equipaje: cols[idIdx],
+          destino_iata: cols[destinoIdx].toUpperCase(),
+          vuelo_id: cols[vueloIdx],
+          sla_comprometido: cols[slaIdx],
+        });
+      }
+    }
+
+    return { validos, con_revision };
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setCsvFile(file);
+    setCsvError(null);
+    setCsvLoading(true);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result as string;
+        const preview = parseCSV(content);
+        setCsvPreview(preview);
+      } catch {
+        setCsvError('Error al parsear el archivo CSV');
+        setCsvPreview(null);
+      } finally {
+        setCsvLoading(false);
+      }
+    };
+    reader.onerror = () => {
+      setCsvError('Error al leer el archivo');
+      setCsvLoading(false);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleConfirmarCargaMasiva = async () => {
+    if (!csvPreview || csvPreview.validos.length === 0) return;
+
+    setCsvConfirmLoading(true);
+    try {
+      await api.post('/equipajes/carga-masiva/confirmar', { equipajes: csvPreview.validos });
+      setCargaMasivaOpen(false);
+      setCsvFile(null);
+      setCsvPreview(null);
+      fetchData();
+    } catch (err: unknown) {
+      setCsvError(err instanceof Error ? err.message : 'Error al confirmar carga');
+    } finally {
+      setCsvConfirmLoading(false);
+    }
+  };
+
+  const handleCargaMasivaClose = () => {
+    setCargaMasivaOpen(false);
+    setCsvFile(null);
+    setCsvPreview(null);
+    setCsvError(null);
+  };
+
   const destinoOptions = nodos.filter(n => n.codigo_iata).map(n => ({ value: n.codigo_iata, label: n.codigo_iata })).sort((a, b) => a.label.localeCompare(b.label));
 
   const vueloOptions = vuelosProgramados.map(v => ({
@@ -166,16 +266,25 @@ export default function OperacionPage() {
         </div>
 
         <div className="p-4 flex-1 overflow-y-auto">
-          <button
-            onClick={() => setFormOpen(!formOpen)}
-            className="w-full flex items-center justify-between p-3 rounded-lg bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors mb-3"
-          >
-            <div className="flex items-center gap-2">
-              <Package size={16} className="text-blue-600 dark:text-blue-400" />
-              <span className="font-medium text-sm text-blue-900 dark:text-blue-100">Registrar Equipaje</span>
-            </div>
-            {formOpen ? <ChevronUp size={16} className="text-blue-600 dark:text-blue-400" /> : <ChevronDown size={16} className="text-blue-600 dark:text-blue-400" />}
-          </button>
+          <div className="flex gap-2 mb-3">
+            <button
+              onClick={() => setFormOpen(!formOpen)}
+              className="flex-1 flex items-center justify-between p-3 rounded-lg bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Package size={16} className="text-blue-600 dark:text-blue-400" />
+                <span className="font-medium text-sm text-blue-900 dark:text-blue-100">Individual</span>
+              </div>
+              {formOpen ? <ChevronUp size={16} className="text-blue-600 dark:text-blue-400" /> : <ChevronDown size={16} className="text-blue-600 dark:text-blue-400" />}
+            </button>
+            <button
+              onClick={() => setCargaMasivaOpen(true)}
+              className="flex-1 flex items-center justify-center gap-2 p-3 rounded-lg bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors"
+            >
+              <FileSpreadsheet size={16} className="text-green-600 dark:text-green-400" />
+              <span className="font-medium text-sm text-green-900 dark:text-green-100">Carga Masiva</span>
+            </button>
+          </div>
 
           {formOpen && (
             <form onSubmit={handleSubmit} className="space-y-3 mb-4 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
@@ -333,6 +442,123 @@ export default function OperacionPage() {
           </p>
         </div>
       </div>
+
+      <Modal
+        open={cargaMasivaOpen}
+        onClose={handleCargaMasivaClose}
+        title="Carga Masiva de Equipaje"
+        footer={
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={handleCargaMasivaClose}>Cancelar</Button>
+            <Button 
+              onClick={handleConfirmarCargaMasiva} 
+              disabled={!csvPreview || csvPreview.validos.length === 0 || csvConfirmLoading}
+            >
+              {csvConfirmLoading ? 'Confirmando...' : `Confirmar (${csvPreview?.validos.length || 0})`}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-6 text-center">
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleFileChange}
+              className="hidden"
+              id="csv-upload"
+            />
+            <label htmlFor="csv-upload" className="cursor-pointer">
+              <Upload size={32} className="mx-auto text-slate-400 mb-2" />
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                {csvFile ? csvFile.name : 'Subir archivo CSV'}
+              </p>
+              <p className="text-xs text-slate-500 mt-1">
+                Formato: id_equipaje, destino_iata, vuelo_id, sla_horas
+              </p>
+            </label>
+          </div>
+
+          {csvLoading && (
+            <div className="text-center text-sm text-slate-500">Procesando archivo...</div>
+          )}
+
+          {csvError && (
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
+              <AlertTriangle size={16} className="text-red-600 dark:text-red-400" />
+              <span className="text-sm text-red-700 dark:text-red-300">{csvError}</span>
+            </div>
+          )}
+
+          {csvPreview && (
+            <div className="space-y-3">
+              <div className="flex gap-4 text-sm">
+                <div className="flex items-center gap-1">
+                  <CheckCircle size={14} className="text-green-500" />
+                  <span className="text-green-700 dark:text-green-400">Válidos: {csvPreview.validos.length}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <AlertTriangle size={14} className="text-yellow-500" />
+                  <span className="text-yellow-700 dark:text-yellow-400">Con revisión: {csvPreview.con_revision.length}</span>
+                </div>
+              </div>
+
+              {csvPreview.validos.length > 0 && (
+                <div className="max-h-40 overflow-y-auto border rounded-lg">
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0">
+                      <tr>
+                        <th className="p-2 text-left">ID</th>
+                        <th className="p-2 text-left">Destino</th>
+                        <th className="p-2 text-left">Vuelo</th>
+                        <th className="p-2 text-left">SLA</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {csvPreview.validos.slice(0, 10).map((row, i) => (
+                        <tr key={i} className="border-t border-slate-200 dark:border-slate-700">
+                          <td className="p-2">{row.id_equipaje}</td>
+                          <td className="p-2">{row.destino_iata}</td>
+                          <td className="p-2">{row.vuelo_id}</td>
+                          <td className="p-2">{row.sla_comprometido}h</td>
+                        </tr>
+                      ))}
+                      {csvPreview.validos.length > 10 && (
+                        <tr className="border-t border-slate-200 dark:border-slate-700">
+                          <td colSpan={4} className="p-2 text-center text-slate-500">
+                            ...y {csvPreview.validos.length - 10} más
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {csvPreview.con_revision.length > 0 && (
+                <div className="max-h-32 overflow-y-auto border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                  <table className="w-full text-xs">
+                    <thead className="bg-yellow-50 dark:bg-yellow-900/30 sticky top-0">
+                      <tr>
+                        <th className="p-2 text-left">Fila</th>
+                        <th className="p-2 text-left">Errores</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {csvPreview.con_revision.map((row, i) => (
+                        <tr key={i} className="border-t border-yellow-200 dark:border-yellow-800">
+                          <td className="p-2">{row.fila}</td>
+                          <td className="p-2 text-red-600 dark:text-red-400">{row.errores.join(', ')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }
