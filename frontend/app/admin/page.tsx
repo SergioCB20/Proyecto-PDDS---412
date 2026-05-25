@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Search, Plus, Edit2, UserX, UserCheck, ChevronLeft, ChevronRight } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Input } from '@/components/ui/Input';
@@ -30,22 +30,24 @@ export default function AdminPage() {
   const [formLoading, setFormLoading] = useState(false);
   const [nodos, setNodos] = useState<Nodo[]>([]);
 
-  useEffect(() => {
-    const fetchUsuarios = async () => {
-      setLoading(true);
-      try {
-        const res = await api.get<PageResponse<Usuario>>(`/usuarios?page=${page}&size=10`);
-        setUsuarios(res.content);
-        setTotal(res.totalElements);
-        setTotalPages(res.totalPages);
-      } catch {
-        setUsuarios([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchUsuarios();
+  const fetchUsuarios = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get<PageResponse<Usuario>>(`/usuarios?page=${page}&size=10`);
+      setUsuarios(res.content);
+      setTotal(res.totalElements);
+      setTotalPages(res.totalPages);
+    } catch {
+      setUsuarios([]);
+    } finally {
+      setLoading(false);
+    }
   }, [page]);
+
+  useEffect(() => {
+    const timer = setTimeout(fetchUsuarios, 0);
+    return () => clearTimeout(timer);
+  }, [fetchUsuarios]);
 
   useEffect(() => {
     api.get<Nodo[]>('/nodos').then(setNodos).catch(() => {});
