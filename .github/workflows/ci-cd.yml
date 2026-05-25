@@ -1,0 +1,89 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  BACKEND_DIR: backend/backend
+  FRONTEND_DIR: frontend
+
+jobs:
+  backend-ci:
+    name: Backend - Build & Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.BACKEND_DIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: "maven"
+
+      - name: Build and test
+        run: mvn clean verify
+
+  frontend-ci:
+    name: Frontend - Build & Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.FRONTEND_DIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: ${{ env.FRONTEND_DIR }}/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Lint
+        run: npm run lint
+
+  deploy:
+    name: Deploy to Server PUCP
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [backend-ci, frontend-ci]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+
+            cd "${{ secrets.SERVER_DIR }}"
+            git pull origin main
+
+            # ── Backend ──────────────────────────
+            cd backend/backend
+            mvn clean package -DskipTests
+            sudo cp target/*.war /var/lib/tomcat10/webapps/ROOT.war
+            echo "✅ Backend WAR deployed. Tomcat auto-deploys."
+
+            # ── Frontend ─────────────────────────
+            cd ../../frontend
+            npm ci
+            npm run build
+            sudo systemctl restart tasfb2b-frontend
+            echo "✅ Frontend restarted."
