@@ -56,6 +56,7 @@ export default function OperacionPage() {
   const [csvLoading, setCsvLoading] = useState(false);
   const [csvError, setCsvError] = useState<string | null>(null);
   const [csvConfirmLoading, setCsvConfirmLoading] = useState(false);
+  const [manifestLoading, setManifestLoading] = useState<string | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -226,6 +227,32 @@ export default function OperacionPage() {
     setCsvFile(null);
     setCsvPreview(null);
     setCsvError(null);
+  };
+
+  const handleDescargarManifiesto = async (vuelo: Vuelo) => {
+    setManifestLoading(vuelo.id);
+    try {
+      const blob = await api.downloadBlob(`/manifiestos/${vuelo.id}`);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `manifiesto_${vuelo.codigo_vuelo}_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+      const error = err as { status?: number; mensaje?: string };
+      if (error.status === 404) {
+        alert('Vuelo no encontrado');
+      } else if (error.status === 422) {
+        alert('El vuelo no tiene equipajes registrados');
+      } else {
+        alert(error.mensaje || 'Error al descargar manifiesto');
+      }
+    } finally {
+      setManifestLoading(null);
+    }
   };
 
   const destinoOptions = nodos.filter(n => n.codigo_iata).map(n => ({ value: n.codigo_iata, label: n.codigo_iata })).sort((a, b) => a.label.localeCompare(b.label));
@@ -412,6 +439,46 @@ export default function OperacionPage() {
               </div>
             ))}
           </div>
+
+          {vuelosProgramados.length > 0 && (
+            <>
+              <div className="flex items-center gap-2 mb-3 mt-4">
+                <Plane size={16} className="text-slate-400" />
+                <h3 className="font-medium text-sm text-slate-700 dark:text-slate-300">
+                  Vuelos Programados
+                </h3>
+                <Badge variant="blue">{vuelosProgramados.length}</Badge>
+              </div>
+              <div className="space-y-2">
+                {vuelosProgramados.slice(0, 20).map((vuelo) => (
+                  <div
+                    key={vuelo.id}
+                    className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    <div className="p-1.5 rounded-lg bg-slate-200 dark:bg-slate-700">
+                      <Plane size={14} className="text-slate-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                        {vuelo.codigo_vuelo}
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        {vuelo.origen.codigo_iata} → {vuelo.destino.codigo_iata}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleDescargarManifiesto(vuelo)}
+                      disabled={manifestLoading === vuelo.id}
+                      className="p-2 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 disabled:opacity-50"
+                      title="Descargar Manifiesto PDF"
+                    >
+                      <Download size={16} className={manifestLoading === vuelo.id ? 'animate-pulse' : ''} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
 
           <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
             <h3 className="font-medium text-sm text-slate-700 dark:text-slate-300 mb-3">
