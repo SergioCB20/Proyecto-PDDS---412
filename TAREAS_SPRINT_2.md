@@ -8,12 +8,20 @@
 
 ## Tareas Pendientes
 
+### Backend BC1 — Cola de planificación asíncrona (Dev 2)
+
+| # | Tarea | Dep | Estado | Descripción |
+|---|---|---|---|---|
+| **B10** | Cola de planificación infraestructura | — | ⏳ Pendiente | Migración `V18__cola_planificacion.sql`, entidad `ColaPlanificacion`, enums `EstadoCola`/`TipoCola`, repository con `@Lock(PESSIMISTIC_WRITE)` + query nativa `SELECT ... FOR UPDATE SKIP LOCKED`, `PlanificacionWorker` con `@Scheduled(fixedDelay = 500)` que toma items uno a la vez, timeout de items EN_PROCESO > 5 min |
+| **B12** | SSE notificaciones | B10 | ⏳ Pendiente | `SseService` con `ConcurrentHashMap<UUID, SseEmitter>`, `PlanificacionSseController` con `GET /api/eventos/planificacion`, manejo de timeouts y desconexiones. El `PlanificacionWorker` notifica vía SSE al completar/fallar items |
+
 ### Backend BC2 — Core (Dev 1)
 
 | # | Tarea | Dep | Estado | Descripción |
 |---|---|---|---|---|
-| **B4** | MotorEnrutamiento greedy | — | ⏳ Pendiente | Algoritmo greedy: vuelo directo o conexión de 2 escalas (mín 60 min conexión). Respeta SLA. Retorna `PlanViaje` con `SegmentoPlan[]`. **Tests unitarios obligatorios**. Stateless — sin deps externas. |
-| **B6** | ReplanificacionService | B4 | ⏳ Pendiente | `@EventListener(VueloCanceladoEvent)` → obtiene equipajes afectados, crea lote, ejecuta motor, evalúa SLA breach, actualiza estado equipaje |
+| **B4** | MotorEnrutamiento greedy | — | ⏳ Pendiente | Algoritmo greedy: vuelo directo o conexión de 2 escalas (mín 60 min conexión). Respeta SLA. Retorna `PlanViaje` con `SegmentoPlan[]`. **Tests unitarios obligatorios**. Stateless — sin deps externas. NO publica eventos. |
+| **B6** | ReplanificacionService | B4 | ⏳ Pendiente | `@EventListener(VueloCanceladoEvent)` → obtiene equipajes afectados (`findByVueloActualId`), marca `EN_REPLANIFICACION`, crea `EventoCancelacion` + `LoteReplanificacion` + `ItemLote`, **encola cada equipaje en `cola_planificacion`** con tipo=REPLANIFICACION. El worker (B10) ejecuta el motor. |
+| **B11** | EquipajeService + CancelacionService asíncronos | B10 | ⏳ Pendiente | `EquipajeService.registrar()` → solo valida datos básicos, guarda Equipaje (estado=REGISTRADO), **encola en `cola_planificacion`** con tipo=PLANIFICACION, responde 202 Accepted. `CancelacionService.cancelar()` → marca vuelo CANCELADO, **encola equipajes afectados** en `cola_planificacion` en vez de procesar sync. |
 | **B8** | ReporteService + MetricasController | B6 | ⏳ Pendiente | `GET /sesiones/{id}/metricas` (lee Redis), `GET /sesiones/{id}/reporte` (serie SLA, punto colapso) |
 
 ### Backend BC2 — Infraestructura (Dev 2)
@@ -29,6 +37,7 @@
 |---|---|---|---|---|
 | **C4** | UI carga masiva | A2 (✅) | ✅ Completado | Upload CSV → preview → confirmar. Conecta a `POST /equipajes/carga-masiva` y `confirmar` |
 | **C7** | Botón manifiesto PDF | A4 (✅) | ⏳ Pendiente | Botón descarga en `/operacion` → `GET /manifiestos/{vuelo_id}` |
+| **C8** | Integración SSE en operación | B12 | ⏳ Pendiente | En `app/operacion/page.tsx`: abrir `EventSource('/api/eventos/planificacion')`, escuchar eventos `planificacion-completada` para actualizar mapa en tiempo real, `planificacion-fallida` para mostrar error. Reconexión automática. |
 | **C6** | Link a reporte | B8 | ⏳ Pendiente | En `/simulacion/[id]`: botón "Ver Reporte" cuando estado = FINALIZADA → redirige a `/simulacion/[id]/reporte` |
 
 ---
@@ -40,37 +49,55 @@
 **Dev 1 y Dev 2 trabajan en paralelo. Dev 3 salta directo a C7:**
 
 ```
-Dev 1 (Backend Core):          Dev 2 (Backend Infra):        Dev 3 (Frontend):
-┌──────────────────────┐       ┌──────────────────────┐      ┌──────────────────────┐
-│ B4: MotorEnrutamiento│       │ B7: TickService      │      │ C7: Botón PDF        │
-│ - Stateless          │       │ - Scheduler virtual  │      │ - GET manifiesto PDF │
-│ - Sin deps externas  │       │ - Escribe Redis      │      │ - Ya hay API lista   │
-│ - Tests unitarios    │       │ - Prob. cancelación  │      │                      │
-└──────────────────────┘       └──────────────────────┘      └──────────────────────┘
+Dev 1 (Backend Core):          Dev 2 (Backend Infra + Cola):  Dev 3 (Frontend):
+┌──────────────────────┐       ┌──────────────────────┐       ┌──────────────────────┐
+│ B4: MotorEnrutamiento│       │ B10: Cola Infra      │       │ C7: Botón PDF        │
+│ - Stateless          │       │ - V18 migración      │       │ - GET manifiesto PDF │
+│ - Sin deps externas  │       │ - ColaPlanificacion  │       │ - Ya hay API lista   │
+│ - Tests unitarios    │       │ - SKIP LOCKED repo   │       │                      │
+└──────────────────────┘       │ - Worker @Scheduled  │       └──────────────────────┘
+                               │ - Timeout items      │
+                               └──────────────────────┘
 ```
 
 **Por qué no se pisan:**
 - B4 es stateless y puro (solo recibe datos, retorna rutas)
-- B7 depende de SesionService (ya listo) y escribe en Redis
+- B10 es BC1 infraestructura nueva (no toca archivos de BC2)
 - C7 consume endpoint de BC1 (ya listo)
 - **Cero solapamiento de archivos**
 
 ### Fase 2 — Continuación paralela (Día 3-4)
 
 ```
-Dev 1 (Backend Core):          Dev 2 (Backend Infra):        Dev 3 (Frontend):
-┌──────────────────────┐       ┌──────────────────────┐      ┌──────────────────────┐
-│ B6: Replanificacion  │       │ B9: WebSocket        │      │ C6: Espera B8        │
-│ - Escucha eventos    │       │ - Telemetría live    │      │ (bloqueado)          │
-│ - Usa Motor (B4)     │       │ - Depende de B7      │      │ - Prepara UI         │
-│ - Crea lotes         │       │ - Emite posiciones   │      │   mientras espera    │
-└──────────────────────┘       └──────────────────────┘      └──────────────────────┘
+Dev 1 (Backend Core):          Dev 2 (Backend Infra + Cola):  Dev 3 (Frontend):
+┌──────────────────────┐       ┌──────────────────────┐       ┌──────────────────────┐
+│ B6: Replanificacion  │       │ B7: TickService      │       │ C8: SSE integración  │
+│ - Escucha eventos    │       │ - Scheduler virtual  │       │ - EventSource        │
+│ - Usa Motor (B4)     │       │ - Escribe Redis      │       │ - planificacion-     │
+│ - Encola en cola     │       │ - Prob. cancelación  │       │   completada/fallida │
+└──────────────────────┘       └──────────────────────┘       └──────────────────────┘
+
+┌──────────────────────┐       ┌──────────────────────┐
+│ B11: EqService async │       │ B9: WebSocket        │
+│ - Registrar → encola │       │ - Telemetría live    │
+│ - Cancelar → encola  │       │ - Depende de B7      │
+│ - 202 Accepted       │       │ - Emite posiciones   │
+└──────────────────────┘       └──────────────────────┘
+                               ┌──────────────────────┐
+                               │ B12: SSE notificar   │
+                               │ - SseService         │
+                               │ - SseController      │
+                               │ - Worker → SSE       │
+                               └──────────────────────┘
 ```
 
 **Notas:**
 - B6 necesita B4 terminado (usa el motor)
-- B9 necesita B7 terminado (usa tick/métricas)
-- C6 está bloqueado hasta que B8 esté listo
+- B11 necesita B10 terminado (usa la cola)
+- B7, B9 independientes de cola
+- B12 depende de B10 (SSE recibe eventos del worker)
+- C8 depende de B12
+- **Posible solapamiento B6/B11 en CancelacionService** — coordinar entre Dev 1 y Dev 2
 
 ### Fase 3 — Cierre (Día 5)
 
@@ -87,16 +114,22 @@ Dev 1 (Backend Core):          Dev 2 (Backend Infra):        Dev 3 (Frontend):
 **Notas:**
 - B8 necesita B6 terminado (reporte usa datos de replanificación)
 - C6 se desbloquea cuando B8 está listo
-- Dev 2 puede apoyar a Dev 1 en B8 si termina B9 antes
+- C8 debería estar listo en Fase 2 (depende de B12)
+- Dev 2 puede apoyar a Dev 1 en B8 si termina B7/B9/B12 antes
 
 ---
 
 ## Diagrama de Dependencias
 
 ```
-B4 (Motor) ──────→ B6 (Replanificacion) ──────→ B8 (Reporte) ──────→ C6 (Link reporte)
-                                                  ↑
-B5 (✅ Sesion) ──→ B7 (TickService) ──────→ B9 (WebSocket)
+B10 (Cola infra) ──→ B11 (EqService async) ──→ Frontend (vía SSE)
+   │
+   ├──→ B12 (SSE notificaciones) ──→ C8 (SSE frontend)
+   │
+   └──→ B6 (Replanificacion encola) ──→ B8 (Reporte) ──→ C6 (Link reporte)
+                                            ↑
+B4 (Motor) ──────────────────→ B6 ─────────┘
+B5 (✅ Sesion) ──→ B7 (TickService) ──→ B9 (WebSocket)
 
 A2 (✅ Carga) ──→ C4 (✅ UI carga masiva)
 A4 (✅ PDF)   ──→ C7 (Botón PDF)
@@ -115,32 +148,41 @@ A4 (✅ PDF)   ──→ C7 (Botón PDF)
 
    | Dev | Archivos |
    |---|---|
-   | Dev 1 | `bc2/service/MotorEnrutamiento.java`, `ReplanificacionService.java`, `ReporteService.java`, `MetricasController.java` |
-   | Dev 2 | `bc2/service/TickService.java`, `config/WebSocketConfig.java`, `controller/TelemetriaWebSocket.java` |
+   | Dev 1 | `bc2/application/MotorEnrutamiento.java`, `bc2/application/ReplanificacionService.java`, `bc2/application/ReporteService.java`, `bc2/infrastructure/MetricasController.java`, **`bc1/application/EquipajeService.java`** (mod), **`bc1/application/CancelacionService.java`** (mod) |
+   | Dev 2 | **`bc1/domain/ColaPlanificacion.java`**, **`bc1/domain/EstadoCola.java`**, **`bc1/domain/TipoCola.java`**, **`bc1/infrastructure/ColaPlanificacionRepository.java`**, **`bc1/application/PlanificacionWorker.java`**, **`V18__cola_planificacion.sql`**, **`shared/infrastructure/SseService.java`**, **`bc1/infrastructure/PlanificacionSseController.java`**, `bc2/application/TickService.java`, `bc2/infrastructure/WebSocketConfig.java`, `bc2/infrastructure/TelemetriaWebSocket.java` |
    | Dev 3 | `app/operacion/page.tsx`, `app/simulacion/[id]/page.tsx` |
 
 3. **Comunicación de interfaces:**
    - Dev 1 y Dev 2 deben acordar el formato de `sesion:{id}:metricas` en Redis antes de empezar B7/B8
    - Dev 3 debe confirmar con Dev 1 el contrato de `GET /sesiones/{id}/reporte` antes de hacer C6
+   - Dev 1 y Dev 2 coordinar `CancelacionService` (lo tocan ambos: Dev 1 para BC2 events, Dev 2 para B11)
+   - Acordar el contrato SSE (`planificacion-completada`, `planificacion-fallida`) entre Dev 2 y Dev 3
 
 4. **Merge顺序:**
-   - Primero merge de Dev 2 (B7, B9) — no conflictivo con Dev 1
-   - Luego merge de Dev 1 (B4, B6, B8) — puede haber conflicto menor con B7 si tocan mismo controller
-   - Último merge de Dev 3 (C7, C6) — solo frontend, sin conflicto con backend
+   - Primero merge de Dev 2 (B10, B7, B9, B12) — archivos nuevos BC1 + BC2 infra
+   - Luego merge de Dev 1 (B4, B6, B8, B11) — B11 modifica BC1 services, posible conflicto con B10 si no se separaron bien
+   - Último merge de Dev 3 (C7, C8, C6) — solo frontend, sin conflicto con backend
 
 ---
 
 ## Checklist de Integración Final
 
 - [ ] B4: MotorEnrutamiento con tests unitarios pasando
-- [ ] B6: ReplanificacionService escucha eventos y replanifica
+- [ ] B10: ColaPlanificacion entity + repository + migración V18
+- [ ] B10: PlanificacionWorker procesa items con SKIP LOCKED
+- [ ] B11: EquipajeService.registrar() encola y responde 202
+- [ ] B11: CancelacionService.cancelar() encola equipajes afectados
+- [ ] B6: ReplanificacionService escucha eventos y encola en cola_planificacion
+- [ ] B12: SSE notifica planificacion-completada/fallida al frontend
 - [ ] B7: TickService escribe métricas reales en Redis
 - [ ] B8: Métricas y reporte leen de Redis (no dummy)
 - [ ] B9: WebSocket emite telemetría en vivo
 - [x] C4: UI carga masiva funcional con API real
 - [ ] C7: Botón descarga PDF funcional
+- [ ] C8: Frontend recibe SSE y actualiza mapa en tiempo real
 - [ ] C6: Link a reporte aparece cuando sesión = FINALIZADA
 - [ ] Simulación muestra métricas reales (no dummy)
+- [ ] Items EN_PROCESO > 5 min se marcan FALLIDO (timeout)
 - [ ] Todos los endpoints documentados en `openspec/specs/api-contracts.md`
 
 ---

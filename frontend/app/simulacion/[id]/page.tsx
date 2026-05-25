@@ -5,13 +5,14 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Play, Pause, Square, Clock, AlertTriangle, RefreshCw, Activity } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { api } from '@/lib/api';
 import { MOCK_NODOS, MOCK_VUELOS, nodoToEnMapa, resetMetricasMock, tickMetricasMock } from '@/lib/mock';
 import type { NodoEnMapa, MetricasSimulacion } from '@/lib/types';
 
 const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false });
+
+const FALLBACK_SIM_ID = 'sim-' + Math.random().toString(36).substring(2, 8);
 
 function MetricaCard({ label, value, icon: Icon, color }: {
   label: string; value: string | number; icon: React.ElementType; color: string;
@@ -29,6 +30,10 @@ function MetricaCard({ label, value, icon: Icon, color }: {
   );
 }
 
+interface SesionResponse {
+  id: string;
+}
+
 function SimulacionContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -39,8 +44,8 @@ function SimulacionContent() {
 
   const [backendSesionId, setBackendSesionId] = useState<string>('');
   const [estado, setEstado] = useState<'CONFIGURADA' | 'EN_CURSO' | 'PAUSADA' | 'FINALIZADA'>('CONFIGURADA');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string>('');
+  const [, setLoading] = useState(false);
+  const [, setError] = useState<string>('');
   const [metricas, setMetricas] = useState<MetricasSimulacion>({
     sesion_id: sesionIdParam,
     estado: 'CONFIGURADA',
@@ -58,19 +63,10 @@ function SimulacionContent() {
   const fetchMetricas = useCallback(async () => {
     if (!backendSesionId) return;
     try {
-      const data = await api.get<any>(`/sesiones/${backendSesionId}/metricas`);
-      setMetricas({
-        sesion_id: data.sesion_id,
-        estado: data.estado,
-        dia_hora_virtual: data.dia_hora_virtual,
-        segundos_reales_transcurridos: data.segundos_reales_transcurridos,
-        sla_acumulado_pct: Number(data.sla_acumulado_pct),
-        vuelos_cancelados: data.vuelos_cancelados,
-        maletas_replanificadas: data.maletas_replanificadas,
-      });
-      setEstado(data.estado as any);
-    } catch (err) {
-      console.error('Error fetching metricas:', err);
+      const data = await api.get<MetricasSimulacion>(`/sesiones/${backendSesionId}/metricas`);
+      setMetricas(data);
+      setEstado(data.estado);
+    } catch {
     }
   }, [backendSesionId]);
 
@@ -87,8 +83,8 @@ function SimulacionContent() {
   }, [backendSesionId, estado, fetchMetricas]);
 
   useEffect(() => {
-    resetMetricasMock(sesionIdParam, probCancelacion / 100);
-  }, [sesionIdParam, probCancelacion]);
+    resetMetricasMock(sesionIdParam);
+  }, [sesionIdParam]);
 
   const handleIniciar = async () => {
     setLoading(true);
@@ -96,7 +92,7 @@ function SimulacionContent() {
     try {
       let sesionId = backendSesionId;
       if (!sesionId) {
-        const createRes = await api.post<any>('/sesiones', {
+        const createRes = await api.post<SesionResponse>('/sesiones', {
           tipo: 'SIMULADA',
           fecha_inicio_virtual: fechaInicio,
           hora_inicio_virtual: horaInicio + ':00',
@@ -118,8 +114,9 @@ function SimulacionContent() {
 
       await api.post(`/sesiones/${sesionId}/iniciar`, {});
       setEstado('EN_CURSO');
-    } catch (err: any) {
-      setError(err.mensaje || err.message || 'Error al iniciar sesion');
+    } catch (err: unknown) {
+      const error = err as { mensaje?: string; message?: string };
+      setError(error.mensaje || error.message || 'Error al iniciar sesion');
       setMetricas(tickMetricasMock(true, probCancelacion / 100));
       setEstado('EN_CURSO');
     } finally {
@@ -133,8 +130,9 @@ function SimulacionContent() {
     try {
       await api.post(`/sesiones/${backendSesionId}/pausar`, {});
       setEstado('PAUSADA');
-    } catch (err: any) {
-      setError(err.mensaje || 'Error al pausar');
+    } catch (err: unknown) {
+      const error = err as { mensaje?: string; message?: string };
+      setError(error.mensaje || 'Error al pausar');
     } finally {
       setLoading(false);
     }
@@ -146,8 +144,9 @@ function SimulacionContent() {
     try {
       await api.post(`/sesiones/${backendSesionId}/detener`, {});
       setEstado('FINALIZADA');
-    } catch (err: any) {
-      setError(err.mensaje || 'Error al detener');
+    } catch (err: unknown) {
+      const error = err as { mensaje?: string; message?: string };
+      setError(error.mensaje || 'Error al detener');
     } finally {
       setLoading(false);
     }
@@ -192,7 +191,7 @@ function SimulacionContent() {
               {estado.replace('_', ' ')}
             </Badge>
           </div>
-          <div className="text-xs text-slate-500 font-mono">{backendSesionId || sesionIdParam || 'sim-' + Math.random().toString(36).substring(2, 8)}</div>
+          <div className="text-xs text-slate-500 font-mono">{backendSesionId || sesionIdParam || FALLBACK_SIM_ID}</div>
         </div>
 
         <div className="p-4 space-y-3 flex-1">

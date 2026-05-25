@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { ArrowLeft, AlertTriangle, RefreshCw, MapPin, FileText } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend, Dot,
+  Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { Card } from '@/components/ui/Card';
 import { MOCK_REPORTE_SESION } from '@/lib/mock';
@@ -32,8 +32,8 @@ function CustomDot(props: { cx?: number; cy?: number; index?: number; payload?: 
   );
 }
 
-function CustomTooltip({ active, payload, label }: {
-  active?: boolean; payload?: { name: string; value: number; payload: PuntoSLA }[]; label?: string;
+function CustomTooltip({ active, payload }: {
+  active?: boolean; payload?: { name: string; value: number; payload: PuntoSLA }[];
 }) {
   if (!active || !payload || !payload.length) return null;
   const punto = payload[0].payload;
