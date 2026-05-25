@@ -32,4 +32,21 @@ export const api = {
     request<T>(path, { method: 'PUT', body: JSON.stringify(body) }),
   patch: <T>(path: string, body: unknown) =>
     request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
+  downloadBlob: async (path: string) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const res = await fetch(`${BASE_URL}${path}`, {
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+    if (!res.ok) {
+      const error: ApiError = await res.json().catch(() => ({
+        status: res.status,
+        error: 'ERROR',
+        mensaje: res.statusText,
+      }));
+      throw error;
+    }
+    return res.blob();
+  },
 };
