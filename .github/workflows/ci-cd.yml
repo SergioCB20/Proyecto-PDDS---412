@@ -14,6 +14,29 @@ jobs:
   backend-ci:
     name: Backend - Build & Test
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: tasfb2b_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
     defaults:
       run:
         working-directory: ${{ env.BACKEND_DIR }}
@@ -28,6 +51,16 @@ jobs:
           cache: "maven"
 
       - name: Build and test
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: tasfb2b_test
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          JWT_SECRET: ci_jwt_secret_key_32_chars_long
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          SHOW_SQL: "false"
         run: mvn clean verify
 
   frontend-ci:
