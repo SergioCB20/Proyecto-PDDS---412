@@ -44,7 +44,10 @@ export default function AdminPage() {
     }
   }, [page]);
 
-  useEffect(() => { fetchUsuarios(); }, [fetchUsuarios]);
+  useEffect(() => {
+    const timer = setTimeout(fetchUsuarios, 0);
+    return () => clearTimeout(timer);
+  }, [fetchUsuarios]);
 
   useEffect(() => {
     api.get<Nodo[]>('/nodos').then(setNodos).catch(() => {});

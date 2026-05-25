@@ -1,4 +1,4 @@
-import type { Nodo, Vuelo, VueloEnMapa, NodoEnMapa, MetricasSimulacion, ReporteSesion, PuntoSLA } from './types';
+import type { Nodo, Vuelo, NodoEnMapa, MetricasSimulacion, ReporteSesion, PuntoSLA } from './types';
 
 export const MOCK_NODOS: Nodo[] = [
   {
@@ -148,7 +148,7 @@ let metricasBase: MetricasSimulacion = {
   maletas_replanificadas: 0,
 };
 
-export function resetMetricasMock(sesionId: string, probCancelacion: number) {
+export function resetMetricasMock(sesionId: string) {
   metricasBase = {
     sesion_id: sesionId,
     estado: 'CONFIGURADA',
