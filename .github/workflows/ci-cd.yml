@@ -57,7 +57,7 @@ jobs:
           DB_NAME: tasfb2b_test
           DB_USER: postgres
           DB_PASSWORD: postgres
-          JWT_SECRET: ci_jwt_secret_key_32_chars_long
+          JWT_SECRET: cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce
           REDIS_HOST: localhost
           REDIS_PORT: 6379
           SHOW_SQL: "false"
