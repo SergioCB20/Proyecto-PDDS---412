@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { Package, Clock, MapPin, RefreshCw, ChevronDown, ChevronUp, CheckCircle, XCircle, Plane, ArrowRight, Upload, FileSpreadsheet, AlertTriangle } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { api } from '@/lib/api';
@@ -57,7 +57,7 @@ export default function OperacionPage() {
   const [csvError, setCsvError] = useState<string | null>(null);
   const [csvConfirmLoading, setCsvConfirmLoading] = useState(false);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = async () => {
     setLoading(true);
     try {
       const [nodosData, vuelosData] = await Promise.all([
@@ -73,13 +73,16 @@ export default function OperacionPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
-    fetchData();
     const interval = setInterval(fetchData, 5000);
-    return () => clearInterval(interval);
-  }, [fetchData]);
+    const timer = setTimeout(fetchData, 0);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timer);
+    };
+  }, []);
 
   const estadoColor = (estado: string): 'green' | 'yellow' | 'red' | 'blue' | 'default' => {
     if (estado === 'ENTREGADO') return 'green';
@@ -108,7 +111,6 @@ export default function OperacionPage() {
 
     setFormLoading(true);
     try {
-      const selectedVuelo = vuelosProgramados.find(v => v.id === formData.vueloId);
       const slaDatetime = new Date();
       slaDatetime.setHours(slaDatetime.getHours() + parseInt(formData.slaComprometido));
 

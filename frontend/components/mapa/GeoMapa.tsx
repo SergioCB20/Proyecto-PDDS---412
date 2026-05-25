@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { MapContainer, TileLayer } from 'react-leaflet';
 import type { NodoEnMapa, VueloEnMapa } from '@/lib/types';
 import 'leaflet/dist/leaflet.css';
@@ -28,11 +27,7 @@ export default function GeoMapa({
   animacionActiva = false,
   className = '',
 }: GeoMapaProps) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => { setMounted(true); }, []);
-
-  if (!mounted) {
+  if (typeof window === 'undefined') {
     return (
       <div className={`bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center ${className}`}>
         <span className="text-slate-400 text-sm">Cargando mapa...</span>
