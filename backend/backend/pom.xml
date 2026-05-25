@@ -49,7 +49,7 @@
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-webmvc</artifactId>
+			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
 
 		<dependency>
@@ -141,8 +141,13 @@
 							<artifactId>lombok</artifactId>
 						</exclude>
 					</excludes>
-					<skip>true</skip>
 				</configuration>
+				<executions>
+					<execution>
+						<id>repackage</id>
+						<phase>none</phase>
+					</execution>
+				</executions>
 			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
