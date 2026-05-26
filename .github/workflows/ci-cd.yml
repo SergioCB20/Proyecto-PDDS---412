@@ -110,18 +110,19 @@ jobs:
 
             # ── Backend ──────────────────────────
             cd backend/backend
-            mvn clean package -DskipTests
-            sudo cp target/*.war /opt/tomcat11/webapps/ROOT.war
+            /opt/apache-maven-3.9.16/bin/mvn clean package -DskipTests
             sudo rm -rf /opt/tomcat11/webapps/ROOT
-            echo "✅ Backend WAR deployed. Tomcat auto-deploys."
+            sudo cp target/*.war /opt/tomcat11/webapps/ROOT.war
+            sudo systemctl restart tomcat11
+            echo "✅ Backend WAR deployed. Tomcat restarted."
 
             # ── Frontend ─────────────────────────
             cd ../../frontend
             npm ci
-            npm run build
+            NEXT_PUBLIC_API_URL=/back/api npm run build
             sudo systemctl restart frontend
             sudo systemctl reload nginx
             echo "✅ Frontend restarted."
-            sleep 20
+            sleep 30
             curl -sf http://localhost:8080/health || echo "⚠️ Backend health check failed"
-            curl -sf http://localhost:5000/ || echo "⚠️ Frontend health check failed"
+            curl -sfL http://localhost:5000/front/login | grep -q "TAS FB2B" || echo "⚠️ Frontend health check failed"
