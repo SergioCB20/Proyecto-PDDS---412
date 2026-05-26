@@ -106,17 +106,23 @@ jobs:
             set -e
 
             cd "${{ secrets.SERVER_DIR }}"
-            git pull origin main
+            git fetch origin main && git reset --hard origin/main
 
             # ── Backend ──────────────────────────
             cd backend/backend
-            mvn clean package -DskipTests
-            sudo cp target/*.war /var/lib/tomcat10/webapps/ROOT.war
-            echo "✅ Backend WAR deployed. Tomcat auto-deploys."
+            /opt/apache-maven-3.9.16/bin/mvn clean package -DskipTests
+            sudo rm -rf /opt/tomcat11/webapps/ROOT
+            sudo cp target/*.war /opt/tomcat11/webapps/ROOT.war
+            sudo systemctl restart tomcat11
+            echo "✅ Backend WAR deployed. Tomcat restarted."
 
             # ── Frontend ─────────────────────────
             cd ../../frontend
             npm ci
-            npm run build
-            sudo systemctl restart tasfb2b-frontend
+            NEXT_PUBLIC_API_URL=/back/api npm run build
+            sudo systemctl restart frontend
+            sudo systemctl reload nginx
             echo "✅ Frontend restarted."
+            sleep 30
+            curl -sf http://localhost:8080/health || echo "⚠️ Backend health check failed"
+            curl -sfL http://localhost:5000/front/login | grep -q "TAS FB2B" || echo "⚠️ Frontend health check failed"
