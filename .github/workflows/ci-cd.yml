@@ -106,7 +106,7 @@ jobs:
             set -e
 
             cd "${{ secrets.SERVER_DIR }}"
-            git pull origin main
+            git fetch origin main && git reset --hard origin/main
 
             # ── Backend ──────────────────────────
             cd backend/backend
