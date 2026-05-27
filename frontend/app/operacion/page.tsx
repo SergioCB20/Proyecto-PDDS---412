@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Modal } from '@/components/ui/Modal';
-import type { Nodo, Vuelo, NodoEnMapa, CrearEquipajeRequest, CrearEquipajeResponse, CargaMasivaPreview, CargaMasivaFila } from '@/lib/types';
+import type { Nodo, Vuelo, NodoEnMapa, CrearEquipajeRequest, CrearEquipajeResponse, CargaMasivaPreview, CargaMasivaConfirmResponse } from '@/lib/types';
 
 const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false });
 
@@ -137,47 +137,7 @@ export default function OperacionPage() {
     }
   };
 
-  const parseCSV = (content: string): CargaMasivaPreview => {
-    const lines = content.trim().split('\n');
-    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-    
-    const idIdx = headers.findIndex(h => h === 'id_equipaje' || h === 'id');
-    const destinoIdx = headers.findIndex(h => h === 'destino_iata' || h === 'destino');
-    const vueloIdx = headers.findIndex(h => h === 'vuelo_id' || h === 'vuelo');
-    const slaIdx = headers.findIndex(h => h.includes('sla'));
-
-    const validos: CargaMasivaFila[] = [];
-    const con_revision: { fila: number; errores: string[] }[] = [];
-
-    const validDestinos = nodos.map(n => n.codigo_iata);
-    const validVuelos = allVuelos.map(v => v.id);
-
-    for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(',').map(c => c.trim());
-      const errores: string[] = [];
-      const fila = i + 1;
-
-      if (idIdx === -1 || !cols[idIdx]) errores.push('ID de equipaje requerido');
-      if (destinoIdx === -1 || !cols[destinoIdx] || !validDestinos.includes(cols[destinoIdx].toUpperCase())) errores.push('Destino IATA inválido');
-      if (vueloIdx === -1 || !cols[vueloIdx] || !validVuelos.includes(cols[vueloIdx])) errores.push('Vuelo ID inválido');
-      if (slaIdx === -1 || !cols[slaIdx] || isNaN(parseInt(cols[slaIdx]))) errores.push('SLA inválido');
-
-      if (errores.length > 0) {
-        con_revision.push({ fila, errores });
-      } else {
-        validos.push({
-          id_equipaje: cols[idIdx],
-          destino_iata: cols[destinoIdx].toUpperCase(),
-          vuelo_id: cols[vueloIdx],
-          sla_comprometido: cols[slaIdx],
-        });
-      }
-    }
-
-    return { validos, con_revision };
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -185,38 +145,37 @@ export default function OperacionPage() {
     setCsvError(null);
     setCsvLoading(true);
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const content = event.target?.result as string;
-        const preview = parseCSV(content);
-        setCsvPreview(preview);
-      } catch {
-        setCsvError('Error al parsear el archivo CSV');
-        setCsvPreview(null);
-      } finally {
-        setCsvLoading(false);
-      }
-    };
-    reader.onerror = () => {
-      setCsvError('Error al leer el archivo');
+    try {
+      const formData = new FormData();
+      formData.append('archivo', file);
+      const preview = await api.upload<CargaMasivaPreview>('/equipajes/carga-masiva', formData);
+      setCsvPreview(preview);
+    } catch (err: unknown) {
+      const error = err as { mensaje?: string; message?: string };
+      setCsvError(error.mensaje || error.message || 'Error al procesar archivo');
+      setCsvPreview(null);
+    } finally {
       setCsvLoading(false);
-    };
-    reader.readAsText(file);
+    }
   };
 
   const handleConfirmarCargaMasiva = async () => {
-    if (!csvPreview || csvPreview.validos.length === 0) return;
+    if (!csvPreview) return;
+    const registrosValidos = csvPreview.registros.filter(r => r.estado_validacion === 'VALIDO');
+    if (registrosValidos.length === 0) return;
 
     setCsvConfirmLoading(true);
+    setCsvError(null);
     try {
-      await api.post('/equipajes/carga-masiva/confirmar', { equipajes: csvPreview.validos });
+      const ids_equipaje = registrosValidos.map(r => r.id_equipaje);
+      const response = await api.post<CargaMasivaConfirmResponse>('/equipajes/carga-masiva/confirmar', { ids_equipaje });
       setCargaMasivaOpen(false);
       setCsvFile(null);
       setCsvPreview(null);
       fetchData();
     } catch (err: unknown) {
-      setCsvError(err instanceof Error ? err.message : 'Error al confirmar carga');
+      const error = err as { mensaje?: string; message?: string };
+      setCsvError(error.mensaje || error.message || 'Error al confirmar carga');
     } finally {
       setCsvConfirmLoading(false);
     }
@@ -521,9 +480,9 @@ export default function OperacionPage() {
             <Button variant="secondary" onClick={handleCargaMasivaClose}>Cancelar</Button>
             <Button 
               onClick={handleConfirmarCargaMasiva} 
-              disabled={!csvPreview || csvPreview.validos.length === 0 || csvConfirmLoading}
+              disabled={!csvPreview || csvPreview.validos === 0 || csvConfirmLoading}
             >
-              {csvConfirmLoading ? 'Confirmando...' : `Confirmar (${csvPreview?.validos.length || 0})`}
+              {csvConfirmLoading ? 'Confirmando...' : `Confirmar (${csvPreview?.validos || 0})`}
             </Button>
           </div>
         }
@@ -543,7 +502,7 @@ export default function OperacionPage() {
                 {csvFile ? csvFile.name : 'Subir archivo CSV'}
               </p>
               <p className="text-xs text-slate-500 mt-1">
-                Formato: id_equipaje, destino_iata, vuelo_id, sla_horas
+                Formato: id_equipaje, destino_iata, vuelo_id, sla_comprometido
               </p>
             </label>
           </div>
@@ -562,68 +521,79 @@ export default function OperacionPage() {
           {csvPreview && (
             <div className="space-y-3">
               <div className="flex gap-4 text-sm">
+                <span className="text-slate-600 dark:text-slate-400">Total: {csvPreview.total}</span>
                 <div className="flex items-center gap-1">
                   <CheckCircle size={14} className="text-green-500" />
-                  <span className="text-green-700 dark:text-green-400">Válidos: {csvPreview.validos.length}</span>
+                  <span className="text-green-700 dark:text-green-400">Válidos: {csvPreview.validos}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <AlertTriangle size={14} className="text-yellow-500" />
-                  <span className="text-yellow-700 dark:text-yellow-400">Con revisión: {csvPreview.con_revision.length}</span>
+                  <span className="text-yellow-700 dark:text-yellow-400">Con revisión: {csvPreview.con_revision}</span>
                 </div>
               </div>
 
-              {csvPreview.validos.length > 0 && (
-                <div className="max-h-40 overflow-y-auto border rounded-lg">
-                  <table className="w-full text-xs">
-                    <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0">
-                      <tr>
-                        <th className="p-2 text-left">ID</th>
-                        <th className="p-2 text-left">Destino</th>
-                        <th className="p-2 text-left">Vuelo</th>
-                        <th className="p-2 text-left">SLA</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {csvPreview.validos.slice(0, 10).map((row, i) => (
-                        <tr key={i} className="border-t border-slate-200 dark:border-slate-700">
-                          <td className="p-2">{row.id_equipaje}</td>
-                          <td className="p-2">{row.destino_iata}</td>
-                          <td className="p-2">{row.vuelo_id}</td>
-                          <td className="p-2">{row.sla_comprometido}h</td>
-                        </tr>
-                      ))}
-                      {csvPreview.validos.length > 10 && (
-                        <tr className="border-t border-slate-200 dark:border-slate-700">
-                          <td colSpan={4} className="p-2 text-center text-slate-500">
-                            ...y {csvPreview.validos.length - 10} más
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              {(() => {
+                const registrosValidos = csvPreview.registros.filter(r => r.estado_validacion === 'VALIDO');
+                const registrosRevision = csvPreview.registros.filter(r => r.estado_validacion === 'REVISION');
+                return (
+                  <>
+                    {registrosValidos.length > 0 && (
+                      <div className="max-h-40 overflow-y-auto border rounded-lg">
+                        <table className="w-full text-xs">
+                          <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0">
+                            <tr>
+                              <th className="p-2 text-left">ID</th>
+                              <th className="p-2 text-left">Destino</th>
+                              <th className="p-2 text-left">Vuelo</th>
+                              <th className="p-2 text-left">SLA</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {registrosValidos.slice(0, 10).map((row, i) => (
+                              <tr key={i} className="border-t border-slate-200 dark:border-slate-700">
+                                <td className="p-2">{row.id_equipaje}</td>
+                                <td className="p-2">{row.destino_iata}</td>
+                                <td className="p-2">{row.vuelo_id}</td>
+                                <td className="p-2">{new Date(row.sla_comprometido).toLocaleString('es-ES')}</td>
+                              </tr>
+                            ))}
+                            {registrosValidos.length > 10 && (
+                              <tr className="border-t border-slate-200 dark:border-slate-700">
+                                <td colSpan={4} className="p-2 text-center text-slate-500">
+                                  ...y {registrosValidos.length - 10} más
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
 
-              {csvPreview.con_revision.length > 0 && (
-                <div className="max-h-32 overflow-y-auto border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                  <table className="w-full text-xs">
-                    <thead className="bg-yellow-50 dark:bg-yellow-900/30 sticky top-0">
-                      <tr>
-                        <th className="p-2 text-left">Fila</th>
-                        <th className="p-2 text-left">Errores</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {csvPreview.con_revision.map((row, i) => (
-                        <tr key={i} className="border-t border-yellow-200 dark:border-yellow-800">
-                          <td className="p-2">{row.fila}</td>
-                          <td className="p-2 text-red-600 dark:text-red-400">{row.errores.join(', ')}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                    {registrosRevision.length > 0 && (
+                      <div className="max-h-32 overflow-y-auto border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                        <table className="w-full text-xs">
+                          <thead className="bg-yellow-50 dark:bg-yellow-900/30 sticky top-0">
+                            <tr>
+                              <th className="p-2 text-left">Fila</th>
+                              <th className="p-2 text-left">ID</th>
+                              <th className="p-2 text-left">Motivo</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {registrosRevision.map((row, i) => (
+                              <tr key={i} className="border-t border-yellow-200 dark:border-yellow-800">
+                                <td className="p-2">{row.fila}</td>
+                                <td className="p-2">{row.id_equipaje}</td>
+                                <td className="p-2 text-red-600 dark:text-red-400">{row.motivo}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           )}
         </div>

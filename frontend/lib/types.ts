@@ -164,14 +164,24 @@ export interface CrearEquipajeResponse {
   plan_viaje: PlanViajeResponse;
 }
 
-export interface CargaMasivaFila {
+export interface CargaMasivaRegistro {
+  fila: number;
   id_equipaje: string;
   destino_iata: string;
   vuelo_id: string;
   sla_comprometido: string;
+  estado_validacion: 'VALIDO' | 'REVISION';
+  motivo: string | null;
 }
 
 export interface CargaMasivaPreview {
-  validos: CargaMasivaFila[];
-  con_revision: { fila: number; errores: string[] }[];
+  total: number;
+  validos: number;
+  con_revision: number;
+  registros: CargaMasivaRegistro[];
+}
+
+export interface CargaMasivaConfirmResponse {
+  ingresados: number;
+  fallidos: number;
 }
