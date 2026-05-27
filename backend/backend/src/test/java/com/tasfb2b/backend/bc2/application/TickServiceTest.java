@@ -146,8 +146,9 @@ class TickServiceTest {
         when(sesionRepository.findByEstado(EstadoSesion.EN_CURSO))
                 .thenReturn(List.of(sesion));
         when(vueloRepository.findByEstadoAndHoraSalidaLessThanEqual(
-                any(EstadoVuelo.class), any(OffsetDateTime.class)))
-                .thenReturn(List.of(vuelo));
+                eq(EstadoVuelo.PROGRAMADO), any(OffsetDateTime.class)))
+                .thenReturn(List.of(vuelo))
+                .thenReturn(List.of());
         when(segmentoPlanRepository.findByVueloIdAndEstado(
                 vuelo.getId(), EstadoSegmento.PENDIENTE))
                 .thenReturn(List.of(segmento));
