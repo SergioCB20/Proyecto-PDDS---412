@@ -64,19 +64,14 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-
-        String corsOrigins = System.getenv("CORS_ORIGINS");
-        if (corsOrigins != null && !corsOrigins.isBlank()) {
-            config.setAllowedOriginPatterns(List.of(corsOrigins.split(",")));
-        } else {
-            config.setAllowedOriginPatterns(List.of(
-                "http://localhost:*",
-                "http://127.0.0.1:*",
-                "http://*.inf.pucp.edu.pe",
-                "https://*.inf.pucp.edu.pe"
-            ));
-        }
-
+        config.setAllowedOrigins(
+            List.of(
+                "http://localhost:3000",
+                "http://localhost:5000",
+                "http://127.0.0.1:3000",
+                "https://1inf54-983-4d.inf.pucp.edu.pe"
+            )
+        );
         config.setAllowedMethods(
             List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
         );
