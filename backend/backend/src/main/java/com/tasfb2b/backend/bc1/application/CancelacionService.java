@@ -1,8 +1,6 @@
 package com.tasfb2b.backend.bc1.application;
 
-import com.tasfb2b.backend.bc1.domain.EstadoEquipaje;
 import com.tasfb2b.backend.bc1.domain.EstadoVuelo;
-import com.tasfb2b.backend.bc1.domain.Equipaje;
 import com.tasfb2b.backend.bc1.domain.NodoLogistico;
 import com.tasfb2b.backend.bc1.domain.Vuelo;
 import com.tasfb2b.backend.bc1.infrastructure.EquipajeRepository;
@@ -68,20 +66,11 @@ public class CancelacionService {
 
         eventPublisher.publishEvent(new VueloCanceladoEvent(vuelo.getId(), OffsetDateTime.now(), request.causa()));
 
-        for (Equipaje equipaje : equipajeRepository.findAll()) {
-            if (equipaje.getVueloActual() != null && equipaje.getVueloActual().getId().equals(vuelo.getId())) {
-                equipaje.setEstado(EstadoEquipaje.EN_REPLANIFICACION);
-                equipajeRepository.save(equipaje);
-            }
-        }
-
-        UUID loteId = UUID.randomUUID();
-
         return new CancelacionResponse(
                 vuelo.getId(),
                 "CANCELADO",
                 afectados,
-                loteId
+                UUID.randomUUID()
         );
     }
 

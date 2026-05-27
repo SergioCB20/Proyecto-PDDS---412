@@ -1,0 +1,133 @@
+package com.tasfb2b.backend.bc2.application;
+
+import com.tasfb2b.backend.bc1.domain.*;
+import com.tasfb2b.backend.bc1.infrastructure.*;
+import com.tasfb2b.backend.bc2.domain.*;
+import com.tasfb2b.backend.bc2.infrastructure.*;
+import com.tasfb2b.backend.shared.events.ReplanificacionIniciada;
+import com.tasfb2b.backend.shared.events.VueloCanceladoEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.event.EventListener;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.UUID;
+
+@Service
+public class ReplanificacionService {
+
+    private static final Logger log = LoggerFactory.getLogger(ReplanificacionService.class);
+
+    private final EquipajeRepository equipajeRepository;
+    private final VueloRepository vueloRepository;
+    private final NodoLogisticoRepository nodoRepository;
+    private final ColaPlanificacionRepository colaRepository;
+    private final EventoCancelacionRepository eventoCancelacionRepository;
+    private final LoteReplanificacionRepository loteRepository;
+    private final ItemLoteRepository itemLoteRepository;
+    private final SesionRepository sesionRepository;
+    private final ApplicationEventPublisher eventPublisher;
+
+    public ReplanificacionService(EquipajeRepository equipajeRepository,
+                                  VueloRepository vueloRepository,
+                                  NodoLogisticoRepository nodoRepository,
+                                  ColaPlanificacionRepository colaRepository,
+                                  EventoCancelacionRepository eventoCancelacionRepository,
+                                  LoteReplanificacionRepository loteRepository,
+                                  ItemLoteRepository itemLoteRepository,
+                                  SesionRepository sesionRepository,
+                                  ApplicationEventPublisher eventPublisher) {
+        this.equipajeRepository = equipajeRepository;
+        this.vueloRepository = vueloRepository;
+        this.nodoRepository = nodoRepository;
+        this.colaRepository = colaRepository;
+        this.eventoCancelacionRepository = eventoCancelacionRepository;
+        this.loteRepository = loteRepository;
+        this.itemLoteRepository = itemLoteRepository;
+        this.sesionRepository = sesionRepository;
+        this.eventPublisher = eventPublisher;
+    }
+
+    public void replanificarEnSesion(UUID sesionId, UUID vueloId, String causa, OffsetDateTime momentoVirtual) {
+        Vuelo vuelo = vueloRepository.findById(vueloId)
+                .orElseThrow(() -> new IllegalArgumentException("Vuelo no encontrado: " + vueloId));
+
+        List<Equipaje> afectados = equipajeRepository.findByVueloActualId(vueloId);
+
+        vuelo.setEstado(EstadoVuelo.CANCELADO);
+        vueloRepository.save(vuelo);
+
+        EventoCancelacion evento = new EventoCancelacion(
+                UUID.randomUUID(), sesionId, vueloId, "SIMULACION");
+        evento.setCausa(causa);
+        evento.setOcurridoEnVirtual(momentoVirtual);
+        eventoCancelacionRepository.save(evento);
+
+        LoteReplanificacion lote = new LoteReplanificacion(
+                UUID.randomUUID(), evento.getId(), sesionId);
+        lote.setTotalEquipajes(afectados.size());
+        loteRepository.save(lote);
+
+        for (Equipaje eq : afectados) {
+            eq.setEstado(EstadoEquipaje.EN_REPLANIFICACION);
+            eq.setVueloActual(null);
+            equipajeRepository.save(eq);
+
+            ItemLote item = new ItemLote(UUID.randomUUID(), lote.getId(), eq.getId());
+            itemLoteRepository.save(item);
+
+            ColaPlanificacion colaItem = new ColaPlanificacion();
+            colaItem.setId(UUID.randomUUID());
+            colaItem.setEquipajeId(eq.getId());
+            colaItem.setTipo(TipoCola.REPLANIFICACION);
+            colaItem.setEstado(EstadoCola.PENDIENTE);
+            colaItem.setIntentos(0);
+            colaItem.setFechaCreacion(OffsetDateTime.now());
+            colaRepository.save(colaItem);
+        }
+
+        SesionEjecucion sesion = sesionRepository.findById(sesionId).orElse(null);
+        if (sesion != null) {
+            sesion.setVuelosCancelados(
+                    (sesion.getVuelosCancelados() != null ? sesion.getVuelosCancelados() : 0) + 1);
+            sesion.setMaletasReplanificadas(
+                    (sesion.getMaletasReplanificadas() != null ? sesion.getMaletasReplanificadas() : 0)
+                            + afectados.size());
+            sesionRepository.save(sesion);
+        }
+
+        eventPublisher.publishEvent(new ReplanificacionIniciada(
+                lote.getId(), sesionId, afectados.size(), OffsetDateTime.now()));
+
+        log.info("Replanificacion iniciada: lote={}, sesion={}, vuelo={}, equipajes={}",
+                lote.getId(), sesionId, vueloId, afectados.size());
+    }
+
+    @EventListener
+    @Transactional
+    public void onVueloCancelado(VueloCanceladoEvent event) {
+        List<Equipaje> afectados = equipajeRepository.findByVueloActualId(event.vueloId());
+        if (afectados.isEmpty()) return;
+
+        for (Equipaje eq : afectados) {
+            eq.setEstado(EstadoEquipaje.EN_REPLANIFICACION);
+            eq.setVueloActual(null);
+            equipajeRepository.save(eq);
+
+            ColaPlanificacion colaItem = new ColaPlanificacion();
+            colaItem.setId(UUID.randomUUID());
+            colaItem.setEquipajeId(eq.getId());
+            colaItem.setTipo(TipoCola.REPLANIFICACION);
+            colaItem.setEstado(EstadoCola.PENDIENTE);
+            colaItem.setIntentos(0);
+            colaItem.setFechaCreacion(OffsetDateTime.now());
+            colaRepository.save(colaItem);
+        }
+
+        log.info("VueloCanceladoEvent: vuelo={}, equipajes encolados={}", event.vueloId(), afectados.size());
+    }
+}

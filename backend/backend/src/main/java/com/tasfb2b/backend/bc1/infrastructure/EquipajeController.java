@@ -35,8 +35,8 @@ public class EquipajeController {
             if (nodoId == null) {
                 nodoId = UUID.fromString("00000000-0000-0000-0003-000000000001");
             }
-            EquipajeService.EquipajeResponse response = equipajeService.registrar(nodoId, request);
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+            var response = equipajeService.registrar(nodoId, request);
+            return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
         } catch (EquipajeService.ValidacionException e) {
             return ResponseEntity.unprocessableEntity().body(error(422, "VALIDACION_FALLIDA", e.getMessage()));
         }

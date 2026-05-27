@@ -3,15 +3,12 @@ package com.tasfb2b.backend.bc2.application;
 import com.tasfb2b.backend.bc1.domain.*;
 import com.tasfb2b.backend.bc1.infrastructure.*;
 import com.tasfb2b.backend.bc2.domain.*;
-import com.tasfb2b.backend.bc2.infrastructure.*;
-import com.tasfb2b.backend.shared.events.VueloCanceladoEvent;
+import com.tasfb2b.backend.bc2.infrastructure.SesionRepository;
 import com.tasfb2b.backend.shared.infrastructure.RedisCacheService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
@@ -35,11 +32,10 @@ class TickServiceTest {
     @Mock private EquipajeRepository equipajeRepository;
     @Mock private SegmentoPlanRepository segmentoPlanRepository;
     @Mock private NodoLogisticoRepository nodoRepository;
-    @Mock private EventoCancelacionRepository eventoCancelacionRepository;
-    @Mock private LoteReplanificacionRepository loteReplanificacionRepository;
     @Mock private RedisCacheService redisCacheService;
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private TelemetriaService telemetriaService;
+    @Mock private ReplanificacionService replanificacionService;
 
     private ObjectMapper objectMapper;
     private TickService tickService;
@@ -52,16 +48,14 @@ class TickServiceTest {
     private PlanViaje planViaje;
     private SegmentoPlan segmento;
 
-    @Captor private ArgumentCaptor<VueloCanceladoEvent> eventCaptor;
-
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper();
         tickService = new TickService(
                 sesionRepository, vueloRepository, equipajeRepository,
                 segmentoPlanRepository, nodoRepository,
-                eventoCancelacionRepository, loteReplanificacionRepository,
-                redisCacheService, eventPublisher, telemetriaService, objectMapper);
+                redisCacheService, telemetriaService, objectMapper,
+                replanificacionService, eventPublisher);
 
         sesion = new SesionEjecucion(
                 UUID.randomUUID(), TipoSesion.SIMULADA,
@@ -242,20 +236,13 @@ class TickServiceTest {
                 .thenReturn(List.of(vuelo));
         when(vueloRepository.findByEstadoAndHoraLlegadaLessThanEqual(any(), any()))
                 .thenReturn(List.of());
-        when(equipajeRepository.findByVueloActualId(vuelo.getId()))
-                .thenReturn(List.of(equipaje));
         when(nodoRepository.findAllByOrderByCodigoIataAsc())
                 .thenReturn(List.of(nodoOrigen, nodoDestino));
 
         tickService.tick();
 
-        assertEquals(EstadoVuelo.CANCELADO, vuelo.getEstado(),
-                "Flight should be CANCELADO after probabilistic cancellation at 100%");
-        assertEquals(EstadoEquipaje.EN_REPLANIFICACION, equipaje.getEstado(),
-                "Equipaje should be EN_REPLANIFICACION after flight cancellation");
-        assertTrue(sesion.getVuelosCancelados() >= 1,
-                "Session should record at least 1 cancelled flight");
-        verify(eventPublisher).publishEvent(any(VueloCanceladoEvent.class));
+        verify(replanificacionService).replanificarEnSesion(
+                eq(sesion.getId()), eq(vuelo.getId()), anyString(), any(OffsetDateTime.class));
     }
 
     @Test
