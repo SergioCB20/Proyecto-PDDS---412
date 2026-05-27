@@ -32,6 +32,22 @@ public class RedisCacheService {
         return val != null ? Integer.parseInt(val) : null;
     }
 
+    public void setMetricasSesion(UUID sesionId, String json) {
+        redisTemplate.opsForValue().set("sesion:" + sesionId + ":metricas", json);
+    }
+
+    public String getMetricasSesion(UUID sesionId) {
+        return redisTemplate.opsForValue().get("sesion:" + sesionId + ":metricas");
+    }
+
+    public void setEstadoSesion(UUID sesionId, String estado) {
+        redisTemplate.opsForValue().set("sesion:" + sesionId + ":estado", estado);
+    }
+
+    public String getEstadoSesion(UUID sesionId) {
+        return redisTemplate.opsForValue().get("sesion:" + sesionId + ":estado");
+    }
+
     public void eliminarMetricasSesion(UUID sesionId) {
         redisTemplate.delete("sesion:" + sesionId + ":metricas");
         redisTemplate.delete("sesion:" + sesionId + ":estado");
