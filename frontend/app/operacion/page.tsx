@@ -58,6 +58,75 @@ export default function OperacionPage() {
   const [csvConfirmLoading, setCsvConfirmLoading] = useState(false);
   const [manifestLoading, setManifestLoading] = useState<string | null>(null);
 
+  const [vueloFormOpen, setVueloFormOpen] = useState(false);
+  const [vueloFormData, setVueloFormData] = useState({
+    codigo_vuelo: '',
+    origen_id: '',
+    destino_id: '',
+    hora_salida: '',
+    hora_llegada: '',
+    capacidad_carga: '',
+  });
+  const [vueloFormLoading, setVueloFormLoading] = useState(false);
+  const [vueloFormError, setVueloFormError] = useState<string | null>(null);
+  const [editingVuelo, setEditingVuelo] = useState<Vuelo | null>(null);
+
+  const [sseConnected, setSseConnected] = useState(false);
+  const [notificaciones, setNotificaciones] = useState<{ id: number; tipo: 'success' | 'error'; mensaje: string }[]>([]);
+
+  const agregarNotificacion = (tipo: 'success' | 'error', mensaje: string) => {
+    const id = Date.now();
+    setNotificaciones(prev => [...prev.slice(-4), { id, tipo, mensaje }]);
+    setTimeout(() => setNotificaciones(prev => prev.filter(n => n.id !== id)), 5000);
+  };
+
+  const getApiBaseUrl = () => process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
+
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) return;
+
+    const url = `${getApiBaseUrl().replace('/api', '')}/api/eventos/planificacion?token=${encodeURIComponent(token)}`;
+    let eventSource: EventSource | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const conectar = () => {
+      eventSource = new EventSource(url);
+      setSseConnected(true);
+
+      eventSource.addEventListener('planificacion-completada', (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          agregarNotificacion('success', `Equipaje ${data.equipaje_id.slice(0, 8)}... planificado (${data.tipo})`);
+          setEquipajesRecientes(prev => [
+            { id_externo: data.equipaje_id, destino: '', estado: 'ENRUTADO', tiempo: 'ahora' },
+            ...prev.slice(0, 7),
+          ]);
+        } catch { /* ignore parse errors */ }
+      });
+
+      eventSource.addEventListener('planificacion-fallida', (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          agregarNotificacion('error', `Fallo planificacion: ${data.error || data.equipaje_id?.slice(0, 8)}`);
+        } catch { /* ignore parse errors */ }
+      });
+
+      eventSource.onerror = () => {
+        eventSource?.close();
+        setSseConnected(false);
+        reconnectTimer = setTimeout(conectar, 3000);
+      };
+    };
+
+    conectar();
+
+    return () => {
+      eventSource?.close();
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+    };
+  }, []);
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -168,7 +237,7 @@ export default function OperacionPage() {
     setCsvError(null);
     try {
       const ids_equipaje = registrosValidos.map(r => r.id_equipaje);
-      const response = await api.post<CargaMasivaConfirmResponse>('/equipajes/carga-masiva/confirmar', { ids_equipaje });
+      await api.post<CargaMasivaConfirmResponse>('/equipajes/carga-masiva/confirmar', { ids_equipaje });
       setCargaMasivaOpen(false);
       setCsvFile(null);
       setCsvPreview(null);
@@ -186,6 +255,94 @@ export default function OperacionPage() {
     setCsvFile(null);
     setCsvPreview(null);
     setCsvError(null);
+  };
+
+  const handleEditarEquipaje = (eq: EquipajeReciente) => {
+    setFormData({
+      idEquipaje: eq.id_externo,
+      destinoIata: eq.destino,
+      vueloId: '',
+      slaComprometido: '',
+    });
+    setFormOpen(true);
+  };
+
+  const handleEliminarEquipaje = async (idExterno: string) => {
+    if (!confirm(`¿Eliminar equipaje ${idExterno}?`)) return;
+    try {
+      await api.delete(`/equipajes/${idExterno}`);
+      setEquipajesRecientes(prev => prev.filter(eq => eq.id_externo !== idExterno));
+    } catch (err: unknown) {
+      const error = err as { mensaje?: string; message?: string };
+      alert(error.mensaje || error.message || 'Error al eliminar equipaje');
+    }
+  };
+
+  const resetVueloForm = () => {
+    setVueloFormData({ codigo_vuelo: '', origen_id: '', destino_id: '', hora_salida: '', hora_llegada: '', capacidad_carga: '' });
+    setVueloFormError(null);
+    setEditingVuelo(null);
+  };
+
+  const handleVueloSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setVueloFormError(null);
+
+    if (!vueloFormData.codigo_vuelo || !vueloFormData.origen_id || !vueloFormData.destino_id || !vueloFormData.hora_salida || !vueloFormData.hora_llegada || !vueloFormData.capacidad_carga) {
+      setVueloFormError('Todos los campos son requeridos');
+      return;
+    }
+
+    setVueloFormLoading(true);
+    try {
+      const payload = {
+        codigo_vuelo: vueloFormData.codigo_vuelo,
+        origen_id: vueloFormData.origen_id,
+        destino_id: vueloFormData.destino_id,
+        hora_salida: new Date(vueloFormData.hora_salida).toISOString(),
+        hora_llegada: new Date(vueloFormData.hora_llegada).toISOString(),
+        capacidad_carga: parseInt(vueloFormData.capacidad_carga),
+      };
+
+      if (editingVuelo) {
+        await api.put(`/vuelos/${editingVuelo.id}`, payload);
+      } else {
+        await api.post('/vuelos', payload);
+      }
+
+      resetVueloForm();
+      setVueloFormOpen(false);
+      fetchData();
+    } catch (err: unknown) {
+      const error = err as { mensaje?: string; message?: string };
+      setVueloFormError(error.mensaje || error.message || 'Error al guardar vuelo');
+    } finally {
+      setVueloFormLoading(false);
+    }
+  };
+
+  const handleEditarVuelo = (vuelo: Vuelo) => {
+    setVueloFormData({
+      codigo_vuelo: vuelo.codigo_vuelo,
+      origen_id: vuelo.origen.id,
+      destino_id: vuelo.destino.id,
+      hora_salida: vuelo.hora_salida.slice(0, 16),
+      hora_llegada: vuelo.hora_llegada.slice(0, 16),
+      capacidad_carga: String(vuelo.capacidad_carga),
+    });
+    setEditingVuelo(vuelo);
+    setVueloFormOpen(true);
+  };
+
+  const handleEliminarVuelo = async (vuelo: Vuelo) => {
+    if (!confirm(`¿Eliminar vuelo ${vuelo.codigo_vuelo}?`)) return;
+    try {
+      await api.delete(`/vuelos/${vuelo.id}`);
+      fetchData();
+    } catch (err: unknown) {
+      const error = err as { mensaje?: string; message?: string };
+      alert(error.mensaje || error.message || 'Error al eliminar vuelo');
+    }
   };
 
   const handleDescargarManifiesto = async (vuelo: Vuelo) => {
@@ -251,6 +408,29 @@ export default function OperacionPage() {
               <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
             </button>
           </div>
+          <div className="flex items-center gap-2 px-4 py-1.5 border-b border-slate-200 dark:border-slate-700">
+            <span className={`w-2 h-2 rounded-full ${sseConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+            <span className="text-xs text-slate-500">
+              SSE {sseConnected ? 'conectado' : 'desconectado'}
+            </span>
+          </div>
+          {notificaciones.length > 0 && (
+            <div className="px-4 py-2 space-y-1 border-b border-slate-200 dark:border-slate-700">
+              {notificaciones.map(n => (
+                <div
+                  key={n.id}
+                  className={`flex items-center gap-2 p-2 rounded-lg text-xs ${
+                    n.tipo === 'success'
+                      ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                      : 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                  }`}
+                >
+                  {n.tipo === 'success' ? <CheckCircle size={12} /> : <XCircle size={12} />}
+                  {n.mensaje}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="p-4 flex-1 overflow-y-auto">
@@ -271,6 +451,15 @@ export default function OperacionPage() {
             >
               <FileSpreadsheet size={16} className="text-green-600 dark:text-green-400" />
               <span className="font-medium text-sm text-green-900 dark:text-green-100">Carga Masiva</span>
+            </button>
+            <button
+              onClick={() => { resetVueloForm(); setVueloFormOpen(!vueloFormOpen); }}
+              className="flex-1 flex items-center justify-center gap-2 p-3 rounded-lg bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-colors"
+            >
+              <Plane size={16} className="text-purple-600 dark:text-purple-400" />
+              <span className="font-medium text-sm text-purple-900 dark:text-purple-100">
+                {editingVuelo ? 'Editando...' : 'Nuevo Vuelo'}
+              </span>
             </button>
           </div>
 
@@ -324,6 +513,68 @@ export default function OperacionPage() {
               <Button type="submit" disabled={formLoading} className="w-full">
                 {formLoading ? 'Registrando...' : 'Registrar'}
               </Button>
+            </form>
+          )}
+
+          {vueloFormOpen && (
+            <form onSubmit={handleVueloSubmit} className="space-y-3 mb-4 p-3 rounded-lg bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800">
+              <h4 className="text-sm font-medium text-purple-900 dark:text-purple-100">
+                {editingVuelo ? 'Editar Vuelo' : 'Nuevo Vuelo'}
+              </h4>
+              <Input
+                label="Código Vuelo"
+                placeholder="LA2402"
+                value={vueloFormData.codigo_vuelo}
+                onChange={e => setVueloFormData(prev => ({ ...prev, codigo_vuelo: e.target.value }))}
+              />
+              <Select
+                label="Origen"
+                placeholder="Seleccionar origen"
+                options={nodos.map(n => ({ value: n.id, label: `${n.codigo_iata} - ${n.nombre}` }))}
+                value={vueloFormData.origen_id}
+                onChange={e => setVueloFormData(prev => ({ ...prev, origen_id: e.target.value }))}
+              />
+              <Select
+                label="Destino"
+                placeholder="Seleccionar destino"
+                options={nodos.map(n => ({ value: n.id, label: `${n.codigo_iata} - ${n.nombre}` }))}
+                value={vueloFormData.destino_id}
+                onChange={e => setVueloFormData(prev => ({ ...prev, destino_id: e.target.value }))}
+              />
+              <Input
+                label="Hora Salida"
+                type="datetime-local"
+                value={vueloFormData.hora_salida}
+                onChange={e => setVueloFormData(prev => ({ ...prev, hora_salida: e.target.value }))}
+              />
+              <Input
+                label="Hora Llegada"
+                type="datetime-local"
+                value={vueloFormData.hora_llegada}
+                onChange={e => setVueloFormData(prev => ({ ...prev, hora_llegada: e.target.value }))}
+              />
+              <Input
+                label="Capacidad de Carga"
+                type="number"
+                placeholder="200"
+                min="1"
+                value={vueloFormData.capacidad_carga}
+                onChange={e => setVueloFormData(prev => ({ ...prev, capacidad_carga: e.target.value }))}
+              />
+              {vueloFormError && (
+                <div className="flex items-center gap-2 p-2 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
+                  <XCircle size={14} className="text-red-600 dark:text-red-400 flex-shrink-0" />
+                  <span className="text-xs text-red-700 dark:text-red-300">{vueloFormError}</span>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Button type="submit" disabled={vueloFormLoading} className="flex-1">
+                  {vueloFormLoading ? 'Guardando...' : (editingVuelo ? 'Actualizar' : 'Crear')}
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => { resetVueloForm(); setVueloFormOpen(false); }}>
+                  Cancelar
+                </Button>
+              </div>
             </form>
           )}
 
@@ -395,6 +646,22 @@ export default function OperacionPage() {
                     <span className="text-xs text-slate-400">{eq.tiempo}</span>
                   </div>
                 </div>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => handleEditarEquipaje(eq)}
+                    className="p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-500"
+                    title="Editar equipaje"
+                  >
+                    <Package size={14} />
+                  </button>
+                  <button
+                    onClick={() => handleEliminarEquipaje(eq.id_externo)}
+                    className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500"
+                    title="Eliminar equipaje"
+                  >
+                    <XCircle size={14} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -425,14 +692,30 @@ export default function OperacionPage() {
                         {vuelo.origen.codigo_iata} → {vuelo.destino.codigo_iata}
                       </div>
                     </div>
-                    <button
-                      onClick={() => handleDescargarManifiesto(vuelo)}
-                      disabled={manifestLoading === vuelo.id}
-                      className="p-2 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 disabled:opacity-50"
-                      title="Descargar Manifiesto PDF"
-                    >
-                      <Download size={16} className={manifestLoading === vuelo.id ? 'animate-pulse' : ''} />
-                    </button>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => handleEditarVuelo(vuelo)}
+                        className="p-1.5 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 text-purple-600"
+                        title="Editar vuelo"
+                      >
+                        <Plane size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleEliminarVuelo(vuelo)}
+                        className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500"
+                        title="Eliminar vuelo"
+                      >
+                        <XCircle size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleDescargarManifiesto(vuelo)}
+                        disabled={manifestLoading === vuelo.id}
+                        className="p-1.5 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 disabled:opacity-50"
+                        title="Descargar Manifiesto PDF"
+                      >
+                        <Download size={14} className={manifestLoading === vuelo.id ? 'animate-pulse' : ''} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
