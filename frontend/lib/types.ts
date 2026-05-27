@@ -161,7 +161,8 @@ export interface CrearEquipajeRequest {
 export interface CrearEquipajeResponse {
   id: string;
   estado: string;
-  plan_viaje: PlanViajeResponse;
+  id_externo?: string;
+  destino_iata?: string;
 }
 
 export interface CargaMasivaRegistro {

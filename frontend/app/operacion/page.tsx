@@ -4,13 +4,13 @@ import { useEffect, useState } from 'react';
 import { Package, Clock, MapPin, RefreshCw, ChevronDown, ChevronUp, CheckCircle, XCircle, Plane, ArrowRight, Upload, FileSpreadsheet, AlertTriangle, Download } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { api } from '@/lib/api';
-import { MOCK_NODOS, MOCK_VUELOS, nodoToEnMapa } from '@/lib/mock';
+import { nodoToEnMapa } from '@/lib/mock';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Modal } from '@/components/ui/Modal';
-import type { Nodo, Vuelo, NodoEnMapa, CrearEquipajeRequest, CrearEquipajeResponse, CargaMasivaPreview, CargaMasivaConfirmResponse } from '@/lib/types';
+import type { Nodo, Vuelo, VueloPageResponse, NodoEnMapa, CrearEquipajeRequest, CrearEquipajeResponse, CargaMasivaPreview, CargaMasivaConfirmResponse } from '@/lib/types';
 
 const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false });
 
@@ -22,21 +22,13 @@ interface EquipajeReciente {
 }
 
 export default function OperacionPage() {
-  const [nodos, setNodos] = useState<NodoEnMapa[]>(MOCK_NODOS.map(nodoToEnMapa));
+  const [nodos, setNodos] = useState<NodoEnMapa[]>([]);
   const [vuelosProgramados, setVuelosProgramados] = useState<Vuelo[]>([]);
-  const [allVuelos, setAllVuelos] = useState<Vuelo[]>(MOCK_VUELOS);
-  const [equipajesRecientes, setEquipajesRecientes] = useState<EquipajeReciente[]>([
-    { id_externo: 'MAL-2025-001', destino: 'MIA', estado: 'EN_VUELO', tiempo: 'hace 2 min' },
-    { id_externo: 'MAL-2025-002', destino: 'BOG', estado: 'ENRUTADO', tiempo: 'hace 5 min' },
-    { id_externo: 'MAL-2025-003', destino: 'GRU', estado: 'EN_VUELO', tiempo: 'hace 8 min' },
-    { id_externo: 'MAL-2025-004', destino: 'SCL', estado: 'REGISTRADO', tiempo: 'hace 12 min' },
-    { id_externo: 'MAL-2025-005', destino: 'MIA', estado: 'EN_ALMACEN', tiempo: 'hace 15 min' },
-    { id_externo: 'MAL-2025-006', destino: 'LIM', estado: 'ENTREGADO', tiempo: 'hace 20 min' },
-    { id_externo: 'MAL-2025-007', destino: 'BOG', estado: 'EN_VUELO', tiempo: 'hace 25 min' },
-    { id_externo: 'MAL-2025-008', destino: 'GRU', estado: 'EN_REPLANIFICACION', tiempo: 'hace 30 min' },
-  ]);
+  const [allVuelos, setAllVuelos] = useState<Vuelo[]>([]);
+  const [equipajesRecientes, setEquipajesRecientes] = useState<EquipajeReciente[]>([]);
   const [loading, setLoading] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   const [formOpen, setFormOpen] = useState(true);
   const [formData, setFormData] = useState({
@@ -129,17 +121,19 @@ export default function OperacionPage() {
 
   const fetchData = async () => {
     setLoading(true);
+    setApiError(null);
     try {
       const [nodosData, vuelosData] = await Promise.all([
-        api.get<Nodo[]>('/nodos').catch(() => MOCK_NODOS),
-        api.get<{ content: Vuelo[] }>('/vuelos?size=50').catch(() => ({ content: MOCK_VUELOS })),
+        api.get<Nodo[]>('/nodos'),
+        api.get<VueloPageResponse>('/vuelos?size=50'),
       ]);
-      setNodos(Array.isArray(nodosData) ? nodosData.map(nodoToEnMapa) : MOCK_NODOS.map(nodoToEnMapa));
-      const vuelosArray = 'content' in vuelosData ? vuelosData.content : (Array.isArray(vuelosData) ? vuelosData : MOCK_VUELOS);
-      setAllVuelos(vuelosArray);
-      setVuelosProgramados(vuelosArray.filter((v: Vuelo) => v.estado === 'PROGRAMADO'));
+      setNodos(nodosData.map(nodoToEnMapa));
+      setAllVuelos(vuelosData.content);
+      setVuelosProgramados(vuelosData.content.filter((v: Vuelo) => v.estado === 'PROGRAMADO'));
       setLastUpdate(new Date());
-    } catch {
+    } catch (err: unknown) {
+      const error = err as { mensaje?: string; message?: string };
+      setApiError(error.mensaje || error.message || 'Error de conexion con el servidor');
     } finally {
       setLoading(false);
     }
@@ -414,6 +408,12 @@ export default function OperacionPage() {
               SSE {sseConnected ? 'conectado' : 'desconectado'}
             </span>
           </div>
+          {apiError && (
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30">
+              <XCircle size={14} className="text-red-600 dark:text-red-400 flex-shrink-0" />
+              <span className="text-xs text-red-700 dark:text-red-300">{apiError}</span>
+            </div>
+          )}
           {notificaciones.length > 0 && (
             <div className="px-4 py-2 space-y-1 border-b border-slate-200 dark:border-slate-700">
               {notificaciones.map(n => (
@@ -592,24 +592,6 @@ export default function OperacionPage() {
                 <div className="flex justify-between">
                   <span className="text-slate-600 dark:text-slate-400">Estado:</span>
                   <Badge variant="green">{formSuccess.estado}</Badge>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600 dark:text-slate-400">SLA:</span>
-                  <Badge variant={formSuccess.plan_viaje.estado_sla === 'EN_TIEMPO' ? 'green' : 'red'}>
-                    {formSuccess.plan_viaje.estado_sla.replace('_', ' ')}
-                  </Badge>
-                </div>
-                <div className="mt-2 pt-2 border-t border-green-200 dark:border-green-800">
-                  <span className="text-slate-600 dark:text-slate-400 block mb-1">Plan de viaje:</span>
-                  {formSuccess.plan_viaje.segmentos.map((seg, i) => (
-                    <div key={i} className="flex items-center gap-1 text-xs text-slate-700 dark:text-slate-300">
-                      <Plane size={12} />
-                      <span>{seg.nodo_origen}</span>
-                      <ArrowRight size={10} />
-                      <span>{seg.nodo_destino}</span>
-                      <span className="text-slate-400">({seg.vuelo_codigo})</span>
-                    </div>
-                  ))}
                 </div>
               </div>
             </div>
