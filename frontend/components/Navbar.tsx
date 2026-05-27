@@ -1,19 +1,27 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LogOut, Plane } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import type { Usuario } from '@/lib/types';
 
+function subscribeToUser() {
+  return () => {};
+}
+
+function getSnapshot(): Usuario | null {
+  return auth.getUser();
+}
+
+function getServerSnapshot(): Usuario | null {
+  return null;
+}
+
 export function Navbar() {
   const pathname = usePathname();
-  const [user, setUser] = useState<Usuario | null>(null);
-
-  useEffect(() => {
-    setUser(auth.getUser());
-  }, []);
+  const user = useSyncExternalStore(subscribeToUser, getSnapshot, getServerSnapshot);
 
   const navLinks = [
     { href: '/admin', label: 'Administracion', rol: 'ADMINISTRADOR' as const },
