@@ -37,8 +37,8 @@
 |---|---|---|---|---|
 | **C4** | UI carga masiva | A2 (✅) | ✅ Completado | Upload CSV → preview → confirmar. Conecta a `POST /equipajes/carga-masiva` y `confirmar` |
 | **C7** | Botón manifiesto PDF | A4 (✅) | ⏳ Pendiente | Botón descarga en `/operacion` → `GET /manifiestos/{vuelo_id}` |
-| **C8** | Integración SSE en operación | B12 | ⏳ Pendiente | En `app/operacion/page.tsx`: abrir `EventSource('/api/eventos/planificacion')`, escuchar eventos `planificacion-completada` para actualizar mapa en tiempo real, `planificacion-fallida` para mostrar error. Reconexión automática. |
-| **C6** | Link a reporte | B8 | ⏳ Pendiente | En `/simulacion/[id]`: botón "Ver Reporte" cuando estado = FINALIZADA → redirige a `/simulacion/[id]/reporte` |
+| **C8** | Integración SSE en operación | B12 | ✅ Completado | `EventSource` con token query param, eventos `planificacion-completada`/`planificacion-fallida`, notificaciones toast, reconexión automática 3s. Backend modificado para aceptar `?token=`. |
+| **C6** | Link a reporte | B8 | ✅ Completado | Botón "Ver Reporte" cuando estado = FINALIZADA → redirige a `/simulacion/[id]/reporte` con fallback a mock data |
 
 ---
 

@@ -71,7 +71,61 @@ export default function OperacionPage() {
   const [vueloFormError, setVueloFormError] = useState<string | null>(null);
   const [editingVuelo, setEditingVuelo] = useState<Vuelo | null>(null);
 
+  const [sseConnected, setSseConnected] = useState(false);
+  const [notificaciones, setNotificaciones] = useState<{ id: number; tipo: 'success' | 'error'; mensaje: string }[]>([]);
 
+  const agregarNotificacion = (tipo: 'success' | 'error', mensaje: string) => {
+    const id = Date.now();
+    setNotificaciones(prev => [...prev.slice(-4), { id, tipo, mensaje }]);
+    setTimeout(() => setNotificaciones(prev => prev.filter(n => n.id !== id)), 5000);
+  };
+
+  const getApiBaseUrl = () => process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
+
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) return;
+
+    const url = `${getApiBaseUrl().replace('/api', '')}/api/eventos/planificacion?token=${encodeURIComponent(token)}`;
+    let eventSource: EventSource | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const conectar = () => {
+      eventSource = new EventSource(url);
+      setSseConnected(true);
+
+      eventSource.addEventListener('planificacion-completada', (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          agregarNotificacion('success', `Equipaje ${data.equipaje_id.slice(0, 8)}... planificado (${data.tipo})`);
+          setEquipajesRecientes(prev => [
+            { id_externo: data.equipaje_id, destino: '', estado: 'ENRUTADO', tiempo: 'ahora' },
+            ...prev.slice(0, 7),
+          ]);
+        } catch { /* ignore parse errors */ }
+      });
+
+      eventSource.addEventListener('planificacion-fallida', (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          agregarNotificacion('error', `Fallo planificacion: ${data.error || data.equipaje_id?.slice(0, 8)}`);
+        } catch { /* ignore parse errors */ }
+      });
+
+      eventSource.onerror = () => {
+        eventSource?.close();
+        setSseConnected(false);
+        reconnectTimer = setTimeout(conectar, 3000);
+      };
+    };
+
+    conectar();
+
+    return () => {
+      eventSource?.close();
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+    };
+  }, []);
 
   const fetchData = async () => {
     setLoading(true);
@@ -354,6 +408,29 @@ export default function OperacionPage() {
               <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
             </button>
           </div>
+          <div className="flex items-center gap-2 px-4 py-1.5 border-b border-slate-200 dark:border-slate-700">
+            <span className={`w-2 h-2 rounded-full ${sseConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+            <span className="text-xs text-slate-500">
+              SSE {sseConnected ? 'conectado' : 'desconectado'}
+            </span>
+          </div>
+          {notificaciones.length > 0 && (
+            <div className="px-4 py-2 space-y-1 border-b border-slate-200 dark:border-slate-700">
+              {notificaciones.map(n => (
+                <div
+                  key={n.id}
+                  className={`flex items-center gap-2 p-2 rounded-lg text-xs ${
+                    n.tipo === 'success'
+                      ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                      : 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                  }`}
+                >
+                  {n.tipo === 'success' ? <CheckCircle size={12} /> : <XCircle size={12} />}
+                  {n.mensaje}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="p-4 flex-1 overflow-y-auto">
