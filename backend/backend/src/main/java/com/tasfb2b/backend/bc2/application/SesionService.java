@@ -1,8 +1,7 @@
 package com.tasfb2b.backend.bc2.application;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import com.tasfb2b.backend.bc2.domain.*;
 import com.tasfb2b.backend.bc2.infrastructure.SesionRepository;
 import com.tasfb2b.backend.shared.events.SesionFinalizada;
