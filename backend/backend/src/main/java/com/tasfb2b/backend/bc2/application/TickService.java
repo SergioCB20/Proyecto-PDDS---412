@@ -6,10 +6,10 @@ import com.tasfb2b.backend.bc2.domain.*;
 import com.tasfb2b.backend.bc2.infrastructure.*;
 import com.tasfb2b.backend.shared.events.VueloCanceladoEvent;
 import com.tasfb2b.backend.shared.infrastructure.RedisCacheService;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
@@ -272,7 +272,7 @@ public class TickService {
                     sesion.getMaletasReplanificadas() != null ? sesion.getMaletasReplanificadas() : 0);
             root.put("timestamp", now.toString());
             return objectMapper.writeValueAsString(root);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             log.error("Error building metrics JSON for session {}: {}", sesion.getId(), e.getMessage());
             return "{}";
         }
