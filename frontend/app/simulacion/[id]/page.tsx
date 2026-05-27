@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Play, Pause, Square, Clock, AlertTriangle, RefreshCw, Activity } from 'lucide-react';
+import { Play, Pause, Square, Clock, AlertTriangle, RefreshCw, Activity, FileText } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -266,7 +266,10 @@ function SimulacionContent() {
             </Button>
           )}
           {estado === 'FINALIZADA' && (
-            <p className="text-center text-sm text-slate-500 py-2">Simulacion finalizada</p>
+            <Button className="w-full" variant="secondary" onClick={() => router.push(`/simulacion/${backendSesionId || sesionIdParam}/reporte`)}>
+              <FileText size={16} className="mr-2" />
+              Ver Reporte
+            </Button>
           )}
           <Button variant="ghost" className="w-full" onClick={() => router.push('/simulacion')}>
             Nueva Simulacion

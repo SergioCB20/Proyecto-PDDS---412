@@ -34,7 +34,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(com.tasfb2b.backend.bc1.application.EquipajeService.ValidacionException.class)
     public ResponseEntity<?> handleEquipajeValidation(com.tasfb2b.backend.bc1.application.EquipajeService.ValidacionException ex) {
-        return ResponseEntity.badRequest().body(error(HttpStatus.BAD_REQUEST, "VALIDACION", ex.getMessage()));
+        return ResponseEntity.unprocessableEntity().body(error(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDACION", ex.getMessage()));
     }
 
     @ExceptionHandler(com.tasfb2b.backend.bc1.application.CancelacionService.CancelacionInvalidaException.class)

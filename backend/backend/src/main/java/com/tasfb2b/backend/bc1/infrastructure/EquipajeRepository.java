@@ -15,4 +15,5 @@ public interface EquipajeRepository extends JpaRepository<Equipaje, UUID> {
     Optional<Equipaje> findByIdExterno(String idExterno);
     Page<Equipaje> findByEstado(EstadoEquipaje estado, Pageable pageable);
     List<Equipaje> findByVueloActualId(UUID vueloActualId);
+    long countByVueloActualId(UUID vueloId);
 }

@@ -17,8 +17,13 @@ import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @Service
 public class CargaMasivaService {
+
+    private static final Logger log = LoggerFactory.getLogger(CargaMasivaService.class);
 
     private final EquipajeRepository equipajeRepository;
     private final PlanViajeRepository planViajeRepository;
@@ -263,6 +268,7 @@ public class CargaMasivaService {
 
                 ingresados++;
             } catch (Exception e) {
+                log.error("Error al confirmar equipaje {}: {}", preview.idEquipaje(), e.getMessage(), e);
                 fallidos++;
             }
         }

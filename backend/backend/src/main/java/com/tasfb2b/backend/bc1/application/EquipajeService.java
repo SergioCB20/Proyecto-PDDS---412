@@ -138,6 +138,50 @@ public class EquipajeService {
         return toEquipajeResponse(equipaje, planViaje, List.of(segmento));
     }
 
+    @Transactional
+    public EquipajeResponse actualizar(UUID id, RegistrarEquipajeRequest request) {
+        Equipaje equipaje = equipajeRepository.findById(id)
+                .orElseThrow(() -> new EquipajeNoEncontradoException("Equipaje no encontrado: " + id));
+
+        NodoLogistico nodoDestino = nodoRepository.findByCodigoIata(request.destino_iata())
+                .orElseThrow(() -> new ValidacionException("Destino IATA no existe"));
+
+        Vuelo vuelo = vueloRepository.findById(request.vuelo_id())
+                .orElseThrow(() -> new ValidacionException("Vuelo no encontrado"));
+
+        equipaje.setDestinoIata(request.destino_iata());
+        equipaje.setSlaComprometido(request.sla_comprometido());
+        equipaje.setVueloActual(vuelo);
+        equipajeRepository.save(equipaje);
+
+        PlanViaje planViaje = planViajeRepository.findByEquipajeId(id)
+                .orElseThrow(() -> new ValidacionException("Plan de viaje no encontrado"));
+
+        List<SegmentoPlan> segmentos = segmentoPlanRepository.findByPlanViajeIdOrderByOrdenAsc(planViaje.getId());
+        return toEquipajeResponse(equipaje, planViaje, segmentos);
+    }
+
+    @Transactional
+    public void eliminar(UUID id) {
+        Equipaje equipaje = equipajeRepository.findById(id)
+                .orElseThrow(() -> new EquipajeNoEncontradoException("Equipaje no encontrado: " + id));
+
+        PlanViaje planViaje = planViajeRepository.findByEquipajeId(id)
+                .orElseThrow(() -> new ValidacionException("Plan de viaje no encontrado"));
+
+        List<SegmentoPlan> segmentos = segmentoPlanRepository.findByPlanViajeIdOrderByOrdenAsc(planViaje.getId());
+        segmentoPlanRepository.deleteAll(segmentos);
+        planViajeRepository.delete(planViaje);
+
+        Vuelo vuelo = equipaje.getVueloActual();
+        if (vuelo != null) {
+            vuelo.setCargaDisponible(vuelo.getCargaDisponible() + 1);
+            vueloRepository.save(vuelo);
+        }
+
+        equipajeRepository.delete(equipaje);
+    }
+
     public EquipajeResponse obtenerPlanViaje(UUID equipajeId) {
         Equipaje equipaje = equipajeRepository.findById(equipajeId)
                 .orElseThrow(() -> new EquipajeNoEncontradoException("Equipaje no encontrado: " + equipajeId));
