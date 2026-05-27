@@ -36,7 +36,7 @@
 | # | Tarea | Dep | Estado | Descripción |
 |---|---|---|---|---|
 | **C4** | UI carga masiva | A2 (✅) | ✅ Completado | Upload CSV → preview → confirmar. Conecta a `POST /equipajes/carga-masiva` y `confirmar` |
-| **C7** | Botón manifiesto PDF | A4 (✅) | ⏳ Pendiente | Botón descarga en `/operacion` → `GET /manifiestos/{vuelo_id}` |
+| **C7** | Botón manifiesto PDF | A4 (✅) | ✅ Completado | Botón descarga en `/operacion` → `GET /manifiestos/{vuelo_id}` |
 | **C8** | Integración SSE en operación | B12 | ✅ Completado | `EventSource` con token query param, eventos `planificacion-completada`/`planificacion-fallida`, notificaciones toast, reconexión automática 3s. Backend modificado para aceptar `?token=`. |
 | **C6** | Link a reporte | B8 | ✅ Completado | Botón "Ver Reporte" cuando estado = FINALIZADA → redirige a `/simulacion/[id]/reporte` con fallback a mock data |
 
@@ -178,12 +178,12 @@ A4 (✅ PDF)   ──→ C7 (Botón PDF)
 - [ ] B8: Métricas y reporte leen de Redis (no dummy)
 - [x] B9: WebSocket emite telemetría en vivo
 - [x] C4: UI carga masiva funcional con API real
-- [ ] C7: Botón descarga PDF funcional
-- [ ] C8: Frontend recibe SSE y actualiza mapa en tiempo real
-- [ ] C6: Link a reporte aparece cuando sesión = FINALIZADA
+- [x] C7: Botón descarga PDF funcional
+- [x] C8: Frontend recibe SSE y actualiza mapa en tiempo real
+- [x] C6: Link a reporte aparece cuando sesión = FINALIZADA
 - [ ] Simulación muestra métricas reales (no dummy)
 - [x] Items EN_PROCESO > 5 min se marcan FALLIDO (timeout)
-- [ ] Todos los endpoints documentados en `openspec/specs/api-contracts.md`
+- [x] Todos los endpoints documentados en `openspec/specs/api-contracts.md`
 
 ---
 

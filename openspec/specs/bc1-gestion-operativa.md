@@ -71,11 +71,19 @@ Es el núcleo del dominio. Modela todo lo que ocurre en la operación real: el i
 - Al cancelar, cambiar estado del vuelo a `CANCELADO` y publicar `VueloCancelado`.
 - El sistema no elimina físicamente ningún vuelo.
 
+### Listado de vuelos
+- `GET /api/vuelos` acepta el query param `destino_iata` para filtrar vuelos por código IATA del nodo destino.
+- La respuesta de `GET /api/vuelos` y `GET /api/vuelos/{id}` incluye los campos `origen_lat`, `origen_lon`, `destino_lat`, `destino_lon` con coordenadas de los nodos origen y destino.
+
 ### Plan de viaje
 - Cada equipaje tiene exactamente un `PlanViaje`.
 - El `PlanViaje` es creado por BC2 tras calcular la ruta; BC1 lo persiste.
 - `ubicacion_tipo` puede ser `NODO` o `VUELO`.
 - `ubicacion_lat` y `ubicacion_lon` reflejan la posición actual del equipaje para el mapa.
+
+### Eliminación de equipaje
+- Al eliminar un equipaje, se incrementa en 1 la `carga_disponible` del vuelo al que estaba asignado.
+- Se elimina el plan de viaje y segmentos asociados.
 
 ### Estados del equipaje
 ```
@@ -125,6 +133,13 @@ VALUES (gen_random_uuid(), 'Plan operativo inicial', '2025-06-01', '2025-12-31')
 
 ---
 
+### Serialización de respuestas
+- Los campos de `VueloResponse` y sus sub-records se serializan en snake_case mediante `@JsonProperty`.
+- Campos afectados: `codigo_vuelo`, `hora_salida`, `hora_llegada`, `capacidad_carga`, `carga_disponible`, `origen_lat`, `origen_lon`, `destino_lat`, `destino_lon`.
+
+### Manejo de errores
+- `EquipajeService.ValidacionException` responde con HTTP 422 (UNPROCESSABLE_ENTITY).
+
 ## Paquete Java
 
 ```
@@ -147,7 +162,7 @@ com.tasfb2b.backend.bc1/
     ├── VueloRepository.java
     ├── NodoLogisticoRepository.java
     ├── PlanVuelosRepository.java
-    ├── EquipajeController.java    ← POST /equipajes, GET /equipajes/{id}/plan-viaje
-    ├── VueloController.java       ← GET /vuelos, POST /simulacion/cancelacion
+    ├── EquipajeController.java    ← POST /equipajes, PUT /equipajes/{id}, DELETE /equipajes/{id}, GET /equipajes/{id}/plan-viaje
+    ├── VueloController.java       ← GET /vuelos, POST /vuelos, PUT /vuelos/{id}, DELETE /vuelos/{id}, POST /simulacion/cancelacion
     └── NodoController.java        ← GET /nodos
 ```

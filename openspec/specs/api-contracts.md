@@ -25,9 +25,13 @@
 | `/auth/**` | ✓ | ✓ | ✓ |
 | `/usuarios/**` | ✓ | — | — |
 | `/equipajes/**` | — | ✓ | — |
-| `/vuelos/**` | ✓ | ✓ | ✓ |
+| `GET /vuelos` | ✓ | ✓ | ✓ |
+| `POST /vuelos` | — | ✓ | — |
+| `PUT /vuelos/{id}` | — | ✓ | — |
+| `DELETE /vuelos/{id}` | — | ✓ | — |
 | `/manifiestos/**` | — | ✓ | — |
 | `/sesiones/**` | — | — | ✓ |
+| `/eventos/**` | — | — | ✓ |
 | `/nodos/**` | ✓ | ✓ | ✓ |
 | `/simulacion/cancelacion` | — | ✓ | — |
 
@@ -197,13 +201,83 @@ Lista vuelos con filtros. Acceso: todos los roles.
       "hora_salida": "2025-06-15T14:30:00Z",
       "hora_llegada": "2025-06-15T22:00:00Z",
       "capacidad_carga": 200,
-      "carga_disponible": 85
+      "carga_disponible": 85,
+      "origen_lat": -12.0219,
+      "origen_lon": -77.1143,
+      "destino_lat": 25.7959,
+      "destino_lon": -80.2870
     }
   ],
   "totalElements": 42,
   "totalPages": 3
 }
 ```
+
+---
+
+### `POST /vuelos`
+Crea un nuevo vuelo. Solo OPERADOR_LOGISTICO.
+
+**Request:**
+```json
+{
+  "codigo_vuelo": "LA2402",
+  "origen_id": "uuid-origen",
+  "destino_id": "uuid-destino",
+  "hora_salida": "2025-06-16T14:30:00Z",
+  "hora_llegada": "2025-06-16T22:00:00Z",
+  "capacidad_carga": 200
+}
+```
+
+**Response 201:**
+```json
+{
+  "id": "uuid",
+  "codigo_vuelo": "LA2402",
+  "estado": "PROGRAMADO",
+  "origen": { "id": "uuid", "codigo_iata": "LIM", "nombre": "Jorge Chávez" },
+  "destino": { "id": "uuid", "codigo_iata": "MIA", "nombre": "Miami Intl" },
+  "hora_salida": "2025-06-16T14:30:00Z",
+  "hora_llegada": "2025-06-16T22:00:00Z",
+  "capacidad_carga": 200,
+  "carga_disponible": 200,
+  "origen_lat": -12.0219,
+  "origen_lon": -77.1143,
+  "destino_lat": 25.7959,
+  "destino_lon": -80.2870
+}
+```
+
+**Errores:**
+- `422` — Origen no encontrado
+- `422` — Destino no encontrado
+
+---
+
+### `PUT /vuelos/{id}`
+Actualiza un vuelo existente (solo PROGRAMADO). Solo OPERADOR_LOGISTICO.
+
+**Request:** Mismo cuerpo que POST /api/vuelos.
+
+**Response 200:** `VueloResponse` actualizado.
+
+**Errores:**
+- `404` — Vuelo no encontrado
+- `422` — Vuelo no está PROGRAMADO
+- `422` — Origen no encontrado
+- `422` — Destino no encontrado
+
+---
+
+### `DELETE /vuelos/{id}`
+Elimina un vuelo (solo PROGRAMADO sin equipajes). Solo OPERADOR_LOGISTICO.
+
+**Response 204:** Sin contenido.
+
+**Errores:**
+- `404` — Vuelo no encontrado
+- `422` — Vuelo no está PROGRAMADO o tiene equipajes asignados
 
 ---
 
@@ -295,6 +369,37 @@ Confirma e ingresa solo los registros válidos del preview. Solo OPERADOR_LOGIST
   "fallidos": 0
 }
 ```
+
+---
+
+### `PUT /equipajes/{id}`
+Actualiza un equipaje existente. Solo OPERADOR_LOGISTICO.
+
+**Request:**
+```json
+{
+  "destino_iata": "MIA",
+  "vuelo_id": "uuid-vuelo",
+  "sla_comprometido": "2025-06-16T08:00:00Z"
+}
+```
+
+**Response 200:** `EquipajeResponse` (misma estructura que POST /api/equipajes).
+
+**Errores:**
+- `404` — Equipaje no encontrado
+- `422` — Destino IATA no existe
+- `422` — Vuelo no encontrado
+
+---
+
+### `DELETE /equipajes/{id}`
+Elimina un equipaje y su plan de viaje. Solo OPERADOR_LOGISTICO.
+
+**Response 204:** Sin contenido.
+
+**Errores:**
+- `404` — Equipaje no encontrado
 
 ---
 
@@ -464,6 +569,49 @@ Obtiene el reporte final de una sesión finalizada. Solo ANALISTA.
   ]
 }
 ```
+
+---
+
+### `GET /eventos/planificacion`
+Streaming SSE (Server-Sent Events) de eventos de planificación en vivo. Solo ANALISTA.
+
+> **Nota:** Se usa query param `?token=` en lugar de header `Authorization` porque `EventSource` nativo del navegador no permite personalizar cabeceras HTTP.
+
+**Query params:** `?token={jwt_token}`
+
+**Response 200:** `Content-Type: text/event-stream`
+
+Cada evento SSE tiene el formato estándar:
+```
+event: planificacion
+data: { ...json... }
+```
+
+**Eventos emitidos:**
+
+| event | Disparo | data |
+|---|---|---|
+| `planificacion` | Cada tick de simulación (~5s) | Payload de métricas (ver abajo) |
+| `cancelacion` | Un vuelo es cancelado | `{ "vuelo_id": "uuid", "causa": "...", "equipajes_afectados": 12 }` |
+| `replanificacion` | Lote de equipajes replanificado | `{ "lote_id": "uuid", "equipajes": 5, "sesion_id": "uuid" }` |
+| `sesion_terminada` | La sesión finaliza | `{ "sesion_id": "uuid", "reporte_url": "/api/sesiones/{id}/reporte" }` |
+| `heartbeat` | Cada 30s para mantener conexión | `{ "timestamp": "..." }` |
+
+**Payload del evento `planificacion`:**
+```json
+{
+  "timestamp": "2025-06-10T09:05:00Z",
+  "dia_hora_virtual": "2025-06-02T14:30:00Z",
+  "sla_acumulado_pct": 94.3,
+  "vuelos_cancelados": 2,
+  "maletas_replanificadas": 18
+}
+```
+
+**Errores:**
+- `401` — Token ausente, inválido o expirado
+- `403` — Rol sin permiso (solo ANALISTA)
+- `503` — No hay sesión activa en este momento
 
 ---
 
