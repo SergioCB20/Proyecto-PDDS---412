@@ -34,6 +34,9 @@ public class ColaPlanificacion {
     @Column(name = "fecha_procesado")
     private OffsetDateTime fechaProcesado;
 
+    @Column(name = "sla_comprometido")
+    private OffsetDateTime slaComprometido;
+
     public ColaPlanificacion() {}
 
     public UUID getId() { return id; }
@@ -59,4 +62,7 @@ public class ColaPlanificacion {
 
     public OffsetDateTime getFechaProcesado() { return fechaProcesado; }
     public void setFechaProcesado(OffsetDateTime fechaProcesado) { this.fechaProcesado = fechaProcesado; }
+
+    public OffsetDateTime getSlaComprometido() { return slaComprometido; }
+    public void setSlaComprometido(OffsetDateTime slaComprometido) { this.slaComprometido = slaComprometido; }
 }

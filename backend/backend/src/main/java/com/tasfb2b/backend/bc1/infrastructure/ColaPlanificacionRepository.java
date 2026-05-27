@@ -22,5 +22,10 @@ public interface ColaPlanificacionRepository extends JpaRepository<ColaPlanifica
            nativeQuery = true)
     Optional<ColaPlanificacion> findTopByEstadoWithLock(@Param("estado") String estado);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query(value = "SELECT * FROM cola_planificacion WHERE estado = :estado ORDER BY sla_comprometido ASC NULLS LAST, fecha_creacion ASC LIMIT :limit FOR UPDATE SKIP LOCKED",
+           nativeQuery = true)
+    List<ColaPlanificacion> findBatchByEstadoWithLock(@Param("estado") String estado, @Param("limit") int limit);
+
     List<ColaPlanificacion> findByEstadoAndFechaCreacionBefore(EstadoCola estado, OffsetDateTime before);
 }

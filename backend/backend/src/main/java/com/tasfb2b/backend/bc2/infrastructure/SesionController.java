@@ -50,9 +50,4 @@ public class SesionController {
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/{id}/metricas")
-    public ResponseEntity<MetricasSesionResponse> obtenerMetricas(@PathVariable UUID id) {
-        MetricasSesionResponse response = sesionService.obtenerMetricas(id);
-        return ResponseEntity.ok(response);
-    }
 }

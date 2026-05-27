@@ -119,6 +119,7 @@ public class EquipajeService {
         colaItem.setEstado(EstadoCola.PENDIENTE);
         colaItem.setIntentos(0);
         colaItem.setFechaCreacion(OffsetDateTime.now());
+        colaItem.setSlaComprometido(request.sla_comprometido());
         colaRepository.save(colaItem);
 
         return new EquipajeRegistradoResponse(
