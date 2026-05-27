@@ -12,8 +12,8 @@
 
 | # | Tarea | Dep | Estado | Descripción |
 |---|---|---|---|---|
-| **B10** | Cola de planificación infraestructura | — | ⏳ Pendiente | Migración `V18__cola_planificacion.sql`, entidad `ColaPlanificacion`, enums `EstadoCola`/`TipoCola`, repository con `@Lock(PESSIMISTIC_WRITE)` + query nativa `SELECT ... FOR UPDATE SKIP LOCKED`, `PlanificacionWorker` con `@Scheduled(fixedDelay = 500)` que toma items uno a la vez, timeout de items EN_PROCESO > 5 min |
-| **B12** | SSE notificaciones | B10 | ⏳ Pendiente | `SseService` con `ConcurrentHashMap<UUID, SseEmitter>`, `PlanificacionSseController` con `GET /api/eventos/planificacion`, manejo de timeouts y desconexiones. El `PlanificacionWorker` notifica vía SSE al completar/fallar items |
+| **B10** | Cola de planificación infraestructura | — | ✅ Completado | Migración `V18__cola_planificacion.sql`, entidad `ColaPlanificacion`, enums `EstadoCola`/`TipoCola`, repository con `@Lock(PESSIMISTIC_WRITE)` + query nativa `SELECT ... FOR UPDATE SKIP LOCKED`, `PlanificacionWorker` con `@Scheduled(fixedDelay = 500)` que toma items uno a la vez, timeout de items EN_PROCESO > 5 min |
+| **B12** | SSE notificaciones | B10 | ✅ Completado | `SseService` con `ConcurrentHashMap<UUID, SseEmitter>`, `PlanificacionSseController` con `GET /api/eventos/planificacion`, manejo de timeouts y desconexiones. El `PlanificacionWorker` notifica vía SSE al completar/fallar items |
 
 ### Backend BC2 — Core (Dev 1)
 
@@ -28,8 +28,8 @@
 
 | # | Tarea | Dep | Estado | Descripción |
 |---|---|---|---|---|
-| **B7** | TickService | B5 (✅) | ⏳ Pendiente | Scheduler: avanza reloj virtual, evalúa probabilidad de cancelación, actualiza estados, escribe Redis (`sesion:{id}:metricas`), registra `PuntoSLA`. **CRÍTICO para métricas reales** |
-| **B9** | WebSocket telemetría | B7 | ⏳ Pendiente | Endpoint `ws://host/api/ws/telemetria?token={jwt}` → emite JSON con posiciones de nodos/vuelos cada tick |
+| **B7** | TickService | B5 (✅) | ✅ Completado | Scheduler: avanza reloj virtual, evalúa probabilidad de cancelación, actualiza estados, escribe Redis (`sesion:{id}:metricas`), registra `PuntoSLA`. **CRÍTICO para métricas reales** |
+| **B9** | WebSocket telemetría | B7 | ✅ Completado | Endpoint `ws://host/api/ws/telemetria?token={jwt}` → emite JSON con posiciones de nodos/vuelos cada tick |
 
 ### Frontend (Dev 3)
 
@@ -51,18 +51,18 @@
 ```
 Dev 1 (Backend Core):          Dev 2 (Backend Infra + Cola):  Dev 3 (Frontend):
 ┌──────────────────────┐       ┌──────────────────────┐       ┌──────────────────────┐
-│ B4: MotorEnrutamiento│       │ B10: Cola Infra      │       │ C7: Botón PDF        │
+│ B4: MotorEnrutamiento│       │ ✅ B10: Cola Infra   │       │ C7: Botón PDF        │
 │ - Stateless          │       │ - V18 migración      │       │ - GET manifiesto PDF │
 │ - Sin deps externas  │       │ - ColaPlanificacion  │       │ - Ya hay API lista   │
 │ - Tests unitarios    │       │ - SKIP LOCKED repo   │       │                      │
 └──────────────────────┘       │ - Worker @Scheduled  │       └──────────────────────┘
-                               │ - Timeout items      │
-                               └──────────────────────┘
+                                │ - Timeout items      │
+                                └──────────────────────┘
 ```
 
 **Por qué no se pisan:**
 - B4 es stateless y puro (solo recibe datos, retorna rutas)
-- B10 es BC1 infraestructura nueva (no toca archivos de BC2)
+- ✅ B10 es BC1 infraestructura nueva (no toca archivos de BC2)
 - C7 consume endpoint de BC1 (ya listo)
 - **Cero solapamiento de archivos**
 
@@ -83,20 +83,20 @@ Dev 1 (Backend Core):          Dev 2 (Backend Infra + Cola):  Dev 3 (Frontend):
 │ - Cancelar → encola  │       │ - Depende de B7      │
 │ - 202 Accepted       │       │ - Emite posiciones   │
 └──────────────────────┘       └──────────────────────┘
-                               ┌──────────────────────┐
-                               │ B12: SSE notificar   │
-                               │ - SseService         │
-                               │ - SseController      │
-                               │ - Worker → SSE       │
-                               └──────────────────────┘
+                               ┌──────────────────────────┐
+                               │ ✅ B12: SSE notificar    │
+                               │ - SseService             │
+                               │ - SseController          │
+                               │ - Worker → SSE           │
+                               └──────────────────────────┘
 ```
 
 **Notas:**
 - B6 necesita B4 terminado (usa el motor)
-- B11 necesita B10 terminado (usa la cola)
+- B11 necesita ✅ B10 terminado (usa la cola)
 - B7, B9 independientes de cola
-- B12 depende de B10 (SSE recibe eventos del worker)
-- C8 depende de B12
+- ✅ B12 depende de B10 (SSE recibe eventos del worker)
+- C8 depende de ✅ B12
 - **Posible solapamiento B6/B11 en CancelacionService** — coordinar entre Dev 1 y Dev 2
 
 ### Fase 3 — Cierre (Día 5)
@@ -149,7 +149,7 @@ A4 (✅ PDF)   ──→ C7 (Botón PDF)
    | Dev | Archivos |
    |---|---|
    | Dev 1 | `bc2/application/MotorEnrutamiento.java`, `bc2/application/ReplanificacionService.java`, `bc2/application/ReporteService.java`, `bc2/infrastructure/MetricasController.java`, **`bc1/application/EquipajeService.java`** (mod), **`bc1/application/CancelacionService.java`** (mod) |
-   | Dev 2 | **`bc1/domain/ColaPlanificacion.java`**, **`bc1/domain/EstadoCola.java`**, **`bc1/domain/TipoCola.java`**, **`bc1/infrastructure/ColaPlanificacionRepository.java`**, **`bc1/application/PlanificacionWorker.java`**, **`V18__cola_planificacion.sql`**, **`shared/infrastructure/SseService.java`**, **`bc1/infrastructure/PlanificacionSseController.java`**, `bc2/application/TickService.java`, `bc2/infrastructure/WebSocketConfig.java`, `bc2/infrastructure/TelemetriaWebSocket.java` |
+    | Dev 2 | **`bc1/domain/ColaPlanificacion.java`**, **`bc1/domain/EstadoCola.java`**, **`bc1/domain/TipoCola.java`**, **`bc1/infrastructure/ColaPlanificacionRepository.java`**, **`bc1/application/PlanificacionWorker.java`**, **`V18__cola_planificacion.sql`**, **`shared/infrastructure/SseService.java`**, **`bc1/infrastructure/PlanificacionSseController.java`**, **`bc2/application/MotorEnrutamiento.java`**, **`shared/events/EquipajePlanificadoEvent.java`**, **`shared/events/PlanViajeCreado.java`**, `bc2/application/TickService.java`, `bc2/infrastructure/WebSocketConfig.java`, `bc2/infrastructure/TelemetriaWebSocket.java` |
    | Dev 3 | `app/operacion/page.tsx`, `app/simulacion/[id]/page.tsx` |
 
 3. **Comunicación de interfaces:**
@@ -159,7 +159,7 @@ A4 (✅ PDF)   ──→ C7 (Botón PDF)
    - Acordar el contrato SSE (`planificacion-completada`, `planificacion-fallida`) entre Dev 2 y Dev 3
 
 4. **Merge顺序:**
-   - Primero merge de Dev 2 (B10, B7, B9, B12) — archivos nuevos BC1 + BC2 infra
+   - ✅ Primero merge de Dev 2 (B10 ✅, B7, B9, B12 ✅) — archivos nuevos BC1 + BC2 infra
    - Luego merge de Dev 1 (B4, B6, B8, B11) — B11 modifica BC1 services, posible conflicto con B10 si no se separaron bien
    - Último merge de Dev 3 (C7, C8, C6) — solo frontend, sin conflicto con backend
 
@@ -168,21 +168,21 @@ A4 (✅ PDF)   ──→ C7 (Botón PDF)
 ## Checklist de Integración Final
 
 - [ ] B4: MotorEnrutamiento con tests unitarios pasando
-- [ ] B10: ColaPlanificacion entity + repository + migración V18
-- [ ] B10: PlanificacionWorker procesa items con SKIP LOCKED
+- [x] B10: ColaPlanificacion entity + repository + migración V18
+- [x] B10: PlanificacionWorker procesa items con SKIP LOCKED
 - [ ] B11: EquipajeService.registrar() encola y responde 202
 - [ ] B11: CancelacionService.cancelar() encola equipajes afectados
 - [ ] B6: ReplanificacionService escucha eventos y encola en cola_planificacion
-- [ ] B12: SSE notifica planificacion-completada/fallida al frontend
-- [ ] B7: TickService escribe métricas reales en Redis
+- [x] B12: SSE notifica planificacion-completada/fallida al frontend
+- [x] B7: TickService escribe métricas reales en Redis
 - [ ] B8: Métricas y reporte leen de Redis (no dummy)
-- [ ] B9: WebSocket emite telemetría en vivo
+- [x] B9: WebSocket emite telemetría en vivo
 - [x] C4: UI carga masiva funcional con API real
 - [ ] C7: Botón descarga PDF funcional
 - [ ] C8: Frontend recibe SSE y actualiza mapa en tiempo real
 - [ ] C6: Link a reporte aparece cuando sesión = FINALIZADA
 - [ ] Simulación muestra métricas reales (no dummy)
-- [ ] Items EN_PROCESO > 5 min se marcan FALLIDO (timeout)
+- [x] Items EN_PROCESO > 5 min se marcan FALLIDO (timeout)
 - [ ] Todos los endpoints documentados en `openspec/specs/api-contracts.md`
 
 ---

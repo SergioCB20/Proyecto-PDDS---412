@@ -7,12 +7,19 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
+import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Repository
 public interface VueloRepository extends JpaRepository<Vuelo, UUID>, JpaSpecificationExecutor<Vuelo> {
     Page<Vuelo> findByEstado(EstadoVuelo estado, Pageable pageable);
-    Page<Vuelo> findByEstadoAndHoraSalidaBetween(EstadoVuelo estado, java.time.OffsetDateTime desde, java.time.OffsetDateTime hasta, Pageable pageable);
-    Page<Vuelo> findByHoraSalidaBetween(java.time.OffsetDateTime desde, java.time.OffsetDateTime hasta, Pageable pageable);
+    Page<Vuelo> findByEstadoAndHoraSalidaBetween(EstadoVuelo estado, OffsetDateTime desde, OffsetDateTime hasta, Pageable pageable);
+    Page<Vuelo> findByHoraSalidaBetween(OffsetDateTime desde, OffsetDateTime hasta, Pageable pageable);
     Page<Vuelo> findByDestinoCodigoIataAndEstado(String codigoIata, EstadoVuelo estado, Pageable pageable);
+    List<Vuelo> findByEstadoAndHoraSalidaLessThanEqual(EstadoVuelo estado, OffsetDateTime hora);
+    List<Vuelo> findByEstadoAndHoraLlegadaLessThanEqual(EstadoVuelo estado, OffsetDateTime hora);
+    List<Vuelo> findByEstadoAndHoraSalidaBetween(EstadoVuelo estado, OffsetDateTime desde, OffsetDateTime hasta);
+    List<Vuelo> findByEstadoIn(List<EstadoVuelo> estados);
+    long countByEstado(EstadoVuelo estado);
 }

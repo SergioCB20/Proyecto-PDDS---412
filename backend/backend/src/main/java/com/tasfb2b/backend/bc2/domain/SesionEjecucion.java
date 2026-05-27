@@ -136,6 +136,12 @@ public class SesionEjecucion {
     public BigDecimal getAlmacenAmbarMax() { return almacenAmbarMax; }
     public void setAlmacenAmbarMax(BigDecimal almacenAmbarMax) { this.almacenAmbarMax = almacenAmbarMax; }
 
+    public BigDecimal getAlmacenRojoMin() { return almacenRojoMin; }
+    public void setAlmacenRojoMin(BigDecimal almacenRojoMin) { this.almacenRojoMin = almacenRojoMin; }
+
+    public BigDecimal getAlmacenRojoMax() { return almacenRojoMax; }
+    public void setAlmacenRojoMax(BigDecimal almacenRojoMax) { this.almacenRojoMax = almacenRojoMax; }
+
     public BigDecimal getVueloVerdeMin() { return vueloVerdeMin; }
     public void setVueloVerdeMin(BigDecimal vueloVerdeMin) { this.vueloVerdeMin = vueloVerdeMin; }
 
@@ -147,6 +153,12 @@ public class SesionEjecucion {
 
     public BigDecimal getVueloAmbarMax() { return vueloAmbarMax; }
     public void setVueloAmbarMax(BigDecimal vueloAmbarMax) { this.vueloAmbarMax = vueloAmbarMax; }
+
+    public BigDecimal getVueloRojoMin() { return vueloRojoMin; }
+    public void setVueloRojoMin(BigDecimal vueloRojoMin) { this.vueloRojoMin = vueloRojoMin; }
+
+    public BigDecimal getVueloRojoMax() { return vueloRojoMax; }
+    public void setVueloRojoMax(BigDecimal vueloRojoMax) { this.vueloRojoMax = vueloRojoMax; }
 
     public OffsetDateTime getDiaHoraVirtual() { return diaHoraVirtual; }
     public void setDiaHoraVirtual(OffsetDateTime diaHoraVirtual) { this.diaHoraVirtual = diaHoraVirtual; }

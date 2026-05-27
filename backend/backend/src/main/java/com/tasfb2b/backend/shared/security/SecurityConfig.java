@@ -34,7 +34,7 @@ public class SecurityConfig {
             )
             .authorizeHttpRequests(auth ->
                 auth
-                    .requestMatchers("/health", "/api/auth/**")
+                    .requestMatchers("/health", "/api/auth/**", "/api/ws/telemetria/**")
                     .permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/nodos/**")
                     .authenticated()
@@ -48,6 +48,8 @@ public class SecurityConfig {
                     .hasRole("ANALISTA")
                     .requestMatchers("/api/manifiestos/**")
                     .hasRole("OPERADOR_LOGISTICO")
+                    .requestMatchers("/api/eventos/**")
+                    .authenticated()
                     .anyRequest()
                     .authenticated()
             )
