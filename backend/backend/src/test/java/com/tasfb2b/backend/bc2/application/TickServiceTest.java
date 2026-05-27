@@ -6,7 +6,7 @@ import com.tasfb2b.backend.bc2.domain.*;
 import com.tasfb2b.backend.bc2.infrastructure.*;
 import com.tasfb2b.backend.shared.events.VueloCanceladoEvent;
 import com.tasfb2b.backend.shared.infrastructure.RedisCacheService;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

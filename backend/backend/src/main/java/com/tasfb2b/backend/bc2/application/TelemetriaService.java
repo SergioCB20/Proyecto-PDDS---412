@@ -1,9 +1,9 @@
 package com.tasfb2b.backend.bc2.application;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.tasfb2b.backend.bc1.domain.EstadoVuelo;
 import com.tasfb2b.backend.bc1.domain.NodoLogistico;
 import com.tasfb2b.backend.bc1.domain.Vuelo;
@@ -112,7 +112,7 @@ public class TelemetriaService {
 
         try {
             return objectMapper.writeValueAsString(root);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             log.error("Error serializing telemetry JSON: {}", e.getMessage());
             return "{}";
         }
