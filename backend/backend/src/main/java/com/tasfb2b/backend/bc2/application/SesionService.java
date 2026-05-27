@@ -1,23 +1,36 @@
 package com.tasfb2b.backend.bc2.application;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.tasfb2b.backend.bc2.domain.*;
 import com.tasfb2b.backend.bc2.infrastructure.SesionRepository;
+import com.tasfb2b.backend.shared.infrastructure.RedisCacheService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
 @Service
 public class SesionService {
 
-    private final SesionRepository sesionRepository;
+    private static final Logger log = LoggerFactory.getLogger(SesionService.class);
 
-    public SesionService(SesionRepository sesionRepository) {
+    private final SesionRepository sesionRepository;
+    private final RedisCacheService redisCacheService;
+    private final ObjectMapper objectMapper;
+
+    public SesionService(SesionRepository sesionRepository,
+                         RedisCacheService redisCacheService,
+                         ObjectMapper objectMapper) {
         this.sesionRepository = sesionRepository;
+        this.redisCacheService = redisCacheService;
+        this.objectMapper = objectMapper;
     }
 
     public SesionResponse crearSesion(CrearSesionRequest request) {
@@ -52,6 +65,7 @@ public class SesionService {
         }
 
         sesionRepository.save(sesion);
+        redisCacheService.setEstadoSesion(sesion.getId(), sesion.getEstado().name());
 
         return new SesionResponse(sesion.getId(), sesion.getTipo().name(), sesion.getEstado().name());
     }
@@ -68,6 +82,8 @@ public class SesionService {
         sesion.setFechaInicioReal(OffsetDateTime.now());
         sesionRepository.save(sesion);
 
+        redisCacheService.setEstadoSesion(sesion.getId(), "EN_CURSO");
+
         return new SesionIniciarResponse(sesion.getId(), sesion.getEstado().name(), sesion.getFechaInicioReal());
     }
 
@@ -82,6 +98,8 @@ public class SesionService {
         sesion.setEstado(EstadoSesion.PAUSADA);
         sesionRepository.save(sesion);
 
+        redisCacheService.setEstadoSesion(sesion.getId(), "PAUSADA");
+
         return new SesionEstadoResponse(sesion.getEstado().name());
     }
 
@@ -93,14 +111,34 @@ public class SesionService {
         sesion.setFechaFinReal(OffsetDateTime.now());
         sesionRepository.save(sesion);
 
+        redisCacheService.setEstadoSesion(sesion.getId(), "FINALIZADA");
+        redisCacheService.eliminarMetricasSesion(sesion.getId());
+
         return new SesionEstadoResponse(sesion.getEstado().name());
     }
 
     public MetricasSesionResponse obtenerMetricas(UUID id) {
+        try {
+            String cached = redisCacheService.getMetricasSesion(id);
+            if (cached != null) {
+                var node = objectMapper.readTree(cached);
+                return new MetricasSesionResponse(
+                    UUID.fromString(node.get("sesion_id").asText()),
+                    node.get("estado").asText(),
+                    OffsetDateTime.parse(node.get("dia_hora_virtual").asText()),
+                    node.get("segundos_reales_transcurridos").asInt(),
+                    new BigDecimal(node.get("sla_acumulado_pct").asDouble()),
+                    node.get("vuelos_cancelados").asInt(),
+                    node.get("maletas_replanificadas").asInt()
+                );
+            }
+        } catch (Exception e) {
+            log.warn("Redis no disponible para metricas de sesion {}: {}", id, e.getMessage());
+        }
+
         SesionEjecucion sesion = sesionRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Sesion no encontrada"));
 
-        // Datos dummy por ahora - luego se conectará con TickService real
         return new MetricasSesionResponse(
             sesion.getId(),
             sesion.getEstado().name(),

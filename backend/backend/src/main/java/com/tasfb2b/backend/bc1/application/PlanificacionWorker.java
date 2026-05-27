@@ -1,0 +1,249 @@
+package com.tasfb2b.backend.bc1.application;
+
+import com.tasfb2b.backend.bc1.domain.*;
+import com.tasfb2b.backend.bc1.infrastructure.*;
+import com.tasfb2b.backend.bc2.application.MotorEnrutamiento;
+import com.tasfb2b.backend.shared.events.EquipajePlanificadoEvent;
+import com.tasfb2b.backend.shared.events.PlanViajeCreado;
+import com.tasfb2b.backend.shared.infrastructure.RedisCacheService;
+import com.tasfb2b.backend.shared.infrastructure.SseService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+@Service
+public class PlanificacionWorker {
+
+    private static final Logger log = LoggerFactory.getLogger(PlanificacionWorker.class);
+    private static final int MAX_INTENTOS = 3;
+    private static final long TIMEOUT_MINUTOS = 5;
+
+    private final ColaPlanificacionRepository colaRepository;
+    private final EquipajeRepository equipajeRepository;
+    private final VueloRepository vueloRepository;
+    private final NodoLogisticoRepository nodoRepository;
+    private final PlanViajeRepository planViajeRepository;
+    private final SegmentoPlanRepository segmentoPlanRepository;
+    private final MotorEnrutamiento motorEnrutamiento;
+    private final ApplicationEventPublisher eventPublisher;
+    private final RedisCacheService redisCacheService;
+    private final SseService sseService;
+
+    public PlanificacionWorker(ColaPlanificacionRepository colaRepository,
+                               EquipajeRepository equipajeRepository,
+                               VueloRepository vueloRepository,
+                               NodoLogisticoRepository nodoRepository,
+                               PlanViajeRepository planViajeRepository,
+                               SegmentoPlanRepository segmentoPlanRepository,
+                               MotorEnrutamiento motorEnrutamiento,
+                               ApplicationEventPublisher eventPublisher,
+                               RedisCacheService redisCacheService,
+                               SseService sseService) {
+        this.colaRepository = colaRepository;
+        this.equipajeRepository = equipajeRepository;
+        this.vueloRepository = vueloRepository;
+        this.nodoRepository = nodoRepository;
+        this.planViajeRepository = planViajeRepository;
+        this.segmentoPlanRepository = segmentoPlanRepository;
+        this.motorEnrutamiento = motorEnrutamiento;
+        this.eventPublisher = eventPublisher;
+        this.redisCacheService = redisCacheService;
+        this.sseService = sseService;
+    }
+
+    @Scheduled(fixedDelay = 500)
+    @Transactional
+    public void procesarCola() {
+        procesarTimeoutItems();
+
+        ColaPlanificacion item = colaRepository.findTopByEstadoWithLock(EstadoCola.PENDIENTE.name())
+                .orElse(null);
+        if (item == null) {
+            return;
+        }
+
+        procesarItem(item);
+    }
+
+    private void procesarItem(ColaPlanificacion item) {
+        item.setEstado(EstadoCola.EN_PROCESO);
+        colaRepository.save(item);
+
+        try {
+            Equipaje equipaje = equipajeRepository.findById(item.getEquipajeId())
+                    .orElseThrow(() -> new RuntimeException("Equipaje no encontrado: " + item.getEquipajeId()));
+
+            Vuelo vueloActual = equipaje.getVueloActual();
+            if (vueloActual == null) {
+                throw new RuntimeException("Equipaje " + equipaje.getId() + " no tiene vuelo asignado");
+            }
+
+            NodoLogistico origen = vueloActual.getOrigen();
+            if (origen == null) {
+                throw new RuntimeException("Vuelo " + vueloActual.getId() + " no tiene nodo origen");
+            }
+
+            if (origen.getOcupacionActual() >= origen.getCapacidadAlmacen()) {
+                throw new RuntimeException("Capacidad de almacen superada en " + origen.getCodigoIata());
+            }
+
+            if (vueloActual.getCargaDisponible() <= 0) {
+                throw new RuntimeException("Capacidad del vuelo " + vueloActual.getCodigoVuelo() + " agotada");
+            }
+
+            MotorEnrutamiento.RutaResult ruta = motorEnrutamiento.calcularRuta(
+                    origen, equipaje.getDestinoIata(), equipaje.getSlaComprometido());
+
+            if (ruta == null || !ruta.exitoso() || ruta.segmentos().isEmpty()) {
+                throw new RuntimeException(ruta != null ? ruta.mensajeError() : "Error al calcular ruta");
+            }
+
+            PlanViaje planViaje = new PlanViaje();
+            planViaje.setId(UUID.randomUUID());
+            planViaje.setEquipaje(equipaje);
+            planViaje.setEstadoSla(EstadoSla.EN_TIEMPO);
+            planViaje.setTiempoEntregaEst(ruta.segmentos().get(ruta.segmentos().size() - 1).horaLlegada());
+            planViaje.setUbicacionTipo(UbicacionTipo.VUELO);
+            planViaje.setUbicacionId(ruta.segmentos().get(0).vueloId());
+            planViaje.setUbicacionLat(vueloActual.getOrigenLat());
+            planViaje.setUbicacionLon(vueloActual.getOrigenLon());
+            planViajeRepository.save(planViaje);
+
+            for (MotorEnrutamiento.SegmentoInfo segInfo : ruta.segmentos()) {
+                Vuelo segVuelo = vueloRepository.findById(segInfo.vueloId())
+                        .orElseThrow(() -> new RuntimeException("Vuelo no encontrado: " + segInfo.vueloId()));
+                NodoLogistico segOrigen = nodoRepository.findById(segInfo.nodoOrigenId())
+                        .orElseThrow(() -> new RuntimeException("Nodo origen no encontrado: " + segInfo.nodoOrigenId()));
+                NodoLogistico segDestino = nodoRepository.findById(segInfo.nodoDestinoId())
+                        .orElseThrow(() -> new RuntimeException("Nodo destino no encontrado: " + segInfo.nodoDestinoId()));
+
+                SegmentoPlan segmento = new SegmentoPlan();
+                segmento.setId(UUID.randomUUID());
+                segmento.setPlanViaje(planViaje);
+                segmento.setVuelo(segVuelo);
+                segmento.setNodoOrigen(segOrigen);
+                segmento.setNodoDestino(segDestino);
+                segmento.setOrden(segInfo.orden());
+                segmento.setHoraSalidaProg(segInfo.horaSalida());
+                segmento.setEstado(EstadoSegmento.PENDIENTE);
+                segmentoPlanRepository.save(segmento);
+            }
+
+            MotorEnrutamiento.SegmentoInfo primerSegmento = ruta.segmentos().get(0);
+            Vuelo primerVuelo = vueloRepository.findById(primerSegmento.vueloId())
+                    .orElseThrow(() -> new RuntimeException("Vuelo no encontrado: " + primerSegmento.vueloId()));
+            NodoLogistico primerNodoOrigen = nodoRepository.findById(primerSegmento.nodoOrigenId())
+                    .orElseThrow(() -> new RuntimeException("Nodo no encontrado: " + primerSegmento.nodoOrigenId()));
+
+            primerVuelo.setCargaDisponible(primerVuelo.getCargaDisponible() - 1);
+            vueloRepository.save(primerVuelo);
+
+            primerNodoOrigen.setOcupacionActual(primerNodoOrigen.getOcupacionActual() + 1);
+            nodoRepository.save(primerNodoOrigen);
+
+            equipaje.setEstado(EstadoEquipaje.ENRUTADO);
+            equipajeRepository.save(equipaje);
+
+            redisCacheService.actualizarCargaDisponibleVuelo(primerVuelo.getId(), primerVuelo.getCargaDisponible());
+            redisCacheService.actualizarOcupacionNodo(primerNodoOrigen.getId(), primerNodoOrigen.getOcupacionActual());
+
+            eventPublisher.publishEvent(new EquipajePlanificadoEvent(
+                    equipaje.getId(), planViaje.getId(),
+                    item.getTipo().name(), "COMPLETADO", OffsetDateTime.now()));
+
+            eventPublisher.publishEvent(new PlanViajeCreado(
+                    equipaje.getId(), planViaje.getId(), null, OffsetDateTime.now()));
+
+            item.setEstado(EstadoCola.COMPLETADO);
+            item.setFechaProcesado(OffsetDateTime.now());
+            colaRepository.save(item);
+
+            notificarSse(item, equipaje, planViaje, true, null);
+
+        } catch (Exception e) {
+            log.error("Error procesando item {}: {}", item.getId(), e.getMessage());
+            manejarFallo(item, e.getMessage());
+        }
+    }
+
+    private void manejarFallo(ColaPlanificacion item, String error) {
+        item.setIntentos(item.getIntentos() + 1);
+        item.setError(error);
+
+        if (item.getIntentos() >= MAX_INTENTOS) {
+            item.setEstado(EstadoCola.FALLIDO);
+            item.setFechaProcesado(OffsetDateTime.now());
+            colaRepository.save(item);
+
+            equipajeRepository.findById(item.getEquipajeId()).ifPresent(eq -> {
+                eq.setEstado(EstadoEquipaje.INCUMPLIMIENTO_SLA);
+                equipajeRepository.save(eq);
+            });
+
+            Equipaje eq = equipajeRepository.findById(item.getEquipajeId()).orElse(null);
+            notificarSse(item, eq, null, false, error);
+
+            eventPublisher.publishEvent(new EquipajePlanificadoEvent(
+                    item.getEquipajeId(), null,
+                    item.getTipo().name(), "FALLIDO", OffsetDateTime.now()));
+        } else {
+            item.setEstado(EstadoCola.PENDIENTE);
+            colaRepository.save(item);
+            log.warn("Item {} reintento {}/{}: {}", item.getId(), item.getIntentos(), MAX_INTENTOS, error);
+        }
+    }
+
+    private void notificarSse(ColaPlanificacion item, Equipaje equipaje, PlanViaje planViaje,
+                              boolean exitoso, String error) {
+        Map<String, Object> data = new java.util.LinkedHashMap<>();
+        data.put("equipaje_id", item.getEquipajeId().toString());
+        data.put("tipo", item.getTipo().name());
+        data.put("estado", exitoso ? "COMPLETADO" : "FALLIDO");
+
+        if (exitoso && planViaje != null) {
+            List<Map<String, Object>> segmentos = planViaje.getSegmentos().stream()
+                    .map(s -> Map.<String, Object>of(
+                            "orden", s.getOrden(),
+                            "vuelo_codigo", s.getVuelo().getCodigoVuelo(),
+                            "nodo_origen", s.getNodoOrigen().getCodigoIata(),
+                            "nodo_destino", s.getNodoDestino().getCodigoIata(),
+                            "hora_salida", s.getHoraSalidaProg().toString()))
+                    .toList();
+            data.put("plan_viaje", Map.of("id", planViaje.getId().toString(), "segmentos", segmentos));
+        }
+
+        if (!exitoso) {
+            data.put("error", error != null ? error : "Error desconocido");
+        }
+
+        sseService.broadcast(exitoso ? "planificacion-completada" : "planificacion-fallida", data);
+    }
+
+    private void procesarTimeoutItems() {
+        OffsetDateTime threshold = OffsetDateTime.now().minusMinutes(TIMEOUT_MINUTOS);
+        List<ColaPlanificacion> colgados = colaRepository.findByEstadoAndFechaCreacionBefore(EstadoCola.EN_PROCESO, threshold);
+
+        for (ColaPlanificacion item : colgados) {
+            log.warn("Timeout: item {} en EN_PROCESO desde {} (> {} min)", item.getId(), item.getFechaCreacion(), TIMEOUT_MINUTOS);
+            item.setEstado(EstadoCola.FALLIDO);
+            item.setError("Timeout por crash");
+            item.setFechaProcesado(OffsetDateTime.now());
+            colaRepository.save(item);
+
+            equipajeRepository.findById(item.getEquipajeId()).ifPresent(eq -> {
+                eq.setEstado(EstadoEquipaje.INCUMPLIMIENTO_SLA);
+                equipajeRepository.save(eq);
+            });
+
+            notificarSse(item, null, null, false, "Timeout por crash");
+        }
+    }
+}
