@@ -74,6 +74,27 @@ public class EquipajeController {
         }
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<?> actualizar(@PathVariable UUID id, @RequestBody EquipajeService.RegistrarEquipajeRequest request) {
+        try {
+            return ResponseEntity.ok(equipajeService.actualizar(id, request));
+        } catch (EquipajeService.EquipajeNoEncontradoException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error(404, "NO_ENCONTRADO", e.getMessage()));
+        } catch (EquipajeService.ValidacionException e) {
+            return ResponseEntity.unprocessableEntity().body(error(422, "VALIDACION_FALLIDA", e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> eliminar(@PathVariable UUID id) {
+        try {
+            equipajeService.eliminar(id);
+            return ResponseEntity.noContent().build();
+        } catch (EquipajeService.EquipajeNoEncontradoException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error(404, "NO_ENCONTRADO", e.getMessage()));
+        }
+    }
+
     @GetMapping("/{id}/plan-viaje")
     public ResponseEntity<?> obtenerPlanViaje(@PathVariable UUID id) {
         try {

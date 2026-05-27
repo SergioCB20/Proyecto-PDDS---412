@@ -1,13 +1,17 @@
 package com.tasfb2b.backend.bc1.application;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tasfb2b.backend.bc1.domain.EstadoVuelo;
 import com.tasfb2b.backend.bc1.domain.NodoLogistico;
 import com.tasfb2b.backend.bc1.domain.Vuelo;
+import com.tasfb2b.backend.bc1.infrastructure.EquipajeRepository;
+import com.tasfb2b.backend.bc1.infrastructure.NodoLogisticoRepository;
 import com.tasfb2b.backend.bc1.infrastructure.VueloRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -16,21 +20,39 @@ import java.util.UUID;
 public class VueloService {
 
     private final VueloRepository vueloRepository;
+    private final NodoLogisticoRepository nodoRepository;
+    private final EquipajeRepository equipajeRepository;
 
-    public VueloService(VueloRepository vueloRepository) {
+    public VueloService(VueloRepository vueloRepository, NodoLogisticoRepository nodoRepository,
+                        EquipajeRepository equipajeRepository) {
         this.vueloRepository = vueloRepository;
+        this.nodoRepository = nodoRepository;
+        this.equipajeRepository = equipajeRepository;
     }
+
+    public record CrearVueloRequest(
+            String codigo_vuelo,
+            UUID origen_id,
+            UUID destino_id,
+            OffsetDateTime hora_salida,
+            OffsetDateTime hora_llegada,
+            Integer capacidad_carga
+    ) {}
 
     public record VueloResponse(
             UUID id,
-            String codigoVuelo,
+            @JsonProperty("codigo_vuelo") String codigoVuelo,
             String estado,
             OrigenDestinoResponse origen,
             OrigenDestinoResponse destino,
-            OffsetDateTime horaSalida,
-            OffsetDateTime horaLlegada,
-            Integer capacidadCarga,
-            Integer cargaDisponible
+            @JsonProperty("hora_salida") OffsetDateTime horaSalida,
+            @JsonProperty("hora_llegada") OffsetDateTime horaLlegada,
+            @JsonProperty("capacidad_carga") Integer capacidadCarga,
+            @JsonProperty("carga_disponible") Integer cargaDisponible,
+            @JsonProperty("origen_lat") Double origenLat,
+            @JsonProperty("origen_lon") Double origenLon,
+            @JsonProperty("destino_lat") Double destinoLat,
+            @JsonProperty("destino_lon") Double destinoLon
     ) {}
 
     public record OrigenDestinoResponse(UUID id, String codigoIata, String nombre) {}
@@ -54,6 +76,11 @@ public class VueloService {
                     cb.between(root.get("horaSalida"), fechaDesde, fechaHasta));
         }
 
+        if (destinoIata != null && !destinoIata.isBlank()) {
+            spec = spec.and((root, query, cb) ->
+                    cb.equal(root.get("destino").get("codigoIata"), destinoIata));
+        }
+
         Page<Vuelo> page = vueloRepository.findAll(spec, pageable);
 
         java.util.List<VueloResponse> content = page.getContent().stream()
@@ -67,6 +94,71 @@ public class VueloService {
         Vuelo vuelo = vueloRepository.findById(id)
                 .orElseThrow(() -> new VueloNoEncontradoException("Vuelo no encontrado: " + id));
         return toResponse(vuelo);
+    }
+
+    @Transactional
+    public VueloResponse crear(CrearVueloRequest request) {
+        NodoLogistico origen = nodoRepository.findById(request.origen_id())
+                .orElseThrow(() -> new ValidacionException("Origen no encontrado"));
+        NodoLogistico destino = nodoRepository.findById(request.destino_id())
+                .orElseThrow(() -> new ValidacionException("Destino no encontrado"));
+
+        Vuelo vuelo = new Vuelo();
+        vuelo.setId(UUID.randomUUID());
+        vuelo.setCodigoVuelo(request.codigo_vuelo());
+        vuelo.setOrigen(origen);
+        vuelo.setDestino(destino);
+        vuelo.setHoraSalida(request.hora_salida());
+        vuelo.setHoraLlegada(request.hora_llegada());
+        vuelo.setCapacidadCarga(request.capacidad_carga());
+        vuelo.setCargaDisponible(request.capacidad_carga());
+        vuelo.setEstado(EstadoVuelo.PROGRAMADO);
+        vueloRepository.save(vuelo);
+
+        return toResponse(vuelo);
+    }
+
+    @Transactional
+    public VueloResponse actualizar(UUID id, CrearVueloRequest request) {
+        Vuelo vuelo = vueloRepository.findById(id)
+                .orElseThrow(() -> new VueloNoEncontradoException("Vuelo no encontrado: " + id));
+
+        if (vuelo.getEstado() != EstadoVuelo.PROGRAMADO) {
+            throw new ValidacionException("Solo se puede modificar un vuelo PROGRAMADO");
+        }
+
+        NodoLogistico origen = nodoRepository.findById(request.origen_id())
+                .orElseThrow(() -> new ValidacionException("Origen no encontrado"));
+        NodoLogistico destino = nodoRepository.findById(request.destino_id())
+                .orElseThrow(() -> new ValidacionException("Destino no encontrado"));
+
+        vuelo.setCodigoVuelo(request.codigo_vuelo());
+        vuelo.setOrigen(origen);
+        vuelo.setDestino(destino);
+        vuelo.setHoraSalida(request.hora_salida());
+        vuelo.setHoraLlegada(request.hora_llegada());
+        vuelo.setCapacidadCarga(request.capacidad_carga());
+        vuelo.setCargaDisponible(request.capacidad_carga());
+        vueloRepository.save(vuelo);
+
+        return toResponse(vuelo);
+    }
+
+    @Transactional
+    public void eliminar(UUID id) {
+        Vuelo vuelo = vueloRepository.findById(id)
+                .orElseThrow(() -> new VueloNoEncontradoException("Vuelo no encontrado: " + id));
+
+        if (vuelo.getEstado() != EstadoVuelo.PROGRAMADO) {
+            throw new ValidacionException("Solo se puede eliminar un vuelo PROGRAMADO");
+        }
+
+        long equipajesAsignados = equipajeRepository.countByVueloActualId(id);
+        if (equipajesAsignados > 0) {
+            throw new ValidacionException("No se puede eliminar un vuelo con equipajes asignados");
+        }
+
+        vueloRepository.delete(vuelo);
     }
 
     private VueloResponse toResponse(Vuelo vuelo) {
@@ -87,11 +179,19 @@ public class VueloService {
                 vuelo.getHoraSalida(),
                 vuelo.getHoraLlegada(),
                 vuelo.getCapacidadCarga(),
-                vuelo.getCargaDisponible()
+                vuelo.getCargaDisponible(),
+                vuelo.getOrigen().getLatitud().doubleValue(),
+                vuelo.getOrigen().getLongitud().doubleValue(),
+                vuelo.getDestino().getLatitud().doubleValue(),
+                vuelo.getDestino().getLongitud().doubleValue()
         );
     }
 
     public static class VueloNoEncontradoException extends RuntimeException {
         public VueloNoEncontradoException(String msg) { super(msg); }
+    }
+
+    public static class ValidacionException extends RuntimeException {
+        public ValidacionException(String msg) { super(msg); }
     }
 }

@@ -41,4 +41,41 @@ public class VueloController {
                     .body(Map.of("status", 404, "error", "NO_ENCONTRADO", "mensaje", e.getMessage()));
         }
     }
+
+    @PostMapping
+    public ResponseEntity<?> crear(@RequestBody VueloService.CrearVueloRequest request) {
+        try {
+            return ResponseEntity.status(HttpStatus.CREATED).body(vueloService.crear(request));
+        } catch (VueloService.ValidacionException e) {
+            return ResponseEntity.unprocessableEntity()
+                    .body(Map.of("status", 422, "error", "VALIDACION", "mensaje", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<?> actualizar(@PathVariable UUID id, @RequestBody VueloService.CrearVueloRequest request) {
+        try {
+            return ResponseEntity.ok(vueloService.actualizar(id, request));
+        } catch (VueloService.VueloNoEncontradoException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("status", 404, "error", "NO_ENCONTRADO", "mensaje", e.getMessage()));
+        } catch (VueloService.ValidacionException e) {
+            return ResponseEntity.unprocessableEntity()
+                    .body(Map.of("status", 422, "error", "VALIDACION", "mensaje", e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> eliminar(@PathVariable UUID id) {
+        try {
+            vueloService.eliminar(id);
+            return ResponseEntity.noContent().build();
+        } catch (VueloService.VueloNoEncontradoException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("status", 404, "error", "NO_ENCONTRADO", "mensaje", e.getMessage()));
+        } catch (VueloService.ValidacionException e) {
+            return ResponseEntity.unprocessableEntity()
+                    .body(Map.of("status", 422, "error", "VALIDACION", "mensaje", e.getMessage()));
+        }
+    }
 }
