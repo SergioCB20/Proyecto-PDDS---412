@@ -68,9 +68,11 @@ Sistema académico para el enrutamiento óptimo de equipaje entre aeropuertos, c
 - **Controllers:** `AuthController`, `UsuarioController`
 - **Seed:** `DataSeeder` — roles, 3 usuarios de prueba, plan de vuelos inicial
 
-### bc2/ — Planificación y Replanificación (0% — TODO)
-- Planeado: motor de enrutamiento greedy, Redis para métricas en tiempo real
-- Pendiente: `SesionEjecucion`, `EventoCancelacion`, `LoteReplanificacion`, `ItemLote`, `ReporteSesion`, `PuntoSLA`
+### bc2/ — Planificación y Replanificación (~95% completo)
+- **Domain:** `SesionEjecucion`, `EventoCancelacion`, `LoteReplanificacion`, `ItemLote`, `ReporteSesion`, `PuntoSLA`, `EstadoLote`, `EstadoReplanificacion`, `EstadoSesion`, `TipoSesion`
+- **Services:** `SesionService`, `MotorEnrutamiento`, `ReplanificacionService`, `ReporteService`, `TickService`, `TelemetriaService`
+- **Controllers:** `SesionController`, `MetricasController`
+- **WebSocket:** `TelemetriaWebSocket`
 
 ## API REST
 

@@ -4,9 +4,11 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 import com.tasfb2b.backend.bc2.domain.*;
 import com.tasfb2b.backend.bc2.infrastructure.SesionRepository;
+import com.tasfb2b.backend.shared.events.SesionFinalizada;
 import com.tasfb2b.backend.shared.infrastructure.RedisCacheService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -23,13 +25,16 @@ public class SesionService {
     private final SesionRepository sesionRepository;
     private final RedisCacheService redisCacheService;
     private final ObjectMapper objectMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     public SesionService(SesionRepository sesionRepository,
                          RedisCacheService redisCacheService,
-                         ObjectMapper objectMapper) {
+                         ObjectMapper objectMapper,
+                         ApplicationEventPublisher eventPublisher) {
         this.sesionRepository = sesionRepository;
         this.redisCacheService = redisCacheService;
         this.objectMapper = objectMapper;
+        this.eventPublisher = eventPublisher;
     }
 
     public SesionResponse crearSesion(CrearSesionRequest request) {
@@ -112,6 +117,9 @@ public class SesionService {
 
         redisCacheService.setEstadoSesion(sesion.getId(), "FINALIZADA");
         redisCacheService.eliminarMetricasSesion(sesion.getId());
+
+        eventPublisher.publishEvent(new SesionFinalizada(
+                sesion.getId(), "FINALIZADA", OffsetDateTime.now()));
 
         return new SesionEstadoResponse(sesion.getEstado().name());
     }

@@ -19,7 +19,10 @@
 
 | # | Tarea | Dep | Estado | Descripción |
 |---|---|---|---|---|
-| **B4** | MotorEnrutamiento greedy | — | ⏳ Pendiente | Algoritmo greedy: vuelo directo o conexión de 2 escalas (mín 60 min conexión). Respeta SLA. Retorna `PlanViaje` con `SegmentoPlan[]`. **Tests unitarios obligatorios**. Stateless — sin deps externas. NO publica eventos. |
+| **B4** | MotorEnrutamiento greedy | — | ✅ Completado | Arquitectura desacoplada via `RoutingStrategy` (Strategy pattern). `GreedyRoutingStrategy` puro sin repos ni Spring. `MotorEnrutamiento` es orquestador que controla BD y tiempo. 8 tests unitarios del algoritmo + 3 tests de orquestación. |
+| **B13** | Batch simulacion + SLA ordering | B10 | ✅ Completado | Migración V19: `sla_comprometido TIMESTAMPTZ` + índice `(estado, sla_comprometido)`. `ColaPlanificacion.slaComprometido`. `ColaPlanificacionRepository.findBatchByEstadoWithLock()` con `ORDER BY sla_comprometido ASC NULLS LAST`. `EquipajeService` setea `slaComprometido` al encolar. `PlanificacionWorker` con modo batch (inyecta `SesionRepository`, detecta sesión EN_CURSO → batch de 50 items ordenados por SLA). |
+| **B14** | ACORoutingStrategy | B4 | ✅ Completado | `ACORoutingStrategy implements RoutingStrategy` con `soportaBatch() = true`. Implementa ACO v2 (feromonas, hormigas, elitismo, BFS de alcanzabilidad, SLA gradual). Adaptado a dominio actual: construye grafo en memoria desde `List<Vuelo>`, usa `TiempoInterno` para tiempo virtual. `MotorEnrutamiento` ahora inyecta ambas estrategias via `@Qualifier`: greedy para single-item, ACO para batch. |
+| **B15** | TiempoInterno | B4 | ✅ Completado | Record `TiempoInterno(horaDelDia, dia)` con métodos `desde(OffsetDateTime, OffsetDateTime)` para convertir timestamps a int-based virtual time. `RoutingStrategy` modificada: `optimizarLote()` acepta `TiempoInterno`. |
 | **B6** | ReplanificacionService | B4 | ⏳ Pendiente | `@EventListener(VueloCanceladoEvent)` → obtiene equipajes afectados (`findByVueloActualId`), marca `EN_REPLANIFICACION`, crea `EventoCancelacion` + `LoteReplanificacion` + `ItemLote`, **encola cada equipaje en `cola_planificacion`** con tipo=REPLANIFICACION. El worker (B10) ejecuta el motor. |
 | **B11** | EquipajeService + CancelacionService asíncronos | B10 | ⏳ Pendiente | `EquipajeService.registrar()` → solo valida datos básicos, guarda Equipaje (estado=REGISTRADO), **encola en `cola_planificacion`** con tipo=PLANIFICACION, responde 202 Accepted. `CancelacionService.cancelar()` → marca vuelo CANCELADO, **encola equipajes afectados** en `cola_planificacion` en vez de procesar sync. |
 | **B8** | ReporteService + MetricasController | B6 | ⏳ Pendiente | `GET /sesiones/{id}/metricas` (lee Redis), `GET /sesiones/{id}/reporte` (serie SLA, punto colapso) |
@@ -148,8 +151,8 @@ A4 (✅ PDF)   ──→ C7 (Botón PDF)
 
    | Dev | Archivos |
    |---|---|
-   | Dev 1 | `bc2/application/MotorEnrutamiento.java`, `bc2/application/ReplanificacionService.java`, `bc2/application/ReporteService.java`, `bc2/infrastructure/MetricasController.java`, **`bc1/application/EquipajeService.java`** (mod), **`bc1/application/CancelacionService.java`** (mod) |
-    | Dev 2 | **`bc1/domain/ColaPlanificacion.java`**, **`bc1/domain/EstadoCola.java`**, **`bc1/domain/TipoCola.java`**, **`bc1/infrastructure/ColaPlanificacionRepository.java`**, **`bc1/application/PlanificacionWorker.java`**, **`V18__cola_planificacion.sql`**, **`shared/infrastructure/SseService.java`**, **`bc1/infrastructure/PlanificacionSseController.java`**, **`bc2/application/MotorEnrutamiento.java`**, **`shared/events/EquipajePlanificadoEvent.java`**, **`shared/events/PlanViajeCreado.java`**, `bc2/application/TickService.java`, `bc2/infrastructure/WebSocketConfig.java`, `bc2/infrastructure/TelemetriaWebSocket.java` |
+   | Dev 1 | `bc2/domain/ItemLote.java` (nuevo), `bc2/domain/ReporteSesion.java` (nuevo), `bc2/domain/PuntoSLA.java` (nuevo), `bc2/domain/EstadoReplanificacion.java` (nuevo), `bc2/infrastructure/ItemLoteRepository.java` (nuevo), `bc2/infrastructure/ReporteSesionRepository.java` (nuevo), `bc2/infrastructure/PuntoSLARepository.java` (nuevo), `shared/events/ReplanificacionIniciada.java` (nuevo), `shared/events/SesionFinalizada.java` (nuevo), `bc2/application/ReplanificacionService.java` (nuevo), `bc2/application/ReporteService.java` (nuevo), `bc2/infrastructure/MetricasController.java` (nuevo), `bc2/application/MotorEnrutamiento.java` (✅ existente), `bc1/application/EquipajeService.java` (mod — async), `bc1/application/CancelacionService.java` (mod — async), `bc2/application/SesionService.java` (mod — publica eventos), `bc2/application/TickService.java` (mod — delega en ReplanificacionService), `bc1/infrastructure/EquipajeController.java` (mod — 202 Accepted) |
+   | Dev 2 | `bc1/domain/ColaPlanificacion.java`, `bc1/domain/EstadoCola.java`, `bc1/domain/TipoCola.java`, `bc1/infrastructure/ColaPlanificacionRepository.java`, `bc1/application/PlanificacionWorker.java`, `V18__cola_planificacion.sql`, `shared/infrastructure/SseService.java`, `bc1/infrastructure/PlanificacionSseController.java`, `bc2/application/MotorEnrutamiento.java`, `shared/events/EquipajePlanificadoEvent.java`, `shared/events/PlanViajeCreado.java`, `bc2/application/TickService.java` (ya no toca), `bc2/infrastructure/WebSocketConfig.java`, `bc2/infrastructure/TelemetriaWebSocket.java` |
    | Dev 3 | `app/operacion/page.tsx`, `app/simulacion/[id]/page.tsx` |
 
 3. **Comunicación de interfaces:**
@@ -167,15 +170,15 @@ A4 (✅ PDF)   ──→ C7 (Botón PDF)
 
 ## Checklist de Integración Final
 
-- [ ] B4: MotorEnrutamiento con tests unitarios pasando
+- [x] B4: MotorEnrutamiento con tests unitarios pasando (6 tests: directo, conexión 2 tramos, sin ruta, capacidad, SLA violado, destino no encontrado)
 - [x] B10: ColaPlanificacion entity + repository + migración V18
 - [x] B10: PlanificacionWorker procesa items con SKIP LOCKED
-- [ ] B11: EquipajeService.registrar() encola y responde 202
-- [ ] B11: CancelacionService.cancelar() encola equipajes afectados
-- [ ] B6: ReplanificacionService escucha eventos y encola en cola_planificacion
+- [x] B11: EquipajeService.registrar() encola y responde 202 (async con cola_planificacion)
+- [x] B11: CancelacionService.cancelar() publica VueloCanceladoEvent → ReplanificacionService encola
+- [x] B6: ReplanificacionService escucha eventos y encola en cola_planificacion (EventListener + replanificarEnSesion directo)
 - [x] B12: SSE notifica planificacion-completada/fallida al frontend
-- [x] B7: TickService escribe métricas reales en Redis
-- [ ] B8: Métricas y reporte leen de Redis (no dummy)
+- [x] B7: TickService escribe métricas reales en Redis (refactorizado: delega cancelaciones a ReplanificacionService)
+- [x] B8: ReporteService + MetricasController (GET /sesiones/{id}/reporte con serie SLA)
 - [x] B9: WebSocket emite telemetría en vivo
 - [x] C4: UI carga masiva funcional con API real
 - [x] C7: Botón descarga PDF funcional

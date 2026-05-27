@@ -3,8 +3,8 @@ package com.tasfb2b.backend.bc2.application;
 import com.tasfb2b.backend.bc1.domain.*;
 import com.tasfb2b.backend.bc1.infrastructure.*;
 import com.tasfb2b.backend.bc2.domain.*;
-import com.tasfb2b.backend.bc2.infrastructure.*;
-import com.tasfb2b.backend.shared.events.VueloCanceladoEvent;
+import com.tasfb2b.backend.bc2.infrastructure.SesionRepository;
+import com.tasfb2b.backend.shared.events.SesionFinalizada;
 import com.tasfb2b.backend.shared.infrastructure.RedisCacheService;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
@@ -36,35 +36,32 @@ public class TickService {
     private final EquipajeRepository equipajeRepository;
     private final SegmentoPlanRepository segmentoPlanRepository;
     private final NodoLogisticoRepository nodoRepository;
-    private final EventoCancelacionRepository eventoCancelacionRepository;
-    private final LoteReplanificacionRepository loteReplanificacionRepository;
     private final RedisCacheService redisCacheService;
-    private final ApplicationEventPublisher eventPublisher;
     private final TelemetriaService telemetriaService;
     private final ObjectMapper objectMapper;
+    private final ReplanificacionService replanificacionService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public TickService(SesionRepository sesionRepository,
                        VueloRepository vueloRepository,
                        EquipajeRepository equipajeRepository,
                        SegmentoPlanRepository segmentoPlanRepository,
                        NodoLogisticoRepository nodoRepository,
-                       EventoCancelacionRepository eventoCancelacionRepository,
-                       LoteReplanificacionRepository loteReplanificacionRepository,
                        RedisCacheService redisCacheService,
-                       ApplicationEventPublisher eventPublisher,
                        TelemetriaService telemetriaService,
-                       ObjectMapper objectMapper) {
+                       ObjectMapper objectMapper,
+                       ReplanificacionService replanificacionService,
+                       ApplicationEventPublisher eventPublisher) {
         this.sesionRepository = sesionRepository;
         this.vueloRepository = vueloRepository;
         this.equipajeRepository = equipajeRepository;
         this.segmentoPlanRepository = segmentoPlanRepository;
         this.nodoRepository = nodoRepository;
-        this.eventoCancelacionRepository = eventoCancelacionRepository;
-        this.loteReplanificacionRepository = loteReplanificacionRepository;
         this.redisCacheService = redisCacheService;
-        this.eventPublisher = eventPublisher;
         this.telemetriaService = telemetriaService;
         this.objectMapper = objectMapper;
+        this.replanificacionService = replanificacionService;
+        this.eventPublisher = eventPublisher;
     }
 
     @Scheduled(fixedRate = TICK_INTERVAL_MS)
@@ -184,38 +181,10 @@ public class TickService {
                 log.info("Tick cancelacion: vuelo {} cancelado probabilisticamente en sesion {}",
                         vuelo.getCodigoVuelo(), sesion.getId());
 
-                vuelo.setEstado(EstadoVuelo.CANCELADO);
-                vueloRepository.save(vuelo);
-
-                redisCacheService.actualizarCargaDisponibleVuelo(vuelo.getId(), 0);
-
-                List<Equipaje> afectados = equipajeRepository.findByVueloActualId(vuelo.getId());
-                for (Equipaje eq : afectados) {
-                    eq.setEstado(EstadoEquipaje.EN_REPLANIFICACION);
-                    eq.setVueloActual(null);
-                    equipajeRepository.save(eq);
-                }
-
-                EventoCancelacion evento = new EventoCancelacion(
-                        UUID.randomUUID(), sesion.getId(), vuelo.getId(), "SIMULACION");
-                evento.setCausa("Cancelacion probabilistica en tick");
-                evento.setOcurridoEnVirtual(sesion.getDiaHoraVirtual());
-                eventoCancelacionRepository.save(evento);
-
-                LoteReplanificacion lote = new LoteReplanificacion(
-                        UUID.randomUUID(), evento.getId(), sesion.getId());
-                lote.setTotalEquipajes(afectados.size());
-                loteReplanificacionRepository.save(lote);
-
-                sesion.setVuelosCancelados(
-                        (sesion.getVuelosCancelados() != null ? sesion.getVuelosCancelados() : 0) + 1);
-                sesion.setMaletasReplanificadas(
-                        (sesion.getMaletasReplanificadas() != null ? sesion.getMaletasReplanificadas() : 0)
-                                + afectados.size());
-                sesionRepository.save(sesion);
-
-                eventPublisher.publishEvent(
-                        new VueloCanceladoEvent(vuelo.getId(), now, "Cancelacion probabilistica en tick"));
+                replanificacionService.replanificarEnSesion(
+                        sesion.getId(), vuelo.getId(),
+                        "Cancelacion probabilistica en tick",
+                        sesion.getDiaHoraVirtual());
             }
         }
     }
@@ -237,6 +206,9 @@ public class TickService {
 
                 redisCacheService.setEstadoSesion(sesion.getId(), "COLAPSADA");
                 redisCacheService.setMetricasSesion(sesion.getId(), buildMetricasJson(sesion, now, true));
+
+                eventPublisher.publishEvent(new SesionFinalizada(
+                        sesion.getId(), "COLAPSADA", now));
 
                 telemetriaService.emitirTelemetria(sesion);
                 return true;

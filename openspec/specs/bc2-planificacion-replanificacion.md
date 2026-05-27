@@ -1,8 +1,8 @@
 # BC2 — Planificación y Replanificación
 
 > **Spec owner:** PM/Lead  
-> **Estado:** Draft v1  
-> **Última actualización:** 10/05/2026  
+> **Estado:** Draft v2  
+> **Última actualización:** 27/05/2026  
 > **Responsables:** Backend devs
 
 ---
@@ -59,28 +59,124 @@ Contiene la inteligencia del sistema. El `MotorEnrutamiento` calcula y recalcula
 
 ---
 
-## Motor de Enrutamiento (Domain Service)
+## Motor de Enrutamiento (Application Service)
 
-El `MotorEnrutamiento` es un `@Service` stateless que expone un único método público:
+### Arquitectura desacoplada (Strategy Pattern)
+
+El enrutamiento se divide en dos capas:
+
+```
+MotorEnrutamiento (@Service)         → Orquestador: controla tiempo, consulta BD
+    └── RoutingStrategy (interface)   → Abstracción pura del algoritmo
+            └── GreedyRoutingStrategy  → Algoritmo greedy concreto (sin repos, sin Spring)
+```
+
+### `MotorEnrutamiento` — Orquestador
+
+`@Service` que inyecta ambas estrategias de routing. Controla el acceso a repositorios y delega el cálculo:
 
 ```java
-PlanViaje calcularRuta(UUID equipajeId, String destinoIata, LocalDateTime slaComprometido, UUID sesionId);
+RutaResult calcularRuta(NodoLogistico origen, String destinoIata, OffsetDateTime slaComprometido)
+List<RutaResult> calcularRutasLote(List<Equipaje> equipajes)
 ```
 
-### Algoritmo greedy (para esta entrega)
+1. **Modo single-item:** delega en `GreedyRoutingStrategy` (`@Qualifier("greedyRoutingStrategy")`)
+2. **Modo batch:** delega en `ACORoutingStrategy` (`@Qualifier("acoRoutingStrategy")`) con TiempoInterno derivado del equipoje
 
+Flujo:
 ```
-1. Obtener el nodo origen del equipaje (nodo del operador autenticado)
-2. Buscar vuelos con estado PROGRAMADO desde ese nodo hacia destinoIata
-   con carga_disponible > 0 y hora_salida dentro del SLA
-3. Si existe vuelo directo → asignarlo como único SegmentoPlan
-4. Si no existe vuelo directo → buscar combinación de 2 vuelos (origen → escala → destino)
-   donde la escala tenga tiempo suficiente entre conexiones (mínimo 60 min)
-5. Si no hay ruta posible → marcar equipaje como INCUMPLIMIENTO_SLA
-6. Devolver PlanViaje con los SegmentoPlan ordenados
+calcularRuta() → GreedyRoutingStrategy.calcularRuta()  (1 item, determinista)
+calcularRutasLote() → ACORoutingStrategy.optimizarLote()  (N items, estocástico)
 ```
 
-> **Nota:** El motor no escribe en base de datos. Solo calcula y devuelve el plan. BC1 y BC2 se encargan de persistir.
+### `RoutingStrategy` — Interfaz del algoritmo
+
+Contrato puro sin dependencias de infraestructura:
+
+```java
+public interface RoutingStrategy {
+    RutaResult calcularRuta(
+        NodoLogistico origen,
+        NodoLogistico destino,
+        OffsetDateTime slaComprometido,
+        List<Vuelo> vuelosProgramados   // ← datos ya resueltos por el motor
+    );
+
+    // Batch support (default: false, single-item loop)
+    default boolean soportaBatch() { return false; }
+
+    default List<RutaResult> optimizarLote(
+        List<ParametroRuta> parametros,
+        List<Vuelo> vuelosProgramados,
+        TiempoInterno tiempoSimulado
+    ) { /* fallback: single-item loop */ }
+
+    record ParametroRuta(NodoLogistico origen, NodoLogistico destino,
+                         OffsetDateTime slaComprometido) {}
+}
+```
+
+### `GreedyRoutingStrategy` — Implementación concreta
+
+Algoritmo greedy (para esta entrega):
+
+```
+1. Buscar vuelo directo desde origen → destino
+   con carga_disponible > 0 y llegada ≤ SLA
+2. Si existe → retornar 1 segmento
+3. Si no → buscar combinación de 2 vuelos (origen → escala → destino)
+   con mínimo 60 min entre conexión y llegada ≤ SLA
+4. Si no hay ruta → retornar RutaResult con error
+```
+
+**Características:**
+- `@Component` sin dependencias a repositorios ni Spring (excepto la anotación)
+- No sabe de BD, sesiones, tiempo virtual ni simulación
+- Solo recibe datos ya resueltos y retorna rutas
+- Testeable sin mocks (solo construir datos)
+
+#### `ACORoutingStrategy` — Implementación batch (Ant Colony Optimization)
+
+Adaptación del algoritmo ACO v2 (del legado `com/gats/`) al modelo actual. `@Qualifier("acoRoutingStrategy")`.
+
+**Características:**
+- `soportaBatch() = true`: procesa todo el lote en cada optimización
+- Construye grafo en memoria desde `List<Vuelo>` (nodos = aeropuertos, aristas = vuelos)
+- Ordena maletas por urgencia SLA (menor tiempo máximo primero)
+- BFS de alcanzabilidad: antes de elegir un vuelo, verifica que exista camino al destino final
+- Feromonas: evaporación (ρ=0.2), depósito diferenciado, tauMin/tauMax para evitar estancamiento
+- Élitismo: la mejor solución global deposita `eliteFactor × depósito normal`
+- SLA gradual: penalidad proporcional a horas de retraso, no colapso binario
+
+**Diferencias con el greedy:**
+- Greedy: 1 item a la vez, determinista, `soportaBatch() = false`
+- ACO: lote completo, estocástico, `soportaBatch() = true`
+
+### `TiempoInterno` — Conversión de tiempo virtual
+
+Record que convierte `OffsetDateTime` al sistema de tiempo interno de los algoritmos heredados:
+
+```java
+record TiempoInterno(int horaDelDia, int dia) {
+    static TiempoInterno desde(OffsetDateTime fecha, OffsetDateTime referencia) { ... }
+    int totalHoras() { ... }
+}
+```
+
+## Records de resultado
+
+Ambos records viven como top-level en `bc2/application/`:
+
+```java
+record SegmentoInfo(int orden, UUID vueloId, String vueloCodigo,
+                    UUID nodoOrigenId, String nodoOrigenIata,
+                    UUID nodoDestinoId, String nodoDestinoIata,
+                    OffsetDateTime horaSalida, OffsetDateTime horaLlegada) {}
+
+record RutaResult(List<SegmentoInfo> segmentos, boolean exitoso, String mensajeError) {
+    static RutaResult sinRuta(String error) { ... }
+}
+```
 
 ### Evaluación de umbrales
 
@@ -171,7 +267,11 @@ com.tasfb2b.backend.bc2/
 │   ├── TickService.java                ← lógica del reloj virtual y tick
 │   ├── ReplanificacionService.java     ← escucha VueloCancelado, gestiona lotes
 │   ├── ReporteService.java             ← genera ReporteSesion al finalizar
-│   └── MotorEnrutamiento.java          ← algoritmo greedy (Domain Service)
+│   ├── RoutingStrategy.java            ← interfaz del algoritmo (Strategy)
+│   ├── GreedyRoutingStrategy.java      ← algoritmo greedy (Strategy impl)
+│   ├── RutaResult.java                 ← record de resultado
+│   ├── SegmentoInfo.java               ← record de segmento
+│   └── MotorEnrutamiento.java          ← orquestador (delega en RoutingStrategy)
 └── infrastructure/
     ├── SesionRepository.java
     ├── EventoCancelacionRepository.java

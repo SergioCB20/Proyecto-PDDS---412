@@ -1,9 +1,6 @@
 package com.tasfb2b.backend.bc1.application;
 
 import com.tasfb2b.backend.bc1.domain.*;
-import com.tasfb2b.backend.bc1.domain.EstadoSla;
-import com.tasfb2b.backend.bc1.domain.UbicacionTipo;
-import com.tasfb2b.backend.bc1.domain.EstadoSegmento;
 import com.tasfb2b.backend.bc1.infrastructure.*;
 import com.tasfb2b.backend.shared.events.EquipajeIngresadoEvent;
 import com.tasfb2b.backend.shared.infrastructure.RedisCacheService;
@@ -23,18 +20,22 @@ public class EquipajeService {
     private final SegmentoPlanRepository segmentoPlanRepository;
     private final VueloRepository vueloRepository;
     private final NodoLogisticoRepository nodoRepository;
+    private final ColaPlanificacionRepository colaRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final RedisCacheService redisCacheService;
 
     public EquipajeService(EquipajeRepository equipajeRepository, PlanViajeRepository planViajeRepository,
                            SegmentoPlanRepository segmentoPlanRepository, VueloRepository vueloRepository,
-                           NodoLogisticoRepository nodoRepository, ApplicationEventPublisher eventPublisher,
+                           NodoLogisticoRepository nodoRepository,
+                           ColaPlanificacionRepository colaRepository,
+                           ApplicationEventPublisher eventPublisher,
                            RedisCacheService redisCacheService) {
         this.equipajeRepository = equipajeRepository;
         this.planViajeRepository = planViajeRepository;
         this.segmentoPlanRepository = segmentoPlanRepository;
         this.vueloRepository = vueloRepository;
         this.nodoRepository = nodoRepository;
+        this.colaRepository = colaRepository;
         this.eventPublisher = eventPublisher;
         this.redisCacheService = redisCacheService;
     }
@@ -54,6 +55,13 @@ public class EquipajeService {
             PlanViajeResponse plan_viaje
     ) {}
 
+    public record EquipajeRegistradoResponse(
+            UUID id,
+            String estado,
+            String id_externo,
+            String destino_iata
+    ) {}
+
     public record PlanViajeResponse(
             UUID id,
             String estado_sla,
@@ -70,11 +78,11 @@ public class EquipajeService {
     ) {}
 
     @Transactional
-    public EquipajeResponse registrar(UUID operadorNodoId, RegistrarEquipajeRequest request) {
+    public EquipajeRegistradoResponse registrar(UUID operadorNodoId, RegistrarEquipajeRequest request) {
         NodoLogistico nodoOrigen = nodoRepository.findById(operadorNodoId)
                 .orElseThrow(() -> new ValidacionException("Nodo asignado al operador no encontrado"));
 
-        NodoLogistico nodoDestino = nodoRepository.findByCodigoIata(request.destino_iata())
+        nodoRepository.findByCodigoIata(request.destino_iata())
                 .orElseThrow(() -> new ValidacionException("Destino IATA no existe: " + request.destino_iata()));
 
         Vuelo vuelo = vueloRepository.findById(request.vuelo_id())
@@ -98,44 +106,28 @@ public class EquipajeService {
         equipaje.setDestinoIata(request.destino_iata());
         equipaje.setSlaComprometido(request.sla_comprometido());
         equipaje.setFechaIngreso(OffsetDateTime.now());
-        equipaje.setEstado(EstadoEquipaje.ENRUTADO);
+        equipaje.setEstado(EstadoEquipaje.REGISTRADO);
         equipaje.setVueloActual(vuelo);
         equipajeRepository.save(equipaje);
 
         eventPublisher.publishEvent(new EquipajeIngresadoEvent(equipaje.getId(), OffsetDateTime.now()));
 
-        PlanViaje planViaje = new PlanViaje();
-        planViaje.setId(UUID.randomUUID());
-        planViaje.setEquipaje(equipaje);
-        planViaje.setEstadoSla(EstadoSla.EN_TIEMPO);
-        planViaje.setTiempoEntregaEst(vuelo.getHoraLlegada());
-        planViaje.setUbicacionTipo(UbicacionTipo.VUELO);
-        planViaje.setUbicacionId(vuelo.getId());
-        planViaje.setUbicacionLat(vuelo.getOrigenLat());
-        planViaje.setUbicacionLon(vuelo.getOrigenLon());
-        planViajeRepository.save(planViaje);
+        ColaPlanificacion colaItem = new ColaPlanificacion();
+        colaItem.setId(UUID.randomUUID());
+        colaItem.setEquipajeId(equipaje.getId());
+        colaItem.setTipo(TipoCola.PLANIFICACION);
+        colaItem.setEstado(EstadoCola.PENDIENTE);
+        colaItem.setIntentos(0);
+        colaItem.setFechaCreacion(OffsetDateTime.now());
+        colaItem.setSlaComprometido(request.sla_comprometido());
+        colaRepository.save(colaItem);
 
-        SegmentoPlan segmento = new SegmentoPlan();
-        segmento.setId(UUID.randomUUID());
-        segmento.setPlanViaje(planViaje);
-        segmento.setVuelo(vuelo);
-        segmento.setNodoOrigen(vuelo.getOrigen());
-        segmento.setNodoDestino(vuelo.getDestino());
-        segmento.setOrden(1);
-        segmento.setHoraSalidaProg(vuelo.getHoraSalida());
-        segmento.setEstado(EstadoSegmento.PENDIENTE);
-        segmentoPlanRepository.save(segmento);
-
-        nodoOrigen.setOcupacionActual(nodoOrigen.getOcupacionActual() + 1);
-        nodoRepository.save(nodoOrigen);
-
-        vuelo.setCargaDisponible(vuelo.getCargaDisponible() - 1);
-        vueloRepository.save(vuelo);
-
-        redisCacheService.actualizarOcupacionNodo(nodoOrigen.getId(), nodoOrigen.getOcupacionActual() + 1);
-        redisCacheService.actualizarCargaDisponibleVuelo(vuelo.getId(), vuelo.getCargaDisponible());
-
-        return toEquipajeResponse(equipaje, planViaje, List.of(segmento));
+        return new EquipajeRegistradoResponse(
+                equipaje.getId(),
+                equipaje.getEstado().name(),
+                equipaje.getIdExterno(),
+                equipaje.getDestinoIata()
+        );
     }
 
     @Transactional

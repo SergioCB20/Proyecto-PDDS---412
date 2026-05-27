@@ -1,0 +1,39 @@
+package com.tasfb2b.backend.bc2.infrastructure;
+
+import com.tasfb2b.backend.bc2.application.MetricasSesionResponse;
+import com.tasfb2b.backend.bc2.application.ReporteService;
+import com.tasfb2b.backend.bc2.application.SesionService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
+
+@RestController
+@RequestMapping("/api/sesiones")
+@PreAuthorize("hasRole('ANALISTA')")
+public class MetricasController {
+
+    private final SesionService sesionService;
+    private final ReporteService reporteService;
+
+    public MetricasController(SesionService sesionService, ReporteService reporteService) {
+        this.sesionService = sesionService;
+        this.reporteService = reporteService;
+    }
+
+    @GetMapping("/{id}/metricas")
+    public ResponseEntity<MetricasSesionResponse> obtenerMetricas(@PathVariable UUID id) {
+        MetricasSesionResponse response = sesionService.obtenerMetricas(id);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{id}/reporte")
+    public ResponseEntity<?> obtenerReporte(@PathVariable UUID id) {
+        var reporte = reporteService.obtenerReporte(id);
+        if (reporte == null) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(reporte);
+    }
+}
