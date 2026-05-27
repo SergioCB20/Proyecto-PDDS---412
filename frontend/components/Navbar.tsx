@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LogOut, Plane } from 'lucide-react';
@@ -9,7 +9,11 @@ import type { Usuario } from '@/lib/types';
 
 export function Navbar() {
   const pathname = usePathname();
-  const [user] = useState<Usuario | null>(() => auth.getUser());
+  const [user, setUser] = useState<Usuario | null>(null);
+
+  useEffect(() => {
+    setUser(auth.getUser());
+  }, []);
 
   const navLinks = [
     { href: '/admin', label: 'Administracion', rol: 'ADMINISTRADOR' as const },
