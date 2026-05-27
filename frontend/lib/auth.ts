@@ -27,7 +27,7 @@ export const auth = {
     auth.clearToken();
     localStorage.removeItem('user');
     if (typeof window !== 'undefined') {
-      window.location.href = '/login';
+      window.location.href = '/front/login';
     }
   },
 
