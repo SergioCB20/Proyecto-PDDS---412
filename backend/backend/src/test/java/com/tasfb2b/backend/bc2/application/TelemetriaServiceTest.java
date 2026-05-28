@@ -80,6 +80,15 @@ class TelemetriaServiceTest {
         vuelo.setHoraLlegada(OffsetDateTime.parse("2026-05-27T09:30:00Z"));
         vuelo.setCapacidadCarga(50);
         vuelo.setCargaDisponible(20);
+
+        NodoLogistico origen = new NodoLogistico(
+                UUID.randomUUID(), "LIM", "Lima",
+                BigDecimal.valueOf(-12.0), BigDecimal.valueOf(-77.0), 100);
+        NodoLogistico destino = new NodoLogistico(
+                UUID.randomUUID(), "CUZ", "Cusco",
+                BigDecimal.valueOf(-13.5), BigDecimal.valueOf(-72.0), 100);
+        vuelo.setOrigen(origen);
+        vuelo.setDestino(destino);
     }
 
     @Test

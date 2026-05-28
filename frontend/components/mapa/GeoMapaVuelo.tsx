@@ -1,13 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { Polyline, Marker } from 'react-leaflet';
 import L from 'leaflet';
-import type { Vuelo } from '@/lib/types';
-import { calcularPosicionAvion } from '@/lib/mock';
+import type { VueloEnMapa } from '@/lib/types';
 
 interface GeoMapaVueloProps {
-  vuelo: Vuelo;
+  vuelo: VueloEnMapa;
   animacionActiva?: boolean;
 }
 
@@ -38,50 +36,29 @@ const COLORES: Record<string, string> = {
   COMPLETADO: '#6b7280',
 };
 
-export default function GeoMapaVuelo({ vuelo, animacionActiva = false }: GeoMapaVueloProps) {
-  const [progreso, setProgreso] = useState(0);
-
-  useEffect(() => {
-    if (!animacionActiva || vuelo.estado !== 'EN_RUTA') return;
-
-    const salida = new Date(vuelo.hora_salida).getTime();
-    const llegada = new Date(vuelo.hora_llegada).getTime();
-    const total = llegada - salida;
-
-    const interval = setInterval(() => {
-      const t = Date.now();
-      const p = Math.max(0, Math.min(1, (t - salida) / total));
-      setProgreso(p);
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, [vuelo, animacionActiva]);
-
-  const origenLat = typeof vuelo.origen_lat === 'number' ? vuelo.origen_lat : 0;
-  const origenLon = typeof vuelo.origen_lon === 'number' ? vuelo.origen_lon : 0;
-  const destinoLat = typeof vuelo.destino_lat === 'number' ? vuelo.destino_lat : 0;
-  const destinoLon = typeof vuelo.destino_lon === 'number' ? vuelo.destino_lon : 0;
-
-  if (!origenLat || !origenLon || !destinoLat || !destinoLon) return null;
-
-  const origen: [number, number] = [origenLat, origenLon];
-  const destino: [number, number] = [destinoLat, destinoLon];
+export default function GeoMapaVuelo({ vuelo }: GeoMapaVueloProps) {
   const color = COLORES[vuelo.estado] || '#6b7280';
-  const posicion = calcularPosicionAvion({ ...vuelo, origen_lat: origenLat, origen_lon: origenLon, destino_lat: destinoLat, destino_lon: destinoLon }, progreso);
 
-  const polylinePositions: [number, number][] = [origen, destino];
+  const posicion: { lat: number; lon: number } = vuelo.posicionActual ?? {
+    lat: vuelo.origen_lat,
+    lon: vuelo.origen_lon,
+  };
+
+  const tieneRuta = vuelo.origen_lat && vuelo.origen_lon && vuelo.destino_lat && vuelo.destino_lon;
 
   return (
     <>
-      <Polyline
-        positions={polylinePositions}
-        pathOptions={{
-          color,
-          weight: 2,
-          opacity: 0.5,
-          dashArray: vuelo.estado === 'PROGRAMADO' ? '5,5' : undefined,
-        }}
-      />
+      {tieneRuta && (
+        <Polyline
+          positions={[[vuelo.origen_lat, vuelo.origen_lon], [vuelo.destino_lat, vuelo.destino_lon]]}
+          pathOptions={{
+            color,
+            weight: 2,
+            opacity: 0.5,
+            dashArray: vuelo.estado === 'PROGRAMADO' ? '5,5' : undefined,
+          }}
+        />
+      )}
       <Marker
         position={[posicion.lat, posicion.lon]}
         icon={crearIconoAvion(color)}

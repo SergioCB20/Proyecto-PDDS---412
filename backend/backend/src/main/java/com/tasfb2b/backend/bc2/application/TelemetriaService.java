@@ -75,6 +75,12 @@ public class TelemetriaService {
             v.put("id", vuelo.getId().toString());
             v.put("codigo_vuelo", vuelo.getCodigoVuelo());
             v.put("estado", vuelo.getEstado().name());
+            v.put("origen_lat", vuelo.getOrigenLat().doubleValue());
+            v.put("origen_lon", vuelo.getOrigenLon().doubleValue());
+            v.put("destino_lat", vuelo.getDestinoLat().doubleValue());
+            v.put("destino_lon", vuelo.getDestinoLon().doubleValue());
+            v.put("origen_iata", vuelo.getOrigen().getCodigoIata());
+            v.put("destino_iata", vuelo.getDestino().getCodigoIata());
 
             if (vuelo.getEstado() == EstadoVuelo.EN_RUTA && sesion.getDiaHoraVirtual() != null) {
                 double progress = calcularProgreso(vuelo, sesion.getDiaHoraVirtual());

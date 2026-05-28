@@ -161,7 +161,8 @@ export interface CrearEquipajeRequest {
 export interface CrearEquipajeResponse {
   id: string;
   estado: string;
-  plan_viaje: PlanViajeResponse;
+  id_externo?: string;
+  destino_iata?: string;
 }
 
 export interface CargaMasivaRegistro {
@@ -184,4 +185,36 @@ export interface CargaMasivaPreview {
 export interface CargaMasivaConfirmResponse {
   ingresados: number;
   fallidos: number;
+}
+
+export interface NodoTelemetria {
+  id: string;
+  codigo_iata: string;
+  lat: number;
+  lon: number;
+  ocupacion_pct: number;
+  color: string;
+}
+
+export interface VueloTelemetria {
+  id: string;
+  codigo_vuelo: string;
+  estado: string;
+  lat_actual: number;
+  lon_actual: number;
+  origen_lat: number;
+  origen_lon: number;
+  destino_lat: number;
+  destino_lon: number;
+  origen_iata: string;
+  destino_iata: string;
+  ocupacion_pct: number;
+  color: string;
+}
+
+export interface TelemetriaMensaje {
+  timestamp: string;
+  nodos: NodoTelemetria[];
+  vuelos: VueloTelemetria[];
+  metricas_sesion: MetricasSimulacion;
 }
