@@ -202,6 +202,12 @@ export interface VueloTelemetria {
   estado: string;
   lat_actual: number;
   lon_actual: number;
+  origen_lat: number;
+  origen_lon: number;
+  destino_lat: number;
+  destino_lon: number;
+  origen_iata: string;
+  destino_iata: string;
   ocupacion_pct: number;
   color: string;
 }

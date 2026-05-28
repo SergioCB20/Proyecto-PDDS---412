@@ -40,32 +40,25 @@ export default function GeoMapaVuelo({ vuelo }: GeoMapaVueloProps) {
   const color = COLORES[vuelo.estado] || '#6b7280';
 
   const posicion: { lat: number; lon: number } = vuelo.posicionActual ?? {
-    lat: vuelo.origen_lat || 0,
-    lon: vuelo.origen_lon || 0,
+    lat: vuelo.origen_lat,
+    lon: vuelo.origen_lon,
   };
 
-  const origenLat = vuelo.origen_lat || 0;
-  const origenLon = vuelo.origen_lon || 0;
-  const destinoLat = vuelo.destino_lat || 0;
-  const destinoLon = vuelo.destino_lon || 0;
-
-  if (!origenLat || !origenLon || !destinoLat || !destinoLon) return null;
-
-  const origen: [number, number] = [origenLat, origenLon];
-  const destino: [number, number] = [destinoLat, destinoLon];
-  const polylinePositions: [number, number][] = [origen, destino];
+  const tieneRuta = vuelo.origen_lat && vuelo.origen_lon && vuelo.destino_lat && vuelo.destino_lon;
 
   return (
     <>
-      <Polyline
-        positions={polylinePositions}
-        pathOptions={{
-          color,
-          weight: 2,
-          opacity: 0.5,
-          dashArray: vuelo.estado === 'PROGRAMADO' ? '5,5' : undefined,
-        }}
-      />
+      {tieneRuta && (
+        <Polyline
+          positions={[[vuelo.origen_lat, vuelo.origen_lon], [vuelo.destino_lat, vuelo.destino_lon]]}
+          pathOptions={{
+            color,
+            weight: 2,
+            opacity: 0.5,
+            dashArray: vuelo.estado === 'PROGRAMADO' ? '5,5' : undefined,
+          }}
+        />
+      )}
       <Marker
         position={[posicion.lat, posicion.lon]}
         icon={crearIconoAvion(color)}
