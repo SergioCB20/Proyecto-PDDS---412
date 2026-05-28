@@ -5,6 +5,8 @@ La página de operación (`/operacion`) y simulación (`/simulacion/[id]`) usan 
 1. **Los formularios de crear vuelo y equipaje reciben IDs mock que no existen en la BD** — al enviar `POST /api/vuelos` o `POST /api/equipajes`, el backend responde 422 porque los `origen_id`, `destino_id` o `vuelo_id` de los datos mock no existen en PostgreSQL.
 2. **Los errores reales quedan ocultos** — los `.catch(() => MOCK_NODOS)` en `fetchData` silencian cualquier error de conexión, autenticación o permiso, dando la impresión de que la página funciona cuando en realidad está desconectada del backend.
 3. **La creación de equipaje crashea el frontend** — `CrearEquipajeResponse` espera un campo `plan_viaje` que el backend no retorna al registrar, provocando `TypeError` al renderizar el mensaje de éxito.
+4. **La creación de vuelo siempre falla con 500** — `VueloService.crear()` no asigna los campos `planVuelos`, `origenLat`, `origenLon`, `destinoLat`, `destinoLon`, todos NOT NULL en la BD. Hibernate lanza `DataIntegrityViolationException` que cae en el catch-all del `GlobalExceptionHandler`.
+5. **Los selects de Destino IATA, Origen y Destino quedan vacíos sin feedback** — al eliminar datos mock, los selects no tienen opciones pero tampoco se deshabilitan, dando la impresión de que están rotos.
 
 ## What Changes
 
@@ -15,6 +17,8 @@ La página de operación (`/operacion`) y simulación (`/simulacion/[id]`) usan 
 - Se simplifica el bloque de éxito al crear equipaje eliminando la dependencia de `plan_viaje`
 - Se agrega estado `apiError` y un banner rojo visible en la UI para errores de conexión
 - Se crea `frontend/.env.local` con la URL de la API
+- Se corrige `VueloService.crear()` en backend: se inyecta `PlanVuelosRepository`, se asigna `planVuelos` activo y coordenadas de latitud/longitud al crear y actualizar vuelos
+- Se agrega `disabled` y placeholder dinámico a los Selects de "Destino IATA" (equipaje), "Origen" y "Destino" (vuelo) cuando `nodos` está vacío
 
 ## Capabilities
 
@@ -32,6 +36,6 @@ La página de operación (`/operacion`) y simulación (`/simulacion/[id]`) usan 
 ## Impact
 
 - `frontend/lib/types.ts` — corregir `CrearEquipajeResponse` (eliminar `plan_viaje`)
-- `frontend/app/operacion/page.tsx` — eliminar imports mock, inicializar estados vacíos, eliminar `.catch()` fallback, simplificar éxito de equipaje, agregar banner de error
+- `frontend/app/operacion/page.tsx` — eliminar imports mock, inicializar estados vacíos, eliminar `.catch()` fallback, simplificar éxito de equipaje, agregar banner de error, agregar `disabled` y placeholder dinámico a selects
 - `frontend/.env.local` — archivo nuevo con `NEXT_PUBLIC_API_URL`
-- Sin cambios en backend
+- `backend/.../bc1/application/VueloService.java` — inyectar `PlanVuelosRepository`, asignar `planVuelos` y coordenadas en `crear()` y `actualizar()`

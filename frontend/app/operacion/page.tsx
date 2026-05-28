@@ -476,11 +476,12 @@ export default function OperacionPage() {
 
               <Select
                 label="Destino IATA"
-                placeholder="Seleccionar destino"
+                placeholder={nodos.length === 0 ? 'No hay destinos disponibles' : 'Seleccionar destino'}
                 options={destinoOptions}
                 value={formData.destinoIata}
                 onChange={e => setFormData(prev => ({ ...prev, destinoIata: e.target.value }))}
                 error={formErrors.destinoIata}
+                disabled={nodos.length === 0}
               />
 
               <Select
@@ -529,17 +530,19 @@ export default function OperacionPage() {
               />
               <Select
                 label="Origen"
-                placeholder="Seleccionar origen"
+                placeholder={nodos.length === 0 ? 'No hay nodos disponibles' : 'Seleccionar origen'}
                 options={nodos.map(n => ({ value: n.id, label: `${n.codigo_iata} - ${n.nombre}` }))}
                 value={vueloFormData.origen_id}
                 onChange={e => setVueloFormData(prev => ({ ...prev, origen_id: e.target.value }))}
+                disabled={nodos.length === 0}
               />
               <Select
                 label="Destino"
-                placeholder="Seleccionar destino"
+                placeholder={nodos.length === 0 ? 'No hay nodos disponibles' : 'Seleccionar destino'}
                 options={nodos.map(n => ({ value: n.id, label: `${n.codigo_iata} - ${n.nombre}` }))}
                 value={vueloFormData.destino_id}
                 onChange={e => setVueloFormData(prev => ({ ...prev, destino_id: e.target.value }))}
+                disabled={nodos.length === 0}
               />
               <Input
                 label="Hora Salida"

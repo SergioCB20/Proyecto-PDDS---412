@@ -3,9 +3,11 @@ package com.tasfb2b.backend.bc1.application;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tasfb2b.backend.bc1.domain.EstadoVuelo;
 import com.tasfb2b.backend.bc1.domain.NodoLogistico;
+import com.tasfb2b.backend.bc1.domain.PlanVuelos;
 import com.tasfb2b.backend.bc1.domain.Vuelo;
 import com.tasfb2b.backend.bc1.infrastructure.EquipajeRepository;
 import com.tasfb2b.backend.bc1.infrastructure.NodoLogisticoRepository;
+import com.tasfb2b.backend.bc1.infrastructure.PlanVuelosRepository;
 import com.tasfb2b.backend.bc1.infrastructure.VueloRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -13,6 +15,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -22,12 +25,14 @@ public class VueloService {
     private final VueloRepository vueloRepository;
     private final NodoLogisticoRepository nodoRepository;
     private final EquipajeRepository equipajeRepository;
+    private final PlanVuelosRepository planVuelosRepository;
 
     public VueloService(VueloRepository vueloRepository, NodoLogisticoRepository nodoRepository,
-                        EquipajeRepository equipajeRepository) {
+                        EquipajeRepository equipajeRepository, PlanVuelosRepository planVuelosRepository) {
         this.vueloRepository = vueloRepository;
         this.nodoRepository = nodoRepository;
         this.equipajeRepository = equipajeRepository;
+        this.planVuelosRepository = planVuelosRepository;
     }
 
     public record CrearVueloRequest(
@@ -103,11 +108,19 @@ public class VueloService {
         NodoLogistico destino = nodoRepository.findById(request.destino_id())
                 .orElseThrow(() -> new ValidacionException("Destino no encontrado"));
 
+        PlanVuelos planVuelos = planVuelosRepository.findFirstByOrderByVigenciaDesdeAsc()
+                .orElseThrow(() -> new ValidacionException("No hay plan de vuelos activo"));
+
         Vuelo vuelo = new Vuelo();
         vuelo.setId(UUID.randomUUID());
+        vuelo.setPlanVuelos(planVuelos);
         vuelo.setCodigoVuelo(request.codigo_vuelo());
         vuelo.setOrigen(origen);
         vuelo.setDestino(destino);
+        vuelo.setOrigenLat(origen.getLatitud());
+        vuelo.setOrigenLon(origen.getLongitud());
+        vuelo.setDestinoLat(destino.getLatitud());
+        vuelo.setDestinoLon(destino.getLongitud());
         vuelo.setHoraSalida(request.hora_salida());
         vuelo.setHoraLlegada(request.hora_llegada());
         vuelo.setCapacidadCarga(request.capacidad_carga());
@@ -135,6 +148,10 @@ public class VueloService {
         vuelo.setCodigoVuelo(request.codigo_vuelo());
         vuelo.setOrigen(origen);
         vuelo.setDestino(destino);
+        vuelo.setOrigenLat(origen.getLatitud());
+        vuelo.setOrigenLon(origen.getLongitud());
+        vuelo.setDestinoLat(destino.getLatitud());
+        vuelo.setDestinoLon(destino.getLongitud());
         vuelo.setHoraSalida(request.hora_salida());
         vuelo.setHoraLlegada(request.hora_llegada());
         vuelo.setCapacidadCarga(request.capacidad_carga());
