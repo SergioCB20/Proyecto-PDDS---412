@@ -10,41 +10,40 @@ export function useTelemetria(activo: boolean) {
   const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const conectarRef = useRef<() => void>(() => {});
-
-  conectarRef.current = function conectar() {
-    if (typeof window === 'undefined') return;
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
-    const ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(token)}`);
-
-    ws.onopen = () => setConnected(true);
-
-    ws.onclose = () => {
-      setConnected(false);
-      reconnectRef.current = setTimeout(conectarRef.current, 3000);
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data) as TelemetriaMensaje;
-        setData(msg);
-      } catch {
-        /* ignore parse errors */
-      }
-    };
-
-    ws.onerror = () => {
-      ws.close();
-    };
-
-    wsRef.current = ws;
-  };
 
   useEffect(() => {
+    function conectar() {
+      if (typeof window === 'undefined') return;
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(token)}`);
+
+      ws.onopen = () => setConnected(true);
+
+      ws.onclose = () => {
+        setConnected(false);
+        reconnectRef.current = setTimeout(conectar, 3000);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data) as TelemetriaMensaje;
+          setData(msg);
+        } catch {
+          /* ignore parse errors */
+        }
+      };
+
+      ws.onerror = () => {
+        ws.close();
+      };
+
+      wsRef.current = ws;
+    }
+
     if (activo) {
-      conectarRef.current();
+      conectar();
     }
     return () => {
       wsRef.current?.close();
