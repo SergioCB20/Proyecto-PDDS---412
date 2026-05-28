@@ -1,5 +1,6 @@
 package com.tasfb2b.backend.bc1.application;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tasfb2b.backend.bc1.domain.NodoLogistico;
 import com.tasfb2b.backend.bc1.infrastructure.NodoLogisticoRepository;
 import org.springframework.stereotype.Service;
@@ -18,12 +19,12 @@ public class NodoService {
 
     public record NodoResponse(
             UUID id,
-            String codigoIata,
+            @JsonProperty("codigo_iata") String codigoIata,
             String nombre,
             Double latitud,
             Double longitud,
-            Integer capacidadAlmacen,
-            Integer ocupacionActual
+            @JsonProperty("capacidad_almacen") Integer capacidadAlmacen,
+            @JsonProperty("ocupacion_actual") Integer ocupacionActual
     ) {}
 
     public List<NodoResponse> listarTodos() {
