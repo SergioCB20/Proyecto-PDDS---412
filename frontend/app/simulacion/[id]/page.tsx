@@ -1,14 +1,14 @@
 'use client';
 
-import { useEffect, useState, Suspense, useCallback, useRef } from 'react';
+import { useEffect, useState, Suspense, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Play, Pause, Square, Clock, AlertTriangle, RefreshCw, Activity, FileText } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { api } from '@/lib/api';
-import { MOCK_NODOS, MOCK_VUELOS, nodoToEnMapa, resetMetricasMock, tickMetricasMock } from '@/lib/mock';
-import type { NodoEnMapa, MetricasSimulacion } from '@/lib/types';
+import { useTelemetria } from '@/lib/useTelemetria';
+import type { NodoEnMapa, VueloEnMapa, MetricasSimulacion } from '@/lib/types';
 
 const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false });
 
@@ -56,8 +56,39 @@ function SimulacionContent() {
     maletas_replanificadas: 0,
   });
 
-  const nodosEnMapa: NodoEnMapa[] = MOCK_NODOS.map(nodoToEnMapa);
-  const vuelos = MOCK_VUELOS;
+  const { data: telemetria, connected: wsConnected } = useTelemetria(estado === 'EN_CURSO');
+
+  const nodosEnMapa: NodoEnMapa[] = useMemo(() =>
+    (telemetria?.nodos ?? []).map(n => ({
+      id: n.id,
+      codigo_iata: n.codigo_iata,
+      nombre: n.codigo_iata,
+      latitud: n.lat,
+      longitud: n.lon,
+      capacidad_almacen: 0,
+      ocupacion_actual: 0,
+      color: n.color,
+      ocupacionPorcentaje: n.ocupacion_pct,
+    })), [telemetria]);
+
+  const vuelos: VueloEnMapa[] = useMemo(() =>
+    (telemetria?.vuelos ?? []).map(v => ({
+      id: v.id,
+      codigo_vuelo: v.codigo_vuelo,
+      estado: v.estado as VueloEnMapa['estado'],
+      origen: { id: '', codigo_iata: '', nombre: '' },
+      destino: { id: '', codigo_iata: '', nombre: '' },
+      origen_lat: 0,
+      origen_lon: 0,
+      destino_lat: 0,
+      destino_lon: 0,
+      hora_salida: '',
+      hora_llegada: '',
+      capacidad_carga: 0,
+      carga_disponible: 0,
+      posicionActual: { lat: v.lat_actual, lon: v.lon_actual },
+    })), [telemetria]);
+
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchMetricas = useCallback(async () => {
@@ -71,6 +102,12 @@ function SimulacionContent() {
   }, [backendSesionId]);
 
   useEffect(() => {
+    if (telemetria?.metricas_sesion) {
+      setMetricas(telemetria.metricas_sesion);
+    }
+  }, [telemetria]);
+
+  useEffect(() => {
     if (backendSesionId && estado === 'EN_CURSO') {
       pollingRef.current = setInterval(fetchMetricas, 3000);
     } else if (pollingRef.current) {
@@ -81,10 +118,6 @@ function SimulacionContent() {
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
   }, [backendSesionId, estado, fetchMetricas]);
-
-  useEffect(() => {
-    resetMetricasMock(sesionIdParam);
-  }, [sesionIdParam]);
 
   const handleIniciar = async () => {
     setLoading(true);
@@ -117,8 +150,6 @@ function SimulacionContent() {
     } catch (err: unknown) {
       const error = err as { mensaje?: string; message?: string };
       setError(error.mensaje || error.message || 'Error al iniciar sesion');
-      setMetricas(tickMetricasMock(true, probCancelacion / 100));
-      setEstado('EN_CURSO');
     } finally {
       setLoading(false);
     }

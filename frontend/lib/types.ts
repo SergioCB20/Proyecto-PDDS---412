@@ -186,3 +186,29 @@ export interface CargaMasivaConfirmResponse {
   ingresados: number;
   fallidos: number;
 }
+
+export interface NodoTelemetria {
+  id: string;
+  codigo_iata: string;
+  lat: number;
+  lon: number;
+  ocupacion_pct: number;
+  color: string;
+}
+
+export interface VueloTelemetria {
+  id: string;
+  codigo_vuelo: string;
+  estado: string;
+  lat_actual: number;
+  lon_actual: number;
+  ocupacion_pct: number;
+  color: string;
+}
+
+export interface TelemetriaMensaje {
+  timestamp: string;
+  nodos: NodoTelemetria[];
+  vuelos: VueloTelemetria[];
+  metricas_sesion: MetricasSimulacion;
+}

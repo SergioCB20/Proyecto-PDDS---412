@@ -1,13 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { Polyline, Marker } from 'react-leaflet';
 import L from 'leaflet';
-import type { Vuelo } from '@/lib/types';
-import { calcularPosicionAvion } from '@/lib/mock';
+import type { VueloEnMapa } from '@/lib/types';
 
 interface GeoMapaVueloProps {
-  vuelo: Vuelo;
+  vuelo: VueloEnMapa;
   animacionActiva?: boolean;
 }
 
@@ -38,37 +36,23 @@ const COLORES: Record<string, string> = {
   COMPLETADO: '#6b7280',
 };
 
-export default function GeoMapaVuelo({ vuelo, animacionActiva = false }: GeoMapaVueloProps) {
-  const [progreso, setProgreso] = useState(0);
+export default function GeoMapaVuelo({ vuelo }: GeoMapaVueloProps) {
+  const color = COLORES[vuelo.estado] || '#6b7280';
 
-  useEffect(() => {
-    if (!animacionActiva || vuelo.estado !== 'EN_RUTA') return;
+  const posicion: { lat: number; lon: number } = vuelo.posicionActual ?? {
+    lat: vuelo.origen_lat || 0,
+    lon: vuelo.origen_lon || 0,
+  };
 
-    const salida = new Date(vuelo.hora_salida).getTime();
-    const llegada = new Date(vuelo.hora_llegada).getTime();
-    const total = llegada - salida;
-
-    const interval = setInterval(() => {
-      const t = Date.now();
-      const p = Math.max(0, Math.min(1, (t - salida) / total));
-      setProgreso(p);
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, [vuelo, animacionActiva]);
-
-  const origenLat = typeof vuelo.origen_lat === 'number' ? vuelo.origen_lat : 0;
-  const origenLon = typeof vuelo.origen_lon === 'number' ? vuelo.origen_lon : 0;
-  const destinoLat = typeof vuelo.destino_lat === 'number' ? vuelo.destino_lat : 0;
-  const destinoLon = typeof vuelo.destino_lon === 'number' ? vuelo.destino_lon : 0;
+  const origenLat = vuelo.origen_lat || 0;
+  const origenLon = vuelo.origen_lon || 0;
+  const destinoLat = vuelo.destino_lat || 0;
+  const destinoLon = vuelo.destino_lon || 0;
 
   if (!origenLat || !origenLon || !destinoLat || !destinoLon) return null;
 
   const origen: [number, number] = [origenLat, origenLon];
   const destino: [number, number] = [destinoLat, destinoLon];
-  const color = COLORES[vuelo.estado] || '#6b7280';
-  const posicion = calcularPosicionAvion({ ...vuelo, origen_lat: origenLat, origen_lon: origenLon, destino_lat: destinoLat, destino_lon: destinoLon }, progreso);
-
   const polylinePositions: [number, number][] = [origen, destino];
 
   return (
