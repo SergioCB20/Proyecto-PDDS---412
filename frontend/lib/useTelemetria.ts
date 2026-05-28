@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { TelemetriaMensaje } from './types';
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080/api/ws/telemetria';
@@ -10,8 +10,9 @@ export function useTelemetria(activo: boolean) {
   const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const conectarRef = useRef<() => void>(() => {});
 
-  const conectar = useCallback(() => {
+  conectarRef.current = function conectar() {
     if (typeof window === 'undefined') return;
     const token = localStorage.getItem('token');
     if (!token) return;
@@ -22,7 +23,7 @@ export function useTelemetria(activo: boolean) {
 
     ws.onclose = () => {
       setConnected(false);
-      reconnectRef.current = setTimeout(conectar, 3000);
+      reconnectRef.current = setTimeout(conectarRef.current, 3000);
     };
 
     ws.onmessage = (event) => {
@@ -39,22 +40,19 @@ export function useTelemetria(activo: boolean) {
     };
 
     wsRef.current = ws;
-  }, []);
+  };
 
   useEffect(() => {
     if (activo) {
-      conectar();
-    } else {
-      wsRef.current?.close();
-      if (reconnectRef.current) clearTimeout(reconnectRef.current);
-      setConnected(false);
+      conectarRef.current();
     }
     return () => {
       wsRef.current?.close();
       if (reconnectRef.current) clearTimeout(reconnectRef.current);
       wsRef.current = null;
+      setConnected(false);
     };
-  }, [activo, conectar]);
+  }, [activo]);
 
   return { data, connected };
 }

@@ -46,7 +46,9 @@ function SimulacionContent() {
   const [estado, setEstado] = useState<'CONFIGURADA' | 'EN_CURSO' | 'PAUSADA' | 'FINALIZADA'>('CONFIGURADA');
   const [, setLoading] = useState(false);
   const [, setError] = useState<string>('');
-  const [metricas, setMetricas] = useState<MetricasSimulacion>({
+  const { data: telemetria } = useTelemetria(estado === 'EN_CURSO');
+
+  const [metricasPoll, setMetricasPoll] = useState<MetricasSimulacion>({
     sesion_id: sesionIdParam,
     estado: 'CONFIGURADA',
     dia_hora_virtual: `${fechaInicio}T${horaInicio}:00Z`,
@@ -56,7 +58,7 @@ function SimulacionContent() {
     maletas_replanificadas: 0,
   });
 
-  const { data: telemetria, connected: wsConnected } = useTelemetria(estado === 'EN_CURSO');
+  const metricas = telemetria?.metricas_sesion ?? metricasPoll;
 
   const nodosEnMapa: NodoEnMapa[] = useMemo(() =>
     (telemetria?.nodos ?? []).map(n => ({
@@ -95,17 +97,11 @@ function SimulacionContent() {
     if (!backendSesionId) return;
     try {
       const data = await api.get<MetricasSimulacion>(`/sesiones/${backendSesionId}/metricas`);
-      setMetricas(data);
+      setMetricasPoll(data);
       setEstado(data.estado);
     } catch {
     }
   }, [backendSesionId]);
-
-  useEffect(() => {
-    if (telemetria?.metricas_sesion) {
-      setMetricas(telemetria.metricas_sesion);
-    }
-  }, [telemetria]);
 
   useEffect(() => {
     if (backendSesionId && estado === 'EN_CURSO') {
