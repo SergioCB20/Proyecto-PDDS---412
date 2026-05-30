@@ -60,7 +60,7 @@ public class VueloService {
             @JsonProperty("destino_lon") Double destinoLon
     ) {}
 
-    public record OrigenDestinoResponse(UUID id, String codigoIata, String nombre) {}
+    public record OrigenDestinoResponse(UUID id, @JsonProperty("codigo_iata") String codigoIata, String nombre) {}
 
     public record VueloPageResponse(
             java.util.List<VueloResponse> content,
