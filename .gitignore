@@ -44,6 +44,7 @@ yarn-error.log*
 # Compilados y binarios
 target/
 /backend/target/
+/backend/backend/src/main/resources/data/
 *.class
 *.jar
 *.war
