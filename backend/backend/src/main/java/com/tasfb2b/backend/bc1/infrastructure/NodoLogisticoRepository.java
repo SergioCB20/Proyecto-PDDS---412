@@ -11,4 +11,5 @@ import java.util.UUID;
 public interface NodoLogisticoRepository extends JpaRepository<NodoLogistico, UUID> {
     Optional<NodoLogistico> findByCodigoIata(String codigoIata);
     List<NodoLogistico> findAllByOrderByCodigoIataAsc();
+    List<NodoLogistico> findByContinenteIsNull();
 }

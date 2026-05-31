@@ -26,15 +26,18 @@ public class SesionService {
     private final RedisCacheService redisCacheService;
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
+    private final CsvBaggageLoader csvBaggageLoader;
 
     public SesionService(SesionRepository sesionRepository,
                          RedisCacheService redisCacheService,
                          ObjectMapper objectMapper,
-                         ApplicationEventPublisher eventPublisher) {
+                         ApplicationEventPublisher eventPublisher,
+                         CsvBaggageLoader csvBaggageLoader) {
         this.sesionRepository = sesionRepository;
         this.redisCacheService = redisCacheService;
         this.objectMapper = objectMapper;
         this.eventPublisher = eventPublisher;
+        this.csvBaggageLoader = csvBaggageLoader;
     }
 
     public SesionResponse crearSesion(CrearSesionRequest request) {
@@ -70,6 +73,10 @@ public class SesionService {
 
         sesionRepository.save(sesion);
         redisCacheService.setEstadoSesion(sesion.getId(), sesion.getEstado().name());
+
+        if (sesion.getTipo() == TipoSesion.SIMULADA) {
+            csvBaggageLoader.cargarArchivosLocales(sesion.getId());
+        }
 
         return new SesionResponse(sesion.getId(), sesion.getTipo().name(), sesion.getEstado().name());
     }

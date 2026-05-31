@@ -35,7 +35,6 @@ export default function OperacionPage() {
     idEquipaje: '',
     destinoIata: '',
     vueloId: '',
-    slaComprometido: '',
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [formLoading, setFormLoading] = useState(false);
@@ -161,7 +160,6 @@ export default function OperacionPage() {
     if (!formData.idEquipaje.trim()) errors.idEquipaje = 'ID de equipaje es requerido';
     if (!formData.destinoIata) errors.destinoIata = 'Destino es requerido';
     if (!formData.vueloId) errors.vueloId = 'Vuelo es requerido';
-    if (!formData.slaComprometido.trim()) errors.slaComprometido = 'SLA es requerido';
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -175,19 +173,15 @@ export default function OperacionPage() {
 
     setFormLoading(true);
     try {
-      const slaDatetime = new Date();
-      slaDatetime.setHours(slaDatetime.getHours() + parseInt(formData.slaComprometido));
-
       const request: CrearEquipajeRequest = {
         id_equipaje: formData.idEquipaje,
         destino_iata: formData.destinoIata,
         vuelo_id: formData.vueloId,
-        sla_comprometido: slaDatetime.toISOString(),
       };
 
       const response = await api.post<CrearEquipajeResponse>('/equipajes', request);
       setFormSuccess(response);
-      setFormData({ idEquipaje: '', destinoIata: '', vueloId: '', slaComprometido: '' });
+      setFormData({ idEquipaje: '', destinoIata: '', vueloId: '' });
       setEquipajesRecientes(prev => [
         { id_externo: formData.idEquipaje, destino: formData.destinoIata, estado: response.estado, tiempo: 'ahora' },
         ...prev.slice(0, 7),
@@ -256,7 +250,6 @@ export default function OperacionPage() {
       idEquipaje: eq.id_externo,
       destinoIata: eq.destino,
       vueloId: '',
-      slaComprometido: '',
     });
     setFormOpen(true);
   };
@@ -492,16 +485,6 @@ export default function OperacionPage() {
                 onChange={e => setFormData(prev => ({ ...prev, vueloId: e.target.value }))}
                 error={formErrors.vueloId}
                 disabled={vuelosProgramados.length === 0}
-              />
-
-              <Input
-                label="SLA Comprometido (horas)"
-                type="number"
-                placeholder="24"
-                min="1"
-                value={formData.slaComprometido}
-                onChange={e => setFormData(prev => ({ ...prev, slaComprometido: e.target.value }))}
-                error={formErrors.slaComprometido}
               />
 
               {formError && (
@@ -770,7 +753,7 @@ export default function OperacionPage() {
                 {csvFile ? csvFile.name : 'Subir archivo CSV'}
               </p>
               <p className="text-xs text-slate-500 mt-1">
-                Formato: id_equipaje, destino_iata, vuelo_id, sla_comprometido
+                Formato: id_equipaje, destino_iata, vuelo_id
               </p>
             </label>
           </div>
@@ -813,7 +796,6 @@ export default function OperacionPage() {
                               <th className="p-2 text-left">ID</th>
                               <th className="p-2 text-left">Destino</th>
                               <th className="p-2 text-left">Vuelo</th>
-                              <th className="p-2 text-left">SLA</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -822,12 +804,11 @@ export default function OperacionPage() {
                                 <td className="p-2">{row.id_equipaje}</td>
                                 <td className="p-2">{row.destino_iata}</td>
                                 <td className="p-2">{row.vuelo_id}</td>
-                                <td className="p-2">{new Date(row.sla_comprometido).toLocaleString('es-ES')}</td>
                               </tr>
                             ))}
                             {registrosValidos.length > 10 && (
                               <tr className="border-t border-slate-200 dark:border-slate-700">
-                                <td colSpan={4} className="p-2 text-center text-slate-500">
+                                <td colSpan={3} className="p-2 text-center text-slate-500">
                                   ...y {registrosValidos.length - 10} más
                                 </td>
                               </tr>

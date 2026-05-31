@@ -43,8 +43,7 @@ public class EquipajeService {
     public record RegistrarEquipajeRequest(
             String id_equipaje,
             String destino_iata,
-            UUID vuelo_id,
-            OffsetDateTime sla_comprometido
+            UUID vuelo_id
     ) {}
 
     public record EquipajeResponse(
@@ -82,7 +81,7 @@ public class EquipajeService {
         NodoLogistico nodoOrigen = nodoRepository.findById(operadorNodoId)
                 .orElseThrow(() -> new ValidacionException("Nodo asignado al operador no encontrado"));
 
-        nodoRepository.findByCodigoIata(request.destino_iata())
+        NodoLogistico nodoDestino = nodoRepository.findByCodigoIata(request.destino_iata())
                 .orElseThrow(() -> new ValidacionException("Destino IATA no existe: " + request.destino_iata()));
 
         Vuelo vuelo = vueloRepository.findById(request.vuelo_id())
@@ -100,17 +99,22 @@ public class EquipajeService {
             throw new ValidacionException("Capacidad del almacen superada en nodo " + nodoOrigen.getCodigoIata());
         }
 
+        OffsetDateTime ahora = OffsetDateTime.now();
+
+        long slaHoras = nodoOrigen.getContinente() == nodoDestino.getContinente() ? 24 : 48;
+        OffsetDateTime sla = ahora.plusHours(slaHoras);
+
         Equipaje equipaje = new Equipaje();
         equipaje.setId(UUID.randomUUID());
         equipaje.setIdExterno(request.id_equipaje());
         equipaje.setDestinoIata(request.destino_iata());
-        equipaje.setSlaComprometido(request.sla_comprometido());
-        equipaje.setFechaIngreso(OffsetDateTime.now());
+        equipaje.setSlaComprometido(sla);
+        equipaje.setFechaIngreso(ahora);
         equipaje.setEstado(EstadoEquipaje.REGISTRADO);
         equipaje.setVueloActual(vuelo);
         equipajeRepository.save(equipaje);
 
-        eventPublisher.publishEvent(new EquipajeIngresadoEvent(equipaje.getId(), OffsetDateTime.now()));
+        eventPublisher.publishEvent(new EquipajeIngresadoEvent(equipaje.getId(), ahora));
 
         ColaPlanificacion colaItem = new ColaPlanificacion();
         colaItem.setId(UUID.randomUUID());
@@ -118,8 +122,8 @@ public class EquipajeService {
         colaItem.setTipo(TipoCola.PLANIFICACION);
         colaItem.setEstado(EstadoCola.PENDIENTE);
         colaItem.setIntentos(0);
-        colaItem.setFechaCreacion(OffsetDateTime.now());
-        colaItem.setSlaComprometido(request.sla_comprometido());
+        colaItem.setFechaCreacion(ahora);
+        colaItem.setSlaComprometido(sla);
         colaRepository.save(colaItem);
 
         return new EquipajeRegistradoResponse(
@@ -142,7 +146,11 @@ public class EquipajeService {
                 .orElseThrow(() -> new ValidacionException("Vuelo no encontrado"));
 
         equipaje.setDestinoIata(request.destino_iata());
-        equipaje.setSlaComprometido(request.sla_comprometido());
+
+        NodoLogistico nodoOrigen = vuelo.getOrigen();
+        long slaHoras = nodoOrigen.getContinente() == nodoDestino.getContinente() ? 24 : 48;
+        equipaje.setSlaComprometido(OffsetDateTime.now().plusHours(slaHoras));
+
         equipaje.setVueloActual(vuelo);
         equipajeRepository.save(equipaje);
 

@@ -155,7 +155,6 @@ export interface CrearEquipajeRequest {
   id_equipaje: string;
   destino_iata: string;
   vuelo_id: string;
-  sla_comprometido: string;
 }
 
 export interface CrearEquipajeResponse {
@@ -170,7 +169,6 @@ export interface CargaMasivaRegistro {
   id_equipaje: string;
   destino_iata: string;
   vuelo_id: string;
-  sla_comprometido: string;
   estado_validacion: 'VALIDO' | 'REVISION';
   motivo: string | null;
 }

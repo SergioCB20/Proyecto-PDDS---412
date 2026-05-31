@@ -203,11 +203,12 @@ String evaluarColor(double ocupacionPct, UmbralCapacidad umbral) {
 - El tick avanza el reloj virtual según el factor de escala (120 horas en 30-90 min reales).
 - En cada tick:
   1. Avanzar `dia_hora_virtual`.
-  2. Detectar vuelos que deben salir o llegar según el reloj virtual.
-  3. Actualizar estados de equipajes (`EN_ALMACEN` → `EN_VUELO` → `EN_ALMACEN`).
-  4. Evaluar probabilidad de cancelación (`prob_cancelacion`) y generar cancelaciones aleatorias.
-  5. Actualizar `MetricasEnVivo` en Redis.
-  6. Registrar un `PuntoSLA` cada hora virtual.
+  2. Llamar a `SimuladorBaggageFeeder` para inyectar equipajes programados para este tiempo virtual desde la tabla de staging.
+  3. Detectar vuelos que deben salir o llegar según el reloj virtual.
+  4. Actualizar estados de equipajes (`EN_ALMACEN` → `EN_VUELO` → `EN_ALMACEN`).
+  5. Evaluar probabilidad de cancelación (`prob_cancelacion`) y generar cancelaciones aleatorias.
+  6. Actualizar `MetricasEnVivo` en Redis.
+  7. Registrar un `PuntoSLA` cada hora virtual.
 
 ### Replanificación
 - Al recibir `VueloCancelado`:
@@ -263,8 +264,10 @@ com.tasfb2b.backend.bc2/
 │   ├── ReporteSesion.java
 │   └── PuntoSLA.java
 ├── application/
-│   ├── SesionService.java              ← crear, iniciar, pausar, detener sesión
+│   ├── SesionService.java              ← crear, iniciar, pausar, detener sesión. Llama al loader en sesiones simuladas.
 │   ├── TickService.java                ← lógica del reloj virtual y tick
+│   ├── CsvBaggageLoader.java           ← carga inicial estática de _envios_{iata}.csv a staging
+│   ├── SimuladorBaggageFeeder.java     ← inyecta de staging al motor por tiempo virtual
 │   ├── ReplanificacionService.java     ← escucha VueloCancelado, gestiona lotes
 │   ├── ReporteService.java             ← genera ReporteSesion al finalizar
 │   ├── RoutingStrategy.java            ← interfaz del algoritmo (Strategy)

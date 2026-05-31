@@ -92,9 +92,11 @@ CREATE TABLE nodos_logisticos (
     latitud           DECIMAL(9,6) NOT NULL,
     longitud          DECIMAL(9,6) NOT NULL,
     capacidad_almacen INT          NOT NULL,
-    ocupacion_actual  INT          NOT NULL DEFAULT 0
+    ocupacion_actual  INT          NOT NULL DEFAULT 0,
+    continente        VARCHAR(20)            -- AMERICA_DEL_SUR | EUROPA | ASIA
 );
 ```
+> El campo `continente` es nullable para permitir la migración de datos existentes. El `NodoVueloSeeder` lo completa automáticamente al iniciar para todos los nodos sin continente asignado.
 
 ---
 
@@ -283,6 +285,29 @@ CREATE TABLE puntos_sla (
     vuelo_cancelado_ref_id UUID         -- NULL si no hubo cancelación en este punto
 );
 ```
+
+---
+
+#### `equipajes_simulados` (Staging)
+```sql
+CREATE TABLE equipajes_simulados (
+    id UUID PRIMARY KEY,
+    sesion_id UUID NOT NULL REFERENCES sesiones_ejecucion(id),
+    id_externo VARCHAR(50) NOT NULL,
+    origen_iata VARCHAR(10) NOT NULL,
+    destino_iata VARCHAR(10) NOT NULL,
+    vuelo_id UUID,
+    sla_comprometido TIMESTAMPTZ NOT NULL,
+    fecha_ingreso_virtual TIMESTAMPTZ NOT NULL,
+    procesado BOOLEAN DEFAULT FALSE
+);
+CREATE INDEX idx_equipajes_sim_busqueda ON equipajes_simulados(sesion_id, fecha_ingreso_virtual, procesado);
+```
+> **Modelo de Carga de Simulación**: La tabla es alimentada al inicio de cada sesión simulada leyendo archivos CSV estáticos locales desde `classpath:data/`.
+> - **Nombre del archivo:** Debe seguir el formato `_envios_{cod_aeropuerto}.csv` (ejemplo: `_envios_LIM.csv`). El código IATA de origen se deduce del nombre del archivo y se aplica a todas las filas.
+> - **Formato del archivo:** ID_Externo, Destino_IATA, SLA_Comprometido, Fecha_Ingreso_Virtual, [Opcional] Vuelo_ID.
+> 
+> Un servicio inyector (feeder) extrae luego estos registros no procesados y los inyecta a la tabla principal `equipajes` basándose en el reloj virtual, marcándolos como procesados.
 
 ---
 

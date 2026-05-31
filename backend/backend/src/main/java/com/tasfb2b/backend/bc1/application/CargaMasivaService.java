@@ -13,7 +13,6 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
-import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -53,7 +52,6 @@ public class CargaMasivaService {
             String idEquipaje,
             String destinoIata,
             UUID vueloId,
-            OffsetDateTime slaComprometido,
             String estadoValidacion,
             String motivo
     ) {}
@@ -86,8 +84,8 @@ public class CargaMasivaService {
             }
 
             String[] columnas = header.split(",");
-            if (columnas.length < 4) {
-                throw new CargaException("El CSV debe tener al menos 4 columnas: id_equipaje,destino_iata,vuelo_id,sla_comprometido");
+            if (columnas.length < 3) {
+                throw new CargaException("El CSV debe tener al menos 3 columnas: id_equipaje,destino_iata,vuelo_id");
             }
 
             NodoLogistico nodoOrigen = nodoRepository.findById(operadorNodoId)
@@ -100,16 +98,15 @@ public class CargaMasivaService {
                 if (line.isBlank()) continue;
 
                 String[] partes = parseCsvLine(line);
-                if (partes.length < 4) {
-                    registros.add(new RegistroPreview(filaNum, "", "", null, null, "REVISION",
-                            "Fila mal formateada: se esperaban 4 columnas, se obtuvieron " + partes.length));
+                if (partes.length < 3) {
+                    registros.add(new RegistroPreview(filaNum, "", "", null, "REVISION",
+                            "Fila mal formateada: se esperaban 3 columnas, se obtuvieron " + partes.length));
                     continue;
                 }
 
                 String idEquipaje = partes[0].trim();
                 String destinoIata = partes[1].trim();
                 String vueloIdStr = partes[2].trim();
-                String slaStr = partes[3].trim();
 
                 List<String> errores = new ArrayList<>();
 
@@ -134,17 +131,6 @@ public class CargaMasivaService {
                     }
                 }
 
-                OffsetDateTime sla = null;
-                if (slaStr.isBlank()) {
-                    errores.add("sla_comprometido vacío");
-                } else {
-                    try {
-                        sla = OffsetDateTime.parse(slaStr);
-                    } catch (DateTimeParseException e) {
-                        errores.add("sla_comprometido no es una fecha ISO 8601 válida: " + slaStr);
-                    }
-                }
-
                 if (vueloId != null) {
                     Optional<Vuelo> vueloOpt = vueloRepository.findById(vueloId);
                     if (vueloOpt.isEmpty()) {
@@ -165,9 +151,9 @@ public class CargaMasivaService {
                 }
 
                 if (errores.isEmpty()) {
-                    registros.add(new RegistroPreview(filaNum, idEquipaje, destinoIata, vueloId, sla, "VALIDO", null));
+                    registros.add(new RegistroPreview(filaNum, idEquipaje, destinoIata, vueloId, "VALIDO", null));
                 } else {
-                    registros.add(new RegistroPreview(filaNum, idEquipaje, destinoIata, vueloId, sla, "REVISION",
+                    registros.add(new RegistroPreview(filaNum, idEquipaje, destinoIata, vueloId, "REVISION",
                             String.join("; ", errores)));
                 }
             }
@@ -226,8 +212,14 @@ public class CargaMasivaService {
                 Equipaje equipaje = new Equipaje();
                 equipaje.setId(UUID.randomUUID());
                 equipaje.setIdExterno(preview.idEquipaje());
+                NodoLogistico nodoDestino = nodoRepository.findByCodigoIata(preview.destinoIata())
+                        .orElseThrow(() -> new RuntimeException("Destino IATA no encontrado: " + preview.destinoIata()));
+
+                long slaHoras = nodoOrigen.getContinente() == nodoDestino.getContinente() ? 24 : 48;
+                OffsetDateTime sla = OffsetDateTime.now().plusHours(slaHoras);
+
                 equipaje.setDestinoIata(preview.destinoIata());
-                equipaje.setSlaComprometido(preview.slaComprometido());
+                equipaje.setSlaComprometido(sla);
                 equipaje.setFechaIngreso(OffsetDateTime.now());
                 equipaje.setEstado(EstadoEquipaje.ENRUTADO);
                 equipaje.setVueloActual(vuelo);

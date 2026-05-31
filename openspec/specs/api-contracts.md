@@ -289,11 +289,11 @@ Registra un equipaje individual. Solo OPERADOR_LOGISTICO.
 {
   "id_equipaje": "MAL-2025-00123",
   "destino_iata": "MIA",
-  "vuelo_id": "uuid-vuelo",
-  "sla_comprometido": "2025-06-16T08:00:00Z"
+  "vuelo_id": "uuid-vuelo"
 }
 ```
-> El origen y cliente se autocompletán con el nodo asignado al operador autenticado.
+> El SLA (`sla_comprometido`) se calcula automáticamente en backend según el continente de origen y destino (24h mismo continente, 48h distinto).
+> El origen se autocompleta con el nodo asignado al operador autenticado.
 
 **Response 201:**
 ```json
@@ -331,10 +331,11 @@ Carga masiva de equipajes desde CSV. Solo OPERADOR_LOGISTICO.
 
 **Formato CSV esperado:**
 ```
-id_equipaje,destino_iata,vuelo_id,sla_comprometido
-MAL-001,MIA,uuid-vuelo-1,2025-06-16T08:00:00Z
-MAL-002,BOG,uuid-vuelo-2,2025-06-17T10:00:00Z
+id_equipaje,destino_iata,vuelo_id
+MAL-001,MIA,uuid-vuelo-1
+MAL-002,BOG,uuid-vuelo-2
 ```
+> El SLA se calcula automáticamente por el backend al confirmar, basado en los continentes del nodo origen (operador) y destino.
 
 **Response 200 — Preview de validación:**
 ```json
@@ -379,9 +380,10 @@ Actualiza un equipaje existente. Solo OPERADOR_LOGISTICO.
 ```json
 {
   "destino_iata": "MIA",
-  "vuelo_id": "uuid-vuelo",
-  "sla_comprometido": "2025-06-16T08:00:00Z"
+  "vuelo_id": "uuid-vuelo"
 }
+```
+> El SLA se recalcula automáticamente usando el origen del vuelo asignado como referencia.
 ```
 
 **Response 200:** `EquipajeResponse` (misma estructura que POST /api/equipajes).

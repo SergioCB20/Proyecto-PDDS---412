@@ -64,6 +64,12 @@ Es el núcleo del dominio. Modela todo lo que ocurre en la operación real: el i
 - El `vuelo_id` asignado debe tener estado `PROGRAMADO`.
 - La ocupación proyectada del almacén (`ocupacion_actual + 1`) no debe superar `capacidad_almacen`. Si supera el 100%, bloquear confirmación.
 - El origen se autocompleta con el `nodo_ref_id` del operador autenticado.
+- El SLA (`sla_comprometido`) se calcula automáticamente al registrar:
+  - Se compara `nodoOrigen.continente` con `nodoDestino.continente`.
+  - **Mismo continente** → `fechaIngreso + 24 horas`.
+  - **Distinto continente** → `fechaIngreso + 48 horas`.
+- El request de `POST /equipajes` ya no incluye `sla_comprometido` (se calcula en backend).
+- El CSV de carga masiva ya no incluye `sla_comprometido` (formato: `id_equipaje,destino_iata,vuelo_id`).
 - Al confirmar, publicar `EquipajeIngresado` para que BC2 calcule la ruta.
 
 ### Cancelación de vuelo

@@ -41,6 +41,7 @@ public class TickService {
     private final ObjectMapper objectMapper;
     private final ReplanificacionService replanificacionService;
     private final ApplicationEventPublisher eventPublisher;
+    private final SimuladorBaggageFeeder simuladorBaggageFeeder;
 
     public TickService(SesionRepository sesionRepository,
                        VueloRepository vueloRepository,
@@ -51,7 +52,8 @@ public class TickService {
                        TelemetriaService telemetriaService,
                        ObjectMapper objectMapper,
                        ReplanificacionService replanificacionService,
-                       ApplicationEventPublisher eventPublisher) {
+                       ApplicationEventPublisher eventPublisher,
+                       SimuladorBaggageFeeder simuladorBaggageFeeder) {
         this.sesionRepository = sesionRepository;
         this.vueloRepository = vueloRepository;
         this.equipajeRepository = equipajeRepository;
@@ -62,6 +64,7 @@ public class TickService {
         this.objectMapper = objectMapper;
         this.replanificacionService = replanificacionService;
         this.eventPublisher = eventPublisher;
+        this.simuladorBaggageFeeder = simuladorBaggageFeeder;
     }
 
     @Scheduled(fixedRate = TICK_INTERVAL_MS)
@@ -82,6 +85,7 @@ public class TickService {
         OffsetDateTime now = OffsetDateTime.now();
 
         avanzarRelojVirtual(sesion);
+        simuladorBaggageFeeder.alimentarMotor(sesion.getId(), sesion.getDiaHoraVirtual());
         procesarVuelosSalida(sesion);
         procesarVuelosLlegada(sesion);
         evaluarCancelaciones(sesion, now);
