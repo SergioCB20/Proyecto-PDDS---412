@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Play, Pause, Square, Clock, AlertTriangle, RefreshCw, Activity, FileText } from 'lucide-react';
+import { Play, Pause, Square, Clock, AlertTriangle, RefreshCw, Activity, FileText, Warehouse } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -44,8 +44,8 @@ function SimulacionContent() {
 
   const [backendSesionId, setBackendSesionId] = useState<string>('');
   const [estado, setEstado] = useState<'CONFIGURADA' | 'EN_CURSO' | 'PAUSADA' | 'FINALIZADA'>('CONFIGURADA');
-  const [, setLoading] = useState(false);
-  const [, setError] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>('');
   const { data: telemetria } = useTelemetria(estado === 'EN_CURSO', backendSesionId || undefined);
 
   const [metricasPoll, setMetricasPoll] = useState<MetricasSimulacion>({
@@ -60,6 +60,9 @@ function SimulacionContent() {
 
   const metricas = telemetria?.metricas_sesion ?? metricasPoll;
 
+  const colorNodo = (c: string) =>
+    c === 'ROJO' ? '#ef4444' : c === 'AMBAR' ? '#eab308' : '#22c55e';
+
   const nodosEnMapa: NodoEnMapa[] = useMemo(() =>
     (telemetria?.nodos ?? []).map(n => ({
       id: n.id,
@@ -67,9 +70,9 @@ function SimulacionContent() {
       nombre: n.codigo_iata,
       latitud: n.lat,
       longitud: n.lon,
-      capacidad_almacen: 0,
-      ocupacion_actual: 0,
-      color: n.color,
+      capacidad_almacen: n.capacidad_almacen,
+      ocupacion_actual: n.ocupacion_actual,
+      color: colorNodo(n.color),
       ocupacionPorcentaje: n.ocupacion_pct,
     })), [telemetria]);
 
@@ -266,23 +269,50 @@ function SimulacionContent() {
           />
         </div>
 
+        {telemetria?.nodos && telemetria.nodos.length > 0 && (
+          <div className="p-4 border-t border-slate-200 dark:border-slate-700">
+            <div className="flex items-center gap-2 mb-3">
+              <Warehouse size={16} className="text-slate-400" />
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Aeropuertos</h3>
+            </div>
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {[...telemetria.nodos]
+                .sort((a, b) => b.ocupacion_pct - a.ocupacion_pct)
+                .map(n => {
+                  const colorHex = colorNodo(n.color);
+                  return (
+                    <div key={n.id} className="flex items-center justify-between py-1 px-2 rounded text-xs">
+                      <span className="font-medium text-slate-700 dark:text-slate-300">{n.codigo_iata}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-slate-500">{n.ocupacion_pct.toFixed(0)}%</span>
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: colorHex }} />
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        )}
+
         <div className="p-4 border-t border-slate-200 dark:border-slate-700 space-y-2">
+          {error && (
+            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-300">
+              {error}
+            </div>
+          )}
           {estado === 'CONFIGURADA' && (
-            <Button className="w-full" onClick={handleIniciar}>
-              <Play size={16} className="mr-2" />
-              Iniciar
+            <Button className="w-full" onClick={handleIniciar} disabled={loading}>
+              {loading ? 'Iniciando...' : <><Play size={16} className="mr-2" /> Iniciar</>}
             </Button>
           )}
           {estado === 'EN_CURSO' && (
-            <Button className="w-full" variant="secondary" onClick={handlePausar}>
-              <Pause size={16} className="mr-2" />
-              Pausar
+            <Button className="w-full" variant="secondary" onClick={handlePausar} disabled={loading}>
+              {loading ? 'Pausando...' : <><Pause size={16} className="mr-2" /> Pausar</>}
             </Button>
           )}
           {estado === 'PAUSADA' && (
-            <Button className="w-full" onClick={handleIniciar}>
-              <Play size={16} className="mr-2" />
-              Reanudar
+            <Button className="w-full" onClick={handleIniciar} disabled={loading}>
+              {loading ? 'Reanudando...' : <><Play size={16} className="mr-2" /> Reanudar</>}
             </Button>
           )}
           {(estado === 'EN_CURSO' || estado === 'PAUSADA') && (

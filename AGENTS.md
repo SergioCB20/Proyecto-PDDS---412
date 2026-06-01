@@ -8,7 +8,7 @@ Sistema académico para el enrutamiento óptimo de equipaje entre aeropuertos, c
 |---|---|
 | Frontend | Next.js 16 + TypeScript 5 + Tailwind CSS 4 |
 | Backend | Spring Boot 3 + Java 21 |
-| Base de datos | PostgreSQL 16 + Flyway |
+| Base de datos | PostgreSQL 16 (schema via Hibernate `ddl-auto=update`) |
 | Caché | Redis 7 (planeado) |
 | Autenticación | JWT (jjwt 0.12.x) |
 | Mapas | React-Leaflet + Leaflet |
@@ -25,7 +25,7 @@ Sistema académico para el enrutamiento óptimo de equipaje entre aeropuertos, c
 │   │   └── bc3/              → Identidad y Acceso (Usuarios, Auth, Auditoria)
 │   ├── src/main/resources/
 │   │   ├── application.properties
-│   │   └── db/migration/     → 11 migraciones Flyway (V1-V11)
+│   │   └── db/migration/     → Migraciones SQL (no Flyway — incompatible con Spring Boot 4)
 │   └── .env.example
 ├── frontend/                  → Proyecto Next.js
 │   ├── app/                  → App Router (login, admin, operacion, simulacion)

@@ -80,15 +80,7 @@ public class SesionService {
         redisCacheService.setEstadoSesion(sesion.getId(), sesion.getEstado().name());
 
         if (sesion.getTipo() == TipoSesion.SIMULADA) {
-            if (!csvBaggageLoader.estaBaseCargada()) {
-                final UUID sid = sesion.getId();
-                new Thread(() -> {
-                    csvBaggageLoader.cargarBaseDatosSimulacion();
-                    csvBaggageLoader.copiarASesion(sid);
-                }).start();
-            } else {
-                csvBaggageLoader.copiarASesion(sesion.getId());
-            }
+            csvBaggageLoader.copiarASesion(sesion.getId());
         }
 
         return new SesionResponse(sesion.getId(), sesion.getTipo().name(), sesion.getEstado().name());

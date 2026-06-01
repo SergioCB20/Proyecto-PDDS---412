@@ -1,6 +1,6 @@
 'use client';
 
-import { Marker } from 'react-leaflet';
+import { Marker, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import type { VueloEnMapa } from '@/lib/types';
 
@@ -42,9 +42,20 @@ export default function GeoMapaVuelo({ vuelo }: GeoMapaVueloProps) {
   };
 
   return (
-    <Marker
-      position={[posicion.lat, posicion.lon]}
-      icon={crearIconoAvion(color)}
-    />
+    <>
+      <Polyline
+        key={`poly-${vuelo.id}`}
+        positions={[[vuelo.origen_lat, vuelo.origen_lon], [vuelo.destino_lat, vuelo.destino_lon]]}
+        pathOptions={{
+          color: '#ef4444',
+          weight: 4,
+          opacity: 0.8,
+        }}
+      />
+      <Marker
+        position={[posicion.lat, posicion.lon]}
+        icon={crearIconoAvion(color)}
+      />
+    </>
   );
 }

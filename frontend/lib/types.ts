@@ -192,6 +192,8 @@ export interface NodoTelemetria {
   lon: number;
   ocupacion_pct: number;
   color: string;
+  capacidad_almacen: number;
+  ocupacion_actual: number;
 }
 
 export interface VueloTelemetria {

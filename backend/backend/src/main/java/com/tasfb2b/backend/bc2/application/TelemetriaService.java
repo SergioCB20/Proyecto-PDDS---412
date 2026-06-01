@@ -64,6 +64,8 @@ public class TelemetriaService {
             double pct = nodo.getOcupacionPorcentaje();
             n.put("ocupacion_pct", Math.round(pct * 100.0) / 100.0);
             n.put("color", evaluarColorNodo(pct, sesion));
+            n.put("capacidad_almacen", nodo.getCapacidadAlmacen() != null ? nodo.getCapacidadAlmacen() : 0);
+            n.put("ocupacion_actual", nodo.getOcupacionActual() != null ? nodo.getOcupacionActual() : 0);
         }
 
         ArrayNode vuelosArr = root.putArray("vuelos");

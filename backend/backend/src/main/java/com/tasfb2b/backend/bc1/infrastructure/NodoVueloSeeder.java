@@ -67,7 +67,45 @@ public class NodoVueloSeeder {
             log.info("NodoVueloSeeder: nodos ya existen, omitiendo seed");
         }
 
+        asegurarPlantillas();
         poblarContinentes();
+    }
+
+    private void asegurarPlantillas() {
+        Integer plantillas = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM vuelos WHERE es_plantilla IS TRUE", Integer.class);
+        if (plantillas != null && plantillas > 0) {
+            return;
+        }
+
+        Integer totalVuelos = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM vuelos", Integer.class);
+        if (totalVuelos == null || totalVuelos == 0) {
+            log.warn("NodoVueloSeeder: no hay vuelos en la BD. Re-ejecutando seed completo...");
+            try {
+                ClassPathResource resource = new ClassPathResource("db/migration/V20__seed_nodos_vuelos.sql");
+                String sql;
+                try (BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
+                    sql = reader.lines().collect(Collectors.joining("\n"));
+                }
+                String cleanSql = removeCommentLines(sql);
+                Connection conn = DataSourceUtils.getConnection(dataSource);
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute(cleanSql + "; UPDATE vuelos SET es_plantilla = true WHERE es_plantilla IS NULL OR es_plantilla = false");
+                }
+                log.info("NodoVueloSeeder: seed re-ejecutado correctamente");
+            } catch (Exception e) {
+                log.error("NodoVueloSeeder: error re-ejecutando seed: {}", e.getMessage(), e);
+            }
+        } else {
+            log.warn("NodoVueloSeeder: No hay vuelos con es_plantilla=true. Restaurando {} vuelos semilla...", 149);
+            int updated = jdbcTemplate.update(
+                "UPDATE vuelos SET es_plantilla = true, estado = 'PROGRAMADO' " +
+                "WHERE id >= '00000000-0000-0000-0000-000000010001'::uuid " +
+                "AND id <= '00000000-0000-0000-0000-000000010149'::uuid");
+            log.info("NodoVueloSeeder: {} vuelos semilla restaurados como plantilla", updated);
+        }
     }
 
     private void poblarContinentes() {

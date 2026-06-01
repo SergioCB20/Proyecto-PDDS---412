@@ -9,7 +9,6 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -30,11 +29,9 @@ public class CsvBaggageLoader {
     private static final int BATCH_SIZE = 1000;
 
     private final JdbcTemplate jdbcTemplate;
-    private final TransactionTemplate transactionTemplate;
 
-    public CsvBaggageLoader(JdbcTemplate jdbcTemplate, TransactionTemplate transactionTemplate) {
+    public CsvBaggageLoader(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
-        this.transactionTemplate = transactionTemplate;
     }
 
     public boolean estaBaseCargada() {
@@ -58,54 +55,51 @@ public class CsvBaggageLoader {
                 return;
             }
 
-            transactionTemplate.execute(status -> {
-                int total = 0;
-                for (Resource resource : resources) {
-                    String filename = resource.getFilename();
-                    if (filename == null) continue;
+            int total = 0;
+            for (Resource resource : resources) {
+                String filename = resource.getFilename();
+                if (filename == null) continue;
 
-                    String origenIata = filename.replace("_envios_", "").replace(".txt", "").replace("_", "").trim();
-                    log.info("Procesando archivo {} para aeropuerto de origen {}", filename, origenIata);
+                String origenIata = filename.replace("_envios_", "").replace(".txt", "").replace("_", "").trim();
+                log.info("Procesando archivo {} para aeropuerto de origen {}", filename, origenIata);
 
-                    int count = 0;
-                    List<Object[]> batch = new ArrayList<>();
-                    try (BufferedReader br = new BufferedReader(new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
-                        String line;
-                        while ((line = br.readLine()) != null) {
-                            line = line.trim();
-                            if (line.isBlank()) continue;
+                int count = 0;
+                List<Object[]> batch = new ArrayList<>();
+                try (BufferedReader br = new BufferedReader(new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = br.readLine()) != null) {
+                        line = line.trim();
+                        if (line.isBlank()) continue;
 
-                            LineaParseada parsed = parseLine(origenIata, line);
-                            if (parsed == null) continue;
+                        LineaParseada parsed = parseLine(origenIata, line);
+                        if (parsed == null) continue;
 
-                            batch.add(new Object[]{
-                                UUID.randomUUID(),
-                                parsed.idPedido(),
-                                parsed.origenIata(),
-                                parsed.destinoIata(),
-                                java.sql.Timestamp.from(parsed.sla().toInstant()),
-                                java.sql.Timestamp.from(parsed.fechaIngreso().toInstant()),
-                                parsed.cantidad()
-                            });
-                            count++;
+                        batch.add(new Object[]{
+                            UUID.randomUUID(),
+                            parsed.idPedido(),
+                            parsed.origenIata(),
+                            parsed.destinoIata(),
+                            java.sql.Timestamp.from(parsed.sla().toInstant()),
+                            java.sql.Timestamp.from(parsed.fechaIngreso().toInstant()),
+                            parsed.cantidad()
+                        });
+                        count++;
 
-                            if (count % BATCH_SIZE == 0) {
-                                jdbcTemplate.batchUpdate(INSERT_BASE_SQL, batch);
-                                batch.clear();
-                            }
-                        }
-                        if (!batch.isEmpty()) {
+                        if (count % BATCH_SIZE == 0) {
                             jdbcTemplate.batchUpdate(INSERT_BASE_SQL, batch);
+                            batch.clear();
                         }
-                    } catch (Exception e) {
-                        log.error("Error leyendo el archivo {}: {}", filename, e.getMessage());
                     }
-                    log.info("Archivo {} procesado: {} registros", filename, count);
-                    total += count;
+                    if (!batch.isEmpty()) {
+                        jdbcTemplate.batchUpdate(INSERT_BASE_SQL, batch);
+                    }
+                } catch (Exception e) {
+                    log.error("Error leyendo el archivo {}: {}", filename, e.getMessage());
                 }
-                log.info("Carga base de simulacion completada: {} registros totales", total);
-                return null;
-            });
+                log.info("Archivo {} procesado: {} registros", filename, count);
+                total += count;
+            }
+            log.info("Carga base de simulacion completada: {} registros totales", total);
 
         } catch (Exception e) {
             log.error("Error al buscar archivos de envios para cargar: {}", e.getMessage());

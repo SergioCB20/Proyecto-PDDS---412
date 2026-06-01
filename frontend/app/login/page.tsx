@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plane, AlertCircle } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -11,9 +11,12 @@ import type { LoginRequest, LoginResponse } from '@/lib/types';
 
 export default function LoginPage() {
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
   const [form, setForm] = useState<LoginRequest>({ correo: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => setMounted(true), []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,36 +65,38 @@ export default function LoginPage() {
             Iniciar Sesion
           </h2>
 
-          {typeof error === 'string' && error ? (
-            <div className="flex items-center gap-2 p-3 mb-4 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm">
-              <AlertCircle size={16} />
-              <span>{error}</span>
-            </div>
-          ) : null}
+          {mounted && <>
+            {typeof error === 'string' && error ? (
+              <div className="flex items-center gap-2 p-3 mb-4 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm">
+                <AlertCircle size={16} />
+                <span>{error}</span>
+              </div>
+            ) : null}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <Input
-              label="Correo"
-              type="email"
-              placeholder="correo@ejemplo.com"
-              value={form.correo}
-              onChange={(e) => setForm({ ...form, correo: e.target.value })}
-              required
-              autoComplete="email"
-            />
-            <Input
-              label="Contrasena"
-              type="password"
-              placeholder="********"
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              required
-              autoComplete="current-password"
-            />
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Iniciando...' : 'Entrar'}
-            </Button>
-          </form>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <Input
+                label="Correo"
+                type="email"
+                placeholder="correo@ejemplo.com"
+                value={form.correo}
+                onChange={(e) => setForm({ ...form, correo: e.target.value })}
+                required
+                autoComplete="email"
+              />
+              <Input
+                label="Contrasena"
+                type="password"
+                placeholder="********"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                required
+                autoComplete="current-password"
+              />
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? 'Iniciando...' : 'Entrar'}
+              </Button>
+            </form>
+          </>}
         </div>
 
         <p className="text-center text-slate-500 text-xs mt-6">
