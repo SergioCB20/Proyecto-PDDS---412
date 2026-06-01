@@ -50,9 +50,9 @@ public class SimuladorBaggageFeeder {
             eq.setId(sim.getId());
             eq.setDestinoIata(sim.getDestinoIata());
             eq.setSlaComprometido(sim.getSlaComprometido());
+            eq.setCantidad(sim.getCantidad());
             eq.setEstado(EstadoEquipaje.REGISTRADO);
             eq.setFechaIngreso(sim.getFechaIngresoVirtual());
-            // Nota: En la arquitectura real puede haber un enlace a origen/vuelo inicial si es requerido.
             return eq;
         }).collect(Collectors.toList());
 
@@ -69,7 +69,7 @@ public class SimuladorBaggageFeeder {
         // Emitimos el evento por cada equipaje insertado para que BC2 procese el enrutamiento.
         // MotorEnrutamiento escucha EquipajeIngresadoEvent y crea PlanViaje.
         for (Equipaje eq : nuevosEquipajes) {
-            eventPublisher.publishEvent(new EquipajeIngresadoEvent(eq.getId()));
+            eventPublisher.publishEvent(new EquipajeIngresadoEvent(eq.getId(), OffsetDateTime.now()));
         }
 
         log.info("SimuladorBaggageFeeder: {} equipajes inyectados y eventos publicados", pendientes.size());

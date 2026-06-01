@@ -67,8 +67,8 @@ public class TelemetriaService {
         }
 
         ArrayNode vuelosArr = root.putArray("vuelos");
-        List<Vuelo> vuelos = vueloRepository.findByEstadoIn(
-                List.of(EstadoVuelo.PROGRAMADO, EstadoVuelo.EN_RUTA));
+        List<Vuelo> vuelos = vueloRepository.findByEstadoInAndEsPlantilla(
+                List.of(EstadoVuelo.EN_RUTA), false);
 
         for (Vuelo vuelo : vuelos) {
             ObjectNode v = vuelosArr.addObject();

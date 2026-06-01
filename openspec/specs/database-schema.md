@@ -117,7 +117,10 @@ CREATE TABLE vuelos (
     capacidad_carga  INT          NOT NULL,
     carga_disponible INT          NOT NULL,
     hora_salida      TIMESTAMPTZ  NOT NULL,
-    hora_llegada     TIMESTAMPTZ  NOT NULL
+    hora_llegada     TIMESTAMPTZ  NOT NULL,
+    es_plantilla     BOOLEAN      NOT NULL DEFAULT false
+                                -- true: vuelo semilla (plantilla de 24 h)
+                                -- false: vuelo generado por simulación
 );
 ```
 

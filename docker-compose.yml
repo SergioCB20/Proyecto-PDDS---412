@@ -43,7 +43,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       JWT_SECRET: dev_jwt_secret_key_at_least_32_chars_long
-      SHOW_SQL: "true"
+      SHOW_SQL: "false"
     depends_on:
       db:
         condition: service_healthy

@@ -1,39 +1,36 @@
 'use client';
 
-import { Polyline, Marker } from 'react-leaflet';
+import { Marker } from 'react-leaflet';
 import L from 'leaflet';
 import type { VueloEnMapa } from '@/lib/types';
 
 interface GeoMapaVueloProps {
   vuelo: VueloEnMapa;
-  animacionActiva?: boolean;
 }
 
 function crearIconoAvion(color: string) {
   return L.divIcon({
     className: 'avion-icon',
     html: `<div style="
-      width: 24px;
-      height: 24px;
+      width: 40px;
+      height: 40px;
       background: ${color};
       border-radius: 50%;
-      border: 2px solid white;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+      border: 3px solid white;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.4);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 12px;
+      font-size: 20px;
+      transform: rotate(45deg);
     ">✈</div>`,
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
   });
 }
 
 const COLORES: Record<string, string> = {
-  PROGRAMADO: '#3b82f6',
   EN_RUTA: '#22c55e',
-  CANCELADO: '#ef4444',
-  COMPLETADO: '#6b7280',
 };
 
 export default function GeoMapaVuelo({ vuelo }: GeoMapaVueloProps) {
@@ -44,25 +41,10 @@ export default function GeoMapaVuelo({ vuelo }: GeoMapaVueloProps) {
     lon: vuelo.origen_lon,
   };
 
-  const tieneRuta = vuelo.origen_lat && vuelo.origen_lon && vuelo.destino_lat && vuelo.destino_lon;
-
   return (
-    <>
-      {tieneRuta && (
-        <Polyline
-          positions={[[vuelo.origen_lat, vuelo.origen_lon], [vuelo.destino_lat, vuelo.destino_lon]]}
-          pathOptions={{
-            color,
-            weight: 2,
-            opacity: 0.5,
-            dashArray: vuelo.estado === 'PROGRAMADO' ? '5,5' : undefined,
-          }}
-        />
-      )}
-      <Marker
-        position={[posicion.lat, posicion.lon]}
-        icon={crearIconoAvion(color)}
-      />
-    </>
+    <Marker
+      position={[posicion.lat, posicion.lon]}
+      icon={crearIconoAvion(color)}
+    />
   );
 }

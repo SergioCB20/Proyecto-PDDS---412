@@ -16,9 +16,13 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -30,6 +34,10 @@ public class TickService {
     private static final double VIRTUAL_SECONDS_PER_REAL_SECOND = 120.0;
     private static final long VIRTUAL_MINUTES_PER_TICK = (long) ((TICK_INTERVAL_MS / 1000.0) * VIRTUAL_SECONDS_PER_REAL_SECOND / 60);
     private static final Random RANDOM = new Random();
+    private static final LocalDate FECHA_BASE_VUELOS = LocalDate.of(2026, 1, 15);
+    private static final long DIAS_SIMULACION = 5;
+
+    private final Map<UUID, LocalDate> ultimoDiaGeneradoPorSesion = new HashMap<>();
 
     private final SesionRepository sesionRepository;
     private final VueloRepository vueloRepository;
@@ -85,6 +93,13 @@ public class TickService {
         OffsetDateTime now = OffsetDateTime.now();
 
         avanzarRelojVirtual(sesion);
+        generarVuelosSiEsNecesario(sesion);
+
+        if (excedeLimiteTiempo(sesion)) {
+            detenerSesionPorTiempo(sesion, now);
+            return;
+        }
+
         simuladorBaggageFeeder.alimentarMotor(sesion.getId(), sesion.getDiaHoraVirtual());
         procesarVuelosSalida(sesion);
         procesarVuelosLlegada(sesion);
@@ -96,6 +111,45 @@ public class TickService {
         if (colapso) {
             detenerSesionPorColapso(sesion, now);
         }
+    }
+
+    private void generarVuelosSiEsNecesario(SesionEjecucion sesion) {
+        if (sesion.getDiaHoraVirtual() == null) return;
+
+        LocalDate fechaActual = sesion.getDiaHoraVirtual().toLocalDate();
+
+        if (fechaActual.equals(ultimoDiaGeneradoPorSesion.get(sesion.getId()))) return;
+
+        OffsetDateTime inicioBase = FECHA_BASE_VUELOS.atStartOfDay(ZoneOffset.UTC).toOffsetDateTime();
+        OffsetDateTime finBase = FECHA_BASE_VUELOS.plusDays(1).atStartOfDay(ZoneOffset.UTC).toOffsetDateTime();
+
+        List<Vuelo> templates = vueloRepository.findByHoraSalidaBetweenAndEsPlantilla(
+                inicioBase, finBase, true);
+        if (templates.isEmpty()) return;
+
+        List<Vuelo> clones = templates.stream().map(t -> {
+            Vuelo v = new Vuelo();
+            v.setId(UUID.randomUUID());
+            v.setPlanVuelos(t.getPlanVuelos());
+            v.setCodigoVuelo(t.getCodigoVuelo());
+            v.setEstado(EstadoVuelo.PROGRAMADO);
+            v.setEsPlantilla(false);
+            v.setOrigen(t.getOrigen());
+            v.setDestino(t.getDestino());
+            v.setOrigenLat(t.getOrigenLat());
+            v.setOrigenLon(t.getOrigenLon());
+            v.setDestinoLat(t.getDestinoLat());
+            v.setDestinoLon(t.getDestinoLon());
+            v.setCapacidadCarga(t.getCapacidadCarga());
+            v.setCargaDisponible(t.getCapacidadCarga());
+            v.setHoraSalida(OffsetDateTime.of(fechaActual, t.getHoraSalida().toLocalTime(), ZoneOffset.UTC));
+            v.setHoraLlegada(OffsetDateTime.of(fechaActual, t.getHoraLlegada().toLocalTime(), ZoneOffset.UTC));
+            return v;
+        }).collect(Collectors.toList());
+        vueloRepository.saveAll(clones);
+
+        ultimoDiaGeneradoPorSesion.put(sesion.getId(), fechaActual);
+        log.info("Generados {} vuelos para el dia {}", templates.size(), fechaActual);
     }
 
     private void avanzarRelojVirtual(SesionEjecucion sesion) {
@@ -116,8 +170,8 @@ public class TickService {
 
     private void procesarVuelosSalida(SesionEjecucion sesion) {
         OffsetDateTime virtual = sesion.getDiaHoraVirtual();
-        List<Vuelo> saliendo = vueloRepository.findByEstadoAndHoraSalidaLessThanEqual(
-                EstadoVuelo.PROGRAMADO, virtual);
+        List<Vuelo> saliendo = vueloRepository.findByEstadoAndHoraSalidaLessThanEqualAndEsPlantilla(
+                EstadoVuelo.PROGRAMADO, virtual, false);
 
         for (Vuelo vuelo : saliendo) {
             vuelo.setEstado(EstadoVuelo.EN_RUTA);
@@ -141,8 +195,8 @@ public class TickService {
 
     private void procesarVuelosLlegada(SesionEjecucion sesion) {
         OffsetDateTime virtual = sesion.getDiaHoraVirtual();
-        List<Vuelo> llegando = vueloRepository.findByEstadoAndHoraLlegadaLessThanEqual(
-                EstadoVuelo.EN_RUTA, virtual);
+        List<Vuelo> llegando = vueloRepository.findByEstadoAndHoraLlegadaLessThanEqualAndEsPlantilla(
+                EstadoVuelo.EN_RUTA, virtual, false);
 
         for (Vuelo vuelo : llegando) {
             vuelo.setEstado(EstadoVuelo.COMPLETADO);
@@ -177,8 +231,8 @@ public class TickService {
         BigDecimal prob = sesion.getProbCancelacion();
         if (prob == null || prob.compareTo(BigDecimal.ZERO) <= 0) return;
 
-        List<Vuelo> programados = vueloRepository.findByEstadoAndHoraSalidaLessThanEqual(
-                EstadoVuelo.PROGRAMADO, sesion.getDiaHoraVirtual());
+        List<Vuelo> programados = vueloRepository.findByEstadoAndHoraSalidaLessThanEqualAndEsPlantilla(
+                EstadoVuelo.PROGRAMADO, sesion.getDiaHoraVirtual(), false);
 
         for (Vuelo vuelo : programados) {
             if (RANDOM.nextDouble() < prob.doubleValue()) {
@@ -223,6 +277,34 @@ public class TickService {
 
     private void detenerSesionPorColapso(SesionEjecucion sesion, OffsetDateTime now) {
         log.info("Sesion {} colapsada - ticks detenidos", sesion.getId());
+        ultimoDiaGeneradoPorSesion.remove(sesion.getId());
+    }
+
+    private boolean excedeLimiteTiempo(SesionEjecucion sesion) {
+        if (sesion.getDiaHoraVirtual() == null) return false;
+        OffsetDateTime inicioVirtual = OffsetDateTime.of(
+                sesion.getFechaInicioVirtual(),
+                sesion.getHoraInicioVirtual(),
+                ZoneOffset.UTC);
+        OffsetDateTime limite = inicioVirtual.plusDays(DIAS_SIMULACION);
+        return sesion.getDiaHoraVirtual().isAfter(limite);
+    }
+
+    private void detenerSesionPorTiempo(SesionEjecucion sesion, OffsetDateTime now) {
+        log.info("Sesion {} finalizada por tiempo limite ({} dias virtuales)", sesion.getId(), DIAS_SIMULACION);
+        sesion.setEstado(EstadoSesion.FINALIZADA);
+        sesion.setFechaFinReal(now);
+        sesionRepository.save(sesion);
+
+        redisCacheService.setEstadoSesion(sesion.getId(), "FINALIZADA");
+        redisCacheService.setMetricasSesion(sesion.getId(), buildMetricasJson(sesion, now, false));
+
+        eventPublisher.publishEvent(new SesionFinalizada(
+                sesion.getId(), "FINALIZADA_POR_TIEMPO", now));
+
+        telemetriaService.emitirTelemetria(sesion);
+
+        ultimoDiaGeneradoPorSesion.remove(sesion.getId());
     }
 
     private void escribirMetricas(SesionEjecucion sesion, OffsetDateTime now) {

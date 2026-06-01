@@ -76,7 +76,7 @@ class GreedyRoutingStrategyTest {
 
     @Test
     void directFlight_shouldReturnSingleSegment() {
-        RutaResult result = strategy.calcularRuta(origen, destino, sla, List.of(directo));
+        RutaResult result = strategy.calcularRuta(origen, destino, sla, List.of(directo), 1);
 
         assertTrue(result.exitoso());
         assertEquals(1, result.segmentos().size());
@@ -97,7 +97,7 @@ class GreedyRoutingStrategyTest {
         tarde.setHoraSalida(OffsetDateTime.parse("2025-06-15T18:00:00Z"));
         tarde.setHoraLlegada(OffsetDateTime.parse("2025-06-16T02:00:00Z"));
 
-        RutaResult result = strategy.calcularRuta(origen, destino, sla, List.of(tarde, directo));
+        RutaResult result = strategy.calcularRuta(origen, destino, sla, List.of(tarde, directo), 1);
 
         assertTrue(result.exitoso());
         assertEquals("LA2400", result.segmentos().get(0).vueloCodigo(),
@@ -106,7 +106,7 @@ class GreedyRoutingStrategyTest {
 
     @Test
     void twoLegConnection_shouldReturnTwoSegments() {
-        RutaResult result = strategy.calcularRuta(origen, destino, sla, List.of(primerTramo, segundoTramo));
+        RutaResult result = strategy.calcularRuta(origen, destino, sla, List.of(primerTramo, segundoTramo), 1);
 
         assertTrue(result.exitoso());
         assertEquals(2, result.segmentos().size());
@@ -127,7 +127,7 @@ class GreedyRoutingStrategyTest {
         muyTemprano.setHoraLlegada(OffsetDateTime.parse("2025-06-15T19:30:00Z"));
 
         RutaResult result = strategy.calcularRuta(origen, destino, sla,
-                List.of(primerTramo, muyTemprano, segundoTramo));
+                List.of(primerTramo, muyTemprano, segundoTramo), 1);
 
         assertTrue(result.exitoso());
         assertEquals(2, result.segmentos().size());
@@ -141,7 +141,7 @@ class GreedyRoutingStrategyTest {
                 UUID.randomUUID(), "SCL", "Santiago",
                 BigDecimal.valueOf(-33.4), BigDecimal.valueOf(-70.7), 500);
 
-        RutaResult result = strategy.calcularRuta(origen, scl, sla, List.of());
+        RutaResult result = strategy.calcularRuta(origen, scl, sla, List.of(), 1);
 
         assertFalse(result.exitoso());
         assertTrue(result.segmentos().isEmpty());
@@ -160,7 +160,7 @@ class GreedyRoutingStrategyTest {
         sinCapacidad.setHoraSalida(OffsetDateTime.parse("2025-06-15T14:00:00Z"));
         sinCapacidad.setHoraLlegada(OffsetDateTime.parse("2025-06-15T22:00:00Z"));
 
-        RutaResult result = strategy.calcularRuta(origen, destino, sla, List.of(sinCapacidad));
+        RutaResult result = strategy.calcularRuta(origen, destino, sla, List.of(sinCapacidad), 1);
 
         assertFalse(result.exitoso());
         assertTrue(result.segmentos().isEmpty());
@@ -178,7 +178,7 @@ class GreedyRoutingStrategyTest {
         tarde.setHoraSalida(OffsetDateTime.parse("2025-06-15T14:00:00Z"));
         tarde.setHoraLlegada(OffsetDateTime.parse("2025-06-16T10:00:00Z"));
 
-        RutaResult result = strategy.calcularRuta(origen, destino, sla, List.of(tarde));
+        RutaResult result = strategy.calcularRuta(origen, destino, sla, List.of(tarde), 1);
 
         assertFalse(result.exitoso(),
                 "Should not return a flight that violates SLA");

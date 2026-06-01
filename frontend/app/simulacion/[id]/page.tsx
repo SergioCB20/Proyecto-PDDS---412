@@ -39,14 +39,14 @@ function SimulacionContent() {
   const router = useRouter();
   const sesionIdParam = searchParams.get('sesionId') || '';
   const probCancelacion = Number(searchParams.get('prob_cancelacion') || '15');
-  const fechaInicio = searchParams.get('fecha_inicio_virtual') || '2025-06-01';
+  const fechaInicio = searchParams.get('fecha_inicio_virtual') || '2026-01-15';
   const horaInicio = searchParams.get('hora_inicio_virtual') || '08:00';
 
   const [backendSesionId, setBackendSesionId] = useState<string>('');
   const [estado, setEstado] = useState<'CONFIGURADA' | 'EN_CURSO' | 'PAUSADA' | 'FINALIZADA'>('CONFIGURADA');
   const [, setLoading] = useState(false);
   const [, setError] = useState<string>('');
-  const { data: telemetria } = useTelemetria(estado === 'EN_CURSO');
+  const { data: telemetria } = useTelemetria(estado === 'EN_CURSO', backendSesionId || undefined);
 
   const [metricasPoll, setMetricasPoll] = useState<MetricasSimulacion>({
     sesion_id: sesionIdParam,
@@ -74,7 +74,7 @@ function SimulacionContent() {
     })), [telemetria]);
 
   const vuelos: VueloEnMapa[] = useMemo(() =>
-    (telemetria?.vuelos ?? []).map(v => ({
+    (telemetria?.vuelos ?? []).filter(v => v.estado === 'EN_RUTA').map(v => ({
       id: v.id,
       codigo_vuelo: v.codigo_vuelo,
       estado: v.estado as VueloEnMapa['estado'],
@@ -199,7 +199,6 @@ function SimulacionContent() {
           nodos={nodosEnMapa}
           vuelos={vuelos}
           mostrarAviones={true}
-          animacionActiva={estado === 'EN_CURSO'}
           className="h-full"
         />
       </div>

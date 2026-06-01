@@ -18,4 +18,8 @@ public interface EquipajeSimuladoRepository extends JpaRepository<EquipajeSimula
     @Modifying
     @Query("UPDATE EquipajeSimulado e SET e.procesado = true WHERE e.id IN :ids")
     void marcarComoProcesados(List<UUID> ids);
+
+    @Modifying
+    @Query("DELETE FROM EquipajeSimulado e WHERE e.sesionId = :sesionId")
+    void eliminarPorSesionId(UUID sesionId);
 }

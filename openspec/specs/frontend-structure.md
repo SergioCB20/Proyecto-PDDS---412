@@ -192,7 +192,7 @@ export function useMetricas(sesionId: string, activa: boolean) {
 
 ### `/simulacion` (Analista)
 - Formulario de configuración:
-  - `fecha_inicio_virtual` (date picker)
+  - `fecha_inicio_virtual` (date picker, default `2026-01-15` — alineado con la plantilla de vuelos semilla)
   - `hora_inicio_virtual` (time picker)
   - `prob_cancelacion` (slider 0-100%)
   - Umbrales almacén: verde_max, ambar_max (rojo = resto)
@@ -207,6 +207,7 @@ export function useMetricas(sesionId: string, activa: boolean) {
   - SLA acumulado %
   - Vuelos cancelados
   - Maletas replanificadas
+- Mapa de vuelos en vivo: recibe solo vuelos `EN_RUTA` (el backend filtró `PROGRAMADO` y `es_plantilla = true`)
 - Botones: **Iniciar** / **Pausar** / **Detener**
 - Al detectar estado `FINALIZADA` → mostrar botón "Ver reporte" → redirigir a `/simulacion/{id}/reporte`
 

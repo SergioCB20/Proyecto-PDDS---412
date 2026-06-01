@@ -13,7 +13,6 @@ interface GeoMapaProps {
   nodos: NodoEnMapa[];
   vuelos: VueloEnMapa[];
   mostrarAviones?: boolean;
-  animacionActiva?: boolean;
   className?: string;
 }
 
@@ -24,7 +23,6 @@ export default function GeoMapa({
   nodos,
   vuelos,
   mostrarAviones = true,
-  animacionActiva = false,
   className = '',
 }: GeoMapaProps) {
   if (typeof window === 'undefined') {
@@ -55,7 +53,6 @@ export default function GeoMapa({
           <GeoMapaVuelo
             key={vuelo.id}
             vuelo={vuelo}
-            animacionActiva={animacionActiva}
           />
         ))}
       </MapContainer>

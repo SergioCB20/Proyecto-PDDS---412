@@ -13,7 +13,8 @@ public interface RoutingStrategy {
             NodoLogistico origen,
             NodoLogistico destino,
             OffsetDateTime slaComprometido,
-            List<Vuelo> vuelosProgramados
+            List<Vuelo> vuelosProgramados,
+            int cantidad
     );
 
     default boolean soportaBatch() {
@@ -27,12 +28,12 @@ public interface RoutingStrategy {
     ) {
         List<RutaResult> resultados = new ArrayList<>();
         for (ParametroRuta p : parametros) {
-            RutaResult res = calcularRuta(p.origen(), p.destino(), p.slaComprometido(), vuelosProgramados);
+            RutaResult res = calcularRuta(p.origen(), p.destino(), p.slaComprometido(), vuelosProgramados, p.cantidad());
             resultados.add(res);
         }
         return resultados;
     }
 
-    record ParametroRuta(NodoLogistico origen, NodoLogistico destino, OffsetDateTime slaComprometido) {}
+    record ParametroRuta(NodoLogistico origen, NodoLogistico destino, OffsetDateTime slaComprometido, int cantidad) {}
 
 }

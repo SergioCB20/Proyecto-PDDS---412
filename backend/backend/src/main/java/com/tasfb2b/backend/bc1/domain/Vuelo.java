@@ -55,6 +55,9 @@ public class Vuelo {
     @Column(name = "hora_llegada", nullable = false)
     private OffsetDateTime horaLlegada;
 
+    @Column(name = "es_plantilla")
+    private boolean esPlantilla = false;
+
     public Vuelo() {}
 
     public UUID getId() { return id; }
@@ -98,6 +101,9 @@ public class Vuelo {
 
     public OffsetDateTime getHoraLlegada() { return horaLlegada; }
     public void setHoraLlegada(OffsetDateTime horaLlegada) { this.horaLlegada = horaLlegada; }
+
+    public boolean isEsPlantilla() { return esPlantilla; }
+    public void setEsPlantilla(boolean esPlantilla) { this.esPlantilla = esPlantilla; }
 
     public double getOcupacionPorcentaje() {
         if (capacidadCarga == null || capacidadCarga == 0) return 0;

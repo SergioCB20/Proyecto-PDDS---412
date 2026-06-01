@@ -34,6 +34,9 @@ public class Equipaje {
     @Column(name = "sla_comprometido", nullable = false)
     private OffsetDateTime slaComprometido;
 
+    @Column(name = "cantidad", nullable = false)
+    private int cantidad = 1;
+
     public Equipaje() {}
 
     public UUID getId() { return id; }
@@ -59,4 +62,7 @@ public class Equipaje {
 
     public OffsetDateTime getSlaComprometido() { return slaComprometido; }
     public void setSlaComprometido(OffsetDateTime slaComprometido) { this.slaComprometido = slaComprometido; }
+
+    public int getCantidad() { return cantidad; }
+    public void setCantidad(int cantidad) { this.cantidad = cantidad; }
 }

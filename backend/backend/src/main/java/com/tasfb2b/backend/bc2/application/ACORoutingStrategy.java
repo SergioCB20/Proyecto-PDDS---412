@@ -42,8 +42,8 @@ public class ACORoutingStrategy implements RoutingStrategy {
 
     @Override
     public RutaResult calcularRuta(NodoLogistico origen, NodoLogistico destino,
-                                   OffsetDateTime slaComprometido, List<Vuelo> vuelosProgramados) {
-        List<ParametroRuta> params = List.of(new ParametroRuta(origen, destino, slaComprometido));
+                                   OffsetDateTime slaComprometido, List<Vuelo> vuelosProgramados, int cantidad) {
+        List<ParametroRuta> params = List.of(new ParametroRuta(origen, destino, slaComprometido, cantidad));
         List<RutaResult> resultados = optimizarLote(params, vuelosProgramados, null);
         return resultados.isEmpty() ? RutaResult.sinRuta("Error en ACO") : resultados.get(0);
     }

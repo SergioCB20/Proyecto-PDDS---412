@@ -203,12 +203,29 @@ String evaluarColor(double ocupacionPct, UmbralCapacidad umbral) {
 - El tick avanza el reloj virtual según el factor de escala (120 horas en 30-90 min reales).
 - En cada tick:
   1. Avanzar `dia_hora_virtual`.
-  2. Llamar a `SimuladorBaggageFeeder` para inyectar equipajes programados para este tiempo virtual desde la tabla de staging.
-  3. Detectar vuelos que deben salir o llegar según el reloj virtual.
-  4. Actualizar estados de equipajes (`EN_ALMACEN` → `EN_VUELO` → `EN_ALMACEN`).
-  5. Evaluar probabilidad de cancelación (`prob_cancelacion`) y generar cancelaciones aleatorias.
-  6. Actualizar `MetricasEnVivo` en Redis.
-  7. Registrar un `PuntoSLA` cada hora virtual.
+  2. **Generar vuelos si es necesario** — si el día virtual cambió, clonar la plantilla de 24 h (`es_plantilla = true`) creando vuelos con `es_plantilla = false` y fechas del día virtual.
+  3. **Auto‑stop** — si `dia_hora_virtual` supera `fecha_inicio_virtual + hora_inicio_virtual + 5 días`, finalizar la sesión (`FINALIZADA`) y publicar `SesionFinalizada`.
+  4. Llamar a `SimuladorBaggageFeeder` para inyectar equipajes programados para este tiempo virtual desde la tabla de staging.
+  5. Detectar vuelos que deben salir o llegar según el reloj virtual (**solo vuelos con `es_plantilla = false`**).
+  6. Actualizar estados de equipajes (`EN_ALMACEN` → `EN_VUELO` → `EN_ALMACEN`).
+  7. Evaluar probabilidad de cancelación (`prob_cancelacion`) y generar cancelaciones aleatorias (**solo sobre vuelos `es_plantilla = false`**).
+  8. Actualizar `MetricasEnVivo` en Redis.
+  9. Registrar un `PuntoSLA` cada hora virtual.
+
+### Generación de vuelos por día virtual
+- Los vuelos semilla (`es_plantilla = true`, ~2800 vuelos en `2026-01-15`) representan un **patrón de 24 h** con distribución uniforme (~120 vuelos/hora).
+- Al entrar a un nuevo día virtual, `TickService.generarVuelosSiEsNecesario()` clona la plantilla:
+  - Consulta: `findByEstadoAndHoraSalidaBetweenAndEsPlantilla(PROGRAMADO, fechaBase, fechaBase+1, true)`
+  - Cada clon recibe: `es_plantilla = false`, `horaSalida = fechaVirtual + horaSalidaTemplate.toLocalTime()`, `horaLlegada = fechaVirtual + horaLlegadaTemplate.toLocalTime()`
+  - `estado = PROGRAMADO`, `carga_disponible = capacidad_carga`
+- Un `HashMap<UUID, LocalDate>` en memoria (por sesión) evita regenerar en ticks sucesivos del mismo día.
+- Todas las queries de simulación (`procesarVuelosSalida`, `procesarVuelosLlegada`, `evaluarCancelaciones`) filtran por `es_plantilla = false`.
+- El `MotorEnrutamiento` también excluye vuelos plantilla al buscar candidatos de ruta.
+
+### Auto‑stop por tiempo límite
+- La sesión se finaliza automáticamente cuando el reloj virtual supera `fecha_inicio_virtual + hora_inicio_virtual + 5 días`.
+- `excedeLimiteTiempo()` se evalúa en cada tick, después de la generación de vuelos y antes del feeder.
+- Al detener: `estado → FINALIZADA`, se publica `SesionFinalizada("FINALIZADA_POR_TIEMPO")`, se escriben métricas finales en Redis y se emite telemetría.
 
 ### Replanificación
 - Al recibir `VueloCancelado`:

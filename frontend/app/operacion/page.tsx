@@ -372,7 +372,6 @@ export default function OperacionPage() {
           nodos={nodos}
           vuelos={allVuelos}
           mostrarAviones={true}
-          animacionActiva={false}
           className="h-full"
         />
       </div>

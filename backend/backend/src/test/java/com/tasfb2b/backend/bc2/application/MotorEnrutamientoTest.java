@@ -23,6 +23,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import java.util.List;
+
 @ExtendWith(MockitoExtension.class)
 class MotorEnrutamientoTest {
 
@@ -65,7 +67,7 @@ class MotorEnrutamientoTest {
         vuelo.setHoraLlegada(OffsetDateTime.parse("2025-06-15T22:00:00Z"));
 
         when(nodoRepository.findByCodigoIata("MIA")).thenReturn(Optional.of(destino));
-        when(vueloRepository.findByEstado(eq(EstadoVuelo.PROGRAMADO), any(Pageable.class)))
+        when(vueloRepository.findByEstadoAndEsPlantilla(eq(EstadoVuelo.PROGRAMADO), eq(false), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(vuelo)));
 
         RutaResult expected = new RutaResult(
@@ -73,14 +75,14 @@ class MotorEnrutamientoTest {
                         origen.getId(), "LIM", destino.getId(), "MIA",
                         vuelo.getHoraSalida(), vuelo.getHoraLlegada())),
                 true, null);
-        when(greedyStrategy.calcularRuta(origen, destino, sla, List.of(vuelo)))
+        when(greedyStrategy.calcularRuta(origen, destino, sla, List.of(vuelo), 1))
                 .thenReturn(expected);
 
         RutaResult result = motor.calcularRuta(origen, "MIA", sla);
 
         assertTrue(result.exitoso());
         assertEquals(1, result.segmentos().size());
-        verify(greedyStrategy).calcularRuta(origen, destino, sla, List.of(vuelo));
+        verify(greedyStrategy).calcularRuta(origen, destino, sla, List.of(vuelo), 1);
     }
 
     @Test
@@ -92,16 +94,16 @@ class MotorEnrutamientoTest {
         assertFalse(result.exitoso());
         assertNotNull(result.mensajeError());
         assertTrue(result.mensajeError().contains("no encontrado"));
-        verify(greedyStrategy, never()).calcularRuta(any(), any(), any(), any());
+        verify(greedyStrategy, never()).calcularRuta(any(), any(), any(), anyList(), anyInt());
     }
 
     @Test
     void strategyFailure_shouldPropagateError() {
         when(nodoRepository.findByCodigoIata("MIA")).thenReturn(Optional.of(destino));
-        when(vueloRepository.findByEstado(eq(EstadoVuelo.PROGRAMADO), any(Pageable.class)))
+        when(vueloRepository.findByEstadoAndEsPlantilla(eq(EstadoVuelo.PROGRAMADO), eq(false), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of()));
 
-        when(greedyStrategy.calcularRuta(origen, destino, sla, List.of()))
+        when(greedyStrategy.calcularRuta(origen, destino, sla, List.of(), 1))
                 .thenReturn(RutaResult.sinRuta("No hay vuelos disponibles"));
 
         RutaResult result = motor.calcularRuta(origen, "MIA", sla);

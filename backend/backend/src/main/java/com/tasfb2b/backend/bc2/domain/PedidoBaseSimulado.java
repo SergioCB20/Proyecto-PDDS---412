@@ -5,14 +5,13 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "equipajes_simulados")
-public class EquipajeSimulado {
+@Table(name = "pedidos_base_simulados", indexes = {
+    @Index(name = "idx_pedidos_base_fecha", columnList = "fecha_ingreso_virtual")
+})
+public class PedidoBaseSimulado {
 
     @Id
     private UUID id;
-
-    @Column(name = "sesion_id", nullable = false)
-    private UUID sesionId;
 
     @Column(name = "id_externo", nullable = false, length = 50)
     private String idExterno;
@@ -23,9 +22,6 @@ public class EquipajeSimulado {
     @Column(name = "destino_iata", nullable = false, length = 10)
     private String destinoIata;
 
-    @Column(name = "vuelo_id")
-    private UUID vueloId;
-
     @Column(name = "sla_comprometido", nullable = false)
     private OffsetDateTime slaComprometido;
 
@@ -35,40 +31,22 @@ public class EquipajeSimulado {
     @Column(name = "cantidad", nullable = false)
     private int cantidad = 1;
 
-    @Column(name = "procesado", nullable = false)
-    private boolean procesado = false;
-
-    public EquipajeSimulado() {
+    public PedidoBaseSimulado() {
         this.id = UUID.randomUUID();
     }
 
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
-    
-    public UUID getSesionId() { return sesionId; }
-    public void setSesionId(UUID sesionId) { this.sesionId = sesionId; }
-    
     public String getIdExterno() { return idExterno; }
     public void setIdExterno(String idExterno) { this.idExterno = idExterno; }
-    
     public String getOrigenIata() { return origenIata; }
     public void setOrigenIata(String origenIata) { this.origenIata = origenIata; }
-    
     public String getDestinoIata() { return destinoIata; }
     public void setDestinoIata(String destinoIata) { this.destinoIata = destinoIata; }
-    
-    public UUID getVueloId() { return vueloId; }
-    public void setVueloId(UUID vueloId) { this.vueloId = vueloId; }
-    
     public OffsetDateTime getSlaComprometido() { return slaComprometido; }
     public void setSlaComprometido(OffsetDateTime slaComprometido) { this.slaComprometido = slaComprometido; }
-    
     public OffsetDateTime getFechaIngresoVirtual() { return fechaIngresoVirtual; }
     public void setFechaIngresoVirtual(OffsetDateTime fechaIngresoVirtual) { this.fechaIngresoVirtual = fechaIngresoVirtual; }
-    
     public int getCantidad() { return cantidad; }
     public void setCantidad(int cantidad) { this.cantidad = cantidad; }
-
-    public boolean isProcesado() { return procesado; }
-    public void setProcesado(boolean procesado) { this.procesado = procesado; }
 }

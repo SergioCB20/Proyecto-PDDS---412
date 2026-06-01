@@ -5,11 +5,13 @@ import type { TelemetriaMensaje } from './types';
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080/api/ws/telemetria';
 
-export function useTelemetria(activo: boolean) {
+export function useTelemetria(activo: boolean, sesionId?: string) {
   const [data, setData] = useState<TelemetriaMensaje | null>(null);
   const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sesionIdRef = useRef(sesionId);
+  sesionIdRef.current = sesionId;
 
   useEffect(() => {
     function conectar() {
@@ -29,9 +31,16 @@ export function useTelemetria(activo: boolean) {
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data) as TelemetriaMensaje;
+          if (sesionIdRef.current && msg.metricas_sesion?.sesion_id !== sesionIdRef.current) return;
+          console.log('[WS] telemetry received:', {
+            nodos: msg.nodos?.length ?? 0,
+            vuelos: msg.vuelos?.length ?? 0,
+            estado: msg.metricas_sesion?.estado,
+            timestamp: msg.timestamp
+          });
           setData(msg);
-        } catch {
-          /* ignore parse errors */
+        } catch (e) {
+          console.warn('[WS] parse error:', e);
         }
       };
 

@@ -3,6 +3,7 @@ package com.tasfb2b.backend.bc2.application;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 import com.tasfb2b.backend.bc2.domain.*;
+import com.tasfb2b.backend.bc2.infrastructure.EquipajeSimuladoRepository;
 import com.tasfb2b.backend.bc2.infrastructure.SesionRepository;
 import com.tasfb2b.backend.shared.events.SesionFinalizada;
 import com.tasfb2b.backend.shared.infrastructure.RedisCacheService;
@@ -10,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -27,17 +29,20 @@ public class SesionService {
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
     private final CsvBaggageLoader csvBaggageLoader;
+    private final EquipajeSimuladoRepository equipajeSimuladoRepository;
 
     public SesionService(SesionRepository sesionRepository,
                          RedisCacheService redisCacheService,
                          ObjectMapper objectMapper,
                          ApplicationEventPublisher eventPublisher,
-                         CsvBaggageLoader csvBaggageLoader) {
+                         CsvBaggageLoader csvBaggageLoader,
+                         EquipajeSimuladoRepository equipajeSimuladoRepository) {
         this.sesionRepository = sesionRepository;
         this.redisCacheService = redisCacheService;
         this.objectMapper = objectMapper;
         this.eventPublisher = eventPublisher;
         this.csvBaggageLoader = csvBaggageLoader;
+        this.equipajeSimuladoRepository = equipajeSimuladoRepository;
     }
 
     public SesionResponse crearSesion(CrearSesionRequest request) {
@@ -75,7 +80,15 @@ public class SesionService {
         redisCacheService.setEstadoSesion(sesion.getId(), sesion.getEstado().name());
 
         if (sesion.getTipo() == TipoSesion.SIMULADA) {
-            csvBaggageLoader.cargarArchivosLocales(sesion.getId());
+            if (!csvBaggageLoader.estaBaseCargada()) {
+                final UUID sid = sesion.getId();
+                new Thread(() -> {
+                    csvBaggageLoader.cargarBaseDatosSimulacion();
+                    csvBaggageLoader.copiarASesion(sid);
+                }).start();
+            } else {
+                csvBaggageLoader.copiarASesion(sesion.getId());
+            }
         }
 
         return new SesionResponse(sesion.getId(), sesion.getTipo().name(), sesion.getEstado().name());
@@ -128,7 +141,17 @@ public class SesionService {
         eventPublisher.publishEvent(new SesionFinalizada(
                 sesion.getId(), "FINALIZADA", OffsetDateTime.now()));
 
+        if (sesion.getTipo() == TipoSesion.SIMULADA) {
+            limpiarEquipajesSimulados(sesion.getId());
+        }
+
         return new SesionEstadoResponse(sesion.getEstado().name());
+    }
+
+    @Transactional
+    public void limpiarEquipajesSimulados(UUID sesionId) {
+        equipajeSimuladoRepository.eliminarPorSesionId(sesionId);
+        log.info("Cleanup equipajes_simulados completado para sesion {}", sesionId);
     }
 
     public MetricasSesionResponse obtenerMetricas(UUID id) {

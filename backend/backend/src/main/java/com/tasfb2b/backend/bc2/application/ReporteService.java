@@ -39,6 +39,10 @@ public class ReporteService {
     @EventListener
     @Transactional
     public void onSesionFinalizada(SesionFinalizada event) {
+        if (reporteRepository.findBySesionId(event.sesionId()).isPresent()) {
+            log.info("Reporte ya existe para sesion {}, omitiendo", event.sesionId());
+            return;
+        }
         generarReporte(event.sesionId(), event.estadoFinal());
     }
 

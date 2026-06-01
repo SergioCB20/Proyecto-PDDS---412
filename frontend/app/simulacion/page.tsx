@@ -20,7 +20,7 @@ interface Configuracion {
 export default function SimulacionPage() {
   const router = useRouter();
   const [config, setConfig] = useState<Configuracion>({
-    fecha_inicio_virtual: '2025-06-01',
+    fecha_inicio_virtual: '2026-01-15',
     hora_inicio_virtual: '08:00',
     prob_cancelacion: 15,
     umbral_almacen_verde: 70,

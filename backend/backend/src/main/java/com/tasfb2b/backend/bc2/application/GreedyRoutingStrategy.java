@@ -19,8 +19,8 @@ public class GreedyRoutingStrategy implements RoutingStrategy {
 
     @Override
     public RutaResult calcularRuta(NodoLogistico origen, NodoLogistico destino,
-                                   OffsetDateTime slaComprometido, List<Vuelo> vuelosProgramados) {
-        Vuelo directo = buscarVueloDirecto(vuelosProgramados, origen.getId(), destino.getId(), slaComprometido);
+                                    OffsetDateTime slaComprometido, List<Vuelo> vuelosProgramados, int cantidad) {
+        Vuelo directo = buscarVueloDirecto(vuelosProgramados, origen.getId(), destino.getId(), slaComprometido, cantidad);
         if (directo != null) {
             List<SegmentoInfo> segmentos = new ArrayList<>();
             segmentos.add(new SegmentoInfo(1, directo.getId(), directo.getCodigoVuelo(),
@@ -38,11 +38,11 @@ public class GreedyRoutingStrategy implements RoutingStrategy {
         return RutaResult.sinRuta("No se encontro ruta de " + origen.getCodigoIata() + " a " + destino.getCodigoIata());
     }
 
-    private Vuelo buscarVueloDirecto(List<Vuelo> vuelos, java.util.UUID origenId, java.util.UUID destinoId, OffsetDateTime sla) {
+    private Vuelo buscarVueloDirecto(List<Vuelo> vuelos, java.util.UUID origenId, java.util.UUID destinoId, OffsetDateTime sla, int cantidad) {
         return vuelos.stream()
                 .filter(v -> v.getOrigen().getId().equals(origenId))
                 .filter(v -> v.getDestino().getId().equals(destinoId))
-                .filter(v -> v.getCargaDisponible() > 0)
+                .filter(v -> v.getCargaDisponible() >= cantidad)
                 .filter(v -> v.getHoraLlegada().isBefore(sla) || v.getHoraLlegada().equals(sla))
                 .min(Comparator.comparing(Vuelo::getHoraSalida))
                 .orElse(null);

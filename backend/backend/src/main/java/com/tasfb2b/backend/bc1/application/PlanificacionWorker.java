@@ -158,10 +158,12 @@ public class PlanificacionWorker {
             throw new RuntimeException("Vuelo " + vueloActual.getId() + " no tiene nodo origen");
         }
 
-        if (origen.getOcupacionActual() >= origen.getCapacidadAlmacen()) {
+        int cant = equipaje.getCantidad();
+
+        if (origen.getOcupacionActual() + cant > origen.getCapacidadAlmacen()) {
             throw new RuntimeException("Capacidad de almacen superada en " + origen.getCodigoIata());
         }
-        if (vueloActual.getCargaDisponible() <= 0) {
+        if (vueloActual.getCargaDisponible() < cant) {
             throw new RuntimeException("Capacidad del vuelo " + vueloActual.getCodigoVuelo() + " agotada");
         }
 
@@ -202,10 +204,10 @@ public class PlanificacionWorker {
         NodoLogistico primerNodoOrigen = nodoRepository.findById(primerSegmento.nodoOrigenId())
                 .orElseThrow(() -> new RuntimeException("Nodo no encontrado: " + primerSegmento.nodoOrigenId()));
 
-        primerVuelo.setCargaDisponible(primerVuelo.getCargaDisponible() - 1);
+        primerVuelo.setCargaDisponible(primerVuelo.getCargaDisponible() - cant);
         vueloRepository.save(primerVuelo);
 
-        primerNodoOrigen.setOcupacionActual(primerNodoOrigen.getOcupacionActual() + 1);
+        primerNodoOrigen.setOcupacionActual(primerNodoOrigen.getOcupacionActual() + cant);
         nodoRepository.save(primerNodoOrigen);
 
         equipaje.setEstado(EstadoEquipaje.ENRUTADO);
@@ -239,7 +241,8 @@ public class PlanificacionWorker {
             RutaResult ruta = motorEnrutamiento.calcularRuta(
                     equipaje.getVueloActual().getOrigen(),
                     equipaje.getDestinoIata(),
-                    equipaje.getSlaComprometido());
+                    equipaje.getSlaComprometido(),
+                    equipaje.getCantidad());
 
             if (ruta == null || !ruta.exitoso() || ruta.segmentos().isEmpty()) {
                 throw new RuntimeException(ruta != null ? ruta.mensajeError() : "Error al calcular ruta");

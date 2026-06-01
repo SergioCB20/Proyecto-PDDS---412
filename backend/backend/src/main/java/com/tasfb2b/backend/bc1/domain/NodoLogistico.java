@@ -36,6 +36,10 @@ public class NodoLogistico {
 
     public NodoLogistico() {}
 
+    public NodoLogistico(UUID id, String codigoIata, String nombre, BigDecimal latitud, BigDecimal longitud, Integer capacidadAlmacen) {
+        this(id, codigoIata, nombre, latitud, longitud, capacidadAlmacen, null);
+    }
+
     public NodoLogistico(UUID id, String codigoIata, String nombre, BigDecimal latitud, BigDecimal longitud, Integer capacidadAlmacen, Continente continente) {
         this.id = id;
         this.codigoIata = codigoIata;
