@@ -1,8 +1,8 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
-### Requirement: Backend asigna planVuelos y coordenadas al crear vuelo
+### Requirement: Backend MUST assign planVuelos and coordinates when creating a flight
 
-El backend `VueloService.crear()` DEBE asignar los campos `planVuelos`, `origenLat`, `origenLon`, `destinoLat` y `destinoLon` al crear un nuevo `Vuelo`. Sin estos campos, la entidad viola restricciones NOT NULL en la base de datos.
+The backend `VueloService.crear()` MUST assign the fields `planVuelos`, `origenLat`, `origenLon`, `destinoLat` and `destinoLon` when creating a new `Vuelo`. Without these fields, the entity violates NOT NULL constraints in the database.
 
 #### Scenario: Creación exitosa de vuelo
 
@@ -20,9 +20,9 @@ El backend `VueloService.crear()` DEBE asignar los campos `planVuelos`, `origenL
 - **THEN** el servicio lanza `ValidacionException` con mensaje "No hay plan de vuelos activo"
 - **THEN** el controlador retorna `422 Unprocessable Entity`
 
-### Requirement: Frontend deshabilita selects cuando nodos está vacío
+### Requirement: Frontend MUST disable selects when nodos is empty
 
-El frontend DEBE deshabilitar visualmente los campos `<Select>` que dependen de `nodos` cuando el array `nodos` está vacío (carga inicial o error de conexión).
+The frontend MUST visually disable `<Select>` fields that depend on `nodos` when the `nodos` array is empty (initial load or connection error).
 
 #### Scenario: Selects deshabilitados mientras carga
 
