@@ -86,17 +86,20 @@ public class TelemetriaService {
 
             if (vuelo.getEstado() == EstadoVuelo.EN_RUTA && sesion.getDiaHoraVirtual() != null) {
                 double progress = calcularProgreso(vuelo, sesion.getDiaHoraVirtual());
+                double progressClamped = Math.min(progress, 1.0);
                 double lat = vuelo.getOrigenLat().doubleValue()
                         + (vuelo.getDestinoLat().doubleValue() - vuelo.getOrigenLat().doubleValue())
-                        * Math.min(progress, 1.0);
+                        * progressClamped;
                 double lon = vuelo.getOrigenLon().doubleValue()
                         + (vuelo.getDestinoLon().doubleValue() - vuelo.getOrigenLon().doubleValue())
-                        * Math.min(progress, 1.0);
+                        * progressClamped;
                 v.put("lat_actual", Math.round(lat * 1_000_000.0) / 1_000_000.0);
                 v.put("lon_actual", Math.round(lon * 1_000_000.0) / 1_000_000.0);
+                v.put("progreso", Math.round(progressClamped * 1000.0) / 1000.0);
             } else {
                 v.put("lat_actual", vuelo.getOrigenLat().doubleValue());
                 v.put("lon_actual", vuelo.getOrigenLon().doubleValue());
+                v.put("progreso", 0.0);
             }
 
             double pctVuelo = vuelo.getOcupacionPorcentaje();
