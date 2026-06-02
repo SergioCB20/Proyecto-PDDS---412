@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Modal } from '@/components/ui/Modal';
-import type { Nodo, Vuelo, VueloPageResponse, NodoEnMapa, CrearEquipajeRequest, CrearEquipajeResponse, CargaMasivaPreview, CargaMasivaConfirmResponse } from '@/lib/types';
+import type { Nodo, Vuelo, VueloEnMapa, VueloPageResponse, NodoEnMapa, CrearEquipajeRequest, CrearEquipajeResponse, CargaMasivaPreview, CargaMasivaConfirmResponse } from '@/lib/types';
 
 const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false });
 
@@ -24,7 +24,7 @@ interface EquipajeReciente {
 export default function OperacionPage() {
   const [nodos, setNodos] = useState<NodoEnMapa[]>([]);
   const [vuelosProgramados, setVuelosProgramados] = useState<Vuelo[]>([]);
-  const [allVuelos, setAllVuelos] = useState<Vuelo[]>([]);
+  const [allVuelos, setAllVuelos] = useState<VueloEnMapa[]>([]);
   const [equipajesRecientes, setEquipajesRecientes] = useState<EquipajeReciente[]>([]);
   const [loading, setLoading] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
@@ -128,7 +128,7 @@ export default function OperacionPage() {
         api.get<VueloPageResponse>('/vuelos?size=50'),
       ]);
       setNodos(nodosData.map(nodoToEnMapa));
-      setAllVuelos(vuelosData.content);
+      setAllVuelos(vuelosData.content.map((v: Vuelo): VueloEnMapa => ({ ...v })));
       setVuelosProgramados(vuelosData.content.filter((v: Vuelo) => v.estado === 'PROGRAMADO'));
       setLastUpdate(new Date());
     } catch (err: unknown) {
