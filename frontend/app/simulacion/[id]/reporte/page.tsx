@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, AlertTriangle, RefreshCw, MapPin, FileText } from 'lucide-react';
@@ -70,7 +70,7 @@ function ResumenCard({ label, value, icon: Icon, color }: {
   );
 }
 
-export default function ReportePage() {
+function ReportePageInner() {
   const params = useParams();
   const sesionId = params.id as string;
 
@@ -195,5 +195,17 @@ export default function ReportePage() {
         </div>
       </Card>
     </div>
+  );
+}
+
+export default function ReportePage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-64">
+        <div className="text-slate-500">Cargando reporte...</div>
+      </div>
+    }>
+      <ReportePageInner />
+    </Suspense>
   );
 }
