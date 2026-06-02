@@ -206,9 +206,9 @@ Independientes:
 - [ ] **Dev 1:** B4 PuntoSLA registrado cada hora virtual
 - [ ] **Dev 1:** B5 GET /sesiones/{id}/reporte probado con sesion real
 - [ ] **Dev 1:** I1 mvn test - todos pasan
-- [ ] **Dev 2:** B1 DELETE /equipajes/{id} funciona con idExterno
-- [ ] **Dev 2:** B2 Rol SSE consistente (backend + spec + frontend alineados)
-- [ ] **Dev 2:** I3 api-contracts.md actualizado
+- [x] **Dev 2:** B1 DELETE /equipajes/{id} funciona con idExterno
+- [x] **Dev 2:** B2 Rol SSE consistente (backend + spec + frontend alineados)
+- [x] **Dev 2:** I3 api-contracts.md actualizado
 - [ ] **Dev 3:** C1 DELETE equipaje frontend coordinado con B1
 - [ ] **Dev 3:** C2 URL de simulacion muestra UUID real del backend
 - [ ] **Dev 3:** C3 Sin duplicacion de metricas (WS prioritario, polling fallback)

@@ -55,7 +55,7 @@ public class SecurityConfig {
                     .requestMatchers("/api/manifiestos/**")
                     .hasRole("OPERADOR_LOGISTICO")
                     .requestMatchers("/api/eventos/**")
-                    .authenticated()
+                    .hasRole("ANALISTA")
                     .anyRequest()
                     .authenticated()
             )

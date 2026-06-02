@@ -393,8 +393,10 @@ Actualiza un equipaje existente. Solo OPERADOR_LOGISTICO.
 
 ---
 
-### `DELETE /equipajes/{id}`
+### `DELETE /equipajes/{idExterno}`
 Elimina un equipaje y su plan de viaje. Solo OPERADOR_LOGISTICO.
+
+`{idExterno}` es el identificador externo del equipaje (ej. `MAL-2025-00123`).
 
 **Response 204:** Sin contenido.
 
@@ -575,7 +577,7 @@ Obtiene el reporte final de una sesión finalizada. Solo ANALISTA.
 ### `GET /eventos/planificacion`
 Streaming SSE (Server-Sent Events) de eventos de planificación en vivo. Solo ANALISTA.
 
-> **Nota:** Se usa query param `?token=` en lugar de header `Authorization` porque `EventSource` nativo del navegador no permite personalizar cabeceras HTTP.
+> **Nota:** Se usa query param `?token=` en lugar de header `Authorization` porque `EventSource` nativo del navegador no permite personalizar cabeceras HTTP. El `JwtFilter` reconoce automáticamente el token vía query param.
 
 **Query params:** `?token={jwt_token}`
 
