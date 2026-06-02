@@ -210,6 +210,7 @@ export interface VueloTelemetria {
   destino_iata: string;
   ocupacion_pct: number;
   color: string;
+  progreso: number;
 }
 
 export interface TelemetriaMensaje {

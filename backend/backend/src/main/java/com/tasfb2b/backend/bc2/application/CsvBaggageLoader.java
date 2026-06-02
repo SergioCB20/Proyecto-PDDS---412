@@ -108,12 +108,15 @@ public class CsvBaggageLoader {
 
     private static final String INSERT_BASE_SQL = "INSERT INTO pedidos_base_simulados (id, id_externo, origen_iata, destino_iata, sla_comprometido, fecha_ingreso_virtual, cantidad) VALUES (?, ?, ?, ?, ?, ?, ?)";
 
-    private static final String COPY_SQL = "INSERT INTO equipajes_simulados (id, sesion_id, id_externo, origen_iata, destino_iata, sla_comprometido, fecha_ingreso_virtual, cantidad, procesado) SELECT gen_random_uuid(), ?, id_externo, origen_iata, destino_iata, sla_comprometido, fecha_ingreso_virtual, cantidad, false FROM pedidos_base_simulados";
+    private static final String HORIZONTE_DIAS = "60";
+
+    private static final String COPY_SQL = "INSERT INTO equipajes_simulados (id, sesion_id, id_externo, origen_iata, destino_iata, sla_comprometido, fecha_ingreso_virtual, cantidad, procesado) SELECT gen_random_uuid(), ?, id_externo, origen_iata, destino_iata, sla_comprometido, fecha_ingreso_virtual, cantidad, false FROM pedidos_base_simulados WHERE fecha_ingreso_virtual >= ?::timestamptz AND fecha_ingreso_virtual < ?::timestamptz + INTERVAL '" + HORIZONTE_DIAS + " days'";
 
     @Transactional
-    public void copiarASesion(UUID sesionId) {
-        int inserted = jdbcTemplate.update(COPY_SQL, sesionId);
-        log.info("Copiados {} registros a equipajes_simulados para sesion {}", inserted, sesionId);
+    public void copiarASesion(UUID sesionId, String fechaInicio, String horaInicio) {
+        String inicioStr = fechaInicio + "T" + horaInicio + "Z";
+        int inserted = jdbcTemplate.update(COPY_SQL, sesionId, inicioStr, inicioStr);
+        log.info("Copiados {} registros a equipajes_simulados para sesion {} desde {}", inserted, sesionId, inicioStr);
     }
 
     private LineaParseada parseLine(String origenIata, String line) {

@@ -39,36 +39,55 @@ public class NodoVueloSeeder {
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
     public void seed() {
-        if (nodoRepository.count() == 0) {
-            log.info("NodoVueloSeeder: ejecutando seed de nodos y vuelos...");
+        log.info("NodoVueloSeeder: ejecutando seed de nodos y vuelos...");
 
-            try {
-                ClassPathResource resource = new ClassPathResource("db/migration/V20__seed_nodos_vuelos.sql");
-                String sql;
-                try (BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
-                    sql = reader.lines().collect(Collectors.joining("\n"));
-                }
-
-                String cleanSql = removeCommentLines(sql);
-
-                Connection conn = DataSourceUtils.getConnection(dataSource);
-                try (Statement stmt = conn.createStatement()) {
-                    stmt.execute(cleanSql);
-                }
-
-                long nodos = nodoRepository.count();
-                log.info("NodoVueloSeeder: seed completado — {} nodos", nodos);
-
-            } catch (Exception e) {
-                log.error("NodoVueloSeeder: error ejecutando seed: {}", e.getMessage(), e);
+        try {
+            ClassPathResource resource = new ClassPathResource("db/migration/V20__seed_nodos_vuelos.sql");
+            String sql;
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
+                sql = reader.lines().collect(Collectors.joining("\n"));
             }
-        } else {
-            log.info("NodoVueloSeeder: nodos ya existen, omitiendo seed");
+
+            String cleanSql = addOnConflict(removeCommentLines(sql));
+
+            Connection conn = DataSourceUtils.getConnection(dataSource);
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute(cleanSql);
+            }
+
+            long nodos = nodoRepository.count();
+            log.info("NodoVueloSeeder: seed completado — {} nodos", nodos);
+
+        } catch (Exception e) {
+            log.error("NodoVueloSeeder: error ejecutando seed: {}", e.getMessage(), e);
         }
 
+        mostrarEstadoPedidosBase();
+        limpiarNodosViejos();
         asegurarPlantillas();
         poblarContinentes();
+    }
+
+    private void mostrarEstadoPedidosBase() {
+        Integer count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM pedidos_base_simulados", Integer.class);
+        log.info("pedidos_base_simulados: {} registros en BD", count != null ? count : 0);
+    }
+
+    private void limpiarNodosViejos() {
+        List<String> codigosViejos = List.of("LIM", "MIA", "BOG", "GRU", "SCL");
+        for (String codigo : codigosViejos) {
+            Integer existe = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM nodos_logisticos WHERE codigo_iata = ?", Integer.class, codigo);
+            if (existe != null && existe > 0) {
+                jdbcTemplate.update(
+                    "DELETE FROM vuelos WHERE origen_id IN (SELECT id FROM nodos_logisticos WHERE codigo_iata = ?) " +
+                    "OR destino_id IN (SELECT id FROM nodos_logisticos WHERE codigo_iata = ?)",
+                    codigo, codigo);
+                jdbcTemplate.update("DELETE FROM nodos_logisticos WHERE codigo_iata = ?", codigo);
+                log.info("Nodo viejo eliminado: {} (y sus vuelos asociados)", codigo);
+            }
+        }
     }
 
     private void asegurarPlantillas() {
@@ -89,7 +108,7 @@ public class NodoVueloSeeder {
                         new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
                     sql = reader.lines().collect(Collectors.joining("\n"));
                 }
-                String cleanSql = removeCommentLines(sql);
+                String cleanSql = addOnConflict(removeCommentLines(sql));
                 Connection conn = DataSourceUtils.getConnection(dataSource);
                 try (Statement stmt = conn.createStatement()) {
                     stmt.execute(cleanSql + "; UPDATE vuelos SET es_plantilla = true WHERE es_plantilla IS NULL OR es_plantilla = false");
@@ -127,6 +146,14 @@ public class NodoVueloSeeder {
         }
 
         log.info("NodoVueloSeeder: continentes asignados correctamente");
+    }
+
+    private String addOnConflict(String sql) {
+        sql = sql.replace(";\n", " ON CONFLICT (id) DO NOTHING;\n");
+        if (sql.endsWith(";")) {
+            sql = sql.substring(0, sql.length() - 1) + " ON CONFLICT (id) DO NOTHING;";
+        }
+        return sql;
     }
 
     private String removeCommentLines(String sql) {

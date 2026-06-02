@@ -92,6 +92,7 @@ function SimulacionContent() {
       capacidad_carga: 0,
       carga_disponible: 0,
       posicionActual: { lat: v.lat_actual, lon: v.lon_actual },
+      progreso: v.progreso,
     })), [telemetria]);
 
   const pollingRef = useRef<NodeJS.Timeout | null>(null);

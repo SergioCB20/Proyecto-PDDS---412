@@ -142,8 +142,9 @@ public class TickService {
             v.setDestinoLon(t.getDestinoLon());
             v.setCapacidadCarga(t.getCapacidadCarga());
             v.setCargaDisponible(t.getCapacidadCarga());
-            v.setHoraSalida(OffsetDateTime.of(fechaActual, t.getHoraSalida().toLocalTime(), ZoneOffset.UTC));
-            v.setHoraLlegada(OffsetDateTime.of(fechaActual, t.getHoraLlegada().toLocalTime(), ZoneOffset.UTC));
+            long diasDiferencia = ChronoUnit.DAYS.between(FECHA_BASE_VUELOS, fechaActual);
+            v.setHoraSalida(t.getHoraSalida().plusDays(diasDiferencia));
+            v.setHoraLlegada(t.getHoraLlegada().plusDays(diasDiferencia));
             return v;
         }).collect(Collectors.toList());
         vueloRepository.saveAll(clones);
