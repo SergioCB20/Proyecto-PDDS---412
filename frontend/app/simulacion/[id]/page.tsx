@@ -14,6 +14,15 @@ const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false 
 
 const FALLBACK_SIM_ID = 'sim-' + Math.random().toString(36).substring(2, 8);
 
+const ESTADOS_VUELO_VALIDOS = ['PROGRAMADO', 'EN_RUTA', 'CANCELADO', 'COMPLETADO'] as const;
+
+function matchEstadoVuelo(valor: string): VueloEnMapa['estado'] {
+  if (ESTADOS_VUELO_VALIDOS.includes(valor as typeof ESTADOS_VUELO_VALIDOS[number])) {
+    return valor as VueloEnMapa['estado'];
+  }
+  return 'PROGRAMADO';
+}
+
 function MetricaCard({ label, value, icon: Icon, color }: {
   label: string; value: string | number; icon: React.ElementType; color: string;
 }) {
@@ -77,7 +86,7 @@ function SimulacionContent() {
     (telemetria?.vuelos ?? []).map(v => ({
       id: v.id,
       codigo_vuelo: v.codigo_vuelo,
-      estado: v.estado as VueloEnMapa['estado'],
+      estado: matchEstadoVuelo(v.estado),
       origen: { id: '', codigo_iata: v.origen_iata, nombre: v.origen_iata },
       destino: { id: '', codigo_iata: v.destino_iata, nombre: v.destino_iata },
       origen_lat: v.origen_lat,
