@@ -1,32 +1,12 @@
 'use client';
 
-import { Polyline, Marker } from 'react-leaflet';
-import L from 'leaflet';
+import { Polyline } from 'react-leaflet';
 import type { VueloEnMapa } from '@/lib/types';
+import AvionAnimado from './AvionAnimado';
 
 interface GeoMapaVueloProps {
   vuelo: VueloEnMapa;
   animacionActiva?: boolean;
-}
-
-function crearIconoAvion(color: string) {
-  return L.divIcon({
-    className: 'avion-icon',
-    html: `<div style="
-      width: 24px;
-      height: 24px;
-      background: ${color};
-      border-radius: 50%;
-      border: 2px solid white;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-    ">✈</div>`,
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
-  });
 }
 
 const COLORES: Record<string, string> = {
@@ -36,15 +16,10 @@ const COLORES: Record<string, string> = {
   COMPLETADO: '#6b7280',
 };
 
-export default function GeoMapaVuelo({ vuelo, animacionActiva = true }: GeoMapaVueloProps) {
+export default function GeoMapaVuelo({ vuelo, animacionActiva = false }: GeoMapaVueloProps) {
   const color = COLORES[vuelo.estado] || '#6b7280';
   const opacidadMarcador = animacionActiva ? 1 : 0.4;
   const opacidadRuta = animacionActiva ? 0.5 : 0.2;
-
-  const posicion: { lat: number; lon: number } = vuelo.posicionActual ?? {
-    lat: vuelo.origen_lat,
-    lon: vuelo.origen_lon,
-  };
 
   const tieneRuta = vuelo.origen_lat && vuelo.origen_lon && vuelo.destino_lat && vuelo.destino_lon;
 
@@ -61,10 +36,9 @@ export default function GeoMapaVuelo({ vuelo, animacionActiva = true }: GeoMapaV
           }}
         />
       )}
-      <Marker
-        position={[posicion.lat, posicion.lon]}
-        icon={crearIconoAvion(color)}
-        opacity={opacidadMarcador}
+      <AvionAnimado
+        vuelo={vuelo}
+        animacionActiva={animacionActiva}
       />
     </>
   );

@@ -43,7 +43,12 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       JWT_SECRET: dev_jwt_secret_key_at_least_32_chars_long
-      SHOW_SQL: "true"
+      SIMULACION_SA: "120"
+      RUTA_ENVIOS: /data/envios/
+      APP_REPORTES_RUTA_ARCHIVOS: /data/reportes
+    volumes:
+      - ./backend/backend/src/main/resources/data:/data/envios
+      - ./backend/backend/src/main/resources/reportes:/data/reportes
     depends_on:
       db:
         condition: service_healthy

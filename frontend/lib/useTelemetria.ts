@@ -10,10 +10,16 @@ export function useTelemetria(activo: boolean) {
   const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activoRef = useRef(activo);
+
+  useEffect(() => {
+    activoRef.current = activo;
+  }, [activo]);
 
   useEffect(() => {
     function conectar() {
       if (typeof window === 'undefined') return;
+      if (!activoRef.current) return;
       const token = localStorage.getItem('token');
       if (!token) return;
 
@@ -23,7 +29,9 @@ export function useTelemetria(activo: boolean) {
 
       ws.onclose = () => {
         setConnected(false);
-        reconnectRef.current = setTimeout(conectar, 3000);
+        if (activoRef.current) {
+          reconnectRef.current = setTimeout(conectar, 3000);
+        }
       };
 
       ws.onmessage = (event) => {

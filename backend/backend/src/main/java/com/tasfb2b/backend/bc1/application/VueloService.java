@@ -15,12 +15,20 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.util.List;
 import java.util.UUID;
 
 @Service
 public class VueloService {
+
+    private static final Logger log = LoggerFactory.getLogger(VueloService.class);
 
     private final VueloRepository vueloRepository;
     private final NodoLogisticoRepository nodoRepository;
@@ -39,8 +47,8 @@ public class VueloService {
             String codigo_vuelo,
             UUID origen_id,
             UUID destino_id,
-            OffsetDateTime hora_salida,
-            OffsetDateTime hora_llegada,
+            LocalDateTime hora_salida,
+            LocalDateTime hora_llegada,
             Integer capacidad_carga
     ) {}
 
@@ -57,7 +65,9 @@ public class VueloService {
             @JsonProperty("origen_lat") Double origenLat,
             @JsonProperty("origen_lon") Double origenLon,
             @JsonProperty("destino_lat") Double destinoLat,
-            @JsonProperty("destino_lon") Double destinoLon
+            @JsonProperty("destino_lon") Double destinoLon,
+            @JsonProperty("es_plantilla") Boolean esPlantilla,
+            @JsonProperty("fecha_operacion") String fechaOperacion
     ) {}
 
     public record OrigenDestinoResponse(UUID id, @JsonProperty("codigo_iata") String codigoIata, String nombre) {}
@@ -70,6 +80,9 @@ public class VueloService {
 
     public VueloPageResponse listar(String estado, String destinoIata, OffsetDateTime fechaDesde, OffsetDateTime fechaHasta, Pageable pageable) {
         Specification<Vuelo> spec = Specification.anyOf();
+
+        spec = spec.and((root, query, cb) ->
+                cb.equal(root.get("esPlantilla"), false));
 
         if (estado != null && !estado.isBlank()) {
             spec = spec.and((root, query, cb) ->
@@ -121,11 +134,16 @@ public class VueloService {
         vuelo.setOrigenLon(origen.getLongitud());
         vuelo.setDestinoLat(destino.getLatitud());
         vuelo.setDestinoLon(destino.getLongitud());
-        vuelo.setHoraSalida(request.hora_salida());
-        vuelo.setHoraLlegada(request.hora_llegada());
+        ZoneId zonaOrigen = ZoneId.of(origen.getZonaHoraria());
+        ZoneId zonaDestino = ZoneId.of(destino.getZonaHoraria());
+
+        vuelo.setHoraSalida(request.hora_salida().atZone(zonaOrigen).toOffsetDateTime());
+        vuelo.setHoraLlegada(request.hora_llegada().atZone(zonaDestino).toOffsetDateTime());
         vuelo.setCapacidadCarga(request.capacidad_carga());
         vuelo.setCargaDisponible(request.capacidad_carga());
         vuelo.setEstado(EstadoVuelo.PROGRAMADO);
+        vuelo.setEsPlantilla(false);
+        vuelo.setFechaOperacion(request.hora_salida().toLocalDate());
         vueloRepository.save(vuelo);
 
         return toResponse(vuelo);
@@ -145,6 +163,9 @@ public class VueloService {
         NodoLogistico destino = nodoRepository.findById(request.destino_id())
                 .orElseThrow(() -> new ValidacionException("Destino no encontrado"));
 
+        ZoneId zonaOrigen = ZoneId.of(origen.getZonaHoraria());
+        ZoneId zonaDestino = ZoneId.of(destino.getZonaHoraria());
+
         vuelo.setCodigoVuelo(request.codigo_vuelo());
         vuelo.setOrigen(origen);
         vuelo.setDestino(destino);
@@ -152,8 +173,8 @@ public class VueloService {
         vuelo.setOrigenLon(origen.getLongitud());
         vuelo.setDestinoLat(destino.getLatitud());
         vuelo.setDestinoLon(destino.getLongitud());
-        vuelo.setHoraSalida(request.hora_salida());
-        vuelo.setHoraLlegada(request.hora_llegada());
+        vuelo.setHoraSalida(request.hora_salida().atZone(zonaOrigen).toOffsetDateTime());
+        vuelo.setHoraLlegada(request.hora_llegada().atZone(zonaDestino).toOffsetDateTime());
         vuelo.setCapacidadCarga(request.capacidad_carga());
         vuelo.setCargaDisponible(request.capacidad_carga());
         vueloRepository.save(vuelo);
@@ -200,8 +221,50 @@ public class VueloService {
                 vuelo.getOrigen().getLatitud().doubleValue(),
                 vuelo.getOrigen().getLongitud().doubleValue(),
                 vuelo.getDestino().getLatitud().doubleValue(),
-                vuelo.getDestino().getLongitud().doubleValue()
+                vuelo.getDestino().getLongitud().doubleValue(),
+                vuelo.getEsPlantilla(),
+                vuelo.getFechaOperacion() != null ? vuelo.getFechaOperacion().toString() : null
         );
+    }
+
+    @Transactional
+    public int clonarPlantillas(LocalDate fechaOperacion) {
+        if (vueloRepository.existsByFechaOperacionAndEsPlantilla(fechaOperacion, false)) {
+            log.info("Ya existen instancias para fecha {}, omitiendo clonacion", fechaOperacion);
+            return 0;
+        }
+
+        List<Vuelo> plantillas = vueloRepository.findByEsPlantilla(true);
+
+        for (Vuelo plantilla : plantillas) {
+            Vuelo instancia = new Vuelo();
+            instancia.setId(UUID.randomUUID());
+            instancia.setPlanVuelos(plantilla.getPlanVuelos());
+            instancia.setCodigoVuelo(plantilla.getCodigoVuelo());
+            instancia.setOrigen(plantilla.getOrigen());
+            instancia.setDestino(plantilla.getDestino());
+            instancia.setOrigenLat(plantilla.getOrigenLat());
+            instancia.setOrigenLon(plantilla.getOrigenLon());
+            instancia.setDestinoLat(plantilla.getDestinoLat());
+            instancia.setDestinoLon(plantilla.getDestinoLon());
+            instancia.setCapacidadCarga(plantilla.getCapacidadCarga());
+            instancia.setCargaDisponible(plantilla.getCapacidadCarga());
+            instancia.setHoraSalida(OffsetDateTime.of(
+                    fechaOperacion,
+                    plantilla.getHoraSalida().toLocalTime(),
+                    plantilla.getHoraSalida().getOffset()));
+            instancia.setHoraLlegada(OffsetDateTime.of(
+                    fechaOperacion,
+                    plantilla.getHoraLlegada().toLocalTime(),
+                    plantilla.getHoraLlegada().getOffset()));
+            instancia.setEstado(EstadoVuelo.PROGRAMADO);
+            instancia.setEsPlantilla(false);
+            instancia.setFechaOperacion(fechaOperacion);
+            vueloRepository.save(instancia);
+        }
+
+        log.info("Clonadas {} plantillas para fecha {}", plantillas.size(), fechaOperacion);
+        return plantillas.size();
     }
 
     public static class VueloNoEncontradoException extends RuntimeException {

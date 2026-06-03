@@ -65,7 +65,7 @@ class MotorEnrutamientoTest {
         vuelo.setHoraLlegada(OffsetDateTime.parse("2025-06-15T22:00:00Z"));
 
         when(nodoRepository.findByCodigoIata("MIA")).thenReturn(Optional.of(destino));
-        when(vueloRepository.findByEstado(eq(EstadoVuelo.PROGRAMADO), any(Pageable.class)))
+        when(vueloRepository.findByEstadoAndEsPlantilla(eq(EstadoVuelo.PROGRAMADO), eq(false), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(vuelo)));
 
         RutaResult expected = new RutaResult(
@@ -98,7 +98,7 @@ class MotorEnrutamientoTest {
     @Test
     void strategyFailure_shouldPropagateError() {
         when(nodoRepository.findByCodigoIata("MIA")).thenReturn(Optional.of(destino));
-        when(vueloRepository.findByEstado(eq(EstadoVuelo.PROGRAMADO), any(Pageable.class)))
+        when(vueloRepository.findByEstadoAndEsPlantilla(eq(EstadoVuelo.PROGRAMADO), eq(false), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of()));
 
         when(greedyStrategy.calcularRuta(origen, destino, sla, List.of()))

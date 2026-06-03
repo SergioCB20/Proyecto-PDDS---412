@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -22,4 +23,13 @@ public interface VueloRepository extends JpaRepository<Vuelo, UUID>, JpaSpecific
     List<Vuelo> findByEstadoAndHoraSalidaBetween(EstadoVuelo estado, OffsetDateTime desde, OffsetDateTime hasta);
     List<Vuelo> findByEstadoIn(List<EstadoVuelo> estados);
     long countByEstado(EstadoVuelo estado);
+
+    List<Vuelo> findByEstadoAndEsPlantillaAndHoraSalidaLessThanEqual(EstadoVuelo estado, Boolean esPlantilla, OffsetDateTime hora);
+    List<Vuelo> findByEstadoAndEsPlantillaAndHoraLlegadaLessThanEqual(EstadoVuelo estado, Boolean esPlantilla, OffsetDateTime hora);
+    List<Vuelo> findByEstadoInAndEsPlantilla(List<EstadoVuelo> estados, Boolean esPlantilla);
+    List<Vuelo> findByEstadoAndEsPlantillaAndHoraSalidaBetween(EstadoVuelo estado, Boolean esPlantilla, OffsetDateTime desde, OffsetDateTime hasta);
+    Page<Vuelo> findByEstadoAndEsPlantilla(EstadoVuelo estado, Boolean esPlantilla, Pageable pageable);
+    List<Vuelo> findByEsPlantilla(Boolean esPlantilla);
+    long countByEstadoAndEsPlantilla(EstadoVuelo estado, Boolean esPlantilla);
+    boolean existsByFechaOperacionAndEsPlantilla(LocalDate fechaOperacion, Boolean esPlantilla);
 }

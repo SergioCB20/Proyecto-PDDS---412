@@ -73,8 +73,6 @@ public class PlanificacionWorker {
 
         if (haySesionActiva()) {
             procesarBatch();
-        } else {
-            procesarItemSimple();
         }
     }
 
@@ -150,19 +148,21 @@ public class PlanificacionWorker {
 
     private void completarItemConRuta(ColaPlanificacion item, Equipaje equipaje, RutaResult ruta) {
         Vuelo vueloActual = equipaje.getVueloActual();
-        if (vueloActual == null) {
-            throw new RuntimeException("Equipaje " + equipaje.getId() + " no tiene vuelo asignado");
-        }
-        NodoLogistico origen = vueloActual.getOrigen();
-        if (origen == null) {
-            throw new RuntimeException("Vuelo " + vueloActual.getId() + " no tiene nodo origen");
-        }
-
-        if (origen.getOcupacionActual() >= origen.getCapacidadAlmacen()) {
-            throw new RuntimeException("Capacidad de almacen superada en " + origen.getCodigoIata());
-        }
-        if (vueloActual.getCargaDisponible() <= 0) {
-            throw new RuntimeException("Capacidad del vuelo " + vueloActual.getCodigoVuelo() + " agotada");
+        NodoLogistico origen;
+        if (vueloActual != null) {
+            origen = vueloActual.getOrigen();
+            if (origen == null) {
+                throw new RuntimeException("Vuelo " + vueloActual.getId() + " no tiene nodo origen");
+            }
+            if (origen.getOcupacionActual() >= origen.getCapacidadAlmacen()) {
+                throw new RuntimeException("Capacidad de almacen superada en " + origen.getCodigoIata());
+            }
+            if (vueloActual.getCargaDisponible() <= 0) {
+                throw new RuntimeException("Capacidad del vuelo " + vueloActual.getCodigoVuelo() + " agotada");
+            }
+        } else {
+            origen = nodoRepository.findByCodigoIata(equipaje.getOrigenIata())
+                    .orElseThrow(() -> new RuntimeException("Origen no encontrado: " + equipaje.getOrigenIata()));
         }
 
         PlanViaje planViaje = new PlanViaje();
@@ -172,8 +172,8 @@ public class PlanificacionWorker {
         planViaje.setTiempoEntregaEst(ruta.segmentos().get(ruta.segmentos().size() - 1).horaLlegada());
         planViaje.setUbicacionTipo(UbicacionTipo.VUELO);
         planViaje.setUbicacionId(ruta.segmentos().get(0).vueloId());
-        planViaje.setUbicacionLat(vueloActual.getOrigenLat());
-        planViaje.setUbicacionLon(vueloActual.getOrigenLon());
+        planViaje.setUbicacionLat(origen.getLatitud());
+        planViaje.setUbicacionLon(origen.getLongitud());
         planViajeRepository.save(planViaje);
 
         for (SegmentoInfo segInfo : ruta.segmentos()) {
@@ -236,8 +236,14 @@ public class PlanificacionWorker {
             Equipaje equipaje = equipajeRepository.findById(item.getEquipajeId())
                     .orElseThrow(() -> new RuntimeException("Equipaje no encontrado: " + item.getEquipajeId()));
 
+            NodoLogistico origen = nodoRepository.findByCodigoIata(equipaje.getOrigenIata())
+                    .orElse(null);
+            if (origen == null) {
+                throw new RuntimeException("Origen no encontrado para equipaje: " + equipaje.getOrigenIata());
+            }
+
             RutaResult ruta = motorEnrutamiento.calcularRuta(
-                    equipaje.getVueloActual().getOrigen(),
+                    origen,
                     equipaje.getDestinoIata(),
                     equipaje.getSlaComprometido());
 

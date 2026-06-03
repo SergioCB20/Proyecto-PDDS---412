@@ -29,6 +29,12 @@ public class NodoLogistico {
     @Column(name = "ocupacion_actual", nullable = false)
     private Integer ocupacionActual = 0;
 
+    @Column(name = "zona_horaria", length = 50)
+    private String zonaHoraria;
+
+    @Column(length = 20)
+    private String continente;
+
     public NodoLogistico() {}
 
     public NodoLogistico(UUID id, String codigoIata, String nombre, BigDecimal latitud, BigDecimal longitud, Integer capacidadAlmacen) {
@@ -61,6 +67,12 @@ public class NodoLogistico {
 
     public Integer getOcupacionActual() { return ocupacionActual; }
     public void setOcupacionActual(Integer ocupacionActual) { this.ocupacionActual = ocupacionActual; }
+
+    public String getZonaHoraria() { return zonaHoraria; }
+    public void setZonaHoraria(String zonaHoraria) { this.zonaHoraria = zonaHoraria; }
+
+    public String getContinente() { return continente; }
+    public void setContinente(String continente) { this.continente = continente; }
 
     public double getOcupacionPorcentaje() {
         if (capacidadAlmacen == null || capacidadAlmacen == 0) return 0;

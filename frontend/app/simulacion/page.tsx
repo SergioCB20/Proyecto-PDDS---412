@@ -1,15 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Play, Settings, AlertCircle } from 'lucide-react';
+import { Play, Settings, AlertCircle, ArrowRight, Clock, Square } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { api } from '@/lib/api';
 
-interface SesionResponse {
+interface SesionListaItem {
   id: string;
+  tipo: string;
+  tipo_simulacion: string;
+  estado: string;
+  fecha_inicio_virtual: string;
+  created_at: string;
 }
 
 interface Configuracion {
@@ -26,6 +31,9 @@ export default function SimulacionPage() {
   const router = useRouter();
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState(false);
+  const [sesionesActivas, setSesionesActivas] = useState<SesionListaItem[]>([]);
+  const [finalizandoId, setFinalizandoId] = useState<string | null>(null);
+
   const [config, setConfig] = useState<Configuracion>({
     fecha_inicio_virtual: '2025-06-01',
     hora_inicio_virtual: '08:00',
@@ -35,6 +43,31 @@ export default function SimulacionPage() {
     umbral_vuelo_verde: 75,
     umbral_vuelo_ambar: 90,
   });
+
+  useEffect(() => {
+    api.get<SesionListaItem[]>('/sesiones?estado=EN_CURSO').then(enCurso =>
+      api.get<SesionListaItem[]>('/sesiones?estado=PAUSADA').then(pausadas => {
+        setSesionesActivas([...enCurso, ...pausadas]);
+      })
+    ).catch(() => {});
+  }, []);
+
+  const sesionEnCurso = sesionesActivas.find(s => s.estado === 'EN_CURSO');
+  const sesionPausada = sesionesActivas.find(s => s.estado === 'PAUSADA');
+
+  const handleFinalizar = async (id: string) => {
+    setFinalizandoId(id);
+    setError('');
+    try {
+      await api.post(`/sesiones/${id}/detener`, {});
+      setSesionesActivas(prev => prev.filter(s => s.id !== id));
+    } catch (err: unknown) {
+      const e = err as { mensaje?: string; message?: string };
+      setError(e.mensaje || e.message || 'Error al finalizar la sesion');
+    } finally {
+      setFinalizandoId(null);
+    }
+  };
 
   const handleIniciar = async () => {
     setError('');
@@ -81,13 +114,75 @@ export default function SimulacionPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-            Nueva Simulacion
+            Simulacion
           </h1>
           <p className="text-sm text-slate-500">
             Configura los parametros de la sesion de simulacion
           </p>
         </div>
       </div>
+
+      {sesionEnCurso && (
+        <div className="mb-6 p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Clock size={20} className="text-blue-600 dark:text-blue-400" />
+            <div>
+              <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                Simulacion activa detectada
+              </p>
+              <p className="text-xs text-blue-600 dark:text-blue-400">
+                Fecha virtual: {sesionEnCurso.fecha_inicio_virtual} &middot; Creada: {new Date(sesionEnCurso.created_at).toLocaleString()}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={finalizandoId === sesionEnCurso.id}
+              onClick={() => handleFinalizar(sesionEnCurso.id)}
+            >
+              <Square size={14} className="mr-1" />
+              {finalizandoId === sesionEnCurso.id ? 'Finalizando...' : 'Finalizar'}
+            </Button>
+            <Button size="sm" onClick={() => router.push(`/simulacion/${sesionEnCurso.id}`)}>
+              <ArrowRight size={14} className="mr-1" />
+              Reanudar
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {sesionPausada && !sesionEnCurso && (
+        <div className="mb-6 p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Square size={20} className="text-yellow-600 dark:text-yellow-400" />
+            <div>
+              <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                Simulacion pausada detectada
+              </p>
+              <p className="text-xs text-yellow-600 dark:text-yellow-400">
+                Fecha virtual: {sesionPausada.fecha_inicio_virtual} &middot; Creada: {new Date(sesionPausada.created_at).toLocaleString()}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={finalizandoId === sesionPausada.id}
+              onClick={() => handleFinalizar(sesionPausada.id)}
+            >
+              <Square size={14} className="mr-1" />
+              {finalizandoId === sesionPausada.id ? 'Finalizando...' : 'Finalizar'}
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => router.push(`/simulacion/${sesionPausada.id}`)}>
+              <ArrowRight size={14} className="mr-1" />
+              Continuar
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card title="Fecha y Hora">
@@ -211,4 +306,8 @@ export default function SimulacionPage() {
       </div>
     </div>
   );
+}
+
+interface SesionResponse {
+  id: string;
 }

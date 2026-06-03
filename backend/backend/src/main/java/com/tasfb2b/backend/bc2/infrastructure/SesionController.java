@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -18,6 +19,12 @@ public class SesionController {
 
     public SesionController(SesionService sesionService) {
         this.sesionService = sesionService;
+    }
+
+    @GetMapping
+    public ResponseEntity<List<SesionListaResponse>> listarSesiones(
+            @RequestParam(required = false) String estado) {
+        return ResponseEntity.ok(sesionService.listarSesiones(estado));
     }
 
     @PostMapping
