@@ -128,10 +128,10 @@ jobs:
             sudo pg_isready -q 2>/dev/null || sudo systemctl start postgresql@16-main 2>/dev/null || echo "⚠️ PostgreSQL check skipped"
 
             # 6. Limpiar deploy anterior
-            sudo rm -rf /opt/tomcat11/webapps/back /opt/tomcat11/webapps/back.war
+            sudo rm -rf /opt/tomcat11/webapps/ROOT /opt/tomcat11/webapps/ROOT.war
 
-            # 7. Copiar nuevo WAR como back.war (context-path /back)
-            sudo cp target/*.war /opt/tomcat11/webapps/back.war
+            # 7. Copiar nuevo WAR como ROOT.war (context-path /)
+            sudo cp target/*.war /opt/tomcat11/webapps/ROOT.war
 
             # 8. Verificar que PostgreSQL esté listo
             sudo pg_isready -q 2>/dev/null || sudo systemctl start postgresql@16-main 2>/dev/null || echo "⚠️ PostgreSQL check skipped"
