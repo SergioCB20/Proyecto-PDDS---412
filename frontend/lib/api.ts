@@ -1,6 +1,17 @@
 import type { ApiError } from './types';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
+function getBaseUrl(): string {
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
+    }
+    return '/back/api';
+  }
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
+}
+
+const BASE_URL = getBaseUrl();
 const REQUEST_TIMEOUT_MS = 15_000;
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {

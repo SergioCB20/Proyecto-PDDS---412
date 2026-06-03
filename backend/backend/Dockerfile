@@ -10,6 +10,6 @@ RUN mvn clean package -DskipTests
 FROM tomcat:10.1-jdk21-temurin
 WORKDIR /usr/local/tomcat
 RUN rm -rf webapps/*
-COPY --from=build /app/target/*.war webapps/ROOT.war
+COPY --from=build /app/target/*.war webapps/back.war
 EXPOSE 8080
 CMD ["catalina.sh", "run"]
