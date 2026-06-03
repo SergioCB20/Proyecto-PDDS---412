@@ -36,8 +36,12 @@ Alternativa considerada: Extraer a `lib/colors.ts`. Se descartó porque agregar 
 **Decisión:** Mostrar un indicador (punto verde/rojo + texto "Telemetría conectada/desconectada") en el panel lateral de métricas, similar al indicador SSE de la vista de operación.
 **Razón:** El hook `useTelemetria` ya expone `connected`. Solo es cuestión de renderizarlo. Da visibilidad inmediata al analista sobre el estado de la conexión en tiempo real.
 
+### D4: Carga inicial REST como fallback
+**Decisión:** En el montaje del componente, se ejecuta un `useEffect` que llama `GET /nodos` y `GET /vuelos?size=50` para cargar datos iniciales. Los nodos REST se mapean a `NodoEnMapa[]` con colores calculados por porcentaje de ocupación. Se usa una variable combinada: si hay datos de telemetría (WebSocket), se muestran esos; si no, se muestran los datos REST iniciales.
+**Razón:** La página de simulación dependía exclusivamente del WebSocket para mostrar datos. Si el WebSocket no conecta (por red, proxy, o token), el mapa se quedaba vacío sin feedback para el usuario. La carga REST inicial garantiza que el mapa siempre tenga nodos y vuelos visibles desde el primer render. Cuando el WebSocket conecta y envía datos, la telemetría reemplaza automáticamente los datos iniciales.
+
 ## Risks / Trade-offs
 
-- **[Bajo] Nodos sin datos de telemetría**: Si el WebSocket no está conectado, `telemetria?.nodos` es `[]` y no se renderiza nada. Esto es comportamiento esperado — el indicador de conexión ayuda a diagnosticarlo.
+- **[Bajo] Datos REST vs telemetría desincronizados**: Los datos REST pueden no reflejar el estado exacto de la simulación (ej: vuelos que ya cambiaron de estado). Mitigación: los datos REST son solo un placeholder visual inicial; la telemetría los reemplaza en cuanto llega el primer mensaje WebSocket (tipicamente < 5s).
 - **[Bajo] Cambio en backend de nombres de color**: Si el backend cambia `"VERDE"` a `"GREEN"`, el mapeo fallaría. Mitigación: el mapeo tiene un fallback a `#6b7280` (gris) para cualquier valor no reconocido.
 - **[Medio] Leaflet no refresca marcadores**: React-Leaflet a veces no actualiza el `CircleMarker` si cambian solo las `pathOptions`. Mitigación: usar `key` prop con `nodo.codigo_iata` + `nodo.color` para forzar recreación cuando cambia el color.

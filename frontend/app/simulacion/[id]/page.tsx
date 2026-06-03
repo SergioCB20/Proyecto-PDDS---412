@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { api } from '@/lib/api';
 import { useTelemetria } from '@/lib/useTelemetria';
-import type { NodoEnMapa, VueloEnMapa, MetricasSimulacion } from '@/lib/types';
+import type { Nodo, NodoEnMapa, Vuelo, VueloEnMapa, VueloPageResponse, MetricasSimulacion } from '@/lib/types';
 
 const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false });
 
@@ -62,6 +62,30 @@ function SimulacionContent() {
   const [, setError] = useState<string>('');
   const { data: telemetria, connected } = useTelemetria(estado === 'EN_CURSO');
 
+  const [initialNodos, setInitialNodos] = useState<NodoEnMapa[]>([]);
+  const [initialVuelos, setInitialVuelos] = useState<VueloEnMapa[]>([]);
+
+  useEffect(() => {
+    async function loadInitial() {
+      try {
+        const [nodosData, vuelosData] = await Promise.all([
+          api.get<Nodo[]>('/nodos'),
+          api.get<VueloPageResponse>('/vuelos?size=50'),
+        ]);
+        setInitialNodos(
+          nodosData.map(n => {
+            const pct = n.capacidad_almacen > 0 ? (n.ocupacion_actual / n.capacidad_almacen) * 100 : 0;
+            const color = pct < 70 ? '#22c55e' : pct < 90 ? '#eab308' : '#ef4444';
+            return { ...n, color, ocupacionPorcentaje: pct };
+          })
+        );
+        setInitialVuelos(vuelosData.content.map((v: Vuelo): VueloEnMapa => ({ ...v })));
+      } catch {
+      }
+    }
+    loadInitial();
+  }, []);
+
   const [metricasPoll, setMetricasPoll] = useState<MetricasSimulacion>({
     sesion_id: sesionIdParam,
     estado: 'CONFIGURADA',
@@ -74,7 +98,7 @@ function SimulacionContent() {
 
   const metricas = telemetria?.metricas_sesion ?? metricasPoll;
 
-  const nodosEnMapa: NodoEnMapa[] = useMemo(() =>
+  const nodosTelemetria: NodoEnMapa[] = useMemo(() =>
     (telemetria?.nodos ?? []).map(n => ({
       id: n.id,
       codigo_iata: n.codigo_iata,
@@ -87,7 +111,7 @@ function SimulacionContent() {
       ocupacionPorcentaje: n.ocupacion_pct,
     })), [telemetria]);
 
-  const vuelos: VueloEnMapa[] = useMemo(() =>
+  const vuelosTelemetria: VueloEnMapa[] = useMemo(() =>
     (telemetria?.vuelos ?? []).map(v => ({
       id: v.id,
       codigo_vuelo: v.codigo_vuelo,
@@ -104,6 +128,10 @@ function SimulacionContent() {
       carga_disponible: 0,
       posicionActual: { lat: v.lat_actual, lon: v.lon_actual },
     })), [telemetria]);
+
+  const hayTelemetria = telemetria !== null && (telemetria.nodos?.length > 0 || telemetria.vuelos?.length > 0);
+  const nodosMapa = hayTelemetria ? nodosTelemetria : initialNodos;
+  const vuelosMapa = hayTelemetria ? vuelosTelemetria : initialVuelos;
 
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -210,8 +238,8 @@ function SimulacionContent() {
     <div className="flex h-[calc(100vh-3.5rem)]">
       <div className="flex-1 p-4">
 <GeoMapa
-          nodos={nodosEnMapa}
-          vuelos={vuelos}
+          nodos={nodosMapa}
+          vuelos={vuelosMapa}
           mostrarAviones={true}
           animacionActiva={estado === 'EN_CURSO'}
           className="h-full"

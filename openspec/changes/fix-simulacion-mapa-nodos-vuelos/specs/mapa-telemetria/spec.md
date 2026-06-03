@@ -49,3 +49,17 @@ The simulation page SHALL display a visual indicator showing whether the telemet
 #### Scenario: WebSocket disconnected shows red indicator
 - **WHEN** `useTelemetria` returns `connected: false`
 - **THEN** a red dot with "Telemetría desconectada" SHALL be displayed in the sidebar
+
+### Requirement: Initial REST data loads as map fallback
+The simulation page SHALL fetch nodes and flights from REST endpoints (`GET /nodos`, `GET /vuelos`) on component mount and display them on the map while the WebSocket has not yet delivered telemetry data. Once telemetry data arrives (WebSocket message with non-empty nodos or vuelos), the REST data SHALL be replaced by telemetry data.
+
+#### Scenario: Page loads before WebSocket connects
+- **WHEN** the simulation page mounts
+- **THEN** `GET /nodos` and `GET /vuelos` SHALL be called
+- **THEN** the map SHALL render nodes and flights from REST data
+- **THEN** the sidebar SHALL show "Telemetría desconectada"
+
+#### Scenario: Telemetry data replaces REST data
+- **WHEN** the WebSocket delivers a message with `nodos` or `vuelos` arrays
+- **THEN** the map SHALL switch to rendering telemetry data
+- **THEN** the sidebar SHALL show "Telemetría conectada"
