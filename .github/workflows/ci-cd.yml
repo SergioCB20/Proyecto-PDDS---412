@@ -151,7 +151,7 @@ jobs:
             # ── Health check progresivo ──────────
             echo "Waiting for backend to be ready..."
             for i in $(seq 1 18); do
-              if curl -sf http://localhost:8080/back/health > /dev/null 2>&1; then
+              if curl -sf http://localhost:8080/health > /dev/null 2>&1; then
                 echo "✅ Backend healthy after ${i}0s"
                 break
               fi

@@ -1,4 +1,4 @@
-ALTER TABLE nodos_logisticos ADD COLUMN continente VARCHAR(20);
+ALTER TABLE nodos_logisticos ADD COLUMN IF NOT EXISTS continente VARCHAR(20);
 
 UPDATE nodos_logisticos SET continente = 'Sur America'
 WHERE codigo_iata IN ('SKBO','SEQM','SVMI','SBBR','SPIM','SLLP','SCEL','SABE','SGAS','SUAA');
