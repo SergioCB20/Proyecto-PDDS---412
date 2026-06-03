@@ -111,25 +111,29 @@ jobs:
             # ── Backend ──────────────────────────
             cd backend/backend
 
-            /opt/apache-maven-3.9.16/bin/mvn clean package -DskipTests
+            # 1. Detener Tomcat primero para liberar locks
+            sudo systemctl stop tomcat11
 
-            # 1. Verificar integridad del WAR
+            # 2. Limpiar build anterior (evita error de maven-clean-plugin)
+            rm -rf target/
+
+            # 3. Compilar (sin clean, target/ ya fue eliminado)
+            /opt/apache-maven-3.9.16/bin/mvn package -DskipTests
+
+            # 4. Verificar integridad del WAR
             unzip -t target/*.war > /dev/null 2>&1
             echo "✅ WAR integrity verified"
 
-            # 2. Asegurar que PostgreSQL esté listo
+            # 5. Asegurar que PostgreSQL esté listo
             sudo pg_isready -q 2>/dev/null || sudo systemctl start postgresql@16-main 2>/dev/null || echo "⚠️ PostgreSQL check skipped"
 
-            # 3. Detener Tomcat antes de limpiar
-            sudo systemctl stop tomcat11
+            # 6. Limpiar deploy anterior
+            sudo rm -rf /opt/tomcat11/webapps/back /opt/tomcat11/webapps/back.war
 
-            # 4. Limpiar deploy anterior
-            sudo rm -rf /opt/tomcat11/webapps/ROOT /opt/tomcat11/webapps/ROOT.war
+            # 7. Copiar nuevo WAR como back.war (context-path /back)
+            sudo cp target/*.war /opt/tomcat11/webapps/back.war
 
-            # 5. Copiar nuevo WAR
-            sudo cp target/*.war /opt/tomcat11/webapps/ROOT.war
-
-            # 6. Iniciar Tomcat
+            # 8. Iniciar Tomcat
             sudo systemctl start tomcat11
             echo "✅ Backend WAR deployed. Tomcat started."
 
@@ -144,7 +148,7 @@ jobs:
             # ── Health check progresivo ──────────
             echo "Waiting for backend to be ready..."
             for i in $(seq 1 12); do
-              if curl -sf http://localhost:8080/health > /dev/null 2>&1; then
+              if curl -sf http://localhost:8080/back/health > /dev/null 2>&1; then
                 echo "✅ Backend healthy after ${i}0s"
                 break
               fi
