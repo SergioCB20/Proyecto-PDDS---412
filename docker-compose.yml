@@ -46,6 +46,7 @@ services:
       SIMULACION_SA: "120"
       RUTA_ENVIOS: /data/envios/
       APP_REPORTES_RUTA_ARCHIVOS: /data/reportes
+      CONTEXT_PATH: /back
     volumes:
       - ./backend/backend/src/main/resources/data:/data/envios
       - ./backend/backend/src/main/resources/reportes:/data/reportes
@@ -67,7 +68,7 @@ services:
       - /app/node_modules
       - /app/.next
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8080/api
+      NEXT_PUBLIC_API_URL: http://localhost:8080/back/api
       PORT: "5000"
     depends_on:
       - backend
