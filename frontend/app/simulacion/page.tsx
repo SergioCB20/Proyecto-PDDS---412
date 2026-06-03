@@ -44,19 +44,12 @@ export default function SimulacionPage() {
     umbral_vuelo_ambar: 90,
   });
 
-  async function fetchSesiones() {
-    try {
-      const [enCurso, pausadas] = await Promise.all([
-        api.get<SesionListaItem[]>('/sesiones?estado=EN_CURSO'),
-        api.get<SesionListaItem[]>('/sesiones?estado=PAUSADA'),
-      ]);
-      setSesionesActivas([...enCurso, ...pausadas]);
-    } catch {
-    }
-  }
-
   useEffect(() => {
-    fetchSesiones();
+    api.get<SesionListaItem[]>('/sesiones?estado=EN_CURSO').then(enCurso =>
+      api.get<SesionListaItem[]>('/sesiones?estado=PAUSADA').then(pausadas => {
+        setSesionesActivas([...enCurso, ...pausadas]);
+      })
+    ).catch(() => {});
   }, []);
 
   const sesionEnCurso = sesionesActivas.find(s => s.estado === 'EN_CURSO');

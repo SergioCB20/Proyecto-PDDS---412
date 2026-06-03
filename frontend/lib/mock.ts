@@ -118,7 +118,15 @@ export const MOCK_VUELOS: Vuelo[] = [
     hora_llegada: '2025-06-15T10:00:00Z',
     capacidad_carga: 120, carga_disponible: 60,
     es_plantilla: false, fecha_operacion: '2025-06-15',
-  };
+  },
+];
+
+export function nodoToEnMapa(nodo: Nodo): NodoEnMapa {
+  const pct = nodo.capacidad_almacen > 0
+    ? (nodo.ocupacion_actual / nodo.capacidad_almacen) * 100
+    : 0;
+  const color = pct > 90 ? '#dc2626' : pct > 70 ? '#ca8a04' : '#16a34a';
+  return { ...nodo, color, ocupacionPorcentaje: pct };
 }
 
 export function calcularPosicionAvion(

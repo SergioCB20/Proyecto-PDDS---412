@@ -92,9 +92,7 @@ export default function AvionAnimado({ vuelo, animacionActiva = false }: AvionAn
     }
     return [vuelo.origen_lat, vuelo.origen_lon];
   });
-  const [icono, setIcono] = useState(() =>
-    crearIconoAvion(COLORES[vuelo.estado] || '#6b7280', bearing)
-  );
+  const icono = crearIconoAvion(COLORES[vuelo.estado] || '#6b7280', bearing);
 
   useEffect(() => {
     const marker = markerRef.current;
@@ -113,8 +111,6 @@ export default function AvionAnimado({ vuelo, animacionActiva = false }: AvionAn
       prevEstadoRef.current = vuelo.estado;
     }
 
-    setIcono(crearIconoAvion(COLORES[vuelo.estado] || '#6b7280', bearing));
-
     if (!animacionActiva || distTotal === 0) {
       const [lat, lng] = calcPosicionEnRuta(origenLL, destinoLL, progresoObjetivo);
       marker.setLatLng([lat, lng]);
@@ -131,7 +127,7 @@ export default function AvionAnimado({ vuelo, animacionActiva = false }: AvionAn
       const suavizado = easeInOutQuad(t);
       const progActual = progInicio + (progresoObjetivo - progInicio) * suavizado;
       const [lat, lng] = calcPosicionEnRuta(origenLL, destinoLL, progActual);
-      marker.setLatLng([lat, lng]);
+      if (marker) marker.setLatLng([lat, lng]);
       if (t < 1) {
         animRef.current = requestAnimationFrame(animar);
       } else {

@@ -78,6 +78,7 @@ function SimulacionContent() {
       longitud: n.lon,
       capacidad_almacen: 0,
       ocupacion_actual: 0,
+      zona_horaria: '',
       color: n.color,
       ocupacionPorcentaje: n.ocupacion_pct,
     })), [telemetria]);
@@ -97,6 +98,8 @@ function SimulacionContent() {
       hora_llegada: '',
       capacidad_carga: 0,
       carga_disponible: 0,
+      es_plantilla: false,
+      fecha_operacion: '',
       posicionActual: { lat: v.lat_actual, lon: v.lon_actual },
     })), [telemetria]);
 
@@ -107,7 +110,7 @@ function SimulacionContent() {
     try {
       const data = await api.get<MetricasSimulacion>(`/sesiones/${backendSesionId}/metricas`);
       setMetricasPoll(data);
-      if (accionRef.current !== 'detener') {
+      if (accionRef.current === 'ninguna') {
         setEstado(data.estado);
       }
     } catch {
