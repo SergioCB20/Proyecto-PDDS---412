@@ -1,14 +1,14 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
-### Requirement: Frontend muestra errores de conexión al usuario
+### Requirement: Frontend MUST show connection errors to the user
 
-El frontend DEBE mostrar un mensaje de error visible cuando no puede comunicarse con el backend o cuando el backend rechaza la solicitud. NO DEBE silenciar errores con datos mock.
+The frontend MUST display a visible error message when it cannot communicate with the backend or when the backend rejects the request. It MUST NOT silence errors with mock data.
 
 #### Scenario: Backend no disponible
 
 - **GIVEN** la página de operación intenta cargar datos
 - **WHEN** el backend no responde (servidor caído, red caída, CORS)
-- **THEN** el frontend NO mustra datos mock como fallback
+- **THEN** the frontend MUST NOT show mock data as fallback
 - **THEN** el frontend muestra un banner rojo con el mensaje: "Error de conexion con el servidor"
 - **THEN** el frontend continúa el polling cada 5s para reconectar automáticamente
 
@@ -17,7 +17,7 @@ El frontend DEBE mostrar un mensaje de error visible cuando no puede comunicarse
 - **GIVEN** un usuario sin rol `OPERADOR_LOGISTICO` navega a `/operacion`
 - **WHEN** el frontend intenta `GET /api/nodos` o `POST /api/equipajes`
 - **THEN** el frontend muestra el mensaje de error del backend (ej. "Acceso denegado")
-- **THEN** el frontend NO mustra datos mock
+- **THEN** the frontend MUST NOT show mock data
 
 #### Scenario: Polling exitoso después de error
 

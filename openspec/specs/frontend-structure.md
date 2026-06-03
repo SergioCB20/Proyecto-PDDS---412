@@ -119,7 +119,9 @@ export const auth = {
 
 ---
 
-## Middleware de protección de rutas (`middleware.ts`)
+## Middleware de protección de rutas (`proxy.ts`)
+
+Next.js 16 uses `proxy.ts` as the middleware convention (the `middleware.ts` file convention is deprecated). The middleware is defined in `frontend/proxy.ts` and handles role-based route protection with JWT stored in a cookie named `token`. The base path is `/front`.
 
 ```typescript
 import { NextRequest, NextResponse } from 'next/server';
@@ -239,6 +241,25 @@ El cliente HTTP (`lib/api.ts`) SHALL tener un timeout configurado de 15 segundos
 #### Scenario: Timeout aplica a upload y downloadBlob
 - **WHEN** se usa `api.upload()` o `api.downloadBlob()`
 - **THEN** ambos métodos SHALL respetar el timeout de 15 segundos
+
+### Requirement: Runtime validation for estado fields from backend
+
+Every `estado` field received from the backend (via REST, WebSocket, or SSE) that maps to a TypeScript union literal type SHALL be validated at runtime before use. A helper function SHALL check the value against the known valid values and provide a safe fallback for unrecognized values.
+
+#### Scenario: Valid estado value received
+- **WHEN** the backend sends a `VueloTelemetria` with `estado: "EN_RUTA"` via WebSocket
+- **THEN** the runtime validator SHALL recognize `"EN_RUTA"` as valid
+- **THEN** the typed value `"EN_RUTA"` SHALL be returned
+
+#### Scenario: Unknown estado value received
+- **WHEN** the backend sends a `VueloTelemetria` with `estado: "DESVIADO"` (not in the known union)
+- **THEN** the runtime validator SHALL return the fallback value `"PROGRAMADO"`
+- **THEN** the system SHALL NOT crash or render an invalid state
+
+#### Scenario: Helper signature
+- **WHEN** the helper function is called with any string
+- **THEN** it SHALL return a value of the expected union type (`'PROGRAMADO' | 'EN_RUTA' | 'CANCELADO' | 'COMPLETADO'`)
+- **THEN** TypeScript SHALL recognize the return type as the union, not `string`
 
 ### Requirement: Suspense boundary en página de reporte
 La página `app/simulacion/[id]/reporte/page.tsx` SHALL estar envuelta en un `<Suspense>` boundary de React para permitir la resolución asíncrona de `useParams()` en Next.js 16.

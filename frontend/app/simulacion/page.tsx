@@ -2,10 +2,15 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Play, Settings } from 'lucide-react';
+import { Play, Settings, AlertCircle } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { api } from '@/lib/api';
+
+interface SesionResponse {
+  id: string;
+}
 
 interface Configuracion {
   fecha_inicio_virtual: string;
@@ -19,6 +24,8 @@ interface Configuracion {
 
 export default function SimulacionPage() {
   const router = useRouter();
+  const [error, setError] = useState<string>('');
+  const [loading, setLoading] = useState(false);
   const [config, setConfig] = useState<Configuracion>({
     fecha_inicio_virtual: '2025-06-01',
     hora_inicio_virtual: '08:00',
@@ -29,17 +36,41 @@ export default function SimulacionPage() {
     umbral_vuelo_ambar: 90,
   });
 
-  const handleIniciar = () => {
-    const id = Math.random().toString(36).substring(2, 10);
-    const params = new URLSearchParams({
-      ...config,
-      prob_cancelacion: config.prob_cancelacion.toString(),
-      umbral_almacen_verde: config.umbral_almacen_verde.toString(),
-      umbral_almacen_ambar: config.umbral_almacen_ambar.toString(),
-      umbral_vuelo_verde: config.umbral_vuelo_verde.toString(),
-      umbral_vuelo_ambar: config.umbral_vuelo_ambar.toString(),
-    });
-    router.push(`/simulacion/${id}?${params}`);
+  const handleIniciar = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const res = await api.post<SesionResponse>('/sesiones', {
+        tipo: 'SIMULADA',
+        fecha_inicio_virtual: config.fecha_inicio_virtual,
+        hora_inicio_virtual: config.hora_inicio_virtual + ':00',
+        prob_cancelacion: config.prob_cancelacion / 100,
+        umbrales_almacen: {
+          verde_min: 0, verde_max: config.umbral_almacen_verde,
+          ambar_min: config.umbral_almacen_verde, ambar_max: config.umbral_almacen_ambar,
+          rojo_min: config.umbral_almacen_ambar, rojo_max: 100,
+        },
+        umbrales_vuelo: {
+          verde_min: 0, verde_max: config.umbral_vuelo_verde,
+          ambar_min: config.umbral_vuelo_verde, ambar_max: config.umbral_vuelo_ambar,
+          rojo_min: config.umbral_vuelo_ambar, rojo_max: 100,
+        },
+      });
+      const params = new URLSearchParams({
+        ...config,
+        prob_cancelacion: config.prob_cancelacion.toString(),
+        umbral_almacen_verde: config.umbral_almacen_verde.toString(),
+        umbral_almacen_ambar: config.umbral_almacen_ambar.toString(),
+        umbral_vuelo_verde: config.umbral_vuelo_verde.toString(),
+        umbral_vuelo_ambar: config.umbral_vuelo_ambar.toString(),
+      });
+      router.push(`/simulacion/${res.id}?${params}`);
+    } catch (err: unknown) {
+      const e = err as { mensaje?: string; message?: string };
+      setError(e.mensaje || e.message || 'Error al crear la sesion');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -166,10 +197,16 @@ export default function SimulacionPage() {
         </Card>
       </div>
 
+      {error && (
+        <div className="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 flex items-center gap-2 text-sm text-red-700 dark:text-red-400">
+          <AlertCircle size={16} />
+          {error}
+        </div>
+      )}
       <div className="mt-6 flex justify-end">
-        <Button size="lg" onClick={handleIniciar}>
+        <Button size="lg" onClick={handleIniciar} disabled={loading}>
           <Play size={18} className="mr-2" />
-          Iniciar Simulacion
+          {loading ? 'Creando sesion...' : 'Iniciar Simulacion'}
         </Button>
       </div>
     </div>
