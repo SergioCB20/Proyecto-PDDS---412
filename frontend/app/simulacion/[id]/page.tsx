@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams, useParams, useRouter } from 'next/navigation';
-import { Play, Pause, Square, Clock, AlertTriangle, RefreshCw, Activity, FileText } from 'lucide-react';
+import { Play, Pause, Square, Clock, AlertTriangle, RefreshCw, Activity, FileText, Wifi, WifiOff } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -13,6 +13,12 @@ import type { NodoEnMapa, VueloEnMapa, MetricasSimulacion } from '@/lib/types';
 const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false });
 
 const ESTADOS_VUELO_VALIDOS = ['PROGRAMADO', 'EN_RUTA', 'CANCELADO', 'COMPLETADO'] as const;
+
+const COLOR_NODO_MAP = {
+  VERDE: '#22c55e',
+  AMBAR: '#eab308',
+  ROJO: '#ef4444',
+} as const;
 
 function matchEstadoVuelo(valor: string): VueloEnMapa['estado'] {
   if (ESTADOS_VUELO_VALIDOS.includes(valor as typeof ESTADOS_VUELO_VALIDOS[number])) {
@@ -77,7 +83,7 @@ function SimulacionContent() {
       longitud: n.lon,
       capacidad_almacen: 0,
       ocupacion_actual: 0,
-      color: n.color,
+      color: COLOR_NODO_MAP[n.color as keyof typeof COLOR_NODO_MAP] ?? '#6b7280',
       ocupacionPorcentaje: n.ocupacion_pct,
     })), [telemetria]);
 
@@ -225,6 +231,12 @@ function SimulacionContent() {
             >
               {estado.replace('_', ' ')}
             </Badge>
+          </div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
+            <span className="text-xs text-slate-500">
+              {connected ? 'Telemetría conectada' : 'Telemetría desconectada'}
+            </span>
           </div>
           <div className="text-xs text-slate-500 font-mono">{backendSesionId || sesionIdParam}</div>
         </div>

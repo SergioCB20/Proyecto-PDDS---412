@@ -36,8 +36,10 @@ const COLORES: Record<string, string> = {
   COMPLETADO: '#6b7280',
 };
 
-export default function GeoMapaVuelo({ vuelo }: GeoMapaVueloProps) {
+export default function GeoMapaVuelo({ vuelo, animacionActiva = true }: GeoMapaVueloProps) {
   const color = COLORES[vuelo.estado] || '#6b7280';
+  const opacidadMarcador = animacionActiva ? 1 : 0.4;
+  const opacidadRuta = animacionActiva ? 0.5 : 0.2;
 
   const posicion: { lat: number; lon: number } = vuelo.posicionActual ?? {
     lat: vuelo.origen_lat,
@@ -54,7 +56,7 @@ export default function GeoMapaVuelo({ vuelo }: GeoMapaVueloProps) {
           pathOptions={{
             color,
             weight: 2,
-            opacity: 0.5,
+            opacity: opacidadRuta,
             dashArray: vuelo.estado === 'PROGRAMADO' ? '5,5' : undefined,
           }}
         />
@@ -62,6 +64,7 @@ export default function GeoMapaVuelo({ vuelo }: GeoMapaVueloProps) {
       <Marker
         position={[posicion.lat, posicion.lon]}
         icon={crearIconoAvion(color)}
+        opacity={opacidadMarcador}
       />
     </>
   );
