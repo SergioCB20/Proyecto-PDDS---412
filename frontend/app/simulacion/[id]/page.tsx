@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, Suspense, useCallback, useRef, useMemo } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams, useParams, useRouter } from 'next/navigation';
 import { Play, Pause, Square, Clock, AlertTriangle, RefreshCw, Activity, FileText } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/Button';
@@ -12,7 +12,14 @@ import type { NodoEnMapa, VueloEnMapa, MetricasSimulacion } from '@/lib/types';
 
 const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false });
 
-const FALLBACK_SIM_ID = 'sim-' + Math.random().toString(36).substring(2, 8);
+const ESTADOS_VUELO_VALIDOS = ['PROGRAMADO', 'EN_RUTA', 'CANCELADO', 'COMPLETADO'] as const;
+
+function matchEstadoVuelo(valor: string): VueloEnMapa['estado'] {
+  if (ESTADOS_VUELO_VALIDOS.includes(valor as typeof ESTADOS_VUELO_VALIDOS[number])) {
+    return valor as VueloEnMapa['estado'];
+  }
+  return 'PROGRAMADO';
+}
 
 function MetricaCard({ label, value, icon: Icon, color }: {
   label: string; value: string | number; icon: React.ElementType; color: string;
@@ -36,17 +43,18 @@ interface SesionResponse {
 
 function SimulacionContent() {
   const searchParams = useSearchParams();
+  const params = useParams();
   const router = useRouter();
-  const sesionIdParam = searchParams.get('sesionId') || '';
+  const sesionIdParam = params.id as string;
   const probCancelacion = Number(searchParams.get('prob_cancelacion') || '15');
   const fechaInicio = searchParams.get('fecha_inicio_virtual') || '2025-06-01';
   const horaInicio = searchParams.get('hora_inicio_virtual') || '08:00';
 
-  const [backendSesionId, setBackendSesionId] = useState<string>('');
+  const [backendSesionId, setBackendSesionId] = useState<string>(sesionIdParam);
   const [estado, setEstado] = useState<'CONFIGURADA' | 'EN_CURSO' | 'PAUSADA' | 'FINALIZADA'>('CONFIGURADA');
   const [, setLoading] = useState(false);
   const [, setError] = useState<string>('');
-  const { data: telemetria } = useTelemetria(estado === 'EN_CURSO');
+  const { data: telemetria, connected } = useTelemetria(estado === 'EN_CURSO');
 
   const [metricasPoll, setMetricasPoll] = useState<MetricasSimulacion>({
     sesion_id: sesionIdParam,
@@ -77,7 +85,7 @@ function SimulacionContent() {
     (telemetria?.vuelos ?? []).map(v => ({
       id: v.id,
       codigo_vuelo: v.codigo_vuelo,
-      estado: v.estado as VueloEnMapa['estado'],
+      estado: matchEstadoVuelo(v.estado),
       origen: { id: '', codigo_iata: v.origen_iata, nombre: v.origen_iata },
       destino: { id: '', codigo_iata: v.destino_iata, nombre: v.destino_iata },
       origen_lat: v.origen_lat,
@@ -104,7 +112,7 @@ function SimulacionContent() {
   }, [backendSesionId]);
 
   useEffect(() => {
-    if (backendSesionId && estado === 'EN_CURSO') {
+    if (backendSesionId && estado === 'EN_CURSO' && !connected) {
       pollingRef.current = setInterval(fetchMetricas, 3000);
     } else if (pollingRef.current) {
       clearInterval(pollingRef.current);
@@ -113,7 +121,7 @@ function SimulacionContent() {
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
-  }, [backendSesionId, estado, fetchMetricas]);
+  }, [backendSesionId, estado, connected, fetchMetricas]);
 
   const handleIniciar = async () => {
     setLoading(true);
@@ -218,7 +226,7 @@ function SimulacionContent() {
               {estado.replace('_', ' ')}
             </Badge>
           </div>
-          <div className="text-xs text-slate-500 font-mono">{backendSesionId || sesionIdParam || FALLBACK_SIM_ID}</div>
+          <div className="text-xs text-slate-500 font-mono">{backendSesionId || sesionIdParam}</div>
         </div>
 
         <div className="p-4 space-y-3 flex-1">

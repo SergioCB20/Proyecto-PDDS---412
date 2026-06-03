@@ -1,8 +1,11 @@
-## MODIFIED Requirements
+# registro-equipaje Specification
 
+## Purpose
+TBD - created by archiving change eliminar-mock-data. Update Purpose after archive.
+## Requirements
 ### Requirement: Frontend muestra éxito al crear equipaje sin crashear
 
-El frontend SHALL mostrar un mensaje de éxito al crear un equipaje usando únicamente los campos que retorna `POST /api/equipajes`: `id`, `estado`, `id_externo`, `destino_iata`. El frontend NO DEBE asumir la presencia del campo `plan_viaje` en la respuesta.
+The frontend SHALL display a success message when creating luggage using only the fields returned by `POST /api/equipajes`: `id`, `estado`, `id_externo`, `destino_iata`. The frontend SHALL NOT assume the presence of the `plan_viaje` field in the response.
 
 #### Scenario: Creación exitosa de equipaje individual
 
@@ -18,3 +21,4 @@ El frontend SHALL mostrar un mensaje de éxito al crear un equipaje usando únic
 - **WHEN** el backend responde con `422 Unprocessable Entity` y un mensaje de error
 - **THEN** el frontend muestra el mensaje de error del backend en un banner rojo debajo del formulario
 - **THEN** el frontend NO muestra el mensaje de éxito
+
