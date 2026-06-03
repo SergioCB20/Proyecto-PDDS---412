@@ -115,7 +115,7 @@ jobs:
             sudo systemctl stop tomcat11
 
             # 2. Limpiar build anterior (evita error de maven-clean-plugin)
-            rm -rf target/
+            sudo rm -rf target/
 
             # 3. Compilar (sin clean, target/ ya fue eliminado)
             /opt/apache-maven-3.9.16/bin/mvn package -DskipTests
