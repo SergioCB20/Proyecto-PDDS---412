@@ -133,7 +133,10 @@ jobs:
             # 7. Copiar nuevo WAR como back.war (context-path /back)
             sudo cp target/*.war /opt/tomcat11/webapps/back.war
 
-            # 8. Iniciar Tomcat
+            # 8. Verificar que PostgreSQL esté listo
+            sudo pg_isready -q 2>/dev/null || sudo systemctl start postgresql@16-main 2>/dev/null || echo "⚠️ PostgreSQL check skipped"
+
+            # 9. Iniciar Tomcat
             sudo systemctl start tomcat11
             echo "✅ Backend WAR deployed. Tomcat started."
 
@@ -147,13 +150,16 @@ jobs:
 
             # ── Health check progresivo ──────────
             echo "Waiting for backend to be ready..."
-            for i in $(seq 1 12); do
+            for i in $(seq 1 18); do
               if curl -sf http://localhost:8080/back/health > /dev/null 2>&1; then
                 echo "✅ Backend healthy after ${i}0s"
                 break
               fi
-              if [ "$i" -eq 12 ]; then
-                echo "⚠️ Backend health check failed after 120s"
+              if [ "$i" -eq 18 ]; then
+                echo "⚠️ Backend health check failed after 180s"
+                echo "--- Últimas 60 líneas de catalina.out ---"
+                sudo tail -60 /opt/tomcat11/logs/catalina.out 2>/dev/null || echo "(no se pudo leer catalina.out)"
+                echo "--- Fin del log ---"
                 exit 1
               fi
               sleep 10
