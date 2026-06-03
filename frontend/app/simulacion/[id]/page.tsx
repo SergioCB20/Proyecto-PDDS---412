@@ -52,8 +52,9 @@ function SimulacionContent() {
 
   const [backendSesionId, setBackendSesionId] = useState<string>(sesionIdParam);
   const [estado, setEstado] = useState<'CONFIGURADA' | 'EN_CURSO' | 'PAUSADA' | 'FINALIZADA'>('CONFIGURADA');
-  const [, setLoading] = useState(false);
-  const [, setError] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>('');
+  const accionRef = useRef<'ninguna' | 'detener'>('ninguna');
   const { data: telemetria, connected } = useTelemetria(estado === 'EN_CURSO');
 
   const [metricasPoll, setMetricasPoll] = useState<MetricasSimulacion>({
@@ -77,6 +78,7 @@ function SimulacionContent() {
       longitud: n.lon,
       capacidad_almacen: 0,
       ocupacion_actual: 0,
+      zona_horaria: '',
       color: n.color,
       ocupacionPorcentaje: n.ocupacion_pct,
     })), [telemetria]);
@@ -96,17 +98,21 @@ function SimulacionContent() {
       hora_llegada: '',
       capacidad_carga: 0,
       carga_disponible: 0,
+      es_plantilla: false,
+      fecha_operacion: '',
       posicionActual: { lat: v.lat_actual, lon: v.lon_actual },
     })), [telemetria]);
 
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchMetricas = useCallback(async () => {
-    if (!backendSesionId) return;
+    if (!backendSesionId || accionRef.current === 'detener') return;
     try {
       const data = await api.get<MetricasSimulacion>(`/sesiones/${backendSesionId}/metricas`);
       setMetricasPoll(data);
-      setEstado(data.estado);
+      if (accionRef.current === 'ninguna') {
+        setEstado(data.estado);
+      }
     } catch {
     }
   }, [backendSesionId]);
@@ -175,13 +181,16 @@ function SimulacionContent() {
 
   const handleDetener = async () => {
     if (!backendSesionId) return;
+    accionRef.current = 'detener';
     setLoading(true);
+    setError('');
     try {
       await api.post(`/sesiones/${backendSesionId}/detener`, {});
       setEstado('FINALIZADA');
     } catch (err: unknown) {
       const error = err as { mensaje?: string; message?: string };
       setError(error.mensaje || 'Error al detener');
+      accionRef.current = 'ninguna';
     } finally {
       setLoading(false);
     }
@@ -276,28 +285,33 @@ function SimulacionContent() {
         </div>
 
         <div className="p-4 border-t border-slate-200 dark:border-slate-700 space-y-2">
+          {error && (
+            <div className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400 p-2 rounded">
+              {error}
+            </div>
+          )}
           {estado === 'CONFIGURADA' && (
-            <Button className="w-full" onClick={handleIniciar}>
+            <Button className="w-full" onClick={handleIniciar} disabled={loading}>
               <Play size={16} className="mr-2" />
-              Iniciar
+              {loading ? 'Iniciando...' : 'Iniciar'}
             </Button>
           )}
           {estado === 'EN_CURSO' && (
-            <Button className="w-full" variant="secondary" onClick={handlePausar}>
+            <Button className="w-full" variant="secondary" onClick={handlePausar} disabled={loading}>
               <Pause size={16} className="mr-2" />
               Pausar
             </Button>
           )}
           {estado === 'PAUSADA' && (
-            <Button className="w-full" onClick={handleIniciar}>
+            <Button className="w-full" onClick={handleIniciar} disabled={loading}>
               <Play size={16} className="mr-2" />
               Reanudar
             </Button>
           )}
           {(estado === 'EN_CURSO' || estado === 'PAUSADA') && (
-            <Button className="w-full" variant="danger" onClick={handleDetener}>
+            <Button className="w-full" variant="danger" onClick={handleDetener} disabled={loading}>
               <Square size={16} className="mr-2" />
-              Detener
+              {loading ? 'Deteniendo...' : 'Detener'}
             </Button>
           )}
           {estado === 'FINALIZADA' && (

@@ -1,0 +1,2 @@
+ALTER TABLE vuelos ADD COLUMN es_plantilla BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE vuelos ADD COLUMN fecha_operacion DATE;

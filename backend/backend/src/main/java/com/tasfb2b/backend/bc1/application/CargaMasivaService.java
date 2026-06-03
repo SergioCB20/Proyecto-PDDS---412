@@ -226,6 +226,7 @@ public class CargaMasivaService {
                 Equipaje equipaje = new Equipaje();
                 equipaje.setId(UUID.randomUUID());
                 equipaje.setIdExterno(preview.idEquipaje());
+                equipaje.setOrigenIata(nodoOrigen.getCodigoIata());
                 equipaje.setDestinoIata(preview.destinoIata());
                 equipaje.setSlaComprometido(preview.slaComprometido());
                 equipaje.setFechaIngreso(OffsetDateTime.now());

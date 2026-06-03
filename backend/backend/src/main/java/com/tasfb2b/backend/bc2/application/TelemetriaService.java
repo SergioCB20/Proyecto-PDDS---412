@@ -1,15 +1,16 @@
 package com.tasfb2b.backend.bc2.application;
 
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.node.ArrayNode;
-import tools.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.tasfb2b.backend.bc1.domain.EstadoVuelo;
 import com.tasfb2b.backend.bc1.domain.NodoLogistico;
 import com.tasfb2b.backend.bc1.domain.Vuelo;
 import com.tasfb2b.backend.bc1.infrastructure.NodoLogisticoRepository;
 import com.tasfb2b.backend.bc1.infrastructure.VueloRepository;
 import com.tasfb2b.backend.bc2.domain.SesionEjecucion;
+import com.tasfb2b.backend.bc2.domain.UmbralCapacidad;
 import com.tasfb2b.backend.bc2.infrastructure.TelemetriaWebSocket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,16 +29,14 @@ public class TelemetriaService {
     private final NodoLogisticoRepository nodoRepository;
     private final VueloRepository vueloRepository;
     private final TelemetriaWebSocket telemetriaWebSocket;
-    private final ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public TelemetriaService(NodoLogisticoRepository nodoRepository,
                              VueloRepository vueloRepository,
-                             TelemetriaWebSocket telemetriaWebSocket,
-                             ObjectMapper objectMapper) {
+                             TelemetriaWebSocket telemetriaWebSocket) {
         this.nodoRepository = nodoRepository;
         this.vueloRepository = vueloRepository;
         this.telemetriaWebSocket = telemetriaWebSocket;
-        this.objectMapper = objectMapper;
     }
 
     public void emitirTelemetria(SesionEjecucion sesion) {
@@ -67,8 +66,8 @@ public class TelemetriaService {
         }
 
         ArrayNode vuelosArr = root.putArray("vuelos");
-        List<Vuelo> vuelos = vueloRepository.findByEstadoIn(
-                List.of(EstadoVuelo.PROGRAMADO, EstadoVuelo.EN_RUTA));
+        List<Vuelo> vuelos = vueloRepository.findByEstadoInAndEsPlantilla(
+                List.of(EstadoVuelo.PROGRAMADO, EstadoVuelo.EN_RUTA), false);
 
         for (Vuelo vuelo : vuelos) {
             ObjectNode v = vuelosArr.addObject();
@@ -118,7 +117,7 @@ public class TelemetriaService {
 
         try {
             return objectMapper.writeValueAsString(root);
-        } catch (JacksonException e) {
+        } catch (JsonProcessingException e) {
             log.error("Error serializing telemetry JSON: {}", e.getMessage());
             return "{}";
         }
@@ -132,15 +131,15 @@ public class TelemetriaService {
         return (double) transcurrido / total;
     }
 
+    public static String evaluarColor(double pct, UmbralCapacidad umbral) {
+        return umbral.evaluar(pct);
+    }
+
     private String evaluarColorNodo(double pct, SesionEjecucion sesion) {
-        if (pct <= sesion.getAlmacenVerdeMax().doubleValue()) return "VERDE";
-        if (pct <= sesion.getAlmacenAmbarMax().doubleValue()) return "AMBAR";
-        return "ROJO";
+        return evaluarColor(pct, UmbralCapacidad.desdeAlmacen(sesion));
     }
 
     private String evaluarColorVuelo(double pct, SesionEjecucion sesion) {
-        if (pct <= sesion.getVueloVerdeMax().doubleValue()) return "VERDE";
-        if (pct <= sesion.getVueloAmbarMax().doubleValue()) return "AMBAR";
-        return "ROJO";
+        return evaluarColor(pct, UmbralCapacidad.desdeVuelo(sesion));
     }
 }

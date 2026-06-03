@@ -24,7 +24,8 @@ public class NodoService {
             Double latitud,
             Double longitud,
             @JsonProperty("capacidad_almacen") Integer capacidadAlmacen,
-            @JsonProperty("ocupacion_actual") Integer ocupacionActual
+            @JsonProperty("ocupacion_actual") Integer ocupacionActual,
+            @JsonProperty("zona_horaria") String zonaHoraria
     ) {}
 
     public List<NodoResponse> listarTodos() {
@@ -48,7 +49,8 @@ public class NodoService {
                 nodo.getLatitud().doubleValue(),
                 nodo.getLongitud().doubleValue(),
                 nodo.getCapacidadAlmacen(),
-                nodo.getOcupacionActual()
+                nodo.getOcupacionActual(),
+                nodo.getZonaHoraria()
         );
     }
 

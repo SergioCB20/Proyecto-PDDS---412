@@ -31,6 +31,15 @@ public class Equipaje {
     @Column(name = "destino_iata", nullable = false, length = 10)
     private String destinoIata;
 
+    @Column(name = "origen_iata", nullable = false, length = 10)
+    private String origenIata;
+
+    @Column(nullable = false)
+    private Integer cantidad = 1;
+
+    @Column(name = "fecha_operacion")
+    private OffsetDateTime fechaOperacion;
+
     @Column(name = "sla_comprometido", nullable = false)
     private OffsetDateTime slaComprometido;
 
@@ -56,6 +65,15 @@ public class Equipaje {
 
     public String getDestinoIata() { return destinoIata; }
     public void setDestinoIata(String destinoIata) { this.destinoIata = destinoIata; }
+
+    public String getOrigenIata() { return origenIata; }
+    public void setOrigenIata(String origenIata) { this.origenIata = origenIata; }
+
+    public Integer getCantidad() { return cantidad; }
+    public void setCantidad(Integer cantidad) { this.cantidad = cantidad; }
+
+    public OffsetDateTime getFechaOperacion() { return fechaOperacion; }
+    public void setFechaOperacion(OffsetDateTime fechaOperacion) { this.fechaOperacion = fechaOperacion; }
 
     public OffsetDateTime getSlaComprometido() { return slaComprometido; }
     public void setSlaComprometido(OffsetDateTime slaComprometido) { this.slaComprometido = slaComprometido; }

@@ -38,6 +38,9 @@ public class PlanViaje {
     @Column(name = "ubicacion_lon", precision = 9, scale = 6)
     private BigDecimal ubicacionLon;
 
+    @Column(name = "sesion_id")
+    private UUID sesionId;
+
     @OneToMany(mappedBy = "planViaje", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @OrderBy("orden ASC")
     private List<SegmentoPlan> segmentos = new ArrayList<>();
@@ -70,4 +73,7 @@ public class PlanViaje {
 
     public List<SegmentoPlan> getSegmentos() { return segmentos; }
     public void setSegmentos(List<SegmentoPlan> segmentos) { this.segmentos = segmentos; }
+
+    public UUID getSesionId() { return sesionId; }
+    public void setSesionId(UUID sesionId) { this.sesionId = sesionId; }
 }

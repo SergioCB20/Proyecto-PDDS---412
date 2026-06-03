@@ -1,0 +1,4 @@
+ALTER TABLE sesiones_ejecucion
+  ADD COLUMN tipo_simulacion VARCHAR(20) NOT NULL DEFAULT 'VENTANA_FIJA',
+  ADD COLUMN ventana_horas INT NOT NULL DEFAULT 4,
+  ADD COLUMN duracion_dias INT NOT NULL DEFAULT 5;

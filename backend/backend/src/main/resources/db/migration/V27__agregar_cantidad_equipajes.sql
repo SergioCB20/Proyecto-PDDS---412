@@ -1,0 +1,1 @@
+ALTER TABLE equipajes ADD COLUMN cantidad INT NOT NULL DEFAULT 1;
