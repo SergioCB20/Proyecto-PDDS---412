@@ -94,7 +94,12 @@ public class SesionService {
         }
 
         sesionRepository.save(sesion);
-        redisCacheService.setEstadoSesion(sesion.getId(), sesion.getEstado().name());
+
+        try {
+            redisCacheService.setEstadoSesion(sesion.getId(), sesion.getEstado().name());
+        } catch (Exception e) {
+            log.warn("Redis no disponible al crear sesion {}: {}", sesion.getId(), e.getMessage());
+        }
 
         return new SesionResponse(sesion.getId(), sesion.getTipo().name(), sesion.getEstado().name());
     }
@@ -127,13 +132,17 @@ public class SesionService {
                 OffsetDateTime.now().getOffset());
         OffsetDateTime finVentana = inicioVentana.plusDays(sesion.getDuracionDias());
 
-        jdbcTemplate.execute("CREATE TABLE " + tablaTemp + " (LIKE equipajes INCLUDING ALL)");
-        jdbcTemplate.update("INSERT INTO " + tablaTemp +
-                " SELECT * FROM equipajes WHERE fecha_operacion >= ? AND fecha_operacion < ?",
-                inicioVentana, finVentana);
+        try {
+            jdbcTemplate.execute("CREATE TABLE " + tablaTemp + " (LIKE equipajes INCLUDING ALL)");
+            jdbcTemplate.update("INSERT INTO " + tablaTemp +
+                    " SELECT * FROM equipajes WHERE fecha_operacion >= ? AND fecha_operacion < ?",
+                    inicioVentana, finVentana);
 
-        int count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM " + tablaTemp, Integer.class);
-        log.info("Tabla temporal {} creada con {} equipajes para sesion {}", tablaTemp, count, id);
+            int count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM " + tablaTemp, Integer.class);
+            log.info("Tabla temporal {} creada con {} equipajes para sesion {}", tablaTemp, count, id);
+        } catch (Exception e) {
+            log.warn("No se pudo crear tabla temporal {}: {}", tablaTemp, e.getMessage());
+        }
 
         if (sesion.getTipo() == TipoSesion.SIMULADA) {
             ReporteSesion reporte = new ReporteSesion(UUID.randomUUID(), id);
@@ -147,7 +156,11 @@ public class SesionService {
         sesion.setFechaInicioReal(OffsetDateTime.now());
         sesionRepository.save(sesion);
 
-        redisCacheService.setEstadoSesion(sesion.getId(), "EN_CURSO");
+        try {
+            redisCacheService.setEstadoSesion(sesion.getId(), "EN_CURSO");
+        } catch (Exception e) {
+            log.warn("Redis no disponible al iniciar sesion {}: {}", sesion.getId(), e.getMessage());
+        }
 
         return new SesionIniciarResponse(sesion.getId(), sesion.getEstado().name(), sesion.getFechaInicioReal());
     }
@@ -163,7 +176,11 @@ public class SesionService {
         sesion.setEstado(EstadoSesion.PAUSADA);
         sesionRepository.save(sesion);
 
-        redisCacheService.setEstadoSesion(sesion.getId(), "PAUSADA");
+        try {
+            redisCacheService.setEstadoSesion(sesion.getId(), "PAUSADA");
+        } catch (Exception e) {
+            log.warn("Redis no disponible al pausar sesion {}: {}", sesion.getId(), e.getMessage());
+        }
 
         return new SesionEstadoResponse(sesion.getEstado().name());
     }
@@ -177,8 +194,12 @@ public class SesionService {
         sesion.setFechaFinReal(OffsetDateTime.now());
         sesionRepository.save(sesion);
 
-        redisCacheService.setEstadoSesion(sesion.getId(), "FINALIZADA");
-        redisCacheService.eliminarMetricasSesion(sesion.getId());
+        try {
+            redisCacheService.setEstadoSesion(sesion.getId(), "FINALIZADA");
+            redisCacheService.eliminarMetricasSesion(sesion.getId());
+        } catch (Exception e) {
+            log.warn("Redis no disponible al detener sesion {}: {}", sesion.getId(), e.getMessage());
+        }
 
         eventPublisher.publishEvent(new SesionFinalizada(
                 sesion.getId(), "FINALIZADA", OffsetDateTime.now()));
@@ -235,7 +256,12 @@ public class SesionService {
     public List<SesionListaResponse> listarSesiones(String estado) {
         List<SesionEjecucion> sesiones;
         if (estado != null && !estado.isBlank()) {
-            sesiones = sesionRepository.findByEstado(EstadoSesion.valueOf(estado));
+            try {
+                sesiones = sesionRepository.findByEstado(EstadoSesion.valueOf(estado.toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                log.warn("Estado de sesion invalido: {}", estado);
+                sesiones = List.of();
+            }
         } else {
             sesiones = sesionRepository.findAll();
         }
@@ -243,7 +269,7 @@ public class SesionService {
             .map(s -> new SesionListaResponse(
                 s.getId(),
                 s.getTipo().name(),
-                s.getTipoSimulacion().name(),
+                s.getTipoSimulacion() != null ? s.getTipoSimulacion().name() : "VENTANA_FIJA",
                 s.getEstado().name(),
                 s.getFechaInicioVirtual().toString(),
                 s.getCreatedAt().toString()

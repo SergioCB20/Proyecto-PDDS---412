@@ -79,7 +79,7 @@ public class VueloService {
     ) {}
 
     public VueloPageResponse listar(String estado, String destinoIata, OffsetDateTime fechaDesde, OffsetDateTime fechaHasta, Pageable pageable) {
-        Specification<Vuelo> spec = Specification.anyOf();
+        Specification<Vuelo> spec = (root, query, cb) -> cb.conjunction();
 
         spec = spec.and((root, query, cb) ->
                 cb.equal(root.get("esPlantilla"), false));
