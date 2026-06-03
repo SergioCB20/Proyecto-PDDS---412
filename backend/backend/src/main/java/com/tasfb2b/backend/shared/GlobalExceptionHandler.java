@@ -87,6 +87,28 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error(HttpStatus.FORBIDDEN, "ACTUALIZACION_NO_PERMITIDA", ex.getMessage()));
     }
 
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<?> handleIllegalState(IllegalStateException ex) {
+        return ResponseEntity.badRequest().body(error(HttpStatus.BAD_REQUEST, "ESTADO_INVALIDO", ex.getMessage()));
+    }
+
+    @ExceptionHandler(java.time.DateTimeException.class)
+    public ResponseEntity<?> handleDateTime(java.time.DateTimeException ex) {
+        return ResponseEntity.badRequest().body(error(HttpStatus.BAD_REQUEST, "FECHA_HORA_INVALIDA", ex.getMessage()));
+    }
+
+    @ExceptionHandler(org.springframework.dao.DataAccessException.class)
+    public ResponseEntity<?> handleDataAccess(org.springframework.dao.DataAccessException ex) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(error(HttpStatus.INTERNAL_SERVER_ERROR, "ERROR_BD", "Error en la base de datos: " + ex.getMessage()));
+    }
+
+    @ExceptionHandler(NullPointerException.class)
+    public ResponseEntity<?> handleNPE(NullPointerException ex) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(error(HttpStatus.INTERNAL_SERVER_ERROR, "ERROR_INTERNO", "Error inesperado en el servidor"));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<?> handleGeneral(Exception ex) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

@@ -2,17 +2,23 @@
 
 import { useEffect, useState, Suspense, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams, useParams, useRouter } from 'next/navigation';
-import { Play, Pause, Square, Clock, AlertTriangle, RefreshCw, Activity, FileText } from 'lucide-react';
+import { Play, Pause, Square, Clock, AlertTriangle, RefreshCw, Activity, FileText, Wifi, WifiOff } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { api } from '@/lib/api';
 import { useTelemetria } from '@/lib/useTelemetria';
-import type { NodoEnMapa, VueloEnMapa, MetricasSimulacion } from '@/lib/types';
+import type { Nodo, NodoEnMapa, Vuelo, VueloEnMapa, VueloPageResponse, MetricasSimulacion } from '@/lib/types';
 
 const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false });
 
 const ESTADOS_VUELO_VALIDOS = ['PROGRAMADO', 'EN_RUTA', 'CANCELADO', 'COMPLETADO'] as const;
+
+const COLOR_NODO_MAP = {
+  VERDE: '#22c55e',
+  AMBAR: '#eab308',
+  ROJO: '#ef4444',
+} as const;
 
 function matchEstadoVuelo(valor: string): VueloEnMapa['estado'] {
   if (ESTADOS_VUELO_VALIDOS.includes(valor as typeof ESTADOS_VUELO_VALIDOS[number])) {
@@ -57,6 +63,30 @@ function SimulacionContent() {
   const accionRef = useRef<'ninguna' | 'detener'>('ninguna');
   const { data: telemetria, connected } = useTelemetria(estado === 'EN_CURSO');
 
+  const [initialNodos, setInitialNodos] = useState<NodoEnMapa[]>([]);
+  const [initialVuelos, setInitialVuelos] = useState<VueloEnMapa[]>([]);
+
+  useEffect(() => {
+    async function loadInitial() {
+      try {
+        const [nodosData, vuelosData] = await Promise.all([
+          api.get<Nodo[]>('/nodos'),
+          api.get<VueloPageResponse>('/vuelos?size=50'),
+        ]);
+        setInitialNodos(
+          nodosData.map(n => {
+            const pct = n.capacidad_almacen > 0 ? (n.ocupacion_actual / n.capacidad_almacen) * 100 : 0;
+            const color = pct < 70 ? '#22c55e' : pct < 90 ? '#eab308' : '#ef4444';
+            return { ...n, color, ocupacionPorcentaje: pct };
+          })
+        );
+        setInitialVuelos(vuelosData.content.map((v: Vuelo): VueloEnMapa => ({ ...v })));
+      } catch {
+      }
+    }
+    loadInitial();
+  }, []);
+
   const [metricasPoll, setMetricasPoll] = useState<MetricasSimulacion>({
     sesion_id: sesionIdParam,
     estado: 'CONFIGURADA',
@@ -69,7 +99,7 @@ function SimulacionContent() {
 
   const metricas = telemetria?.metricas_sesion ?? metricasPoll;
 
-  const nodosEnMapa: NodoEnMapa[] = useMemo(() =>
+  const nodosTelemetria: NodoEnMapa[] = useMemo(() =>
     (telemetria?.nodos ?? []).map(n => ({
       id: n.id,
       codigo_iata: n.codigo_iata,
@@ -83,7 +113,7 @@ function SimulacionContent() {
       ocupacionPorcentaje: n.ocupacion_pct,
     })), [telemetria]);
 
-  const vuelos: VueloEnMapa[] = useMemo(() =>
+  const vuelosTelemetria: VueloEnMapa[] = useMemo(() =>
     (telemetria?.vuelos ?? []).map(v => ({
       id: v.id,
       codigo_vuelo: v.codigo_vuelo,
@@ -102,6 +132,10 @@ function SimulacionContent() {
       fecha_operacion: '',
       posicionActual: { lat: v.lat_actual, lon: v.lon_actual },
     })), [telemetria]);
+
+  const hayTelemetria = telemetria !== null && (telemetria.nodos?.length > 0 || telemetria.vuelos?.length > 0);
+  const nodosMapa = hayTelemetria ? nodosTelemetria : initialNodos;
+  const vuelosMapa = hayTelemetria ? vuelosTelemetria : initialVuelos;
 
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -213,8 +247,8 @@ function SimulacionContent() {
     <div className="flex h-[calc(100vh-3.5rem)]">
       <div className="flex-1 p-4">
 <GeoMapa
-          nodos={nodosEnMapa}
-          vuelos={vuelos}
+          nodos={nodosMapa}
+          vuelos={vuelosMapa}
           mostrarAviones={true}
           animacionActiva={estado === 'EN_CURSO'}
           className="h-full"
@@ -234,6 +268,12 @@ function SimulacionContent() {
             >
               {estado.replace('_', ' ')}
             </Badge>
+          </div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
+            <span className="text-xs text-slate-500">
+              {connected ? 'Telemetría conectada' : 'Telemetría desconectada'}
+            </span>
           </div>
           <div className="text-xs text-slate-500 font-mono">{backendSesionId || sesionIdParam}</div>
         </div>

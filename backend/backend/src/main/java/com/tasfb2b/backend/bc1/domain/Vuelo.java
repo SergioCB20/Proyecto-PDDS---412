@@ -1,5 +1,6 @@
 package com.tasfb2b.backend.bc1.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -67,6 +68,7 @@ public class Vuelo {
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
 
+    @JsonIgnore
     public PlanVuelos getPlanVuelos() { return planVuelos; }
     public void setPlanVuelos(PlanVuelos planVuelos) { this.planVuelos = planVuelos; }
 

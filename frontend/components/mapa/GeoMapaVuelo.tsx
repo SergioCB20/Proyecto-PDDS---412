@@ -18,6 +18,8 @@ const COLORES: Record<string, string> = {
 
 export default function GeoMapaVuelo({ vuelo, animacionActiva = false }: GeoMapaVueloProps) {
   const color = COLORES[vuelo.estado] || '#6b7280';
+  const opacidadMarcador = animacionActiva ? 1 : 0.4;
+  const opacidadRuta = animacionActiva ? 0.5 : 0.2;
 
   const tieneRuta = vuelo.origen_lat && vuelo.origen_lon && vuelo.destino_lat && vuelo.destino_lon;
 
@@ -29,7 +31,7 @@ export default function GeoMapaVuelo({ vuelo, animacionActiva = false }: GeoMapa
           pathOptions={{
             color,
             weight: 2,
-            opacity: 0.5,
+            opacity: opacidadRuta,
             dashArray: vuelo.estado === 'PROGRAMADO' ? '5,5' : undefined,
           }}
         />
