@@ -158,7 +158,7 @@ jobs:
               if [ "$i" -eq 18 ]; then
                 echo "⚠️ Backend health check failed after 180s"
                 echo "--- Últimas 60 líneas de catalina.out ---"
-                sudo tail -60 /opt/tomcat11/logs/catalina.out 2>/dev/null || echo "(no se pudo leer catalina.out)"
+                sudo tail -60 /opt/tomcat11/logs/catalina.out 2>/dev/null || sudo tail -60 /var/log/tomcat11/catalina.out 2>/dev/null || sudo journalctl -u tomcat11 --no-pager -n 60 2>/dev/null || echo "(no se pudo leer el log de Tomcat)"
                 echo "--- Fin del log ---"
                 exit 1
               fi
