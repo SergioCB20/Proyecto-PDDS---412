@@ -35,11 +35,6 @@ public class BackPrefixFilter extends OncePerRequestFilter {
 
         chain.doFilter(new HttpServletRequestWrapper(request) {
             @Override
-            public String getContextPath() {
-                return BACK_PREFIX;
-            }
-
-            @Override
             public String getRequestURI() {
                 return super.getRequestURI().substring(BACK_PREFIX.length());
             }
@@ -61,15 +56,6 @@ public class BackPrefixFilter extends OncePerRequestFilter {
                     return new StringBuffer(url.substring(0, idx) + url.substring(idx + BACK_PREFIX.length()));
                 }
                 return url;
-            }
-
-            @Override
-            public String getPathInfo() {
-                String pi = super.getPathInfo();
-                if (pi != null && pi.startsWith(BACK_PREFIX)) {
-                    return pi.substring(BACK_PREFIX.length());
-                }
-                return pi;
             }
         }, response);
     }
