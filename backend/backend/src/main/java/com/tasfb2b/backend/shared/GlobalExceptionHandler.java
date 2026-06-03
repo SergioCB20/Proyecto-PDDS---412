@@ -87,6 +87,11 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error(HttpStatus.FORBIDDEN, "ACTUALIZACION_NO_PERMITIDA", ex.getMessage()));
     }
 
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<?> handleIllegalState(IllegalStateException ex) {
+        return ResponseEntity.badRequest().body(error(HttpStatus.BAD_REQUEST, "ESTADO_INVALIDO", ex.getMessage()));
+    }
+
     @ExceptionHandler(java.time.DateTimeException.class)
     public ResponseEntity<?> handleDateTime(java.time.DateTimeException ex) {
         return ResponseEntity.badRequest().body(error(HttpStatus.BAD_REQUEST, "FECHA_HORA_INVALIDA", ex.getMessage()));

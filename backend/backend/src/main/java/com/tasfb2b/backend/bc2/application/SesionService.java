@@ -122,7 +122,11 @@ public class SesionService {
 
         if (sesion.getTipo() == TipoSesion.SIMULADA) {
             log.info("Clonando plantillas para sesion {} en fecha {}", id, sesion.getFechaInicioVirtual());
-            vueloService.clonarPlantillas(sesion.getFechaInicioVirtual());
+            try {
+                vueloService.clonarPlantillas(sesion.getFechaInicioVirtual());
+            } catch (Exception e) {
+                log.warn("No se pudieron clonar plantillas para sesion {}: {}", id, e.getMessage());
+            }
         }
 
         String tablaTemp = "equipajes_sim_" + sesion.getId().toString().replace("-", "_");
@@ -130,7 +134,8 @@ public class SesionService {
                 sesion.getFechaInicioVirtual(),
                 sesion.getHoraInicioVirtual(),
                 OffsetDateTime.now().getOffset());
-        OffsetDateTime finVentana = inicioVentana.plusDays(sesion.getDuracionDias());
+        int duracion = sesion.getDuracionDias() != null ? sesion.getDuracionDias() : 5;
+        OffsetDateTime finVentana = inicioVentana.plusDays(duracion);
 
         try {
             jdbcTemplate.execute("CREATE TABLE " + tablaTemp + " (LIKE equipajes INCLUDING ALL)");
