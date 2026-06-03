@@ -157,8 +157,20 @@ public class EquipajeService {
     public void eliminar(UUID id) {
         Equipaje equipaje = equipajeRepository.findById(id)
                 .orElseThrow(() -> new EquipajeNoEncontradoException("Equipaje no encontrado: " + id));
+        eliminarConEquipaje(equipaje);
+    }
 
-        PlanViaje planViaje = planViajeRepository.findByEquipajeId(id)
+    @Transactional
+    public void eliminarPorIdExterno(String idExterno) {
+        Equipaje equipaje = equipajeRepository.findByIdExterno(idExterno)
+                .orElseThrow(() -> new EquipajeNoEncontradoException("Equipaje no encontrado: " + idExterno));
+        eliminarConEquipaje(equipaje);
+    }
+
+    private void eliminarConEquipaje(Equipaje equipaje) {
+        UUID equipajeId = equipaje.getId();
+
+        PlanViaje planViaje = planViajeRepository.findByEquipajeId(equipajeId)
                 .orElseThrow(() -> new ValidacionException("Plan de viaje no encontrado"));
 
         List<SegmentoPlan> segmentos = segmentoPlanRepository.findByPlanViajeIdOrderByOrdenAsc(planViaje.getId());

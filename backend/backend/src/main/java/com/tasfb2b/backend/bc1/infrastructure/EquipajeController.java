@@ -85,10 +85,10 @@ public class EquipajeController {
         }
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<?> eliminar(@PathVariable UUID id) {
+    @DeleteMapping("/{idExterno}")
+    public ResponseEntity<?> eliminar(@PathVariable String idExterno) {
         try {
-            equipajeService.eliminar(id);
+            equipajeService.eliminarPorIdExterno(idExterno);
             return ResponseEntity.noContent().build();
         } catch (EquipajeService.EquipajeNoEncontradoException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error(404, "NO_ENCONTRADO", e.getMessage()));
