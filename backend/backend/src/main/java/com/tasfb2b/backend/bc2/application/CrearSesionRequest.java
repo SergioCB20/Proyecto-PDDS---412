@@ -7,6 +7,9 @@ public record CrearSesionRequest(
     String fecha_inicio_virtual,
     String hora_inicio_virtual,
     BigDecimal prob_cancelacion,
+    String tipo_simulacion,
+    Integer ventana_horas,
+    Integer duracion_dias,
     UmbralesRequest umbrales_almacen,
     UmbralesRequest umbrales_vuelo
 ) {

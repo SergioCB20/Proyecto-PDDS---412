@@ -88,6 +88,16 @@ public class SesionEjecucion {
     @Column(name = "prob_cancelacion", precision = 5, scale = 2)
     private BigDecimal probCancelacion = BigDecimal.ZERO;
 
+    @Column(name = "tipo_simulacion", length = 20)
+    @Enumerated(EnumType.STRING)
+    private TipoSimulacion tipoSimulacion = TipoSimulacion.VENTANA_FIJA;
+
+    @Column(name = "ventana_horas")
+    private Integer ventanaHoras = 4;
+
+    @Column(name = "duracion_dias")
+    private Integer duracionDias = 5;
+
     @Column(name = "created_at")
     private OffsetDateTime createdAt;
 
@@ -180,4 +190,13 @@ public class SesionEjecucion {
 
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }
+
+    public TipoSimulacion getTipoSimulacion() { return tipoSimulacion; }
+    public void setTipoSimulacion(TipoSimulacion tipoSimulacion) { this.tipoSimulacion = tipoSimulacion; }
+
+    public Integer getVentanaHoras() { return ventanaHoras; }
+    public void setVentanaHoras(Integer ventanaHoras) { this.ventanaHoras = ventanaHoras; }
+
+    public Integer getDuracionDias() { return duracionDias; }
+    public void setDuracionDias(Integer duracionDias) { this.duracionDias = duracionDias; }
 }

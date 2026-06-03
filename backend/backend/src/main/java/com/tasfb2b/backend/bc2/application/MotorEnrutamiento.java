@@ -41,7 +41,7 @@ public class MotorEnrutamiento {
             return RutaResult.sinRuta("Destino IATA no encontrado: " + destinoIata);
         }
 
-        List<Vuelo> programados = vueloRepository.findByEstado(EstadoVuelo.PROGRAMADO, Pageable.unpaged())
+        List<Vuelo> programados = vueloRepository.findByEstadoAndEsPlantilla(EstadoVuelo.PROGRAMADO, false, Pageable.unpaged())
                 .getContent();
 
         return defaultStrategy.calcularRuta(origen, destino, slaComprometido, programados);
@@ -50,19 +50,22 @@ public class MotorEnrutamiento {
     public List<RutaResult> calcularRutasLote(List<Equipaje> equipajes) {
         if (equipajes.isEmpty()) return List.of();
 
-        List<Vuelo> programados = vueloRepository.findByEstado(EstadoVuelo.PROGRAMADO, Pageable.unpaged())
+        List<Vuelo> programados = vueloRepository.findByEstadoAndEsPlantilla(EstadoVuelo.PROGRAMADO, false, Pageable.unpaged())
                 .getContent();
 
         List<RoutingStrategy.ParametroRuta> params = new ArrayList<>();
         for (Equipaje e : equipajes) {
-            Vuelo vueloActual = e.getVueloActual();
-            if (vueloActual == null || vueloActual.getOrigen() == null) continue;
+            String origenIata = e.getOrigenIata();
+            if (origenIata == null) continue;
+
+            NodoLogistico origen = nodoRepository.findByCodigoIata(origenIata).orElse(null);
+            if (origen == null) continue;
 
             NodoLogistico destino = nodoRepository.findByCodigoIata(e.getDestinoIata()).orElse(null);
             if (destino == null) continue;
 
             params.add(new RoutingStrategy.ParametroRuta(
-                    vueloActual.getOrigen(), destino, e.getSlaComprometido()));
+                    origen, destino, e.getSlaComprometido()));
         }
 
         if (params.isEmpty()) return List.of();

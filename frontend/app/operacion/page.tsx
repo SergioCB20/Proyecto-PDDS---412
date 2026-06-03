@@ -293,8 +293,8 @@ export default function OperacionPage() {
         codigo_vuelo: vueloFormData.codigo_vuelo,
         origen_id: vueloFormData.origen_id,
         destino_id: vueloFormData.destino_id,
-        hora_salida: new Date(vueloFormData.hora_salida).toISOString(),
-        hora_llegada: new Date(vueloFormData.hora_llegada).toISOString(),
+        hora_salida: vueloFormData.hora_salida + ':00',
+        hora_llegada: vueloFormData.hora_llegada + ':00',
         capacidad_carga: parseInt(vueloFormData.capacidad_carga),
       };
 
