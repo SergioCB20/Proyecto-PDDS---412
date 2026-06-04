@@ -40,6 +40,7 @@ class TickServiceTest {
     @Mock private ReplanificacionService replanificacionService;
     @Mock private ReporteSesionRepository reporteSesionRepository;
     @Mock private PuntoSLARepository puntoSLARepository;
+    @Mock private PlanViajeRepository planViajeRepository;
 
     private ObjectMapper objectMapper;
     private TickService tickService;
@@ -60,7 +61,8 @@ class TickServiceTest {
                 segmentoPlanRepository, nodoRepository,
                 redisCacheService, telemetriaService,
                 replanificacionService, eventPublisher,
-                reporteSesionRepository, puntoSLARepository, 120);
+                reporteSesionRepository, puntoSLARepository,
+                planViajeRepository, 120);
 
         sesion = new SesionEjecucion(
                 UUID.randomUUID(), TipoSesion.SIMULADA,
@@ -107,6 +109,8 @@ class TickServiceTest {
         planViaje = new PlanViaje();
         planViaje.setId(UUID.randomUUID());
         planViaje.setEquipaje(equipaje);
+
+        lenient().when(planViajeRepository.findBySesionIdWithEquipaje(any())).thenReturn(List.of());
 
         segmento = new SegmentoPlan();
         segmento.setId(UUID.randomUUID());
