@@ -142,6 +142,13 @@ public class SimulacionEnrutamientoService {
         if (primerVuelo != null) {
             primerVuelo.setCargaDisponible(primerVuelo.getCargaDisponible() - 1);
             vueloRepository.save(primerVuelo);
+
+            NodoLogistico origen = nodoRepository.findById(primerSeg.nodoOrigenId())
+                    .orElse(null);
+            if (origen != null) {
+                origen.setOcupacionActual(origen.getOcupacionActual() + 1);
+                nodoRepository.save(origen);
+            }
         }
     }
 

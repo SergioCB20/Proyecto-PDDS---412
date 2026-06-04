@@ -58,6 +58,10 @@ public class NodoVueloSeeder {
                 stmt.execute(cleanSql);
             }
 
+            jdbcTemplate.update("UPDATE vuelos SET es_plantilla = true, fecha_operacion = '2026-01-15' WHERE codigo_vuelo LIKE 'TAS%'");
+            long plantillasCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM vuelos WHERE es_plantilla = true", Long.class);
+            log.info("NodoVueloSeeder: {} vuelos marcados como plantilla", plantillasCount);
+
             long nodos = nodoRepository.count();
             log.info("NodoVueloSeeder: seed completado — {} nodos", nodos);
 

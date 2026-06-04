@@ -121,9 +121,14 @@ public class SesionService {
         }
 
         if (sesion.getTipo() == TipoSesion.SIMULADA) {
-            log.info("Clonando plantillas para sesion {} en fecha {}", id, sesion.getFechaInicioVirtual());
+            log.info("Clonando plantillas para sesion {} desde fecha {}", id, sesion.getFechaInicioVirtual());
             try {
-                vueloService.clonarPlantillas(sesion.getFechaInicioVirtual());
+                int duracion = sesion.getDuracionDias() != null ? sesion.getDuracionDias() : 5;
+                for (int i = 0; i < duracion; i++) {
+                    LocalDate dia = sesion.getFechaInicioVirtual().plusDays(i);
+                    int clonadas = vueloService.clonarPlantillas(dia);
+                    log.info("Dia {}: {} vuelos clonados", dia, clonadas);
+                }
             } catch (Exception e) {
                 log.warn("No se pudieron clonar plantillas para sesion {}: {}", id, e.getMessage());
             }
