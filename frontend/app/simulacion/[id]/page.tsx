@@ -109,7 +109,7 @@ function SimulacionContent() {
       capacidad_almacen: 0,
       ocupacion_actual: 0,
       zona_horaria: '',
-      color: n.color,
+      color: COLOR_NODO_MAP[n.color as keyof typeof COLOR_NODO_MAP] || '#22c55e',
       ocupacionPorcentaje: n.ocupacion_pct,
     })), [telemetria]);
 

@@ -42,6 +42,7 @@ public class TickService {
     private final ApplicationEventPublisher eventPublisher;
     private final ReporteSesionRepository reporteSesionRepository;
     private final PuntoSLARepository puntoSLARepository;
+    private final PlanViajeRepository planViajeRepository;
     private final double k;
 
     private final ConcurrentHashMap<UUID, Integer> ultimaHoraRegistrada = new ConcurrentHashMap<>();
@@ -57,6 +58,7 @@ public class TickService {
                        ApplicationEventPublisher eventPublisher,
                        ReporteSesionRepository reporteSesionRepository,
                        PuntoSLARepository puntoSLARepository,
+                       PlanViajeRepository planViajeRepository,
                        @Value("${app.simulacion.k}") double k) {
         this.sesionRepository = sesionRepository;
         this.vueloRepository = vueloRepository;
@@ -69,6 +71,7 @@ public class TickService {
         this.eventPublisher = eventPublisher;
         this.reporteSesionRepository = reporteSesionRepository;
         this.puntoSLARepository = puntoSLARepository;
+        this.planViajeRepository = planViajeRepository;
         this.k = k;
     }
 
@@ -94,6 +97,7 @@ public class TickService {
         procesarVuelosSalida(sesion);
         procesarVuelosLlegada(sesion);
         evaluarCancelaciones(sesion, now);
+        actualizarSla(sesion);
         boolean colapso = detectarColapso(sesion, now);
         escribirMetricas(sesion, now);
         telemetriaService.emitirTelemetria(sesion);
@@ -241,6 +245,20 @@ public class TickService {
                         sesion.getDiaHoraVirtual());
             }
         }
+    }
+
+    private void actualizarSla(SesionEjecucion sesion) {
+        List<PlanViaje> planes = planViajeRepository.findBySesionIdWithEquipaje(sesion.getId());
+        if (planes.isEmpty()) return;
+
+        long totalEntregados = planes.stream()
+                .filter(pv -> pv.getEquipaje() != null
+                        && pv.getEquipaje().getEstado() == EstadoEquipaje.ENTREGADO)
+                .count();
+
+        double sla = (totalEntregados * 100.0) / planes.size();
+        sesion.setSlaAcumuladoPct(BigDecimal.valueOf(sla));
+        sesionRepository.save(sesion);
     }
 
     private boolean detectarColapso(SesionEjecucion sesion, OffsetDateTime now) {
