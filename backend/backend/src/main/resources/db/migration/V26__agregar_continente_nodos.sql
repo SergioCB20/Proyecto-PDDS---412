@@ -9,4 +9,5 @@ WHERE codigo_iata IN ('LATI','EDDI','LOWW','EBCI','UMMS','LBSF','LKPR','LDZA','E
 UPDATE nodos_logisticos SET continente = 'Asia'
 WHERE codigo_iata IN ('VIDP','OSDI','OERK','OMDB','OAKB','OOMS','OYSN','OPKC','UBBB','OJAI');
 
+UPDATE nodos_logisticos SET continente = 'Desconocido' WHERE continente IS NULL;
 ALTER TABLE nodos_logisticos ALTER COLUMN continente SET NOT NULL;
