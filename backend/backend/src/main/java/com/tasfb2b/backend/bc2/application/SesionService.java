@@ -11,7 +11,6 @@ import com.tasfb2b.backend.shared.infrastructure.RedisCacheService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,7 +28,6 @@ public class SesionService {
 
     private final SesionRepository sesionRepository;
     private final VueloService vueloService;
-    private final JdbcTemplate jdbcTemplate;
     private final RedisCacheService redisCacheService;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ApplicationEventPublisher eventPublisher;
@@ -38,14 +36,12 @@ public class SesionService {
 
     public SesionService(SesionRepository sesionRepository,
                          VueloService vueloService,
-                         JdbcTemplate jdbcTemplate,
                          RedisCacheService redisCacheService,
                          ApplicationEventPublisher eventPublisher,
                          ReporteSesionRepository reporteSesionRepository,
                          PuntoSLARepository puntoSLARepository) {
         this.sesionRepository = sesionRepository;
         this.vueloService = vueloService;
-        this.jdbcTemplate = jdbcTemplate;
         this.redisCacheService = redisCacheService;
         this.eventPublisher = eventPublisher;
         this.reporteSesionRepository = reporteSesionRepository;
@@ -130,26 +126,6 @@ public class SesionService {
             }
         }
 
-        String tablaTemp = "equipajes_sim_" + sesion.getId().toString().replace("-", "_");
-        OffsetDateTime inicioVentana = OffsetDateTime.of(
-                sesion.getFechaInicioVirtual(),
-                sesion.getHoraInicioVirtual(),
-                OffsetDateTime.now().getOffset());
-        int duracion = sesion.getDuracionDias() != null ? sesion.getDuracionDias() : 5;
-        OffsetDateTime finVentana = inicioVentana.plusDays(duracion);
-
-        try {
-            jdbcTemplate.execute("CREATE TABLE " + tablaTemp + " (LIKE equipajes INCLUDING ALL)");
-            jdbcTemplate.update("INSERT INTO " + tablaTemp +
-                    " SELECT * FROM equipajes WHERE fecha_operacion >= ? AND fecha_operacion < ?",
-                    inicioVentana, finVentana);
-
-            int count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM " + tablaTemp, Integer.class);
-            log.info("Tabla temporal {} creada con {} equipajes para sesion {}", tablaTemp, count, id);
-        } catch (Exception e) {
-            log.warn("No se pudo crear tabla temporal {}: {}", tablaTemp, e.getMessage());
-        }
-
         if (sesion.getTipo() == TipoSesion.SIMULADA) {
             ReporteSesion reporte = new ReporteSesion(UUID.randomUUID(), id);
             reporte.setSlaIncumplidoPct(BigDecimal.ZERO);
@@ -209,14 +185,6 @@ public class SesionService {
 
         eventPublisher.publishEvent(new SesionFinalizada(
                 sesion.getId(), "FINALIZADA", OffsetDateTime.now()));
-
-        String tablaTemp = "equipajes_sim_" + sesion.getId().toString().replace("-", "_");
-        try {
-            jdbcTemplate.execute("DROP TABLE IF EXISTS " + tablaTemp);
-            log.info("Tabla temporal {} eliminada", tablaTemp);
-        } catch (Exception e) {
-            log.warn("No se pudo eliminar tabla temporal {}: {}", tablaTemp, e.getMessage());
-        }
 
         return new SesionEstadoResponse(sesion.getEstado().name());
     }
