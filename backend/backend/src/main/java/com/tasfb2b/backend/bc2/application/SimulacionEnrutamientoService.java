@@ -42,11 +42,9 @@ public class SimulacionEnrutamientoService {
     }
 
     public ResultadoVentana enrutarVentana(UUID sesionId, OffsetDateTime inicioVentana, OffsetDateTime finVentana) {
-        String tablaTemp = "equipajes_sim_" + sesionId.toString().replace("-", "_");
-
         List<Equipaje> equipajes = jdbcTemplate.query(
                 "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad " +
-                        "FROM " + tablaTemp +
+                        "FROM equipajes" +
                         " WHERE estado = 'REGISTRADO' AND fecha_operacion >= ? AND fecha_operacion < ? " +
                         "ORDER BY fecha_operacion",
                 this::mapEquipaje,
@@ -72,7 +70,7 @@ public class SimulacionEnrutamientoService {
                 }
 
                 crearPlanViaje(eq, ruta, sesionId);
-                marcarEnrutado(tablaTemp, eq.getId());
+                marcarEnrutado(eq.getId());
                 enrutados++;
             }
         }
@@ -80,8 +78,8 @@ public class SimulacionEnrutamientoService {
         return new ResultadoVentana(enrutados, false, null, null);
     }
 
-    private void marcarEnrutado(String tablaTemp, UUID equipajeId) {
-        jdbcTemplate.update("UPDATE " + tablaTemp + " SET estado = 'ENRUTADO' WHERE id = ?", equipajeId);
+    private void marcarEnrutado(UUID equipajeId) {
+        jdbcTemplate.update("UPDATE equipajes SET estado = 'ENRUTADO' WHERE id = ?", equipajeId);
     }
 
     @Transactional

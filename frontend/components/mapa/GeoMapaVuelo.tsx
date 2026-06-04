@@ -26,14 +26,13 @@ export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false
 
   return (
     <>
-      {tieneRuta && (
+      {vuelo.estado === 'EN_RUTA' && tieneRuta && (
         <Polyline
           positions={[[vuelo.origen_lat, vuelo.origen_lon], [vuelo.destino_lat, vuelo.destino_lon]]}
           pathOptions={{
             color,
             weight: 2,
             opacity: opacidadRuta,
-            dashArray: vuelo.estado === 'PROGRAMADO' ? '5,5' : undefined,
           }}
         />
       )}
