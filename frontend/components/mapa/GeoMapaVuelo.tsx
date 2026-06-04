@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { Polyline } from 'react-leaflet';
 import type { VueloEnMapa } from '@/lib/types';
 import AvionAnimado from './AvionAnimado';
@@ -16,7 +17,7 @@ const COLORES: Record<string, string> = {
   COMPLETADO: '#6b7280',
 };
 
-export default function GeoMapaVuelo({ vuelo, animacionActiva = false }: GeoMapaVueloProps) {
+export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false }: GeoMapaVueloProps) {
   const color = COLORES[vuelo.estado] || '#6b7280';
   const opacidadMarcador = animacionActiva ? 1 : 0.4;
   const opacidadRuta = animacionActiva ? 0.5 : 0.2;
@@ -42,4 +43,4 @@ export default function GeoMapaVuelo({ vuelo, animacionActiva = false }: GeoMapa
       />
     </>
   );
-}
+});

@@ -3,6 +3,7 @@ package com.tasfb2b.backend.bc2.application;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.tasfb2b.backend.bc1.application.VueloService;
 import com.tasfb2b.backend.bc1.domain.*;
 import com.tasfb2b.backend.bc1.infrastructure.*;
 import com.tasfb2b.backend.bc2.domain.*;
@@ -19,6 +20,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -38,6 +40,7 @@ public class TickService {
     private final RedisCacheService redisCacheService;
     private final TelemetriaService telemetriaService;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final VueloService vueloService;
     private final ReplanificacionService replanificacionService;
     private final ApplicationEventPublisher eventPublisher;
     private final ReporteSesionRepository reporteSesionRepository;
@@ -46,6 +49,7 @@ public class TickService {
     private final double k;
 
     private final ConcurrentHashMap<UUID, Integer> ultimaHoraRegistrada = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, LocalDate> ultimaFechaClonada = new ConcurrentHashMap<>();
 
     public TickService(SesionRepository sesionRepository,
                        VueloRepository vueloRepository,
@@ -54,6 +58,7 @@ public class TickService {
                        NodoLogisticoRepository nodoRepository,
                        RedisCacheService redisCacheService,
                        TelemetriaService telemetriaService,
+                       VueloService vueloService,
                        ReplanificacionService replanificacionService,
                        ApplicationEventPublisher eventPublisher,
                        ReporteSesionRepository reporteSesionRepository,
@@ -67,6 +72,7 @@ public class TickService {
         this.nodoRepository = nodoRepository;
         this.redisCacheService = redisCacheService;
         this.telemetriaService = telemetriaService;
+        this.vueloService = vueloService;
         this.replanificacionService = replanificacionService;
         this.eventPublisher = eventPublisher;
         this.reporteSesionRepository = reporteSesionRepository;
@@ -93,6 +99,7 @@ public class TickService {
         OffsetDateTime now = OffsetDateTime.now();
 
         avanzarRelojVirtual(sesion);
+        clonarParaNuevoDia(sesion);
         registrarPuntoSla(sesion);
         procesarVuelosSalida(sesion);
         procesarVuelosLlegada(sesion);
@@ -123,6 +130,27 @@ public class TickService {
                 (sesion.getSegundosRealesTranscurridos() != null ? sesion.getSegundosRealesTranscurridos() : 0)
                         + (int) (TICK_INTERVAL_MS / 1000));
         sesionRepository.save(sesion);
+    }
+
+    private void clonarParaNuevoDia(SesionEjecucion sesion) {
+        if (sesion.getTipo() != TipoSesion.SIMULADA) return;
+        if (sesion.getDiaHoraVirtual() == null) return;
+
+        LocalDate fechaActual = sesion.getDiaHoraVirtual().toLocalDate();
+        LocalDate ultima = ultimaFechaClonada.get(sesion.getId());
+        if (fechaActual.equals(ultima)) return;
+
+        try {
+            int clonadas = vueloService.clonarPlantillas(fechaActual);
+            if (clonadas > 0) {
+                log.info("Progressive clone: {} vuelos creados para fecha {} en sesion {}",
+                        clonadas, fechaActual, sesion.getId());
+            }
+            ultimaFechaClonada.put(sesion.getId(), fechaActual);
+        } catch (Exception e) {
+            log.warn("Error en clonado progresivo para sesion {} fecha {}: {}",
+                    sesion.getId(), fechaActual, e.getMessage());
+        }
     }
 
     private void registrarPuntoSla(SesionEjecucion sesion) {
