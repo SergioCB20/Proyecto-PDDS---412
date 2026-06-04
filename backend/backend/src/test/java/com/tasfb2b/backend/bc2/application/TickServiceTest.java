@@ -1,5 +1,6 @@
 package com.tasfb2b.backend.bc2.application;
 
+import com.tasfb2b.backend.bc1.application.VueloService;
 import com.tasfb2b.backend.bc1.domain.*;
 import com.tasfb2b.backend.bc1.infrastructure.*;
 import com.tasfb2b.backend.bc2.domain.*;
@@ -37,6 +38,7 @@ class TickServiceTest {
     @Mock private RedisCacheService redisCacheService;
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private TelemetriaService telemetriaService;
+    @Mock private VueloService vueloService;
     @Mock private ReplanificacionService replanificacionService;
     @Mock private ReporteSesionRepository reporteSesionRepository;
     @Mock private PuntoSLARepository puntoSLARepository;
@@ -60,6 +62,7 @@ class TickServiceTest {
                 sesionRepository, vueloRepository, equipajeRepository,
                 segmentoPlanRepository, nodoRepository,
                 redisCacheService, telemetriaService,
+                vueloService,
                 replanificacionService, eventPublisher,
                 reporteSesionRepository, puntoSLARepository,
                 planViajeRepository, 120);

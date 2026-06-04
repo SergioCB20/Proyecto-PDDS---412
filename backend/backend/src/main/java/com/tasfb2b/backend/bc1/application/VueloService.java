@@ -22,6 +22,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -235,6 +236,7 @@ public class VueloService {
         }
 
         List<Vuelo> plantillas = vueloRepository.findByEsPlantilla(true);
+        List<Vuelo> instancias = new ArrayList<>(plantillas.size());
 
         for (Vuelo plantilla : plantillas) {
             Vuelo instancia = new Vuelo();
@@ -260,8 +262,10 @@ public class VueloService {
             instancia.setEstado(EstadoVuelo.PROGRAMADO);
             instancia.setEsPlantilla(false);
             instancia.setFechaOperacion(fechaOperacion);
-            vueloRepository.save(instancia);
+            instancias.add(instancia);
         }
+
+        vueloRepository.saveAll(instancias);
 
         log.info("Clonadas {} plantillas para fecha {}", plantillas.size(), fechaOperacion);
         return plantillas.size();

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Marker } from 'react-leaflet';
 import L from 'leaflet';
 import type { VueloEnMapa } from '@/lib/types';
@@ -71,7 +71,7 @@ interface AvionAnimadoProps {
   animacionActiva?: boolean;
 }
 
-export default function AvionAnimado({ vuelo, animacionActiva = false }: AvionAnimadoProps) {
+const AvionAnimado = React.memo(function AvionAnimado({ vuelo, animacionActiva = false }: AvionAnimadoProps) {
   const markerRef = useRef<L.Marker>(null);
   const animRef = useRef<number>(0);
   const progresoRef = useRef(0);
@@ -92,7 +92,10 @@ export default function AvionAnimado({ vuelo, animacionActiva = false }: AvionAn
     }
     return [vuelo.origen_lat, vuelo.origen_lon];
   });
-  const icono = crearIconoAvion(COLORES[vuelo.estado] || '#6b7280', bearing);
+  const icono = useMemo(
+    () => crearIconoAvion(COLORES[vuelo.estado] || '#6b7280', bearing),
+    [vuelo.estado, bearing]
+  );
 
   useEffect(() => {
     const marker = markerRef.current;
@@ -153,4 +156,6 @@ export default function AvionAnimado({ vuelo, animacionActiva = false }: AvionAn
       icon={icono}
     />
   );
-}
+});
+
+export default AvionAnimado;
