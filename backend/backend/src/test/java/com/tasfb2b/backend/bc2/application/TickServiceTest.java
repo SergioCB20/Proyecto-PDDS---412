@@ -1,11 +1,14 @@
 package com.tasfb2b.backend.bc2.application;
 
+import com.tasfb2b.backend.bc1.application.VueloService;
 import com.tasfb2b.backend.bc1.domain.*;
 import com.tasfb2b.backend.bc1.infrastructure.*;
 import com.tasfb2b.backend.bc2.domain.*;
+import com.tasfb2b.backend.bc2.infrastructure.PuntoSLARepository;
+import com.tasfb2b.backend.bc2.infrastructure.ReporteSesionRepository;
 import com.tasfb2b.backend.bc2.infrastructure.SesionRepository;
 import com.tasfb2b.backend.shared.infrastructure.RedisCacheService;
-import tools.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,7 +38,11 @@ class TickServiceTest {
     @Mock private RedisCacheService redisCacheService;
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private TelemetriaService telemetriaService;
+    @Mock private VueloService vueloService;
     @Mock private ReplanificacionService replanificacionService;
+    @Mock private ReporteSesionRepository reporteSesionRepository;
+    @Mock private PuntoSLARepository puntoSLARepository;
+    @Mock private PlanViajeRepository planViajeRepository;
 
     private ObjectMapper objectMapper;
     private TickService tickService;
@@ -54,8 +61,11 @@ class TickServiceTest {
         tickService = new TickService(
                 sesionRepository, vueloRepository, equipajeRepository,
                 segmentoPlanRepository, nodoRepository,
-                redisCacheService, telemetriaService, objectMapper,
-                replanificacionService, eventPublisher);
+                redisCacheService, telemetriaService,
+                vueloService,
+                replanificacionService, eventPublisher,
+                reporteSesionRepository, puntoSLARepository,
+                planViajeRepository, 120);
 
         sesion = new SesionEjecucion(
                 UUID.randomUUID(), TipoSesion.SIMULADA,
@@ -95,12 +105,15 @@ class TickServiceTest {
         equipaje.setId(UUID.randomUUID());
         equipaje.setEstado(EstadoEquipaje.REGISTRADO);
         equipaje.setVueloActual(vuelo);
+        equipaje.setOrigenIata("SPIM");
         equipaje.setDestinoIata("CUZ");
         equipaje.setSlaComprometido(OffsetDateTime.parse("2026-05-27T12:00:00Z"));
 
         planViaje = new PlanViaje();
         planViaje.setId(UUID.randomUUID());
         planViaje.setEquipaje(equipaje);
+
+        lenient().when(planViajeRepository.findBySesionIdWithEquipaje(any())).thenReturn(List.of());
 
         segmento = new SegmentoPlan();
         segmento.setId(UUID.randomUUID());
@@ -118,9 +131,9 @@ class TickServiceTest {
         when(sesionRepository.findByEstado(EstadoSesion.EN_CURSO))
                 .thenReturn(List.of(sesion));
         when(sesionRepository.save(any())).thenReturn(sesion);
-        when(vueloRepository.findByEstadoAndHoraSalidaLessThanEqual(any(), any()))
+        when(vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaLessThanEqual(any(), anyBoolean(), any()))
                 .thenReturn(List.of());
-        when(vueloRepository.findByEstadoAndHoraLlegadaLessThanEqual(any(), any()))
+        when(vueloRepository.findByEstadoAndEsPlantillaAndHoraLlegadaLessThanEqual(any(), anyBoolean(), any()))
                 .thenReturn(List.of());
         when(nodoRepository.findAllByOrderByCodigoIataAsc())
                 .thenReturn(List.of(nodoOrigen, nodoDestino));
@@ -139,14 +152,14 @@ class TickServiceTest {
     void tick_shouldDetectDepartingFlights() {
         when(sesionRepository.findByEstado(EstadoSesion.EN_CURSO))
                 .thenReturn(List.of(sesion));
-        when(vueloRepository.findByEstadoAndHoraSalidaLessThanEqual(
-                eq(EstadoVuelo.PROGRAMADO), any(OffsetDateTime.class)))
+        when(vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaLessThanEqual(
+                eq(EstadoVuelo.PROGRAMADO), eq(false), any(OffsetDateTime.class)))
                 .thenReturn(List.of(vuelo))
                 .thenReturn(List.of());
         when(segmentoPlanRepository.findByVueloIdAndEstado(
                 vuelo.getId(), EstadoSegmento.PENDIENTE))
                 .thenReturn(List.of(segmento));
-        when(vueloRepository.findByEstadoAndHoraLlegadaLessThanEqual(any(), any()))
+        when(vueloRepository.findByEstadoAndEsPlantillaAndHoraLlegadaLessThanEqual(any(), anyBoolean(), any()))
                 .thenReturn(List.of());
         when(nodoRepository.findAllByOrderByCodigoIataAsc())
                 .thenReturn(List.of(nodoOrigen, nodoDestino));
@@ -168,13 +181,13 @@ class TickServiceTest {
 
         when(sesionRepository.findByEstado(EstadoSesion.EN_CURSO))
                 .thenReturn(List.of(sesion));
-        when(vueloRepository.findByEstadoAndHoraLlegadaLessThanEqual(
-                any(EstadoVuelo.class), any(OffsetDateTime.class)))
+        when(vueloRepository.findByEstadoAndEsPlantillaAndHoraLlegadaLessThanEqual(
+                any(EstadoVuelo.class), eq(false), any(OffsetDateTime.class)))
                 .thenReturn(List.of(vuelo));
         when(segmentoPlanRepository.findByVueloIdAndEstado(
                 vuelo.getId(), EstadoSegmento.EN_CURSO))
                 .thenReturn(List.of(segmento));
-        when(vueloRepository.findByEstadoAndHoraSalidaLessThanEqual(any(), any()))
+        when(vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaLessThanEqual(any(), anyBoolean(), any()))
                 .thenReturn(List.of());
         when(nodoRepository.findAllByOrderByCodigoIataAsc())
                 .thenReturn(List.of(nodoOrigen, nodoDestino));
@@ -195,9 +208,9 @@ class TickServiceTest {
 
         when(sesionRepository.findByEstado(EstadoSesion.EN_CURSO))
                 .thenReturn(List.of(sesion));
-        when(vueloRepository.findByEstadoAndHoraSalidaLessThanEqual(any(), any()))
+        when(vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaLessThanEqual(any(), anyBoolean(), any()))
                 .thenReturn(List.of());
-        when(vueloRepository.findByEstadoAndHoraLlegadaLessThanEqual(any(), any()))
+        when(vueloRepository.findByEstadoAndEsPlantillaAndHoraLlegadaLessThanEqual(any(), anyBoolean(), any()))
                 .thenReturn(List.of());
         when(nodoRepository.findAllByOrderByCodigoIataAsc())
                 .thenReturn(List.of(nodoOrigen));
@@ -213,9 +226,9 @@ class TickServiceTest {
     void tick_shouldWriteMetricsToRedis() {
         when(sesionRepository.findByEstado(EstadoSesion.EN_CURSO))
                 .thenReturn(List.of(sesion));
-        when(vueloRepository.findByEstadoAndHoraSalidaLessThanEqual(any(), any()))
+        when(vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaLessThanEqual(any(), anyBoolean(), any()))
                 .thenReturn(List.of());
-        when(vueloRepository.findByEstadoAndHoraLlegadaLessThanEqual(any(), any()))
+        when(vueloRepository.findByEstadoAndEsPlantillaAndHoraLlegadaLessThanEqual(any(), anyBoolean(), any()))
                 .thenReturn(List.of());
         when(nodoRepository.findAllByOrderByCodigoIataAsc())
                 .thenReturn(List.of(nodoOrigen, nodoDestino));
@@ -232,10 +245,10 @@ class TickServiceTest {
 
         when(sesionRepository.findByEstado(EstadoSesion.EN_CURSO))
                 .thenReturn(List.of(sesion));
-        when(vueloRepository.findByEstadoAndHoraSalidaLessThanEqual(
-                any(EstadoVuelo.class), any(OffsetDateTime.class)))
+        when(vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaLessThanEqual(
+                any(EstadoVuelo.class), eq(false), any(OffsetDateTime.class)))
                 .thenReturn(List.of(vuelo));
-        when(vueloRepository.findByEstadoAndHoraLlegadaLessThanEqual(any(), any()))
+        when(vueloRepository.findByEstadoAndEsPlantillaAndHoraLlegadaLessThanEqual(any(), anyBoolean(), any()))
                 .thenReturn(List.of());
         when(nodoRepository.findAllByOrderByCodigoIataAsc())
                 .thenReturn(List.of(nodoOrigen, nodoDestino));

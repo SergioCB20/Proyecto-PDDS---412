@@ -1,7 +1,9 @@
 package com.tasfb2b.backend.bc1.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -55,11 +57,18 @@ public class Vuelo {
     @Column(name = "hora_llegada", nullable = false)
     private OffsetDateTime horaLlegada;
 
+    @Column(name = "es_plantilla", nullable = false)
+    private Boolean esPlantilla = false;
+
+    @Column(name = "fecha_operacion")
+    private LocalDate fechaOperacion;
+
     public Vuelo() {}
 
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
 
+    @JsonIgnore
     public PlanVuelos getPlanVuelos() { return planVuelos; }
     public void setPlanVuelos(PlanVuelos planVuelos) { this.planVuelos = planVuelos; }
 
@@ -98,6 +107,12 @@ public class Vuelo {
 
     public OffsetDateTime getHoraLlegada() { return horaLlegada; }
     public void setHoraLlegada(OffsetDateTime horaLlegada) { this.horaLlegada = horaLlegada; }
+
+    public Boolean getEsPlantilla() { return esPlantilla; }
+    public void setEsPlantilla(Boolean esPlantilla) { this.esPlantilla = esPlantilla; }
+
+    public LocalDate getFechaOperacion() { return fechaOperacion; }
+    public void setFechaOperacion(LocalDate fechaOperacion) { this.fechaOperacion = fechaOperacion; }
 
     public double getOcupacionPorcentaje() {
         if (capacidadCarga == null || capacidadCarga == 0) return 0;

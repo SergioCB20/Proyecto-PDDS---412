@@ -9,6 +9,7 @@ export const MOCK_NODOS: Nodo[] = [
     longitud: -77.1143,
     capacidad_almacen: 500,
     ocupacion_actual: 120,
+    zona_horaria: 'America/Lima',
   },
   {
     id: '00000000-0000-0000-0003-000000000002',
@@ -18,6 +19,7 @@ export const MOCK_NODOS: Nodo[] = [
     longitud: -80.287,
     capacidad_almacen: 800,
     ocupacion_actual: 400,
+    zona_horaria: 'America/New_York',
   },
   {
     id: '00000000-0000-0000-0003-000000000003',
@@ -27,6 +29,7 @@ export const MOCK_NODOS: Nodo[] = [
     longitud: -74.1469,
     capacidad_almacen: 600,
     ocupacion_actual: 540,
+    zona_horaria: 'America/Bogota',
   },
   {
     id: '00000000-0000-0000-0003-000000000004',
@@ -36,6 +39,7 @@ export const MOCK_NODOS: Nodo[] = [
     longitud: -46.4731,
     capacidad_almacen: 700,
     ocupacion_actual: 420,
+    zona_horaria: 'America/Sao_Paulo',
   },
   {
     id: '00000000-0000-0000-0003-000000000005',
@@ -45,6 +49,7 @@ export const MOCK_NODOS: Nodo[] = [
     longitud: -70.7858,
     capacidad_almacen: 400,
     ocupacion_actual: 80,
+    zona_horaria: 'America/Santiago',
   },
 ];
 
@@ -60,6 +65,7 @@ export const MOCK_VUELOS: Vuelo[] = [
     hora_salida: '2025-06-15T14:30:00Z',
     hora_llegada: '2025-06-15T22:00:00Z',
     capacidad_carga: 200, carga_disponible: 85,
+    es_plantilla: false, fecha_operacion: '2025-06-15',
   },
   {
     id: 'mock-vuelo-2',
@@ -72,6 +78,7 @@ export const MOCK_VUELOS: Vuelo[] = [
     hora_salida: '2025-06-15T18:00:00Z',
     hora_llegada: '2025-06-16T02:00:00Z',
     capacidad_carga: 200, carga_disponible: 0,
+    es_plantilla: false, fecha_operacion: '2025-06-15',
   },
   {
     id: 'mock-vuelo-3',
@@ -84,6 +91,7 @@ export const MOCK_VUELOS: Vuelo[] = [
     hora_salida: '2025-06-15T06:00:00Z',
     hora_llegada: '2025-06-15T09:00:00Z',
     capacidad_carga: 150, carga_disponible: 150,
+    es_plantilla: false, fecha_operacion: '2025-06-15',
   },
   {
     id: 'mock-vuelo-4',
@@ -96,6 +104,7 @@ export const MOCK_VUELOS: Vuelo[] = [
     hora_salida: '2025-06-15T10:00:00Z',
     hora_llegada: '2025-06-15T16:00:00Z',
     capacidad_carga: 180, carga_disponible: 0,
+    es_plantilla: false, fecha_operacion: '2025-06-15',
   },
   {
     id: 'mock-vuelo-5',
@@ -108,23 +117,16 @@ export const MOCK_VUELOS: Vuelo[] = [
     hora_salida: '2025-06-15T07:00:00Z',
     hora_llegada: '2025-06-15T10:00:00Z',
     capacidad_carga: 120, carga_disponible: 60,
+    es_plantilla: false, fecha_operacion: '2025-06-15',
   },
 ];
 
-export function getNodoColor(ocupacion: number, capacidad: number): string {
-  const pct = capacidad > 0 ? (ocupacion / capacidad) * 100 : 0;
-  if (pct < 70) return '#22c55e';
-  if (pct < 90) return '#eab308';
-  return '#ef4444';
-}
-
 export function nodoToEnMapa(nodo: Nodo): NodoEnMapa {
-  return {
-    ...nodo,
-    color: getNodoColor(nodo.ocupacion_actual, nodo.capacidad_almacen),
-    ocupacionPorcentaje: nodo.capacidad_almacen > 0
-      ? (nodo.ocupacion_actual / nodo.capacidad_almacen) * 100 : 0,
-  };
+  const pct = nodo.capacidad_almacen > 0
+    ? (nodo.ocupacion_actual / nodo.capacidad_almacen) * 100
+    : 0;
+  const color = pct > 90 ? '#dc2626' : pct > 70 ? '#ca8a04' : '#16a34a';
+  return { ...nodo, color, ocupacionPorcentaje: pct };
 }
 
 export function calcularPosicionAvion(

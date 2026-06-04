@@ -34,6 +34,7 @@ export interface Nodo {
   longitud: number;
   capacidad_almacen: number;
   ocupacion_actual: number;
+  zona_horaria: string;
 }
 
 export interface Vuelo {
@@ -50,6 +51,8 @@ export interface Vuelo {
   hora_llegada: string;
   capacidad_carga: number;
   carga_disponible: number;
+  es_plantilla: boolean;
+  fecha_operacion: string | null;
 }
 
 export interface VueloPageResponse {

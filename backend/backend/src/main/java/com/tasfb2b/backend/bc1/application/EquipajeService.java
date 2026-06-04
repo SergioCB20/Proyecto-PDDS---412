@@ -103,6 +103,7 @@ public class EquipajeService {
         Equipaje equipaje = new Equipaje();
         equipaje.setId(UUID.randomUUID());
         equipaje.setIdExterno(request.id_equipaje());
+        equipaje.setOrigenIata(nodoOrigen.getCodigoIata());
         equipaje.setDestinoIata(request.destino_iata());
         equipaje.setSlaComprometido(request.sla_comprometido());
         equipaje.setFechaIngreso(OffsetDateTime.now());
