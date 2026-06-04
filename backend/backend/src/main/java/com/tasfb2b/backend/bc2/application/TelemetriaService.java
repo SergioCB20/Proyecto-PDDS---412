@@ -19,7 +19,6 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -67,18 +66,8 @@ public class TelemetriaService {
         }
 
         ArrayNode vuelosArr = root.putArray("vuelos");
-        OffsetDateTime virtual = sesion.getDiaHoraVirtual();
-        OffsetDateTime ventanaProgramadosInicio = virtual != null ? virtual.minusHours(1) : OffsetDateTime.now().minusHours(1);
-        OffsetDateTime ventanaProgramadosFin = virtual != null ? virtual.plusHours(8) : OffsetDateTime.now().plusHours(8);
-
-        List<Vuelo> enRuta = vueloRepository.findByEstadoInAndEsPlantilla(
-                List.of(EstadoVuelo.EN_RUTA), false);
-        List<Vuelo> programados = vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaBetween(
-                EstadoVuelo.PROGRAMADO, false, ventanaProgramadosInicio, ventanaProgramadosFin);
-
-        List<Vuelo> vuelos = new ArrayList<>(enRuta.size() + programados.size());
-        vuelos.addAll(enRuta);
-        vuelos.addAll(programados);
+        List<Vuelo> vuelos = vueloRepository.findByEstadoInAndEsPlantilla(
+                List.of(EstadoVuelo.PROGRAMADO, EstadoVuelo.EN_RUTA), false);
 
         for (Vuelo vuelo : vuelos) {
             ObjectNode v = vuelosArr.addObject();
