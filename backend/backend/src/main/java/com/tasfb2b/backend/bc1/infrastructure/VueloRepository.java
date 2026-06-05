@@ -32,4 +32,5 @@ public interface VueloRepository extends JpaRepository<Vuelo, UUID>, JpaSpecific
     List<Vuelo> findByEsPlantilla(Boolean esPlantilla);
     long countByEstadoAndEsPlantilla(EstadoVuelo estado, Boolean esPlantilla);
     boolean existsByFechaOperacionAndEsPlantilla(LocalDate fechaOperacion, Boolean esPlantilla);
+    boolean existsByFechaOperacionAndEstadoInAndEsPlantilla(LocalDate fechaOperacion, List<EstadoVuelo> estados, Boolean esPlantilla);
 }
