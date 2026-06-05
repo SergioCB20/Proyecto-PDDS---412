@@ -1,5 +1,7 @@
 package com.tasfb2b.backend.shared.infrastructure;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -8,6 +10,8 @@ import java.util.UUID;
 @Service
 public class RedisCacheService {
 
+    private static final Logger log = LoggerFactory.getLogger(RedisCacheService.class);
+
     private final StringRedisTemplate redisTemplate;
 
     public RedisCacheService(StringRedisTemplate redisTemplate) {
@@ -15,41 +19,81 @@ public class RedisCacheService {
     }
 
     public void actualizarOcupacionNodo(UUID nodoId, int ocupacion) {
-        redisTemplate.opsForValue().set("nodo:" + nodoId + ":ocupacion", String.valueOf(ocupacion));
+        try {
+            redisTemplate.opsForValue().set("nodo:" + nodoId + ":ocupacion", String.valueOf(ocupacion));
+        } catch (Exception e) {
+            log.warn("Redis no disponible en actualizarOcupacionNodo({}): {}", nodoId, e.getMessage());
+        }
     }
 
     public void actualizarCargaDisponibleVuelo(UUID vueloId, int cargaDisponible) {
-        redisTemplate.opsForValue().set("vuelo:" + vueloId + ":carga_disponible", String.valueOf(cargaDisponible));
+        try {
+            redisTemplate.opsForValue().set("vuelo:" + vueloId + ":carga_disponible", String.valueOf(cargaDisponible));
+        } catch (Exception e) {
+            log.warn("Redis no disponible en actualizarCargaDisponibleVuelo({}): {}", vueloId, e.getMessage());
+        }
     }
 
     public Integer getOcupacionNodo(UUID nodoId) {
-        String val = redisTemplate.opsForValue().get("nodo:" + nodoId + ":ocupacion");
-        return val != null ? Integer.parseInt(val) : null;
+        try {
+            String val = redisTemplate.opsForValue().get("nodo:" + nodoId + ":ocupacion");
+            return val != null ? Integer.parseInt(val) : null;
+        } catch (Exception e) {
+            log.warn("Redis no disponible en getOcupacionNodo({}): {}", nodoId, e.getMessage());
+            return null;
+        }
     }
 
     public Integer getCargaDisponibleVuelo(UUID vueloId) {
-        String val = redisTemplate.opsForValue().get("vuelo:" + vueloId + ":carga_disponible");
-        return val != null ? Integer.parseInt(val) : null;
+        try {
+            String val = redisTemplate.opsForValue().get("vuelo:" + vueloId + ":carga_disponible");
+            return val != null ? Integer.parseInt(val) : null;
+        } catch (Exception e) {
+            log.warn("Redis no disponible en getCargaDisponibleVuelo({}): {}", vueloId, e.getMessage());
+            return null;
+        }
     }
 
     public void setMetricasSesion(UUID sesionId, String json) {
-        redisTemplate.opsForValue().set("sesion:" + sesionId + ":metricas", json);
+        try {
+            redisTemplate.opsForValue().set("sesion:" + sesionId + ":metricas", json);
+        } catch (Exception e) {
+            log.warn("Redis no disponible en setMetricasSesion({}): {}", sesionId, e.getMessage());
+        }
     }
 
     public String getMetricasSesion(UUID sesionId) {
-        return redisTemplate.opsForValue().get("sesion:" + sesionId + ":metricas");
+        try {
+            return redisTemplate.opsForValue().get("sesion:" + sesionId + ":metricas");
+        } catch (Exception e) {
+            log.warn("Redis no disponible en getMetricasSesion({}): {}", sesionId, e.getMessage());
+            return null;
+        }
     }
 
     public void setEstadoSesion(UUID sesionId, String estado) {
-        redisTemplate.opsForValue().set("sesion:" + sesionId + ":estado", estado);
+        try {
+            redisTemplate.opsForValue().set("sesion:" + sesionId + ":estado", estado);
+        } catch (Exception e) {
+            log.warn("Redis no disponible en setEstadoSesion({}): {}", sesionId, e.getMessage());
+        }
     }
 
     public String getEstadoSesion(UUID sesionId) {
-        return redisTemplate.opsForValue().get("sesion:" + sesionId + ":estado");
+        try {
+            return redisTemplate.opsForValue().get("sesion:" + sesionId + ":estado");
+        } catch (Exception e) {
+            log.warn("Redis no disponible en getEstadoSesion({}): {}", sesionId, e.getMessage());
+            return null;
+        }
     }
 
     public void eliminarMetricasSesion(UUID sesionId) {
-        redisTemplate.delete("sesion:" + sesionId + ":metricas");
-        redisTemplate.delete("sesion:" + sesionId + ":estado");
+        try {
+            redisTemplate.delete("sesion:" + sesionId + ":metricas");
+            redisTemplate.delete("sesion:" + sesionId + ":estado");
+        } catch (Exception e) {
+            log.warn("Redis no disponible en eliminarMetricasSesion({}): {}", sesionId, e.getMessage());
+        }
     }
 }
