@@ -157,11 +157,6 @@ function SimulacionContent() {
 
   const metricas = telemetria?.metricas_sesion ?? metricasPoll;
 
-  const DOS_HORAS_VIRTUALES = 2 * 60 * 60 * 1000; // 2h virtuales en ms
-  const tiempoActual = telemetria?.metricas_sesion?.dia_hora_virtual
-    ? new Date(telemetria.metricas_sesion.dia_hora_virtual).getTime()
-    : 0;
-
   const nodosTelemetria: NodoEnMapa[] = useMemo(() =>
     (telemetria?.nodos ?? []).map(n => ({
       id: n.id,
@@ -176,8 +171,13 @@ function SimulacionContent() {
       ocupacionPorcentaje: n.ocupacion_pct,
     })), [telemetria]);
 
-  const vuelosTelemetria: VueloEnMapa[] = useMemo(() =>
-    (telemetria?.vuelos ?? [])
+  const vuelosTelemetria: VueloEnMapa[] = useMemo(() => {
+    const DOS_HORAS_VIRTUALES = 2 * 60 * 60 * 1000;
+    const tiempoActual = telemetria?.metricas_sesion?.dia_hora_virtual
+      ? new Date(telemetria.metricas_sesion.dia_hora_virtual).getTime()
+      : 0;
+
+    return (telemetria?.vuelos ?? [])
       .filter(v => {
         if (v.estado !== 'PROGRAMADO') return true;
         if (!v.hora_salida) return false;
@@ -201,7 +201,8 @@ function SimulacionContent() {
         es_plantilla: false,
         fecha_operacion: '',
         posicionActual: { lat: v.lat_actual, lon: v.lon_actual },
-      })), [telemetria, tiempoActual, DOS_HORAS_VIRTUALES]);
+      }));
+  }, [telemetria]);
 
   const hayTelemetria = telemetria !== null && (telemetria.nodos?.length > 0 || telemetria.vuelos?.length > 0);
   const nodosMapa = hayTelemetria ? nodosTelemetria : initialNodos;

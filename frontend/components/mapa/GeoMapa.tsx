@@ -1,10 +1,8 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
-import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
-import MarkerClusterGroup from 'react-leaflet-cluster';
+import { useEffect, useMemo, useState } from 'react';
+import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 import type { NodoEnMapa, VueloEnMapa } from '@/lib/types';
-import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import dynamic from 'next/dynamic';
 
@@ -34,17 +32,17 @@ function MapContent({
   mostrarAviones: boolean;
   animacionActiva: boolean;
 }) {
-  const [bounds, setBounds] = useState<L.LatLngBounds | null>(null);
   const map = useMap();
+  const [bounds, setBounds] = useState(() => map.getBounds().pad(0.3));
 
-  const handleMoveEnd = useCallback(() => {
-    setBounds(map.getBounds().pad(0.3));
+  useEffect(() => {
+    const handler = () => setBounds(map.getBounds().pad(0.3));
+    map.on('moveend', handler);
+    return () => { map.off('moveend', handler); };
   }, [map]);
 
-  useMapEvents({ moveend: handleMoveEnd });
-
   const vuelosVisibles = useMemo(() => {
-    if (!bounds || vuelos.length === 0) return vuelos;
+    if (vuelos.length === 0) return vuelos;
     return vuelos.filter(v => bounds.contains([v.origen_lat, v.origen_lon]));
   }, [vuelos, bounds]);
 
@@ -57,17 +55,13 @@ function MapContent({
       {nodos.map((nodo) => (
         <GeoMapaNodo key={`${nodo.codigo_iata}-${nodo.color}`} nodo={nodo} />
       ))}
-      {mostrarAviones && (
-        <MarkerClusterGroup chunkedLoading>
-          {vuelosVisibles.map((vuelo) => (
-            <GeoMapaVuelo
-              key={vuelo.id}
-              vuelo={vuelo}
-              animacionActiva={animacionActiva}
-            />
-          ))}
-        </MarkerClusterGroup>
-      )}
+      {mostrarAviones && vuelosVisibles.map((vuelo) => (
+        <GeoMapaVuelo
+          key={vuelo.id}
+          vuelo={vuelo}
+          animacionActiva={animacionActiva}
+        />
+      ))}
     </>
   );
 }
