@@ -214,7 +214,7 @@ public class SesionService {
         return new MetricasSesionResponse(
             sesion.getId(),
             sesion.getEstado().name(),
-            OffsetDateTime.now(),
+            sesion.getDiaHoraVirtual() != null ? sesion.getDiaHoraVirtual() : OffsetDateTime.now(),
             sesion.getSegundosRealesTranscurridos() != null ? sesion.getSegundosRealesTranscurridos() : 0,
             sesion.getSlaAcumuladoPct() != null ? sesion.getSlaAcumuladoPct() : new BigDecimal("100"),
             sesion.getVuelosCancelados() != null ? sesion.getVuelosCancelados() : 0,
