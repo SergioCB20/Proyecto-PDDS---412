@@ -2,13 +2,13 @@
 
 import { useEffect, useState, Suspense, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams, useParams, useRouter } from 'next/navigation';
-import { Play, Pause, Square, Clock, AlertTriangle, RefreshCw, Activity, FileText, Wifi, WifiOff } from 'lucide-react';
+import { Play, Pause, Square, Clock, AlertTriangle, RefreshCw, Activity, FileText } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { api } from '@/lib/api';
 import { useTelemetria } from '@/lib/useTelemetria';
-import type { Nodo, NodoEnMapa, Vuelo, VueloEnMapa, VueloPageResponse, MetricasSimulacion } from '@/lib/types';
+import type { Nodo, NodoEnMapa, Vuelo, VueloEnMapa, VueloPageResponse, MetricasSimulacion, VueloTelemetria } from '@/lib/types';
 
 const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false });
 
@@ -38,6 +38,64 @@ function MetricaCard({ label, value, icon: Icon, color }: {
       <div>
         <div className="text-xs text-slate-500">{label}</div>
         <div className="text-lg font-bold text-slate-900 dark:text-slate-100">{value}</div>
+      </div>
+    </div>
+  );
+}
+
+function ResumenVuelos({ vuelos }: { vuelos: VueloTelemetria[] }) {
+  const activos = vuelos.filter(v => v.estado === 'EN_RUTA').length;
+  const programados = vuelos.filter(v => v.estado === 'PROGRAMADO').length;
+
+  const porNodo = useMemo(() => {
+    const map = new Map<string, { activos: number; programados: number }>();
+    for (const v of vuelos) {
+      if (v.estado !== 'EN_RUTA' && v.estado !== 'PROGRAMADO') continue;
+      const entry = map.get(v.origen_iata) ?? { activos: 0, programados: 0 };
+      if (v.estado === 'EN_RUTA') entry.activos++;
+      if (v.estado === 'PROGRAMADO') entry.programados++;
+      map.set(v.origen_iata, entry);
+    }
+    return Array.from(map.entries()).sort((a, b) => b[1].activos - a[1].activos);
+  }, [vuelos]);
+
+  return (
+    <div className="p-4 border-t border-slate-200 dark:border-slate-700">
+      <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">
+        Resumen de Vuelos
+      </h3>
+      <div className="flex gap-2 mb-3">
+        <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg bg-green-50 dark:bg-green-900/20">
+          <div className="w-2 h-2 rounded-full bg-green-500" />
+          <span className="text-xs text-slate-500">Activos</span>
+          <span className="ml-auto text-lg font-bold text-green-600">{activos}</span>
+        </div>
+        <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+          <div className="w-2 h-2 rounded-full bg-blue-500" />
+          <span className="text-xs text-slate-500">Prog.</span>
+          <span className="ml-auto text-lg font-bold text-blue-600">{programados}</span>
+        </div>
+      </div>
+      <div className="space-y-1 max-h-48 overflow-y-auto text-sm">
+        {porNodo.map(([iata, cnt]) => (
+          <div key={iata} className="flex items-center justify-between py-1.5 px-2 rounded bg-slate-50 dark:bg-slate-800/50">
+            <span className="font-medium text-slate-700 dark:text-slate-300">{iata}</span>
+            <div className="flex items-center gap-2 text-xs">
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                <span className="text-green-600 font-semibold">{cnt.activos}</span>
+              </span>
+              <span className="text-slate-300">/</span>
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                <span className="text-blue-600 font-semibold">{cnt.programados}</span>
+              </span>
+            </div>
+          </div>
+        ))}
+        {porNodo.length === 0 && (
+          <p className="text-xs text-slate-400 italic text-center py-2">Sin datos de vuelos</p>
+        )}
       </div>
     </div>
   );
@@ -99,6 +157,11 @@ function SimulacionContent() {
 
   const metricas = telemetria?.metricas_sesion ?? metricasPoll;
 
+  const DOS_HORAS_VIRTUALES = 2 * 60 * 60 * 1000; // 2h virtuales en ms
+  const tiempoActual = telemetria?.metricas_sesion?.dia_hora_virtual
+    ? new Date(telemetria.metricas_sesion.dia_hora_virtual).getTime()
+    : 0;
+
   const nodosTelemetria: NodoEnMapa[] = useMemo(() =>
     (telemetria?.nodos ?? []).map(n => ({
       id: n.id,
@@ -114,24 +177,31 @@ function SimulacionContent() {
     })), [telemetria]);
 
   const vuelosTelemetria: VueloEnMapa[] = useMemo(() =>
-    (telemetria?.vuelos ?? []).map(v => ({
-      id: v.id,
-      codigo_vuelo: v.codigo_vuelo,
-      estado: matchEstadoVuelo(v.estado),
-      origen: { id: '', codigo_iata: v.origen_iata, nombre: v.origen_iata },
-      destino: { id: '', codigo_iata: v.destino_iata, nombre: v.destino_iata },
-      origen_lat: v.origen_lat,
-      origen_lon: v.origen_lon,
-      destino_lat: v.destino_lat,
-      destino_lon: v.destino_lon,
-      hora_salida: '',
-      hora_llegada: '',
-      capacidad_carga: 0,
-      carga_disponible: 0,
-      es_plantilla: false,
-      fecha_operacion: '',
-      posicionActual: { lat: v.lat_actual, lon: v.lon_actual },
-    })), [telemetria]);
+    (telemetria?.vuelos ?? [])
+      .filter(v => {
+        if (v.estado !== 'PROGRAMADO') return true;
+        if (!v.hora_salida) return false;
+        const salida = new Date(v.hora_salida).getTime();
+        return salida <= tiempoActual + DOS_HORAS_VIRTUALES;
+      })
+      .map(v => ({
+        id: v.id,
+        codigo_vuelo: v.codigo_vuelo,
+        estado: matchEstadoVuelo(v.estado),
+        origen: { id: '', codigo_iata: v.origen_iata, nombre: v.origen_iata },
+        destino: { id: '', codigo_iata: v.destino_iata, nombre: v.destino_iata },
+        origen_lat: v.origen_lat,
+        origen_lon: v.origen_lon,
+        destino_lat: v.destino_lat,
+        destino_lon: v.destino_lon,
+        hora_salida: v.hora_salida,
+        hora_llegada: '',
+        capacidad_carga: 0,
+        carga_disponible: 0,
+        es_plantilla: false,
+        fecha_operacion: '',
+        posicionActual: { lat: v.lat_actual, lon: v.lon_actual },
+      })), [telemetria, tiempoActual, DOS_HORAS_VIRTUALES]);
 
   const hayTelemetria = telemetria !== null && (telemetria.nodos?.length > 0 || telemetria.vuelos?.length > 0);
   const nodosMapa = hayTelemetria ? nodosTelemetria : initialNodos;
@@ -323,6 +393,8 @@ function SimulacionContent() {
             color="bg-blue-500"
           />
         </div>
+
+        <ResumenVuelos vuelos={telemetria?.vuelos ?? []} />
 
         <div className="p-4 border-t border-slate-200 dark:border-slate-700 space-y-2">
           {error && (
