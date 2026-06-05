@@ -165,4 +165,15 @@ jobs:
               sleep 10
             done
 
-            curl -sfL http://localhost:5000/front/login | grep -q "TAS FB2B" && echo "✅ Frontend healthy" || echo "⚠️ Frontend health check failed"
+            echo "Waiting for frontend to be ready..."
+            for i in $(seq 1 6); do
+              if curl -sfL http://localhost:5000/front/login | grep -q "TAS FB2B"; then
+                echo "✅ Frontend healthy after ${i}0s"
+                break
+              fi
+              if [ "$i" -eq 6 ]; then
+                echo "⚠️ Frontend health check failed after 60s"
+                sudo journalctl -u frontend --no-pager -n 30 2>/dev/null || echo "(no se pudo leer el log de frontend)"
+              fi
+              sleep 10
+            done
