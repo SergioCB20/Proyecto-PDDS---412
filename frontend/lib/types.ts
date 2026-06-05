@@ -213,7 +213,6 @@ export interface VueloTelemetria {
   destino_iata: string;
   ocupacion_pct: number;
   color: string;
-  hora_salida: string;
 }
 
 export interface TelemetriaMensaje {

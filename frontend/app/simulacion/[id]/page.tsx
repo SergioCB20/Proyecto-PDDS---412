@@ -182,7 +182,7 @@ function SimulacionContent() {
       origen_lon: v.origen_lon,
       destino_lat: v.destino_lat,
       destino_lon: v.destino_lon,
-      hora_salida: v.hora_salida,
+      hora_salida: '',
       hora_llegada: '',
       capacidad_carga: 0,
       carga_disponible: 0,
@@ -220,6 +220,12 @@ function SimulacionContent() {
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
   }, [backendSesionId, estado, connected, fetchMetricas]);
+
+  useEffect(() => {
+    if (backendSesionId && accionRef.current === 'ninguna') {
+      fetchMetricas();
+    }
+  }, [backendSesionId, fetchMetricas]);
 
   const handleIniciar = async () => {
     setLoading(true);
