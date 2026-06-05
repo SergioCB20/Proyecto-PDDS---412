@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Marker, useMap } from 'react-leaflet';
+import { Marker } from 'react-leaflet';
 import L from 'leaflet';
 import type { VueloEnMapa } from '@/lib/types';
 
@@ -85,8 +85,6 @@ const AvionAnimado = React.memo(function AvionAnimado({ vuelo, animacionActiva =
     { lat: vuelo.destino_lat, lon: vuelo.destino_lon }
   );
 
-  const map = useMap();
-
   const [frozenPos] = useState<[number, number]>(() => {
     const p = vuelo.posicionActual;
     if (p && esCoordenadaValida(p.lat) && esCoordenadaValida(p.lon)) {
@@ -119,12 +117,6 @@ const AvionAnimado = React.memo(function AvionAnimado({ vuelo, animacionActiva =
     if (!animacionActiva || distTotal === 0) {
       const [lat, lng] = calcPosicionEnRuta(origenLL, destinoLL, progresoObjetivo);
       marker.setLatLng([lat, lng]);
-      progresoRef.current = progresoObjetivo;
-      return;
-    }
-
-    if (!map.getBounds().contains(actual)) {
-      marker.setLatLng([p.lat, p.lon]);
       progresoRef.current = progresoObjetivo;
       return;
     }

@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { MapContainer, TileLayer, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer } from 'react-leaflet';
 import type { NodoEnMapa, VueloEnMapa } from '@/lib/types';
 import 'leaflet/dist/leaflet.css';
 import dynamic from 'next/dynamic';
@@ -20,51 +19,6 @@ interface GeoMapaProps {
 
 const CENTRO: [number, number] = [-15, -60];
 const ZOOM = 4;
-
-function MapContent({
-  nodos,
-  vuelos,
-  mostrarAviones,
-  animacionActiva,
-}: {
-  nodos: NodoEnMapa[];
-  vuelos: VueloEnMapa[];
-  mostrarAviones: boolean;
-  animacionActiva: boolean;
-}) {
-  const map = useMap();
-  const [bounds, setBounds] = useState(() => map.getBounds().pad(0.3));
-
-  useEffect(() => {
-    const handler = () => setBounds(map.getBounds().pad(0.3));
-    map.on('moveend', handler);
-    return () => { map.off('moveend', handler); };
-  }, [map]);
-
-  const vuelosVisibles = useMemo(() => {
-    if (vuelos.length === 0) return vuelos;
-    return vuelos.filter(v => bounds.contains([v.origen_lat, v.origen_lon]));
-  }, [vuelos, bounds]);
-
-  return (
-    <>
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-      {nodos.map((nodo) => (
-        <GeoMapaNodo key={`${nodo.codigo_iata}-${nodo.color}`} nodo={nodo} />
-      ))}
-      {mostrarAviones && vuelosVisibles.map((vuelo) => (
-        <GeoMapaVuelo
-          key={vuelo.id}
-          vuelo={vuelo}
-          animacionActiva={animacionActiva}
-        />
-      ))}
-    </>
-  );
-}
 
 export default function GeoMapa({
   nodos,
@@ -90,12 +44,20 @@ export default function GeoMapa({
         zoomControl={true}
         scrollWheelZoom={true}
       >
-        <MapContent
-          nodos={nodos}
-          vuelos={vuelos}
-          mostrarAviones={mostrarAviones}
-          animacionActiva={animacionActiva}
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        {nodos.map((nodo) => (
+          <GeoMapaNodo key={`${nodo.codigo_iata}-${nodo.color}`} nodo={nodo} />
+        ))}
+        {mostrarAviones && vuelos.map((vuelo) => (
+          <GeoMapaVuelo
+            key={vuelo.id}
+            vuelo={vuelo}
+            animacionActiva={animacionActiva}
+          />
+        ))}
       </MapContainer>
       <GeoMapaLeyenda />
     </div>
