@@ -171,38 +171,25 @@ function SimulacionContent() {
       ocupacionPorcentaje: n.ocupacion_pct,
     })), [telemetria]);
 
-  const vuelosTelemetria: VueloEnMapa[] = useMemo(() => {
-    const DOS_HORAS_VIRTUALES = 2 * 60 * 60 * 1000;
-    const tiempoActual = telemetria?.metricas_sesion?.dia_hora_virtual
-      ? new Date(telemetria.metricas_sesion.dia_hora_virtual).getTime()
-      : 0;
-
-    return (telemetria?.vuelos ?? [])
-      .filter(v => {
-        if (v.estado !== 'PROGRAMADO') return true;
-        if (!v.hora_salida) return false;
-        const salida = new Date(v.hora_salida).getTime();
-        return salida <= tiempoActual + DOS_HORAS_VIRTUALES;
-      })
-      .map(v => ({
-        id: v.id,
-        codigo_vuelo: v.codigo_vuelo,
-        estado: matchEstadoVuelo(v.estado),
-        origen: { id: '', codigo_iata: v.origen_iata, nombre: v.origen_iata },
-        destino: { id: '', codigo_iata: v.destino_iata, nombre: v.destino_iata },
-        origen_lat: v.origen_lat,
-        origen_lon: v.origen_lon,
-        destino_lat: v.destino_lat,
-        destino_lon: v.destino_lon,
-        hora_salida: v.hora_salida,
-        hora_llegada: '',
-        capacidad_carga: 0,
-        carga_disponible: 0,
-        es_plantilla: false,
-        fecha_operacion: '',
-        posicionActual: { lat: v.lat_actual, lon: v.lon_actual },
-      }));
-  }, [telemetria]);
+  const vuelosTelemetria: VueloEnMapa[] = useMemo(() =>
+    (telemetria?.vuelos ?? []).map(v => ({
+      id: v.id,
+      codigo_vuelo: v.codigo_vuelo,
+      estado: matchEstadoVuelo(v.estado),
+      origen: { id: '', codigo_iata: v.origen_iata, nombre: v.origen_iata },
+      destino: { id: '', codigo_iata: v.destino_iata, nombre: v.destino_iata },
+      origen_lat: v.origen_lat,
+      origen_lon: v.origen_lon,
+      destino_lat: v.destino_lat,
+      destino_lon: v.destino_lon,
+      hora_salida: v.hora_salida,
+      hora_llegada: '',
+      capacidad_carga: 0,
+      carga_disponible: 0,
+      es_plantilla: false,
+      fecha_operacion: '',
+      posicionActual: { lat: v.lat_actual, lon: v.lon_actual },
+    })), [telemetria]);
 
   const hayTelemetria = telemetria !== null && (telemetria.nodos?.length > 0 || telemetria.vuelos?.length > 0);
   const nodosMapa = hayTelemetria ? nodosTelemetria : initialNodos;
