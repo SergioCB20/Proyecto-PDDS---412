@@ -230,8 +230,11 @@ public class VueloService {
 
     @Transactional
     public int clonarPlantillas(LocalDate fechaOperacion) {
-        if (vueloRepository.existsByFechaOperacionAndEsPlantilla(fechaOperacion, false)) {
-            log.info("Ya existen instancias para fecha {}, omitiendo clonacion", fechaOperacion);
+        if (vueloRepository.existsByFechaOperacionAndEstadoInAndEsPlantilla(
+                fechaOperacion,
+                List.of(EstadoVuelo.PROGRAMADO, EstadoVuelo.EN_RUTA),
+                false)) {
+            log.info("Ya existen instancias activas para fecha {}, omitiendo clonacion", fechaOperacion);
             return 0;
         }
 
