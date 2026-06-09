@@ -117,6 +117,16 @@ public class SesionService {
         }
 
         if (sesion.getTipo() == TipoSesion.SIMULADA) {
+            LocalDate desde = sesion.getFechaInicioVirtual();
+            LocalDate hasta = desde.plusDays(sesion.getDuracionDias() != null ? sesion.getDuracionDias() : 30);
+
+            log.info("Limpiando instancias previas para sesion {} entre {} y {}", id, desde, hasta);
+            try {
+                vueloService.eliminarInstanciasPorFecha(desde, hasta);
+            } catch (Exception e) {
+                log.warn("Error limpiando instancias para sesion {}: {}", id, e.getMessage());
+            }
+
             log.info("Clonando plantillas para sesion {} en fecha {}", id, sesion.getFechaInicioVirtual());
             try {
                 int clonadas = vueloService.clonarPlantillas(sesion.getFechaInicioVirtual());
