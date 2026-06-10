@@ -24,6 +24,4 @@ export function colorNodoPorOcupacion(
   return COLOR_NODO.ROJO;
 }
 
-export function colorNodoDesdeTelemetria(colorStr: string): string {
-  return COLOR_NODO[colorStr as keyof typeof COLOR_NODO] || COLOR_NODO.VERDE;
-}
+

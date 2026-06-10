@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { api } from '@/lib/api';
 import { useTelemetria } from '@/lib/useTelemetria';
-import { COLOR_NODO, colorNodoPorOcupacion, colorNodoDesdeTelemetria } from '@/lib/colors';
+import { COLOR_NODO, colorNodoPorOcupacion } from '@/lib/colors';
 import type { Nodo, NodoEnMapa, NodoTelemetria, Vuelo, VueloEnMapa, VueloPageResponse, MetricasSimulacion, VueloTelemetria } from '@/lib/types';
 
 const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false });
@@ -110,6 +110,8 @@ function SimulacionContent() {
   const probCancelacion = Number(searchParams.get('prob_cancelacion') || '15');
   const fechaInicio = searchParams.get('fecha_inicio_virtual') || '2025-06-01';
   const horaInicio = searchParams.get('hora_inicio_virtual') || '08:00';
+  const umbralAlmacenVerde = Number(searchParams.get('umbral_almacen_verde') || '70');
+  const umbralAlmacenAmbar = Number(searchParams.get('umbral_almacen_ambar') || '90');
 
   const [backendSesionId, setBackendSesionId] = useState<string>(sesionIdParam);
   const [estado, setEstado] = useState<'CONFIGURADA' | 'EN_CURSO' | 'PAUSADA' | 'FINALIZADA'>('CONFIGURADA');
@@ -131,7 +133,7 @@ function SimulacionContent() {
         setInitialNodos(
           nodosData.map(n => {
             const pct = n.capacidad_almacen > 0 ? (n.ocupacion_actual / n.capacidad_almacen) * 100 : 0;
-            return { ...n, color: colorNodoPorOcupacion(pct), ocupacionPorcentaje: pct };
+            return { ...n, color: colorNodoPorOcupacion(pct, { verdeMax: umbralAlmacenVerde, ambarMax: umbralAlmacenAmbar }), ocupacionPorcentaje: pct };
           })
         );
         setInitialVuelos(vuelosData.content.map((v: Vuelo): VueloEnMapa => ({ ...v })));
@@ -163,7 +165,7 @@ function SimulacionContent() {
       capacidad_almacen: n.capacidad_almacen,
       ocupacion_actual: n.ocupacion_actual,
       zona_horaria: '',
-      color: colorNodoDesdeTelemetria(n.color),
+      color: colorNodoPorOcupacion(n.ocupacion_pct, { verdeMax: umbralAlmacenVerde, ambarMax: umbralAlmacenAmbar }),
       ocupacionPorcentaje: n.ocupacion_pct,
     })), [telemetria]);
 
