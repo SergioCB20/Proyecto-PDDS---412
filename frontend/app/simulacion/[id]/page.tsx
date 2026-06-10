@@ -8,17 +8,14 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { api } from '@/lib/api';
 import { useTelemetria } from '@/lib/useTelemetria';
+import { COLOR_NODO, colorNodoPorOcupacion } from '@/lib/colors';
 import type { Nodo, NodoEnMapa, NodoTelemetria, Vuelo, VueloEnMapa, VueloPageResponse, MetricasSimulacion, VueloTelemetria } from '@/lib/types';
 
 const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false });
 
 const ESTADOS_VUELO_VALIDOS = ['PROGRAMADO', 'EN_RUTA', 'CANCELADO', 'COMPLETADO'] as const;
 
-const COLOR_NODO_MAP = {
-  VERDE: '#22c55e',
-  AMBAR: '#eab308',
-  ROJO: '#ef4444',
-} as const;
+const COLOR_NODO_MAP = COLOR_NODO;
 
 function matchEstadoVuelo(valor: string): VueloEnMapa['estado'] {
   if (ESTADOS_VUELO_VALIDOS.includes(valor as typeof ESTADOS_VUELO_VALIDOS[number])) {
@@ -134,8 +131,7 @@ function SimulacionContent() {
         setInitialNodos(
           nodosData.map(n => {
             const pct = n.capacidad_almacen > 0 ? (n.ocupacion_actual / n.capacidad_almacen) * 100 : 0;
-            const color = pct < 70 ? '#22c55e' : pct < 90 ? '#eab308' : '#ef4444';
-            return { ...n, color, ocupacionPorcentaje: pct };
+            return { ...n, color: colorNodoPorOcupacion(pct), ocupacionPorcentaje: pct };
           })
         );
         setInitialVuelos(vuelosData.content.map((v: Vuelo): VueloEnMapa => ({ ...v })));
