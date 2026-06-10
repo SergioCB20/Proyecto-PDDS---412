@@ -1,13 +1,16 @@
 package com.tasfb2b.backend.bc1.application;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.tasfb2b.backend.bc1.domain.Equipaje;
 import com.tasfb2b.backend.bc1.domain.EstadoVuelo;
 import com.tasfb2b.backend.bc1.domain.NodoLogistico;
 import com.tasfb2b.backend.bc1.domain.PlanVuelos;
+import com.tasfb2b.backend.bc1.domain.SegmentoPlan;
 import com.tasfb2b.backend.bc1.domain.Vuelo;
 import com.tasfb2b.backend.bc1.infrastructure.EquipajeRepository;
 import com.tasfb2b.backend.bc1.infrastructure.NodoLogisticoRepository;
 import com.tasfb2b.backend.bc1.infrastructure.PlanVuelosRepository;
+import com.tasfb2b.backend.bc1.infrastructure.SegmentoPlanRepository;
 import com.tasfb2b.backend.bc1.infrastructure.VueloRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -35,13 +38,16 @@ public class VueloService {
     private final NodoLogisticoRepository nodoRepository;
     private final EquipajeRepository equipajeRepository;
     private final PlanVuelosRepository planVuelosRepository;
+    private final SegmentoPlanRepository segmentoPlanRepository;
 
     public VueloService(VueloRepository vueloRepository, NodoLogisticoRepository nodoRepository,
-                        EquipajeRepository equipajeRepository, PlanVuelosRepository planVuelosRepository) {
+                        EquipajeRepository equipajeRepository, PlanVuelosRepository planVuelosRepository,
+                        SegmentoPlanRepository segmentoPlanRepository) {
         this.vueloRepository = vueloRepository;
         this.nodoRepository = nodoRepository;
         this.equipajeRepository = equipajeRepository;
         this.planVuelosRepository = planVuelosRepository;
+        this.segmentoPlanRepository = segmentoPlanRepository;
     }
 
     public record CrearVueloRequest(
@@ -230,11 +236,8 @@ public class VueloService {
 
     @Transactional
     public int clonarPlantillas(LocalDate fechaOperacion) {
-        if (vueloRepository.existsByFechaOperacionAndEstadoInAndEsPlantilla(
-                fechaOperacion,
-                List.of(EstadoVuelo.PROGRAMADO, EstadoVuelo.EN_RUTA),
-                false)) {
-            log.info("Ya existen instancias activas para fecha {}, omitiendo clonacion", fechaOperacion);
+        if (vueloRepository.existsByFechaOperacionAndEsPlantilla(fechaOperacion, false)) {
+            log.info("Ya existen instancias para fecha {}, omitiendo clonacion", fechaOperacion);
             return 0;
         }
 
@@ -272,6 +275,32 @@ public class VueloService {
 
         log.info("Clonadas {} plantillas para fecha {}", plantillas.size(), fechaOperacion);
         return plantillas.size();
+    }
+
+    @Transactional
+    public void eliminarInstanciasPorFecha(LocalDate desde, LocalDate hasta) {
+        List<Vuelo> instancias = vueloRepository.findByEsPlantillaAndFechaOperacionBetween(false, desde, hasta);
+        if (instancias.isEmpty()) {
+            log.info("No hay instancias de simulacion para limpiar entre {} y {}", desde, hasta);
+            return;
+        }
+
+        List<UUID> ids = instancias.stream().map(Vuelo::getId).toList();
+        log.info("Limpiando {} instancias de simulacion entre {} y {}", ids.size(), desde, hasta);
+
+        List<Equipaje> equipajes = equipajeRepository.findByVueloActualIdIn(ids);
+        for (Equipaje eq : equipajes) {
+            eq.setVueloActual(null);
+        }
+        equipajeRepository.saveAll(equipajes);
+
+        List<SegmentoPlan> segmentos = segmentoPlanRepository.findByVueloIdIn(ids);
+        segmentoPlanRepository.deleteAll(segmentos);
+
+        vueloRepository.deleteAll(instancias);
+
+        log.info("Limpiadas {} instancias ({} equipajes nullificados, {} segmentos eliminados)",
+                ids.size(), equipajes.size(), segmentos.size());
     }
 
     public static class VueloNoEncontradoException extends RuntimeException {

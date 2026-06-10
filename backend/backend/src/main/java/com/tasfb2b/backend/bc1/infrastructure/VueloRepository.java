@@ -30,6 +30,7 @@ public interface VueloRepository extends JpaRepository<Vuelo, UUID>, JpaSpecific
     List<Vuelo> findByEstadoAndEsPlantillaAndHoraSalidaBetween(EstadoVuelo estado, Boolean esPlantilla, OffsetDateTime desde, OffsetDateTime hasta);
     Page<Vuelo> findByEstadoAndEsPlantilla(EstadoVuelo estado, Boolean esPlantilla, Pageable pageable);
     List<Vuelo> findByEsPlantilla(Boolean esPlantilla);
+    List<Vuelo> findByEsPlantillaAndFechaOperacionBetween(Boolean esPlantilla, LocalDate desde, LocalDate hasta);
     long countByEstadoAndEsPlantilla(EstadoVuelo estado, Boolean esPlantilla);
     boolean existsByFechaOperacionAndEsPlantilla(LocalDate fechaOperacion, Boolean esPlantilla);
     boolean existsByFechaOperacionAndEstadoInAndEsPlantilla(LocalDate fechaOperacion, List<EstadoVuelo> estados, Boolean esPlantilla);
