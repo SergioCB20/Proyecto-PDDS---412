@@ -11,8 +11,19 @@ export const COLOR_VUELO = {
   COMPLETADO: '#6b7280',
 } as const;
 
-export function colorNodoPorOcupacion(pct: number): string {
-  if (pct < 70) return COLOR_NODO.VERDE;
-  if (pct < 90) return COLOR_NODO.AMBAR;
+const UMBRALES_DEFAULT = { verdeMax: 70, ambarMax: 90 } as const;
+
+export function colorNodoPorOcupacion(
+  pct: number,
+  umbrales?: { verdeMax?: number; ambarMax?: number }
+): string {
+  const vm = umbrales?.verdeMax ?? UMBRALES_DEFAULT.verdeMax;
+  const am = umbrales?.ambarMax ?? UMBRALES_DEFAULT.ambarMax;
+  if (pct < vm) return COLOR_NODO.VERDE;
+  if (pct < am) return COLOR_NODO.AMBAR;
   return COLOR_NODO.ROJO;
+}
+
+export function colorNodoDesdeTelemetria(colorStr: string): string {
+  return COLOR_NODO[colorStr as keyof typeof COLOR_NODO] || COLOR_NODO.VERDE;
 }

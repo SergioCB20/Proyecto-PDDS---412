@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 import { api } from '@/lib/api';
 import { nodoToEnMapa } from '@/lib/mock';
 import { useTelemetria } from '@/lib/useTelemetria';
-import { colorNodoPorOcupacion } from '@/lib/colors';
+import { colorNodoPorOcupacion, colorNodoDesdeTelemetria } from '@/lib/colors';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -172,7 +172,7 @@ export default function OperacionPage() {
       capacidad_almacen: n.capacidad_almacen,
       ocupacion_actual: n.ocupacion_actual,
       zona_horaria: '',
-      color: colorNodoPorOcupacion(n.ocupacion_pct),
+      color: colorNodoDesdeTelemetria(n.color),
       ocupacionPorcentaje: n.ocupacion_pct,
     }));
     setNodos(telemetriaNodos);

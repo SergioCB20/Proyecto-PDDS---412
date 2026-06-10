@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { api } from '@/lib/api';
 import { useTelemetria } from '@/lib/useTelemetria';
-import { COLOR_NODO, colorNodoPorOcupacion } from '@/lib/colors';
+import { COLOR_NODO, colorNodoPorOcupacion, colorNodoDesdeTelemetria } from '@/lib/colors';
 import type { Nodo, NodoEnMapa, NodoTelemetria, Vuelo, VueloEnMapa, VueloPageResponse, MetricasSimulacion, VueloTelemetria } from '@/lib/types';
 
 const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false });
@@ -163,7 +163,7 @@ function SimulacionContent() {
       capacidad_almacen: n.capacidad_almacen,
       ocupacion_actual: n.ocupacion_actual,
       zona_horaria: '',
-      color: COLOR_NODO_MAP[n.color as keyof typeof COLOR_NODO_MAP] || '#22c55e',
+      color: colorNodoDesdeTelemetria(n.color),
       ocupacionPorcentaje: n.ocupacion_pct,
     })), [telemetria]);
 
@@ -393,7 +393,7 @@ function SimulacionContent() {
             </h3>
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {telemetria.nodos.map(n => {
-                const colorHex = COLOR_NODO_MAP[n.color as keyof typeof COLOR_NODO_MAP] || '#22c55e';
+                const colorHex = colorNodoDesdeTelemetria(n.color);
                 return (
                   <div key={n.id} className="flex items-center justify-between py-1.5 px-2 rounded bg-slate-50 dark:bg-slate-800/50">
                     <div className="flex items-center gap-2">
