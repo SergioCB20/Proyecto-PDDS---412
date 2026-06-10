@@ -145,7 +145,7 @@ export default function SimulacionPage() {
               <Square size={14} className="mr-1" />
               {finalizandoId === sesionEnCurso.id ? 'Finalizando...' : 'Finalizar'}
             </Button>
-            <Button size="sm" onClick={() => router.push(`/simulacion/${sesionEnCurso.id}`)}>
+            <Button size="sm" onClick={() => router.push(`/simulacion/${sesionEnCurso.id}?fecha_inicio_virtual=${sesionEnCurso.fecha_inicio_virtual}`)}>
               <ArrowRight size={14} className="mr-1" />
               Reanudar
             </Button>
@@ -176,7 +176,7 @@ export default function SimulacionPage() {
               <Square size={14} className="mr-1" />
               {finalizandoId === sesionPausada.id ? 'Finalizando...' : 'Finalizar'}
             </Button>
-            <Button variant="secondary" size="sm" onClick={() => router.push(`/simulacion/${sesionPausada.id}`)}>
+            <Button variant="secondary" size="sm" onClick={() => router.push(`/simulacion/${sesionPausada.id}?fecha_inicio_virtual=${sesionPausada.fecha_inicio_virtual}`)}>
               <ArrowRight size={14} className="mr-1" />
               Continuar
             </Button>

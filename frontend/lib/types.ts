@@ -195,6 +195,8 @@ export interface NodoTelemetria {
   codigo_iata: string;
   lat: number;
   lon: number;
+  capacidad_almacen: number;
+  ocupacion_actual: number;
   ocupacion_pct: number;
   color: string;
 }
@@ -211,6 +213,8 @@ export interface VueloTelemetria {
   destino_lon: number;
   origen_iata: string;
   destino_iata: string;
+  capacidad_carga: number;
+  carga_disponible: number;
   ocupacion_pct: number;
   color: string;
 }
