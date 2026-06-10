@@ -8,17 +8,14 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { api } from '@/lib/api';
 import { useTelemetria } from '@/lib/useTelemetria';
+import { COLOR_NODO, colorNodoPorOcupacion } from '@/lib/colors';
 import type { Nodo, NodoEnMapa, NodoTelemetria, Vuelo, VueloEnMapa, VueloPageResponse, MetricasSimulacion, VueloTelemetria } from '@/lib/types';
 
 const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false });
 
 const ESTADOS_VUELO_VALIDOS = ['PROGRAMADO', 'EN_RUTA', 'CANCELADO', 'COMPLETADO'] as const;
 
-const COLOR_NODO_MAP = {
-  VERDE: '#22c55e',
-  AMBAR: '#eab308',
-  ROJO: '#ef4444',
-} as const;
+const COLOR_NODO_MAP = COLOR_NODO;
 
 function matchEstadoVuelo(valor: string): VueloEnMapa['estado'] {
   if (ESTADOS_VUELO_VALIDOS.includes(valor as typeof ESTADOS_VUELO_VALIDOS[number])) {
@@ -113,6 +110,8 @@ function SimulacionContent() {
   const probCancelacion = Number(searchParams.get('prob_cancelacion') || '15');
   const fechaInicio = searchParams.get('fecha_inicio_virtual') || '2025-06-01';
   const horaInicio = searchParams.get('hora_inicio_virtual') || '08:00';
+  const umbralAlmacenVerde = Number(searchParams.get('umbral_almacen_verde') || '70');
+  const umbralAlmacenAmbar = Number(searchParams.get('umbral_almacen_ambar') || '90');
 
   const [backendSesionId, setBackendSesionId] = useState<string>(sesionIdParam);
   const [estado, setEstado] = useState<'CONFIGURADA' | 'EN_CURSO' | 'PAUSADA' | 'FINALIZADA'>('CONFIGURADA');
@@ -134,8 +133,7 @@ function SimulacionContent() {
         setInitialNodos(
           nodosData.map(n => {
             const pct = n.capacidad_almacen > 0 ? (n.ocupacion_actual / n.capacidad_almacen) * 100 : 0;
-            const color = pct < 70 ? '#22c55e' : pct < 90 ? '#eab308' : '#ef4444';
-            return { ...n, color, ocupacionPorcentaje: pct };
+            return { ...n, color: colorNodoPorOcupacion(pct, { verdeMax: umbralAlmacenVerde, ambarMax: umbralAlmacenAmbar }), ocupacionPorcentaje: pct };
           })
         );
         setInitialVuelos(vuelosData.content.map((v: Vuelo): VueloEnMapa => ({ ...v })));
@@ -167,7 +165,7 @@ function SimulacionContent() {
       capacidad_almacen: n.capacidad_almacen,
       ocupacion_actual: n.ocupacion_actual,
       zona_horaria: '',
-      color: COLOR_NODO_MAP[n.color as keyof typeof COLOR_NODO_MAP] || '#22c55e',
+      color: colorNodoPorOcupacion(n.ocupacion_pct, { verdeMax: umbralAlmacenVerde, ambarMax: umbralAlmacenAmbar }),
       ocupacionPorcentaje: n.ocupacion_pct,
     })), [telemetria]);
 
@@ -397,7 +395,7 @@ function SimulacionContent() {
             </h3>
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {telemetria.nodos.map(n => {
-                const colorHex = COLOR_NODO_MAP[n.color as keyof typeof COLOR_NODO_MAP] || '#22c55e';
+                const colorHex = colorNodoPorOcupacion(n.ocupacion_pct, { verdeMax: umbralAlmacenVerde, ambarMax: umbralAlmacenAmbar });
                 return (
                   <div key={n.id} className="flex items-center justify-between py-1.5 px-2 rounded bg-slate-50 dark:bg-slate-800/50">
                     <div className="flex items-center gap-2">

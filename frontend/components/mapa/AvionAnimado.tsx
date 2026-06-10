@@ -3,13 +3,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Marker, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
+import { COLOR_VUELO } from '@/lib/colors';
 import type { VueloEnMapa } from '@/lib/types';
 
 const COLORES: Record<string, string> = {
-  PROGRAMADO: '#3b82f6',
-  EN_RUTA: '#22c55e',
-  CANCELADO: '#ef4444',
-  COMPLETADO: '#6b7280',
+  PROGRAMADO: COLOR_VUELO.PROGRAMADO,
+  EN_RUTA: COLOR_VUELO.EN_RUTA,
+  CANCELADO: COLOR_VUELO.CANCELADO,
+  COMPLETADO: COLOR_VUELO.COMPLETADO,
 };
 
 function calcBearing(

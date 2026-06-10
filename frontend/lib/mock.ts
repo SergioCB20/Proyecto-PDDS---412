@@ -1,3 +1,4 @@
+import { COLOR_NODO } from './colors';
 import type { Nodo, Vuelo, NodoEnMapa, MetricasSimulacion, ReporteSesion, PuntoSLA } from './types';
 
 export const MOCK_NODOS: Nodo[] = [
@@ -125,7 +126,7 @@ export function nodoToEnMapa(nodo: Nodo): NodoEnMapa {
   const pct = nodo.capacidad_almacen > 0
     ? (nodo.ocupacion_actual / nodo.capacidad_almacen) * 100
     : 0;
-  const color = pct > 90 ? '#dc2626' : pct > 70 ? '#ca8a04' : '#16a34a';
+  const color = pct < 70 ? COLOR_NODO.VERDE : pct < 90 ? COLOR_NODO.AMBAR : COLOR_NODO.ROJO;
   return { ...nodo, color, ocupacionPorcentaje: pct };
 }
 

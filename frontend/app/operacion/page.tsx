@@ -5,6 +5,8 @@ import { Package, Clock, MapPin, RefreshCw, ChevronDown, ChevronUp, CheckCircle,
 import dynamic from 'next/dynamic';
 import { api } from '@/lib/api';
 import { nodoToEnMapa } from '@/lib/mock';
+import { useTelemetria } from '@/lib/useTelemetria';
+import { colorNodoPorOcupacion } from '@/lib/colors';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -64,6 +66,7 @@ export default function OperacionPage() {
   const [editingVuelo, setEditingVuelo] = useState<Vuelo | null>(null);
 
   const [sseConnected, setSseConnected] = useState(false);
+  const { data: telemetria } = useTelemetria(true);
   const [notificaciones, setNotificaciones] = useState<{ id: number; tipo: 'success' | 'error'; mensaje: string }[]>([]);
 
   const agregarNotificacion = (tipo: 'success' | 'error', mensaje: string) => {
@@ -147,6 +150,62 @@ export default function OperacionPage() {
       clearTimeout(timer);
     };
   }, []);
+
+  const ESTADOS_VUELO_VALIDOS = ['PROGRAMADO', 'EN_RUTA', 'CANCELADO', 'COMPLETADO'] as const;
+
+  function matchEstadoVuelo(valor: string): VueloEnMapa['estado'] {
+    if (ESTADOS_VUELO_VALIDOS.includes(valor as typeof ESTADOS_VUELO_VALIDOS[number])) {
+      return valor as VueloEnMapa['estado'];
+    }
+    return 'PROGRAMADO';
+  }
+
+  useEffect(() => {
+    if (!telemetria?.nodos || telemetria.nodos.length === 0) return;
+
+    const telemetriaNodos: NodoEnMapa[] = telemetria.nodos.map(n => ({
+      id: n.id,
+      codigo_iata: n.codigo_iata,
+      nombre: n.codigo_iata,
+      latitud: n.lat,
+      longitud: n.lon,
+      capacidad_almacen: n.capacidad_almacen,
+      ocupacion_actual: n.ocupacion_actual,
+      zona_horaria: '',
+      color: colorNodoPorOcupacion(n.ocupacion_pct),
+      ocupacionPorcentaje: n.ocupacion_pct,
+    }));
+
+    queueMicrotask(() => {
+      setNodos(telemetriaNodos);
+    });
+
+    if (telemetria.vuelos && telemetria.vuelos.length > 0) {
+      const telemetriaVuelos: VueloEnMapa[] = telemetria.vuelos.map(v => ({
+        id: v.id,
+        codigo_vuelo: v.codigo_vuelo,
+        estado: matchEstadoVuelo(v.estado),
+        origen: { id: '', codigo_iata: v.origen_iata, nombre: v.origen_iata },
+        destino: { id: '', codigo_iata: v.destino_iata, nombre: v.destino_iata },
+        origen_lat: v.origen_lat,
+        origen_lon: v.origen_lon,
+        destino_lat: v.destino_lat,
+        destino_lon: v.destino_lon,
+        hora_salida: '',
+        hora_llegada: '',
+        capacidad_carga: v.capacidad_carga,
+        carga_disponible: v.carga_disponible,
+        es_plantilla: false,
+        fecha_operacion: '',
+        posicionActual: { lat: v.lat_actual, lon: v.lon_actual },
+      }));
+
+      queueMicrotask(() => {
+        setAllVuelos(telemetriaVuelos);
+        setVuelosProgramados(telemetriaVuelos.filter(v => v.estado === 'PROGRAMADO'));
+      });
+    }
+  }, [telemetria]);
 
   const estadoColor = (estado: string): 'green' | 'yellow' | 'red' | 'blue' | 'default' => {
     if (estado === 'ENTREGADO') return 'green';

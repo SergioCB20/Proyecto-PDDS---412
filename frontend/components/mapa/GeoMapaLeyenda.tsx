@@ -9,7 +9,7 @@ export default function GeoMapaLeyenda() {
         <span className="text-slate-600 dark:text-slate-400">&lt; 70%</span>
       </div>
       <div className="flex items-center gap-2 mb-1">
-        <span className="w-3 h-3 rounded-full bg-yellow-400 inline-block"></span>
+        <span className="w-3 h-3 rounded-full bg-yellow-500 inline-block"></span>
         <span className="text-slate-600 dark:text-slate-400">70-90%</span>
       </div>
       <div className="flex items-center gap-2 mb-1">
