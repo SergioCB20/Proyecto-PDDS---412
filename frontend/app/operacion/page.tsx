@@ -175,7 +175,10 @@ export default function OperacionPage() {
       color: colorNodoPorOcupacion(n.ocupacion_pct),
       ocupacionPorcentaje: n.ocupacion_pct,
     }));
-    setNodos(telemetriaNodos);
+
+    queueMicrotask(() => {
+      setNodos(telemetriaNodos);
+    });
 
     if (telemetria.vuelos && telemetria.vuelos.length > 0) {
       const telemetriaVuelos: VueloEnMapa[] = telemetria.vuelos.map(v => ({
@@ -196,8 +199,11 @@ export default function OperacionPage() {
         fecha_operacion: '',
         posicionActual: { lat: v.lat_actual, lon: v.lon_actual },
       }));
-      setAllVuelos(telemetriaVuelos);
-      setVuelosProgramados(telemetriaVuelos.filter(v => v.estado === 'PROGRAMADO'));
+
+      queueMicrotask(() => {
+        setAllVuelos(telemetriaVuelos);
+        setVuelosProgramados(telemetriaVuelos.filter(v => v.estado === 'PROGRAMADO'));
+      });
     }
   }, [telemetria]);
 
