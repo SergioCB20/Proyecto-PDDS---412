@@ -395,7 +395,7 @@ function SimulacionContent() {
             </h3>
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {telemetria.nodos.map(n => {
-                const colorHex = colorNodoDesdeTelemetria(n.color);
+                const colorHex = colorNodoPorOcupacion(n.ocupacion_pct, { verdeMax: umbralAlmacenVerde, ambarMax: umbralAlmacenAmbar });
                 return (
                   <div key={n.id} className="flex items-center justify-between py-1.5 px-2 rounded bg-slate-50 dark:bg-slate-800/50">
                     <div className="flex items-center gap-2">
