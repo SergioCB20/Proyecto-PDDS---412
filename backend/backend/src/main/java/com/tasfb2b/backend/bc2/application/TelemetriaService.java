@@ -60,6 +60,8 @@ public class TelemetriaService {
             n.put("codigo_iata", nodo.getCodigoIata());
             n.put("lat", nodo.getLatitud().doubleValue());
             n.put("lon", nodo.getLongitud().doubleValue());
+            n.put("capacidad_almacen", nodo.getCapacidadAlmacen() != null ? nodo.getCapacidadAlmacen() : 0);
+            n.put("ocupacion_actual", nodo.getOcupacionActual() != null ? nodo.getOcupacionActual() : 0);
             double pct = nodo.getOcupacionPorcentaje();
             n.put("ocupacion_pct", Math.round(pct * 100.0) / 100.0);
             n.put("color", evaluarColorNodo(pct, sesion));
@@ -96,6 +98,8 @@ public class TelemetriaService {
                 v.put("lon_actual", vuelo.getOrigenLon().doubleValue());
             }
 
+            v.put("capacidad_carga", vuelo.getCapacidadCarga() != null ? vuelo.getCapacidadCarga() : 0);
+            v.put("carga_disponible", vuelo.getCargaDisponible() != null ? vuelo.getCargaDisponible() : 0);
             double pctVuelo = vuelo.getOcupacionPorcentaje();
             v.put("ocupacion_pct", Math.round(pctVuelo * 100.0) / 100.0);
             v.put("color", evaluarColorVuelo(pctVuelo, sesion));

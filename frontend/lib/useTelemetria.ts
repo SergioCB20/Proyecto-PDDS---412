@@ -5,6 +5,10 @@ import type { TelemetriaMensaje } from './types';
 
 function getWsUrl(): string {
   if (process.env.NEXT_PUBLIC_WS_URL) return process.env.NEXT_PUBLIC_WS_URL;
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    const wsBase = process.env.NEXT_PUBLIC_API_URL.replace(/^http/, 'ws').replace(/\/api$/, '');
+    return `${wsBase}/api/ws/telemetria`;
+  }
   if (typeof window === 'undefined') return 'ws://localhost:8080/api/ws/telemetria';
   const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
   if (isLocal) return 'ws://localhost:8080/api/ws/telemetria';

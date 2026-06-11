@@ -66,6 +66,9 @@ mvnw.cmd
 logs/
 *.log
 
+# Archivos de datos de simulacion (TXT envios)
+backend/backend/src/main/resources/data/
+
 # ==========================================
 # 4. Base de Datos / Docker (Opcional)
 # ==========================================

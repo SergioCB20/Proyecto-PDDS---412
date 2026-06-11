@@ -43,7 +43,7 @@ public class SimulacionEnrutamientoService {
 
     public ResultadoVentana enrutarVentana(UUID sesionId, OffsetDateTime inicioVentana, OffsetDateTime finVentana) {
         List<Equipaje> equipajes = jdbcTemplate.query(
-                "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad " +
+                "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad, fecha_ingreso " +
                         "FROM equipajes" +
                         " WHERE estado = 'REGISTRADO' AND fecha_operacion >= ? AND fecha_operacion < ? " +
                         "ORDER BY fecha_operacion",
@@ -158,6 +158,10 @@ public class SimulacionEnrutamientoService {
         Timestamp slaTs = rs.getTimestamp("sla_comprometido");
         if (slaTs != null) {
             eq.setSlaComprometido(OffsetDateTime.ofInstant(slaTs.toInstant(), ZoneOffset.UTC));
+        }
+        Timestamp ingTs = rs.getTimestamp("fecha_ingreso");
+        if (ingTs != null) {
+            eq.setFechaIngreso(OffsetDateTime.ofInstant(ingTs.toInstant(), ZoneOffset.UTC));
         }
         eq.setCantidad(rs.getInt("cantidad"));
         return eq;

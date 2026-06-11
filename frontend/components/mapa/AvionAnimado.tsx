@@ -1,15 +1,16 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Marker } from 'react-leaflet';
+import { Marker, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
+import { COLOR_VUELO } from '@/lib/colors';
 import type { VueloEnMapa } from '@/lib/types';
 
 const COLORES: Record<string, string> = {
-  PROGRAMADO: '#3b82f6',
-  EN_RUTA: '#22c55e',
-  CANCELADO: '#ef4444',
-  COMPLETADO: '#6b7280',
+  PROGRAMADO: COLOR_VUELO.PROGRAMADO,
+  EN_RUTA: COLOR_VUELO.EN_RUTA,
+  CANCELADO: COLOR_VUELO.CANCELADO,
+  COMPLETADO: COLOR_VUELO.COMPLETADO,
 };
 
 function calcBearing(
@@ -149,12 +150,36 @@ const AvionAnimado = React.memo(function AvionAnimado({ vuelo, animacionActiva =
     animacionActiva,
   ]);
 
+  const ocupada = vuelo.capacidad_carga - vuelo.carga_disponible;
+
   return (
     <Marker
       ref={markerRef}
       position={frozenPos}
       icon={icono}
-    />
+    >
+      <Tooltip direction="top" offset={[0, -14]}>
+        <div className="text-center min-w-[100px]">
+          <div className="font-bold text-sm">{vuelo.codigo_vuelo}</div>
+          <div className="text-xs text-slate-600">
+            {vuelo.origen.codigo_iata} → {vuelo.destino.codigo_iata}
+          </div>
+          <div className="text-xs mt-1">
+            <span className="text-slate-500">Ocupado: </span>
+            <span className="font-semibold">{ocupada}/{vuelo.capacidad_carga}</span>
+          </div>
+          <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden mt-1">
+            <div
+              className="h-full rounded-full transition-all duration-500"
+              style={{
+                width: `${vuelo.capacidad_carga > 0 ? (ocupada / vuelo.capacidad_carga) * 100 : 0}%`,
+                backgroundColor: COLORES[vuelo.estado] || '#6b7280',
+              }}
+            />
+          </div>
+        </div>
+      </Tooltip>
+    </Marker>
   );
 });
 

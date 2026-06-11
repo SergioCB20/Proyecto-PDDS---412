@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import { Polyline } from 'react-leaflet';
+import { Polyline, Tooltip } from 'react-leaflet';
+import { COLOR_VUELO, COLOR_NODO } from '@/lib/colors';
 import type { VueloEnMapa } from '@/lib/types';
 import AvionAnimado from './AvionAnimado';
 
@@ -11,11 +12,24 @@ interface GeoMapaVueloProps {
 }
 
 const COLORES: Record<string, string> = {
-  PROGRAMADO: '#3b82f6',
-  EN_RUTA: '#22c55e',
-  CANCELADO: '#ef4444',
-  COMPLETADO: '#6b7280',
+  PROGRAMADO: COLOR_VUELO.PROGRAMADO,
+  EN_RUTA: COLOR_VUELO.EN_RUTA,
+  CANCELADO: COLOR_VUELO.CANCELADO,
+  COMPLETADO: COLOR_VUELO.COMPLETADO,
 };
+
+function OcupacionBar({ ocupada, total }: { ocupada: number; total: number }) {
+  const pct = total > 0 ? ((total - ocupada) / total) * 100 : 0;
+  const color = pct < 70 ? COLOR_NODO.VERDE : pct < 90 ? COLOR_NODO.AMBAR : COLOR_NODO.ROJO;
+  return (
+    <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden mt-1">
+      <div
+        className="h-full rounded-full transition-all duration-500"
+        style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: color }}
+      />
+    </div>
+  );
+}
 
 export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false }: GeoMapaVueloProps) {
   const color = COLORES[vuelo.estado] || '#6b7280';
@@ -23,6 +37,7 @@ export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false
   const opacidadRuta = animacionActiva ? 0.5 : 0.2;
 
   const tieneRuta = vuelo.origen_lat && vuelo.origen_lon && vuelo.destino_lat && vuelo.destino_lon;
+  const ocupada = vuelo.capacidad_carga - vuelo.carga_disponible;
 
   return (
     <>
@@ -34,7 +49,21 @@ export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false
             weight: 2,
             opacity: opacidadRuta,
           }}
-        />
+        >
+          <Tooltip direction="center" className="vuelo-tooltip">
+            <div className="text-center min-w-[120px]">
+              <div className="font-bold text-sm">{vuelo.codigo_vuelo}</div>
+              <div className="text-xs text-slate-600">
+                {vuelo.origen.codigo_iata} → {vuelo.destino.codigo_iata}
+              </div>
+              <div className="text-xs mt-1">
+                <span className="text-slate-500">Ocupado: </span>
+                <span className="font-semibold">{ocupada}/{vuelo.capacidad_carga}</span>
+              </div>
+              <OcupacionBar ocupada={vuelo.carga_disponible} total={vuelo.capacidad_carga} />
+            </div>
+          </Tooltip>
+        </Polyline>
       )}
       <AvionAnimado
         vuelo={vuelo}

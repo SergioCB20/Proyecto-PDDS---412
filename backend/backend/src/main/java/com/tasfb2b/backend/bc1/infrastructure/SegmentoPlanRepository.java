@@ -10,5 +10,6 @@ import java.util.UUID;
 public interface SegmentoPlanRepository extends JpaRepository<SegmentoPlan, UUID> {
     List<SegmentoPlan> findByPlanViajeIdOrderByOrdenAsc(UUID planViajeId);
     List<SegmentoPlan> findByVueloId(UUID vueloId);
+    List<SegmentoPlan> findByVueloIdIn(List<UUID> vueloIds);
     List<SegmentoPlan> findByVueloIdAndEstado(UUID vueloId, com.tasfb2b.backend.bc1.domain.EstadoSegmento estado);
 }
