@@ -48,6 +48,8 @@ public class SecurityConfig {
                     .hasRole("OPERADOR_LOGISTICO")
                     .requestMatchers("/api/usuarios/**")
                     .hasRole("ADMINISTRADOR")
+                    .requestMatchers("/api/admin/**")
+                    .hasRole("ADMINISTRADOR")
                     .requestMatchers("/api/equipajes/**")
                     .hasRole("OPERADOR_LOGISTICO")
                     .requestMatchers("/api/sesiones/**")
