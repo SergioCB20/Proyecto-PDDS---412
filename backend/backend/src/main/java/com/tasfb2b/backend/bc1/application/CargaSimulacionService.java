@@ -51,7 +51,6 @@ public class CargaSimulacionService {
         this.rutaArchivos = rutaArchivos;
     }
 
-    @Transactional
     public ResultadoCarga cargarTodos() {
         File dir = new File(rutaArchivos);
         if (!dir.exists() || !dir.isDirectory()) {

@@ -11,6 +11,9 @@ public record TiempoInterno(int horaDelDia, int dia) {
     public static final int HORAS_POR_DIA = 24;
 
     public static TiempoInterno desde(OffsetDateTime fechaHora, OffsetDateTime referencia) {
+        if (referencia == null) {
+            referencia = OffsetDateTime.now(UTC);
+        }
         LocalDate refDate = referencia.toLocalDate();
         LocalTime refTime = referencia.toLocalTime();
 
