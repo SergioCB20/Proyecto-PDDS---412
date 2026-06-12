@@ -5,6 +5,8 @@ import { Package, Clock, MapPin, RefreshCw, ChevronDown, ChevronUp, CheckCircle,
 import dynamic from 'next/dynamic';
 import { api } from '@/lib/api';
 import { nodoToEnMapa } from '@/lib/mock';
+import { useTelemetria } from '@/lib/useTelemetria';
+import { colorNodoPorOcupacion } from '@/lib/colors';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -24,6 +26,7 @@ interface EquipajeReciente {
 export default function OperacionPage() {
   const [nodos, setNodos] = useState<NodoEnMapa[]>([]);
   const [vuelosProgramados, setVuelosProgramados] = useState<Vuelo[]>([]);
+  const [vuelosEnRuta, setVuelosEnRuta] = useState<VueloEnMapa[]>([]);
   const [allVuelos, setAllVuelos] = useState<VueloEnMapa[]>([]);
   const [equipajesRecientes, setEquipajesRecientes] = useState<EquipajeReciente[]>([]);
   const [loading, setLoading] = useState(false);
@@ -64,6 +67,7 @@ export default function OperacionPage() {
   const [editingVuelo, setEditingVuelo] = useState<Vuelo | null>(null);
 
   const [sseConnected, setSseConnected] = useState(false);
+  const { data: telemetria } = useTelemetria(true);
   const [notificaciones, setNotificaciones] = useState<{ id: number; tipo: 'success' | 'error'; mensaje: string }[]>([]);
 
   const agregarNotificacion = (tipo: 'success' | 'error', mensaje: string) => {
@@ -127,9 +131,11 @@ export default function OperacionPage() {
         api.get<Nodo[]>('/nodos'),
         api.get<VueloPageResponse>('/vuelos?size=50'),
       ]);
+      const mapped = vuelosData.content.map((v: Vuelo): VueloEnMapa => ({ ...v }));
       setNodos(nodosData.map(nodoToEnMapa));
-      setAllVuelos(vuelosData.content.map((v: Vuelo): VueloEnMapa => ({ ...v })));
-      setVuelosProgramados(vuelosData.content.filter((v: Vuelo) => v.estado === 'PROGRAMADO'));
+      setAllVuelos(mapped);
+      setVuelosProgramados(mapped.filter((v: VueloEnMapa) => v.estado === 'PROGRAMADO'));
+      setVuelosEnRuta(mapped.filter((v: VueloEnMapa) => v.estado === 'EN_RUTA'));
       setLastUpdate(new Date());
     } catch (err: unknown) {
       const error = err as { mensaje?: string; message?: string };
@@ -147,6 +153,63 @@ export default function OperacionPage() {
       clearTimeout(timer);
     };
   }, []);
+
+  const ESTADOS_VUELO_VALIDOS = ['PROGRAMADO', 'EN_RUTA', 'CANCELADO', 'COMPLETADO'] as const;
+
+  function matchEstadoVuelo(valor: string): VueloEnMapa['estado'] {
+    if (ESTADOS_VUELO_VALIDOS.includes(valor as typeof ESTADOS_VUELO_VALIDOS[number])) {
+      return valor as VueloEnMapa['estado'];
+    }
+    return 'PROGRAMADO';
+  }
+
+  useEffect(() => {
+    if (!telemetria?.nodos || telemetria.nodos.length === 0) return;
+
+    const telemetriaNodos: NodoEnMapa[] = telemetria.nodos.map(n => ({
+      id: n.id,
+      codigo_iata: n.codigo_iata,
+      nombre: n.codigo_iata,
+      latitud: n.lat,
+      longitud: n.lon,
+      capacidad_almacen: n.capacidad_almacen,
+      ocupacion_actual: n.ocupacion_actual,
+      zona_horaria: '',
+      color: colorNodoPorOcupacion(n.ocupacion_pct),
+      ocupacionPorcentaje: n.ocupacion_pct,
+    }));
+
+    queueMicrotask(() => {
+      setNodos(telemetriaNodos);
+    });
+
+    if (telemetria.vuelos && telemetria.vuelos.length > 0) {
+      const telemetriaVuelos: VueloEnMapa[] = telemetria.vuelos.map(v => ({
+        id: v.id,
+        codigo_vuelo: v.codigo_vuelo,
+        estado: matchEstadoVuelo(v.estado),
+        origen: { id: '', codigo_iata: v.origen_iata, nombre: v.origen_iata },
+        destino: { id: '', codigo_iata: v.destino_iata, nombre: v.destino_iata },
+        origen_lat: v.origen_lat,
+        origen_lon: v.origen_lon,
+        destino_lat: v.destino_lat,
+        destino_lon: v.destino_lon,
+        hora_salida: '',
+        hora_llegada: '',
+        capacidad_carga: v.capacidad_carga,
+        carga_disponible: v.carga_disponible,
+        es_plantilla: false,
+        fecha_operacion: '',
+        posicionActual: { lat: v.lat_actual, lon: v.lon_actual },
+      }));
+
+      queueMicrotask(() => {
+        setAllVuelos(telemetriaVuelos);
+        setVuelosProgramados(telemetriaVuelos.filter(v => v.estado === 'PROGRAMADO'));
+        setVuelosEnRuta(telemetriaVuelos.filter(v => v.estado === 'EN_RUTA'));
+      });
+    }
+  }, [telemetria]);
 
   const estadoColor = (estado: string): 'green' | 'yellow' | 'red' | 'blue' | 'default' => {
     if (estado === 'ENTREGADO') return 'green';
@@ -651,58 +714,50 @@ export default function OperacionPage() {
             ))}
           </div>
 
-          {vuelosProgramados.length > 0 && (
+          {vuelosEnRuta.length > 0 && (
             <>
               <div className="flex items-center gap-2 mb-3 mt-4">
                 <Plane size={16} className="text-slate-400" />
                 <h3 className="font-medium text-sm text-slate-700 dark:text-slate-300">
-                  Vuelos Programados
+                  Vuelos en Ruta
                 </h3>
-                <Badge variant="blue">{vuelosProgramados.length}</Badge>
+                <Badge variant="blue">{vuelosEnRuta.length}</Badge>
               </div>
               <div className="space-y-2">
-                {vuelosProgramados.slice(0, 20).map((vuelo) => (
-                  <div
-                    key={vuelo.id}
-                    className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                  >
-                    <div className="p-1.5 rounded-lg bg-slate-200 dark:bg-slate-700">
-                      <Plane size={14} className="text-slate-500" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
-                        {vuelo.codigo_vuelo}
+                {vuelosEnRuta.map((vuelo) => {
+                  const ocupacion = vuelo.capacidad_carga > 0
+                    ? Math.round((1 - vuelo.carga_disponible / vuelo.capacidad_carga) * 100)
+                    : 0;
+                  return (
+                    <div
+                      key={vuelo.id}
+                      className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    >
+                      <div className="p-1.5 rounded-lg bg-blue-200 dark:bg-blue-700">
+                        <Plane size={14} className="text-blue-600 dark:text-blue-300" />
                       </div>
-                      <div className="text-xs text-slate-500">
-                        {vuelo.origen.codigo_iata} → {vuelo.destino.codigo_iata}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                          {vuelo.codigo_vuelo}
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          {vuelo.origen.codigo_iata} → {vuelo.destino.codigo_iata}
+                        </div>
+                        <div className="mt-1 flex items-center gap-2">
+                          <div className="flex-1 h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-blue-500"
+                              style={{ width: `${Math.min(ocupacion, 100)}%` }}
+                            />
+                          </div>
+                          <span className="text-xs font-medium text-slate-600 dark:text-slate-400 tabular-nums">
+                            {vuelo.carga_disponible}/{vuelo.capacidad_carga}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => handleEditarVuelo(vuelo)}
-                        className="p-1.5 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 text-purple-600"
-                        title="Editar vuelo"
-                      >
-                        <Plane size={14} />
-                      </button>
-                      <button
-                        onClick={() => handleEliminarVuelo(vuelo)}
-                        className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500"
-                        title="Eliminar vuelo"
-                      >
-                        <XCircle size={14} />
-                      </button>
-                      <button
-                        onClick={() => handleDescargarManifiesto(vuelo)}
-                        disabled={manifestLoading === vuelo.id}
-                        className="p-1.5 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 disabled:opacity-50"
-                        title="Descargar Manifiesto PDF"
-                      >
-                        <Download size={14} className={manifestLoading === vuelo.id ? 'animate-pulse' : ''} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </>
           )}

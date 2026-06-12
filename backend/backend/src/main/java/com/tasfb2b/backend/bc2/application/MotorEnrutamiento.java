@@ -70,9 +70,13 @@ public class MotorEnrutamiento {
 
         if (params.isEmpty()) return List.of();
 
+        OffsetDateTime referencia = equipajes.get(0).getFechaIngreso();
+        if (referencia == null) {
+            referencia = OffsetDateTime.now();
+        }
         TiempoInterno tiempoSimulado = TiempoInterno.desde(
                 OffsetDateTime.now(),
-                equipajes.get(0).getFechaIngreso());
+                referencia);
 
         return batchStrategy.optimizarLote(params, programados, tiempoSimulado);
     }

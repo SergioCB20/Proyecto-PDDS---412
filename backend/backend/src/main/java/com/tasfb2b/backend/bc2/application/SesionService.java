@@ -186,6 +186,18 @@ public class SesionService {
         sesion.setFechaFinReal(OffsetDateTime.now());
         sesionRepository.save(sesion);
 
+        if (sesion.getTipo() == TipoSesion.SIMULADA) {
+            LocalDate desde = sesion.getFechaInicioVirtual();
+            LocalDate hasta = desde.plusDays(sesion.getDuracionDias() != null ? sesion.getDuracionDias() : 30);
+
+            log.info("Limpiando instancias de simulacion para sesion {} entre {} y {}", id, desde, hasta);
+            try {
+                vueloService.eliminarInstanciasPorFecha(desde, hasta);
+            } catch (Exception e) {
+                log.warn("Error limpiando instancias al detener sesion {}: {}", id, e.getMessage());
+            }
+        }
+
         try {
             redisCacheService.setEstadoSesion(sesion.getId(), "FINALIZADA");
             redisCacheService.eliminarMetricasSesion(sesion.getId());
