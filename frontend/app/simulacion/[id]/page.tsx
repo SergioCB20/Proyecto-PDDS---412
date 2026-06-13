@@ -10,6 +10,7 @@ import { api } from '@/lib/api';
 import { useTelemetria } from '@/lib/useTelemetria';
 import { COLOR_NODO, colorNodoPorOcupacion } from '@/lib/colors';
 import type { Nodo, NodoEnMapa, NodoTelemetria, Vuelo, VueloEnMapa, VueloPageResponse, MetricasSimulacion, VueloTelemetria } from '@/lib/types';
+import { PanelVuelos } from '@/components/simulacion/PanelVuelos';
 
 const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false });
 
@@ -417,43 +418,7 @@ function SimulacionContent() {
           </div>
         )}
 
-        {telemetria?.vuelos && telemetria.vuelos.length > 0 && (
-          <div className="p-4 border-t border-slate-200 dark:border-slate-700">
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">
-              Ocupación de Vuelos
-            </h3>
-            <div className="space-y-2 max-h-56 overflow-y-auto">
-              {telemetria.vuelos.map(v => {
-                const ocupada = v.capacidad_carga - v.carga_disponible;
-                const pct = v.capacidad_carga > 0 ? (ocupada / v.capacidad_carga) * 100 : 0;
-                const colorHex = v.estado === 'EN_RUTA' ? '#22c55e' : v.estado === 'PROGRAMADO' ? '#3b82f6' : '#6b7280';
-                return (
-                  <div key={v.id} className="py-1.5 px-2 rounded bg-slate-50 dark:bg-slate-800/50">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: colorHex }} />
-                        <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{v.codigo_vuelo}</span>
-                      </div>
-                      <span className="text-xs text-slate-500">
-                        {v.origen_iata}→{v.destino_iata}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-500">{ocupada}/{v.capacidad_carga}</span>
-                      <span className="font-semibold" style={{ color: colorHex }}>{pct.toFixed(0)}%</span>
-                    </div>
-                    <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden mt-1">
-                      <div
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: colorHex }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        <PanelVuelos vuelos={telemetria?.vuelos ?? []} />
 
         <div className="p-4 border-t border-slate-200 dark:border-slate-700 space-y-2">
           {error && (
