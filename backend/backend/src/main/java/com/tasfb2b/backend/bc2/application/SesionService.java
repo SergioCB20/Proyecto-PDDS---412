@@ -216,6 +216,10 @@ public class SesionService {
             String cached = redisCacheService.getMetricasSesion(id);
             if (cached != null) {
                 var node = objectMapper.readTree(cached);
+                OffsetDateTime fechaInicioReal = null;
+                if (node.has("fecha_inicio_real") && !node.get("fecha_inicio_real").isNull()) {
+                    fechaInicioReal = OffsetDateTime.parse(node.get("fecha_inicio_real").asText());
+                }
                 return new MetricasSesionResponse(
                     UUID.fromString(node.get("sesion_id").asText()),
                     node.get("estado").asText(),
@@ -223,7 +227,8 @@ public class SesionService {
                     node.get("segundos_reales_transcurridos").asInt(),
                     new BigDecimal(node.get("sla_acumulado_pct").asDouble()),
                     node.get("vuelos_cancelados").asInt(),
-                    node.get("maletas_replanificadas").asInt()
+                    node.get("maletas_replanificadas").asInt(),
+                    fechaInicioReal
                 );
             }
         } catch (Exception e) {
@@ -240,7 +245,8 @@ public class SesionService {
             sesion.getSegundosRealesTranscurridos() != null ? sesion.getSegundosRealesTranscurridos() : 0,
             sesion.getSlaAcumuladoPct() != null ? sesion.getSlaAcumuladoPct() : new BigDecimal("100"),
             sesion.getVuelosCancelados() != null ? sesion.getVuelosCancelados() : 0,
-            sesion.getMaletasReplanificadas() != null ? sesion.getMaletasReplanificadas() : 0
+            sesion.getMaletasReplanificadas() != null ? sesion.getMaletasReplanificadas() : 0,
+            sesion.getFechaInicioReal()
         );
     }
 

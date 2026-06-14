@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Marker, Tooltip } from 'react-leaflet';
+import { Marker, Tooltip, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import { COLOR_VUELO } from '@/lib/colors';
 import type { VueloEnMapa } from '@/lib/types';
@@ -179,6 +179,36 @@ const AvionAnimado = React.memo(function AvionAnimado({ vuelo, animacionActiva =
           </div>
         </div>
       </Tooltip>
+      <Popup>
+        <div className="text-center min-w-[150px]">
+          <div className="font-bold text-base mb-1">{vuelo.codigo_vuelo}</div>
+          <div className="text-xs text-slate-600 mb-2">
+            {vuelo.origen.codigo_iata} → {vuelo.destino.codigo_iata}
+          </div>
+          <div className="text-sm mb-1">
+            <span className="text-slate-500">Capacidad: </span>
+            <span className="font-semibold">{vuelo.capacidad_carga}</span>
+          </div>
+          <div className="text-sm mb-1">
+            <span className="text-slate-500">Ocupado: </span>
+            <span className="font-semibold">{ocupada}</span>
+          </div>
+          <div className="text-sm mb-2">
+            <span className="text-slate-500">Disponible: </span>
+            <span className="font-semibold">{vuelo.carga_disponible}</span>
+          </div>
+          <div
+            className="px-2 py-1 rounded text-white text-xs font-bold"
+            style={{
+              backgroundColor: ocupada === 0 ? '#22c55e' :
+                (ocupada / vuelo.capacidad_carga) < 0.7 ? '#22c55e' :
+                (ocupada / vuelo.capacidad_carga) < 0.9 ? '#eab308' : '#ef4444'
+            }}
+          >
+            {vuelo.capacidad_carga > 0 ? ((ocupada / vuelo.capacidad_carga) * 100).toFixed(0) : 0}% ocupado
+          </div>
+        </div>
+      </Popup>
     </Marker>
   );
 });
