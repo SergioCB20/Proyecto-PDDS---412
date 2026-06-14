@@ -147,11 +147,15 @@ public class SesionService {
         }
 
         if (sesion.getTipo() == TipoSesion.SIMULADA) {
-            ReporteSesion reporte = new ReporteSesion(UUID.randomUUID(), id);
-            reporte.setSlaIncumplidoPct(BigDecimal.ZERO);
-            reporte.setTotalReplanificadas(0);
-            reporteSesionRepository.save(reporte);
-            log.info("ReporteSesion pre-creado {} para sesion {}", reporte.getId(), id);
+            if (reporteSesionRepository.findBySesionId(id).isEmpty()) {
+                ReporteSesion reporte = new ReporteSesion(UUID.randomUUID(), id);
+                reporte.setSlaIncumplidoPct(BigDecimal.ZERO);
+                reporte.setTotalReplanificadas(0);
+                reporteSesionRepository.save(reporte);
+                log.info("ReporteSesion pre-creado {} para sesion {}", reporte.getId(), id);
+            } else {
+                log.info("ReporteSesion ya existe para sesion {}, se reutiliza", id);
+            }
         }
 
         sesion.setEstado(EstadoSesion.EN_CURSO);

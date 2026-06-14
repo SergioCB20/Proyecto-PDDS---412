@@ -16,7 +16,7 @@ const REQUEST_TIMEOUT_MS = 15_000;
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeoutId = setTimeout(() => controller.abort('Timeout'), REQUEST_TIMEOUT_MS);
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
   try {
     const res = await fetch(`${BASE_URL}${path}`, {
@@ -54,7 +54,7 @@ export const api = {
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
   upload: <T>(path: string, formData: FormData) => {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const timeoutId = setTimeout(() => controller.abort('Timeout'), REQUEST_TIMEOUT_MS);
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     return fetch(`${BASE_URL}${path}`, {
       method: 'POST',
@@ -77,7 +77,7 @@ export const api = {
   },
   downloadBlob: async (path: string) => {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const timeoutId = setTimeout(() => controller.abort('Timeout'), REQUEST_TIMEOUT_MS);
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     try {
       const res = await fetch(`${BASE_URL}${path}`, {
