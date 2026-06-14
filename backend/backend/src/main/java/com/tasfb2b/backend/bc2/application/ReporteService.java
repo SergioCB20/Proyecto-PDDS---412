@@ -101,6 +101,7 @@ public class ReporteService {
         return toResponse(reporte);
     }
 
+    @Transactional(readOnly = true)
     public String generarCsvRutas(UUID sesionId) {
         List<PlanViaje> planes = planViajeRepository.findBySesionIdWithEquipaje(sesionId);
         if (planes.isEmpty()) return "";
