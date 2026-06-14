@@ -342,6 +342,8 @@ public class TickService {
                     sesion.getVuelosCancelados() != null ? sesion.getVuelosCancelados() : 0);
             root.put("maletas_replanificadas",
                     sesion.getMaletasReplanificadas() != null ? sesion.getMaletasReplanificadas() : 0);
+            root.put("fecha_inicio_real", sesion.getFechaInicioReal() != null
+                    ? sesion.getFechaInicioReal().toString() : null);
             root.put("timestamp", now.toString());
             return objectMapper.writeValueAsString(root);
         } catch (JsonProcessingException e) {
