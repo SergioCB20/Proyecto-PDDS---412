@@ -2,21 +2,18 @@
 
 import { useEffect, useState, Suspense, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams, useParams, useRouter } from 'next/navigation';
-import { Play, Pause, Square, Clock, AlertTriangle, RefreshCw, Activity, FileText } from 'lucide-react';
+import { Play, Pause, Square, Clock, AlertTriangle, RefreshCw, Activity, FileText, Menu, ChevronLeft } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { api } from '@/lib/api';
 import { useTelemetria } from '@/lib/useTelemetria';
-import { COLOR_NODO, colorNodoPorOcupacion } from '@/lib/colors';
-import type { Nodo, NodoEnMapa, NodoTelemetria, Vuelo, VueloEnMapa, VueloPageResponse, MetricasSimulacion, VueloTelemetria } from '@/lib/types';
-import { PanelVuelos } from '@/components/simulacion/PanelVuelos';
+import { colorNodoPorOcupacion } from '@/lib/colors';
+import type { Nodo, NodoEnMapa, Vuelo, VueloEnMapa, VueloPageResponse, MetricasSimulacion, VueloTelemetria } from '@/lib/types';
 
 const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false });
 
 const ESTADOS_VUELO_VALIDOS = ['PROGRAMADO', 'EN_RUTA', 'CANCELADO', 'COMPLETADO'] as const;
-
-const COLOR_NODO_MAP = COLOR_NODO;
 
 function matchEstadoVuelo(valor: string): VueloEnMapa['estado'] {
   if (ESTADOS_VUELO_VALIDOS.includes(valor as typeof ESTADOS_VUELO_VALIDOS[number])) {
@@ -144,6 +141,11 @@ function SimulacionContent() {
     loadInitial();
   }, []);
 
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [fechaInicioReal, setFechaInicioReal] = useState<string | null>(null);
+  const [ultimaFechaReal, setUltimaFechaReal] = useState<string>('');
+  const [ultimoVirtual, setUltimoVirtual] = useState<string>('');
+
   const [metricasPoll, setMetricasPoll] = useState<MetricasSimulacion>({
     sesion_id: sesionIdParam,
     estado: 'CONFIGURADA',
@@ -201,12 +203,22 @@ function SimulacionContent() {
     try {
       const data = await api.get<MetricasSimulacion>(`/sesiones/${backendSesionId}/metricas`);
       setMetricasPoll(data);
+      if (data.fecha_inicio_real) {
+        setFechaInicioReal(data.fecha_inicio_real);
+      }
+      if (data.dia_hora_virtual) {
+        setUltimoVirtual(data.dia_hora_virtual);
+      }
+      if (data.segundos_reales_transcurridos != null && fechaInicioReal) {
+        const ms = new Date(fechaInicioReal).getTime() + data.segundos_reales_transcurridos * 1000;
+        setUltimaFechaReal(new Date(ms).toISOString());
+      }
       if (accionRef.current === 'ninguna') {
         setEstado(data.estado);
       }
     } catch {
     }
-  }, [backendSesionId]);
+  }, [backendSesionId, fechaInicioReal]);
 
   useEffect(() => {
     if (backendSesionId && estado === 'EN_CURSO') {
@@ -299,17 +311,49 @@ function SimulacionContent() {
     return 'bg-red-500';
   };
 
-  const formatoTiempo = (seg: number) => {
-    const h = Math.floor(seg / 3600);
-    const m = Math.floor((seg % 3600) / 60);
-    const s = seg % 60;
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  const formatearFecha = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleString('es-ES', {
+        timeZone: 'UTC',
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+      });
+    } catch {
+      return '—';
+    }
   };
+
+  const formatearFechaCorta = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleString('es-ES', {
+        timeZone: 'UTC',
+        day: '2-digit', month: '2-digit',
+        hour: '2-digit', minute: '2-digit'
+      });
+    } catch {
+      return '—';
+    }
+  };
+
+  const fechaRealActual = (() => {
+    if (estado === 'FINALIZADA' && ultimaFechaReal) {
+      return ultimaFechaReal;
+    }
+    if (fechaInicioReal && metricas.segundos_reales_transcurridos != null) {
+      const ms = new Date(fechaInicioReal).getTime() + metricas.segundos_reales_transcurridos * 1000;
+      return new Date(ms).toISOString();
+    }
+    return null;
+  })();
+
+  const virtualActual = estado === 'FINALIZADA' && ultimoVirtual
+    ? ultimoVirtual
+    : metricas.dia_hora_virtual;
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)]">
       <div className="flex-1 p-4">
-<GeoMapa
+        <GeoMapa
           nodos={nodosMapa}
           vuelos={vuelosMapa}
           mostrarAviones={true}
@@ -318,148 +362,250 @@ function SimulacionContent() {
         />
       </div>
 
-      <div className="w-80 border-l border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col overflow-y-auto">
-        <div className="p-4 border-b border-slate-200 dark:border-slate-700">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold text-slate-900 dark:text-slate-100">Sesion de Simulacion</h2>
+      <div className={`border-l border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col overflow-y-auto transition-all duration-300 ${isCollapsed ? 'w-12' : 'w-80'}`}>
+        <div className="p-2 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+          {!isCollapsed && (
+            <h2 className="font-semibold text-slate-900 dark:text-slate-100 text-sm truncate">Sesion de Simulacion</h2>
+          )}
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            title={isCollapsed ? 'Expandir panel' : 'Colapsar panel'}
+          >
+            {isCollapsed ? <Menu size={18} /> : <ChevronLeft size={18} />}
+          </button>
+        </div>
+
+        {isCollapsed ? (
+          <div className="flex flex-col items-center gap-3 py-4 px-1">
             <Badge
               variant={
                 estado === 'EN_CURSO' ? 'green' :
                 estado === 'PAUSADA' ? 'yellow' :
                 estado === 'FINALIZADA' ? 'red' : 'blue'
               }
+              className="!px-1 !text-[10px]"
             >
-              {estado.replace('_', ' ')}
+              {estado === 'EN_CURSO' ? 'ACT' : estado === 'PAUSADA' ? 'PAU' : estado === 'FINALIZADA' ? 'FIN' : 'CFG'}
             </Badge>
+            <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} title={connected ? 'Telemetría conectada' : 'Telemetría desconectada'} />
           </div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
-            <span className="text-xs text-slate-500">
-              {connected ? 'Telemetría conectada' : 'Telemetría desconectada'}
-            </span>
-          </div>
-          <div className="text-xs text-slate-500 font-mono">{backendSesionId || sesionIdParam}</div>
-        </div>
-
-        <div className="p-4 space-y-3 flex-1">
-          <div className="grid grid-cols-1 gap-2">
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
-              <Clock size={18} className="text-slate-400" />
-              <div>
-                <div className="text-xs text-slate-500">Tiempo real</div>
-                <div className="text-lg font-bold font-mono text-slate-900 dark:text-slate-100">
-                  {formatoTiempo(metricas.segundos_reales_transcurridos)}
-                </div>
+        ) : (
+          <>
+            <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-semibold text-slate-900 dark:text-slate-100">Sesion de Simulacion</h2>
+                <Badge
+                  variant={
+                    estado === 'EN_CURSO' ? 'green' :
+                    estado === 'PAUSADA' ? 'yellow' :
+                    estado === 'FINALIZADA' ? 'red' : 'blue'
+                  }
+                >
+                  {estado.replace('_', ' ')}
+                </Badge>
               </div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
+                <span className="text-xs text-slate-500">
+                  {connected ? 'Telemetría conectada' : 'Telemetría desconectada'}
+                </span>
+              </div>
+              <div className="text-xs text-slate-500 font-mono">{backendSesionId || sesionIdParam}</div>
             </div>
 
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
-              <Activity size={18} className="text-slate-400" />
-              <div className="flex-1">
-                <div className="text-xs text-slate-500">Dia/hora virtual</div>
-                <div className="text-sm font-medium font-mono text-slate-900 dark:text-slate-100">
-                  {new Date(metricas.dia_hora_virtual).toLocaleString('es-ES', {
-                    timeZone: 'UTC',
-                    day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
-                  })} UTC
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <MetricaCard
-            label="SLA Acumulado"
-            value={`${metricas.sla_acumulado_pct.toFixed(1)}%`}
-            icon={Activity}
-            color={slaColor()}
-          />
-          <MetricaCard
-            label="Vuelos Cancelados"
-            value={metricas.vuelos_cancelados}
-            icon={AlertTriangle}
-            color="bg-red-500"
-          />
-          <MetricaCard
-            label="Maletas Replanificadas"
-            value={metricas.maletas_replanificadas}
-            icon={RefreshCw}
-            color="bg-blue-500"
-          />
-        </div>
-
-        <ResumenVuelos vuelos={telemetria?.vuelos ?? []} />
-
-        {telemetria?.nodos && telemetria.nodos.length > 0 && (
-          <div className="p-4 border-t border-slate-200 dark:border-slate-700">
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">
-              Resumen de Nodos
-            </h3>
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {telemetria.nodos.map(n => {
-                const colorHex = colorNodoPorOcupacion(n.ocupacion_pct, { verdeMax: umbralAlmacenVerde, ambarMax: umbralAlmacenAmbar });
-                return (
-                  <div key={n.id} className="flex items-center justify-between py-1.5 px-2 rounded bg-slate-50 dark:bg-slate-800/50">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: colorHex }} />
-                      <span className="font-medium text-sm text-slate-700 dark:text-slate-300">{n.codigo_iata}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-500">
-                        {n.ocupacion_actual}/{n.capacidad_almacen}
-                      </span>
-                      <span className="text-xs font-semibold" style={{ color: colorHex }}>
-                        {n.ocupacion_pct.toFixed(0)}%
-                      </span>
+            <div className="p-4 space-y-3 flex-1">
+              <div className="grid grid-cols-1 gap-2">
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+                  <Clock size={18} className="text-slate-400" />
+                  <div>
+                    <div className="text-xs text-slate-500">Tiempo real transcurrido</div>
+                    <div className="text-lg font-bold font-mono text-slate-900 dark:text-slate-100">
+                      {metricas.segundos_reales_transcurridos != null
+                        ? `${Math.floor(metricas.segundos_reales_transcurridos / 60)}m ${metricas.segundos_reales_transcurridos % 60}s`
+                        : '—'}
                     </div>
                   </div>
-                );
-              })}
+                </div>
+
+                {fechaInicioReal && (
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+                    <Clock size={18} className="text-slate-400" />
+                    <div>
+                      <div className="text-xs text-slate-500">Inicio real</div>
+                      <div className="text-sm font-mono text-slate-900 dark:text-slate-100">
+                        {formatearFecha(fechaInicioReal)}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {fechaRealActual && (
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+                    <Clock size={18} className="text-slate-400" />
+                    <div>
+                      <div className="text-xs text-slate-500">Fecha/hora real actual</div>
+                      <div className="text-sm font-mono text-slate-900 dark:text-slate-100">
+                        {formatearFecha(fechaRealActual)}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+                  <Activity size={18} className="text-slate-400" />
+                  <div>
+                    <div className="text-xs text-slate-500">Inicio virtual</div>
+                    <div className="text-sm font-mono text-slate-900 dark:text-slate-100">
+                      {formatearFechaCorta(`${fechaInicio}T${horaInicio}:00Z`)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+                  <Activity size={18} className="text-slate-400" />
+                  <div className="flex-1">
+                    <div className="text-xs text-slate-500">Virtual actual</div>
+                    <div className="text-sm font-medium font-mono text-slate-900 dark:text-slate-100">
+                      {virtualActual
+                        ? `${formatearFechaCorta(virtualActual)} UTC`
+                        : '—'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <MetricaCard
+                label="SLA Acumulado"
+                value={`${metricas.sla_acumulado_pct.toFixed(1)}%`}
+                icon={Activity}
+                color={slaColor()}
+              />
+              <MetricaCard
+                label="Vuelos Cancelados"
+                value={metricas.vuelos_cancelados}
+                icon={AlertTriangle}
+                color="bg-red-500"
+              />
+              <MetricaCard
+                label="Maletas Replanificadas"
+                value={metricas.maletas_replanificadas}
+                icon={RefreshCw}
+                color="bg-blue-500"
+              />
             </div>
-          </div>
+
+            <ResumenVuelos vuelos={telemetria?.vuelos ?? []} />
+
+            {telemetria?.nodos && telemetria.nodos.length > 0 && (
+              <div className="p-4 border-t border-slate-200 dark:border-slate-700">
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">
+                  Resumen de Nodos
+                </h3>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {telemetria.nodos.map(n => {
+                    const colorHex = colorNodoPorOcupacion(n.ocupacion_pct, { verdeMax: umbralAlmacenVerde, ambarMax: umbralAlmacenAmbar });
+                    return (
+                      <div key={n.id} className="flex items-center justify-between py-1.5 px-2 rounded bg-slate-50 dark:bg-slate-800/50">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: colorHex }} />
+                          <span className="font-medium text-sm text-slate-700 dark:text-slate-300">{n.codigo_iata}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-500">
+                            {n.ocupacion_actual}/{n.capacidad_almacen}
+                          </span>
+                          <span className="text-xs font-semibold" style={{ color: colorHex }}>
+                            {n.ocupacion_pct.toFixed(0)}%
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {telemetria?.vuelos && telemetria.vuelos.length > 0 && (
+              <div className="p-4 border-t border-slate-200 dark:border-slate-700">
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">
+                  Ocupación de Vuelos
+                </h3>
+                <div className="space-y-2 max-h-56 overflow-y-auto">
+                  {telemetria.vuelos.map(v => {
+                    const ocupada = v.capacidad_carga - v.carga_disponible;
+                    const pct = v.capacidad_carga > 0 ? (ocupada / v.capacidad_carga) * 100 : 0;
+                    const colorHex = v.estado === 'EN_RUTA' ? '#22c55e' : v.estado === 'PROGRAMADO' ? '#3b82f6' : '#6b7280';
+                    return (
+                      <div key={v.id} className="py-1.5 px-2 rounded bg-slate-50 dark:bg-slate-800/50">
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: colorHex }} />
+                            <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{v.codigo_vuelo}</span>
+                          </div>
+                          <span className="text-xs text-slate-500">
+                            {v.origen_iata}→{v.destino_iata}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-500">{ocupada}/{v.capacidad_carga}</span>
+                          <span className="font-semibold" style={{ color: colorHex }}>{pct.toFixed(0)}%</span>
+                        </div>
+                        <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden mt-1">
+                          <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: colorHex }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className="p-4 border-t border-slate-200 dark:border-slate-700 space-y-2">
+              {error && (
+                <div className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400 p-2 rounded">
+                  {error}
+                </div>
+              )}
+              {estado === 'CONFIGURADA' && (
+                <Button className="w-full" onClick={handleIniciar} disabled={loading}>
+                  <Play size={16} className="mr-2" />
+                  {loading ? 'Iniciando...' : 'Iniciar'}
+                </Button>
+              )}
+              {estado === 'EN_CURSO' && (
+                <Button className="w-full" variant="secondary" onClick={handlePausar} disabled={loading}>
+                  <Pause size={16} className="mr-2" />
+                  Pausar
+                </Button>
+              )}
+              {estado === 'PAUSADA' && (
+                <Button className="w-full" onClick={handleIniciar} disabled={loading}>
+                  <Play size={16} className="mr-2" />
+                  Reanudar
+                </Button>
+              )}
+              {(estado === 'EN_CURSO' || estado === 'PAUSADA') && (
+                <Button className="w-full" variant="danger" onClick={handleDetener} disabled={loading}>
+                  <Square size={16} className="mr-2" />
+                  {loading ? 'Deteniendo...' : 'Detener'}
+                </Button>
+              )}
+              {estado === 'FINALIZADA' && (
+                <Button className="w-full" variant="secondary" onClick={() => router.push(`/simulacion/${backendSesionId || sesionIdParam}/reporte`)}>
+                  <FileText size={16} className="mr-2" />
+                  Ver Reporte
+                </Button>
+              )}
+              <Button variant="ghost" className="w-full" onClick={() => router.push('/simulacion')}>
+                Nueva Simulacion
+              </Button>
+            </div>
+          </>
         )}
-
-        <PanelVuelos vuelos={telemetria?.vuelos ?? []} />
-
-        <div className="p-4 border-t border-slate-200 dark:border-slate-700 space-y-2">
-          {error && (
-            <div className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400 p-2 rounded">
-              {error}
-            </div>
-          )}
-          {estado === 'CONFIGURADA' && (
-            <Button className="w-full" onClick={handleIniciar} disabled={loading}>
-              <Play size={16} className="mr-2" />
-              {loading ? 'Iniciando...' : 'Iniciar'}
-            </Button>
-          )}
-          {estado === 'EN_CURSO' && (
-            <Button className="w-full" variant="secondary" onClick={handlePausar} disabled={loading}>
-              <Pause size={16} className="mr-2" />
-              Pausar
-            </Button>
-          )}
-          {estado === 'PAUSADA' && (
-            <Button className="w-full" onClick={handleIniciar} disabled={loading}>
-              <Play size={16} className="mr-2" />
-              Reanudar
-            </Button>
-          )}
-          {(estado === 'EN_CURSO' || estado === 'PAUSADA') && (
-            <Button className="w-full" variant="danger" onClick={handleDetener} disabled={loading}>
-              <Square size={16} className="mr-2" />
-              {loading ? 'Deteniendo...' : 'Detener'}
-            </Button>
-          )}
-          {estado === 'FINALIZADA' && (
-            <Button className="w-full" variant="secondary" onClick={() => router.push(`/simulacion/${backendSesionId || sesionIdParam}/reporte`)}>
-              <FileText size={16} className="mr-2" />
-              Ver Reporte
-            </Button>
-          )}
-          <Button variant="ghost" className="w-full" onClick={() => router.push('/simulacion')}>
-            Nueva Simulacion
-          </Button>
-        </div>
       </div>
     </div>
   );

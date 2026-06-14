@@ -113,6 +113,7 @@ export interface MetricasSimulacion {
   sla_acumulado_pct: number;
   vuelos_cancelados: number;
   maletas_replanificadas: number;
+  fecha_inicio_real?: string | null;
 }
 
 export interface CrearUsuarioRequest {

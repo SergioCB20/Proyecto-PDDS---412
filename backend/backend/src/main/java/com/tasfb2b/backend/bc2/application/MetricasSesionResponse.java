@@ -11,5 +11,6 @@ public record MetricasSesionResponse(
     Integer segundos_reales_transcurridos,
     BigDecimal sla_acumulado_pct,
     Integer vuelos_cancelados,
-    Integer maletas_replanificadas
+    Integer maletas_replanificadas,
+    OffsetDateTime fecha_inicio_real
 ) {}

@@ -14,7 +14,7 @@
 
 | # | Tarea | Prioridad | Descripción |
 |---|-------|-----------|-------------|
-| B1 | Agregar `fecha_inicio_real` a `MetricasSesionResponse` | **Alta** | Actualmente la entidad `SesionEjecucion` tiene `fechaInicioReal` pero el DTO de métricas no lo expone. Añadirlo para que el frontend pueda mostrar la fecha/hora real de inicio. |
+| B1 | ✅ Agregar `fecha_inicio_real` a `MetricasSesionResponse` | **Alta** | `MetricasSesionResponse`, `TickService.buildMetricasJson()` y `SesionService.obtenerMetricas()` actualizados — backend compila OK. |
 | B2 | Endpoint `GET /api/sesiones/{id}/envios/vuelo/{vueloId}` | **Alta** | Devuelve los equipajes actualmente asignados a un vuelo (origen, destino, código, cantidad). Requerido para tarea 13. |
 | B3 | Endpoint `GET /api/sesiones/{id}/envios/nodo/{nodoIata}` | **Alta** | Devuelve los equipajes actualmente almacenados en un nodo. Requerido para tarea 13. |
 | B4 | Endpoint `GET /api/sesiones/{id}/envios/entregados-recientes?horas=4` | **Alta** | Devuelve equipajes con estado `ENTREGADO` en las últimas N horas virtuales. Requerido para tarea 14. |
@@ -29,14 +29,14 @@
 
 | # | Tarea | Archivos principales | Descripción técnica |
 |---|-------|----------------------|---------------------|
-| **1** | Sidebar colapsable | `frontend/app/simulacion/[id]/page.tsx` | Convertir el panel derecho (`w-80`) en un sidebar colapsable con botón de toggle (ícono menú/chevron). Al colapsar, solo mostrar una pestaña angosta con indicadores mínimos. |
-| **2** | Nodos: color según ocupación del almacén | `frontend/components/mapa/GeoMapaNodo.tsx` | El backend ya envía `color` y `ocupacion_pct` vía telemetría. Verificar que el `CircleMarker` use correctamente el color (verde < 70%, ámbar 70-90%, rojo > 90%) y se actualice en vivo. |
-| **3** | Vuelos: color según capacidad al hacer clic | `frontend/components/mapa/GeoMapaVuelo.tsx` | `VueloTelemetria` ya tiene `color` y `ocupacion_pct`. Agregar `Popup` de Leaflet al `AvionAnimado` o `Marker` que muestre: código, ocupación %, capacidad, con color de fondo verde/ámbar/rojo. |
-| **4** | Mostrar fecha/hora REAL de inicio | `MetricasSesionResponse.java` (backend), `page.tsx` | Usar el nuevo campo `fecha_inicio_real` del backend (tarea B1). Si no está disponible, calcularlo client-side al hacer clic en "Iniciar". Mostrar en formato `DD/MM/AAAA HH:mm:ss`. |
-| **5** | Mostrar fecha/hora REAL actual (detener al finalizar) | `frontend/app/simulacion/[id]/page.tsx` | Actualmente se muestran solo segundos transcurridos. Cambiar a mostrar fecha+hora real completa calculada como `fechaInicioReal + segundosRealesTranscurridos`. Debe detenerse cuando la sesión pase a `FINALIZADA`. |
-| **6** | Mostrar fecha/hora VIRTUAL de inicio | `frontend/app/simulacion/[id]/page.tsx` | Leer `fecha_inicio_virtual` y `hora_inicio_virtual` de los `searchParams` de la URL. Mostrar en formato legible. |
-| **7** | Mostrar fecha/hora VIRTUAL actual (detener al finalizar) | `frontend/app/simulacion/[id]/page.tsx` | Ya se muestra `dia_hora_virtual` de las métricas. Verificar que al llegar a `FINALIZADA` el valor se congele (no siga mostrando polling vacío). |
-| **8** | Líneas curvas en rutas de vuelo | `frontend/components/mapa/GeoMapaVuelo.tsx` | Reemplazar `Polyline` de Leaflet (línea recta) por una curva bezier o arco entre origen y destino. Usar `leaflet-curve` o calcular interpolación con `L.curve` o similar. Alternativa: librería `leaflet-arc`. |
+| **1** | ✅ Sidebar colapsable | `frontend/app/simulacion/[id]/page.tsx` | Sidebar `w-80`/`w-12` con toggle Menu/ChevronLeft, animación `transition-all duration-300`, badge estado + telemetría al colapsar. |
+| **2** | ✅ Nodos: color según ocupación del almacén | `frontend/components/mapa/GeoMapaNodo.tsx` | Verificado: `GeoMapaNodo.tsx` ya usa `nodo.color` del backend (verde/ámbar/rojo según ocupación). |
+| **3** | ✅ Vuelos: Popup de capacidad al hacer clic | `frontend/components/mapa/GeoMapaVuelo.tsx`, `AvionAnimado.tsx` | Popup Leaflet en `AvionAnimado.tsx` con código vuelo, origen→destino, capacidad, ocupado, badge % con fondo verde/ámbar/rojo. |
+| **4** | ✅ Mostrar fecha/hora REAL de inicio | `MetricasSesionResponse.java` (backend), `page.tsx` | Card "Inicio real" muestra `fecha_inicio_real` en formato `DD/MM/AAAA HH:mm:ss`. Null cuando CONFIGURADA. Depende de B1. |
+| **5** | ✅ Mostrar fecha/hora REAL actual (congela al finalizar) | `frontend/app/simulacion/[id]/page.tsx` | Card calculada como `fechaInicioReal + segundosRealesTranscurridos`. Se congela vía `ultimaFechaRealRef` al detectar estado `FINALIZADA`. |
+| **6** | ✅ Mostrar fecha/hora VIRTUAL de inicio | `frontend/app/simulacion/[id]/page.tsx` | Card "Inicio virtual" lee `fecha_inicio_virtual` y `hora_inicio_virtual` de `searchParams` de la URL. |
+| **7** | ✅ Mostrar fecha/hora VIRTUAL actual (congela al finalizar) | `frontend/app/simulacion/[id]/page.tsx` | Card "Virtual actual" muestra `dia_hora_virtual` congelado vía `ultimoVirtualRef` al llegar a `FINALIZADA`. |
+| **8** | ✅ Líneas curvas en rutas de vuelo | `frontend/components/mapa/GeoMapaVuelo.tsx` | Función `calcularCurvaBezier()` con offset perpendicular proporcional a distancia y 50 puntos de interpolación. Reemplazado `Polyline` recto por curva bezier. |
 
 ---
 
