@@ -22,4 +22,4 @@
 
 - [x] 3.1 Ejecutar `npm run lint` en frontend y asegurar que no hay errores
 - [x] 3.2 Ejecutar `npm run build` (incluye TypeCheck) y asegurar que pasa
-- [ ] 3.3 Probar en navegador que los filtros funcionan correctamente
+- [x] 3.3 Probar en navegador que los filtros funcionan correctamente

@@ -65,6 +65,8 @@ public class TelemetriaService {
             double pct = nodo.getOcupacionPorcentaje();
             n.put("ocupacion_pct", Math.round(pct * 100.0) / 100.0);
             n.put("color", evaluarColorNodo(pct, sesion));
+            n.put("continente", nodo.getContinente() != null ? nodo.getContinente() : "");
+            n.put("zona_horaria", nodo.getZonaHoraria() != null ? nodo.getZonaHoraria() : "");
         }
 
         ArrayNode vuelosArr = root.putArray("vuelos");

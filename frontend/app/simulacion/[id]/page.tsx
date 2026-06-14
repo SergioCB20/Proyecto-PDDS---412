@@ -10,6 +10,7 @@ import { api } from '@/lib/api';
 import { useTelemetria } from '@/lib/useTelemetria';
 import { colorNodoPorOcupacion } from '@/lib/colors';
 import { PanelVuelos } from '@/components/simulacion/PanelVuelos';
+import { PanelNodos } from '@/components/simulacion/PanelNodos';
 import type { Nodo, NodoEnMapa, Vuelo, VueloEnMapa, VueloPageResponse, MetricasSimulacion, VueloTelemetria } from '@/lib/types';
 
 const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false });
@@ -499,32 +500,7 @@ function SimulacionContent() {
             <ResumenVuelos vuelos={telemetria?.vuelos ?? []} />
 
             {telemetria?.nodos && telemetria.nodos.length > 0 && (
-              <div className="p-4 border-t border-slate-200 dark:border-slate-700">
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">
-                  Resumen de Nodos
-                </h3>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {telemetria.nodos.map(n => {
-                    const colorHex = colorNodoPorOcupacion(n.ocupacion_pct, { verdeMax: umbralAlmacenVerde, ambarMax: umbralAlmacenAmbar });
-                    return (
-                      <div key={n.id} className="flex items-center justify-between py-1.5 px-2 rounded bg-slate-50 dark:bg-slate-800/50">
-                        <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: colorHex }} />
-                          <span className="font-medium text-sm text-slate-700 dark:text-slate-300">{n.codigo_iata}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-slate-500">
-                            {n.ocupacion_actual}/{n.capacidad_almacen}
-                          </span>
-                          <span className="text-xs font-semibold" style={{ color: colorHex }}>
-                            {n.ocupacion_pct.toFixed(0)}%
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+              <PanelNodos nodos={telemetria.nodos} vuelos={telemetria.vuelos ?? []} />
             )}
 
             {telemetria?.vuelos && telemetria.vuelos.length > 0 && (

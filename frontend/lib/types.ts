@@ -200,6 +200,8 @@ export interface NodoTelemetria {
   ocupacion_actual: number;
   ocupacion_pct: number;
   color: string;
+  continente: string;
+  zona_horaria: string;
 }
 
 export interface VueloTelemetria {
