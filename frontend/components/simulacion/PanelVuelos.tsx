@@ -7,9 +7,10 @@ import type { VueloTelemetria } from '@/lib/types';
 
 interface PanelVuelosProps {
   vuelos: VueloTelemetria[];
+  onVueloClick?: (id: string, codigo: string) => void;
 }
 
-export function PanelVuelos({ vuelos }: PanelVuelosProps) {
+export function PanelVuelos({ vuelos, onVueloClick }: PanelVuelosProps) {
   const [filtroCodigo, setFiltroCodigo] = useState('');
   const [filtroOrigen, setFiltroOrigen] = useState('');
   const [filtroDestino, setFiltroDestino] = useState('');
@@ -145,7 +146,11 @@ export function PanelVuelos({ vuelos }: PanelVuelosProps) {
           const pct = v.capacidad_carga > 0 ? (ocupada / v.capacidad_carga) * 100 : 0;
           const colorHex = v.estado === 'EN_RUTA' ? '#22c55e' : v.estado === 'PROGRAMADO' ? '#3b82f6' : '#6b7280';
           return (
-            <div key={v.id} className="py-1.5 px-2 rounded bg-slate-50 dark:bg-slate-800/50">
+            <div
+              key={v.id}
+              className={`py-1.5 px-2 rounded bg-slate-50 dark:bg-slate-800/50 ${onVueloClick ? 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50' : ''}`}
+              onClick={() => onVueloClick?.(v.id, v.codigo_vuelo)}
+            >
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
                   <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: colorHex }} />

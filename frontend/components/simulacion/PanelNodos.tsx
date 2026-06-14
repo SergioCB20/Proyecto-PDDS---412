@@ -8,9 +8,10 @@ import type { NodoTelemetria, VueloTelemetria } from '@/lib/types';
 interface PanelNodosProps {
   nodos: NodoTelemetria[];
   vuelos: VueloTelemetria[];
+  onNodoClick?: (id: string, codigo: string) => void;
 }
 
-export function PanelNodos({ nodos, vuelos }: PanelNodosProps) {
+export function PanelNodos({ nodos, vuelos, onNodoClick }: PanelNodosProps) {
   const [filtroCodigo, setFiltroCodigo] = useState('');
   const [filtroContinente, setFiltroContinente] = useState('');
   const [orden, setOrden] = useState('');
@@ -149,7 +150,11 @@ export function PanelNodos({ nodos, vuelos }: PanelNodosProps) {
         {nodosOrdenados.map(n => {
           const continenteLabel = n.continente || n.zona_horaria || '';
           return (
-            <div key={n.id} className="flex items-center justify-between py-1.5 px-2 rounded bg-slate-50 dark:bg-slate-800/50">
+            <div
+              key={n.id}
+              className={`flex items-center justify-between py-1.5 px-2 rounded bg-slate-50 dark:bg-slate-800/50 ${onNodoClick ? 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50' : ''}`}
+              onClick={() => onNodoClick?.(n.codigo_iata, n.codigo_iata)}
+            >
               <div className="flex items-center gap-2 min-w-0">
                 <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: n.color }} />
                 <span className="font-medium text-sm text-slate-700 dark:text-slate-300">{n.codigo_iata}</span>

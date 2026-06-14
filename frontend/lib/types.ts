@@ -224,6 +224,13 @@ export interface VueloTelemetria {
   hora_llegada: string;
 }
 
+export interface EnvioItemResponse {
+  origen_iata: string;
+  destino_iata: string;
+  codigo_equipaje: string;
+  cantidad: number;
+}
+
 export interface TelemetriaMensaje {
   timestamp: string;
   nodos: NodoTelemetria[];

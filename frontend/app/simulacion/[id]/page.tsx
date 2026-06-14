@@ -11,6 +11,8 @@ import { useTelemetria } from '@/lib/useTelemetria';
 import { colorNodoPorOcupacion } from '@/lib/colors';
 import { PanelVuelos } from '@/components/simulacion/PanelVuelos';
 import { PanelNodos } from '@/components/simulacion/PanelNodos';
+import { PanelEnvios } from '@/components/simulacion/PanelEnvios';
+import type { SelectedEnvio } from '@/components/simulacion/PanelEnvios';
 import type { Nodo, NodoEnMapa, Vuelo, VueloEnMapa, VueloPageResponse, MetricasSimulacion, VueloTelemetria } from '@/lib/types';
 
 const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false });
@@ -147,6 +149,8 @@ function SimulacionContent() {
   const [fechaInicioReal, setFechaInicioReal] = useState<string | null>(null);
   const [ultimaFechaReal, setUltimaFechaReal] = useState<string>('');
   const [ultimoVirtual, setUltimoVirtual] = useState<string>('');
+
+  const [selectedEnvio, setSelectedEnvio] = useState<SelectedEnvio | null>(null);
 
   const [metricasPoll, setMetricasPoll] = useState<MetricasSimulacion>({
     sesion_id: sesionIdParam,
@@ -500,11 +504,26 @@ function SimulacionContent() {
             <ResumenVuelos vuelos={telemetria?.vuelos ?? []} />
 
             {telemetria?.nodos && telemetria.nodos.length > 0 && (
-              <PanelNodos nodos={telemetria.nodos} vuelos={telemetria.vuelos ?? []} />
+              <PanelNodos
+                nodos={telemetria.nodos}
+                vuelos={telemetria.vuelos ?? []}
+                onNodoClick={(id, codigo) => setSelectedEnvio({ tipo: 'nodo', id, codigo })}
+              />
             )}
 
             {telemetria?.vuelos && telemetria.vuelos.length > 0 && (
-              <PanelVuelos vuelos={telemetria.vuelos} />
+              <PanelVuelos
+                vuelos={telemetria.vuelos}
+                onVueloClick={(id, codigo) => setSelectedEnvio({ tipo: 'vuelo', id, codigo })}
+              />
+            )}
+
+            {selectedEnvio && (
+              <PanelEnvios
+                sesionId={backendSesionId || sesionIdParam}
+                selectedEnvio={selectedEnvio}
+                onClose={() => setSelectedEnvio(null)}
+              />
             )}
 
             <div className="p-4 border-t border-slate-200 dark:border-slate-700 space-y-2">

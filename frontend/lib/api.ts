@@ -1,9 +1,9 @@
-import type { ApiError } from './types';
+import type { ApiError, EnvioItemResponse } from './types';
 
 function getBaseUrl(): string {
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
-    if (host === 'localhost' || host === '127.0.0.1') {
+    if (host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host === '::1') {
       return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
     }
     return '/back/api';
@@ -100,3 +100,11 @@ export const api = {
     }
   },
 };
+
+export async function fetchEnviosVuelo(sesionId: string, vueloId: string): Promise<EnvioItemResponse[]> {
+  return api.get<EnvioItemResponse[]>(`/sesiones/${sesionId}/envios/vuelo/${vueloId}`);
+}
+
+export async function fetchEnviosNodo(sesionId: string, nodoIata: string): Promise<EnvioItemResponse[]> {
+  return api.get<EnvioItemResponse[]>(`/sesiones/${sesionId}/envios/nodo/${nodoIata}`);
+}
