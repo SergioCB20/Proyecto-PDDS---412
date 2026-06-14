@@ -13,6 +13,7 @@ export function PanelVuelos({ vuelos }: PanelVuelosProps) {
   const [filtroCodigo, setFiltroCodigo] = useState('');
   const [filtroOrigen, setFiltroOrigen] = useState('');
   const [filtroDestino, setFiltroDestino] = useState('');
+  const [orden, setOrden] = useState('');
 
   const opcionesOrigen = useMemo(() => {
     const set = new Set(vuelos.map(v => v.origen_iata));
@@ -32,6 +33,41 @@ export function PanelVuelos({ vuelos }: PanelVuelosProps) {
       return true;
     });
   }, [vuelos, filtroCodigo, filtroOrigen, filtroDestino]);
+
+  const opcionesOrden = [
+    { value: '', label: 'Sin orden' },
+    { value: 'ocupacion-asc', label: 'Ocupación ↑' },
+    { value: 'ocupacion-desc', label: 'Ocupación ↓' },
+    { value: 'hora-salida', label: 'Hora salida' },
+    { value: 'hora-llegada', label: 'Hora llegada' },
+    { value: 'origen-az', label: 'Origen (A-Z)' },
+    { value: 'destino-az', label: 'Destino (A-Z)' },
+  ];
+
+  const vuelosOrdenados = useMemo(() => {
+    const lista = [...vuelosFiltrados];
+    switch (orden) {
+      case 'ocupacion-asc':
+        lista.sort((a, b) => (a.capacidad_carga - a.carga_disponible) - (b.capacidad_carga - b.carga_disponible));
+        break;
+      case 'ocupacion-desc':
+        lista.sort((a, b) => (b.capacidad_carga - b.carga_disponible) - (a.capacidad_carga - a.carga_disponible));
+        break;
+      case 'hora-salida':
+        lista.sort((a, b) => a.hora_salida.localeCompare(b.hora_salida));
+        break;
+      case 'hora-llegada':
+        lista.sort((a, b) => a.hora_llegada.localeCompare(b.hora_llegada));
+        break;
+      case 'origen-az':
+        lista.sort((a, b) => a.origen_iata.localeCompare(b.origen_iata));
+        break;
+      case 'destino-az':
+        lista.sort((a, b) => a.destino_iata.localeCompare(b.destino_iata));
+        break;
+    }
+    return lista;
+  }, [vuelosFiltrados, orden]);
 
   const hayFiltrosActivos = filtroCodigo || filtroOrigen || filtroDestino;
 
@@ -94,8 +130,17 @@ export function PanelVuelos({ vuelos }: PanelVuelosProps) {
         </button>
       )}
 
+      <div className="mb-3">
+        <Select
+          placeholder="Ordenar por..."
+          options={opcionesOrden}
+          value={orden}
+          onChange={e => setOrden(e.target.value)}
+        />
+      </div>
+
       <div className="space-y-2 max-h-56 overflow-y-auto">
-        {vuelosFiltrados.map(v => {
+        {vuelosOrdenados.map(v => {
           const ocupada = v.capacidad_carga - v.carga_disponible;
           const pct = v.capacidad_carga > 0 ? (ocupada / v.capacidad_carga) * 100 : 0;
           const colorHex = v.estado === 'EN_RUTA' ? '#22c55e' : v.estado === 'PROGRAMADO' ? '#3b82f6' : '#6b7280';

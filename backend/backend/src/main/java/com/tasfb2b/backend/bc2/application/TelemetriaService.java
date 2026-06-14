@@ -103,6 +103,8 @@ public class TelemetriaService {
             double pctVuelo = vuelo.getOcupacionPorcentaje();
             v.put("ocupacion_pct", Math.round(pctVuelo * 100.0) / 100.0);
             v.put("color", evaluarColorVuelo(pctVuelo, sesion));
+            v.put("hora_salida", vuelo.getHoraSalida() != null ? vuelo.getHoraSalida().toString() : "");
+            v.put("hora_llegada", vuelo.getHoraLlegada() != null ? vuelo.getHoraLlegada().toString() : "");
         }
 
         ObjectNode metrics = root.putObject("metricas_sesion");

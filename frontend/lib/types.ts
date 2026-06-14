@@ -218,6 +218,8 @@ export interface VueloTelemetria {
   carga_disponible: number;
   ocupacion_pct: number;
   color: string;
+  hora_salida: string;
+  hora_llegada: string;
 }
 
 export interface TelemetriaMensaje {
