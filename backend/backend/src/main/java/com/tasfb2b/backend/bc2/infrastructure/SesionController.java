@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/sesiones")
@@ -55,6 +56,42 @@ public class SesionController {
     public ResponseEntity<SesionEstadoResponse> detenerSesion(@PathVariable UUID id) {
         SesionEstadoResponse response = sesionService.detenerSesion(id);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{id}/envios/vuelo/{vueloId}")
+    public ResponseEntity<?> obtenerEnviosVuelo(
+            @PathVariable UUID id,
+            @PathVariable UUID vueloId) {
+        try {
+            return ResponseEntity.ok(sesionService.obtenerEnviosVuelo(id, vueloId));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("status", 404, "error", "NO_ENCONTRADO", "mensaje", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/{id}/envios/nodo/{nodoIata}")
+    public ResponseEntity<?> obtenerEnviosNodo(
+            @PathVariable UUID id,
+            @PathVariable String nodoIata) {
+        try {
+            return ResponseEntity.ok(sesionService.obtenerEnviosNodo(id, nodoIata));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("status", 404, "error", "NO_ENCONTRADO", "mensaje", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/{id}/envios/entregados-recientes")
+    public ResponseEntity<?> obtenerEntregadosRecientes(
+            @PathVariable UUID id,
+            @RequestParam(defaultValue = "4") int horas) {
+        try {
+            return ResponseEntity.ok(sesionService.obtenerEntregadosRecientes(id, horas));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("status", 404, "error", "NO_ENCONTRADO", "mensaje", e.getMessage()));
+        }
     }
 
 }
