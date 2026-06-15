@@ -118,3 +118,4 @@ Sistema académico para el enrutamiento óptimo de equipaje entre aeropuertos, c
 - **Specs primero:** Antes de implementar, leer `openspec/specs/` correspondiente
 - **Frontend:** Usar `@/` alias, componentes en `components/ui/`, Tailwind CSS clases utilitarias
 - **Backend:** DDD con bounded contexts, eventos publicados con `ApplicationEventPublisher`, acceso por roles via `@PreAuthorize`
+- **Flyway:** Nunca modificar una migración ya aplicada a producción. Los cambios deben ir en una nueva migración (V36+, V37+, etc.) para evitar checksum mismatch.
