@@ -12,7 +12,7 @@ function getBaseUrl(): string {
 }
 
 const BASE_URL = getBaseUrl();
-const REQUEST_TIMEOUT_MS = 30_000;
+const REQUEST_TIMEOUT_MS = 120_000;
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const controller = new AbortController();

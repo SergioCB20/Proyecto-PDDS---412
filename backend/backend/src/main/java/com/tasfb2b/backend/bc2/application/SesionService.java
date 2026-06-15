@@ -20,6 +20,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.concurrent.CompletableFuture;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -41,6 +43,7 @@ public class SesionService {
     private final PuntoSLARepository puntoSLARepository;
     private final EquipajeRepository equipajeRepository;
     private final PlanViajeRepository planViajeRepository;
+    private final SesionPreparacionAsync sesionPreparacionAsync;
     private final JdbcTemplate jdbcTemplate;
     private final SimulacionPlanificador simulacionPlanificador;
 
@@ -55,6 +58,7 @@ public class SesionService {
                          PuntoSLARepository puntoSLARepository,
                          EquipajeRepository equipajeRepository,
                          PlanViajeRepository planViajeRepository,
+                         SesionPreparacionAsync sesionPreparacionAsync,
                          JdbcTemplate jdbcTemplate,
                          SimulacionPlanificador simulacionPlanificador) {
         this.sesionRepository = sesionRepository;
@@ -65,6 +69,7 @@ public class SesionService {
         this.puntoSLARepository = puntoSLARepository;
         this.equipajeRepository = equipajeRepository;
         this.planViajeRepository = planViajeRepository;
+        this.sesionPreparacionAsync = sesionPreparacionAsync;
         this.jdbcTemplate = jdbcTemplate;
         this.simulacionPlanificador = simulacionPlanificador;
     }
@@ -147,9 +152,11 @@ public class SesionService {
             throw new IllegalStateException("Ya existe una sesion EN_CURSO. Detenela antes de iniciar otra.");
         }
 
-        prepararInstanciasSimulacion(id);
+        SesionIniciarResponse response = activarSesion(sesion);
 
-        return activarSesion(sesion);
+        sesionPreparacionAsync.preparar(id);
+
+        return response;
     }
 
     @Transactional

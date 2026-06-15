@@ -102,14 +102,18 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          command_timeout: 30m
+          command_timeout: 45m
           script: |
             set -e
 
             cd "${{ secrets.SERVER_DIR }}"
             git fetch origin main && git reset --hard origin/main
 
-            # 0. Limpiar WAR antiguo de despliegues previos (back/ era contexto /back/)
+            # 0. Liberar espacio en disco para evitar out-of-disk
+            sudo apt clean -qq 2>/dev/null || true
+            sudo journalctl --vacuum-time=3d --quiet 2>/dev/null || true
+            sudo rm -rf frontend/node_modules backend/backend/target 2>/dev/null || true
+            # Limpiar WAR antiguo de despliegues previos (back/ era contexto /back/)
             sudo rm -rf /opt/tomcat11/webapps/back.war /opt/tomcat11/webapps/back/
 
             # ── Backend ──────────────────────────
@@ -121,7 +125,8 @@ jobs:
             # 2. Limpiar build anterior (evita error de maven-clean-plugin)
             sudo rm -rf target/
 
-            # 3. Compilar (sin clean, target/ ya fue eliminado)
+            # 3. Compilar con memoria reducida (la VM tiene solo 4GB RAM)
+            export MAVEN_OPTS="-Xmx512m -XX:+UseSerialGC"
             /opt/apache-maven-3.9.16/bin/mvn package -DskipTests
 
             # 4. Verificar integridad del WAR
