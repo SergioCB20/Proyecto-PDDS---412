@@ -1,11 +1,11 @@
 package com.tasfb2b.backend;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 
 @SpringBootTest
-@EnabledIfEnvironmentVariable(named = "DB_HOST", matches = ".*", disabledReason = "Requiere PostgreSQL para cargar contexto")
+@ActiveProfiles("test")
 class BackendApplicationTests {
 
 	@Test
