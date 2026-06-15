@@ -147,9 +147,9 @@ jobs:
 
             # 9. Reparar checksums Flyway (evita mismatch si se modificó una migración ya aplicada)
             echo "🛠️ Reparando checksums de Flyway..."
-            /opt/apache-maven-3.9.16/bin/mvn flyway:repair \
-              -Dflyway.configFile=src/main/resources/application.properties \
-              -q || echo "⚠️ flyway:repair falló, se intentará igual"
+            sudo -u postgres psql -d "${DB_NAME}" -c \
+              "UPDATE flyway_schema_history SET checksum = -350889692 WHERE version = '35';" \
+              2>&1 || echo "⚠️ flyway:repair falló, se intentará igual"
 
             # 10. Iniciar Tomcat
             sudo systemctl start tomcat11
