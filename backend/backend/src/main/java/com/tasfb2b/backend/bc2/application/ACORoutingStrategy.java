@@ -147,8 +147,7 @@ public class ACORoutingStrategy implements RoutingStrategy {
                     segmentos.add(new SegmentoInfo(orden++, UUID.fromString(a.id),
                             a.codigoVuelo, UUID.fromString(a.origenId), a.origenIata,
                             UUID.fromString(a.destinoId), a.destinoIata,
-                            OffsetDateTime.now().plusHours(a.horaSalida),
-                            OffsetDateTime.now().plusHours(a.horaLlegada)));
+                            a.horaSalidaDt(), a.horaLlegadaDt()));
                 }
                 resultados.add(new RutaResult(segmentos, true, null));
             } else {
@@ -172,7 +171,8 @@ public class ACORoutingStrategy implements RoutingStrategy {
                             origenId, v.getOrigen().getCodigoIata(),
                             destinoId, v.getDestino().getCodigoIata(),
                             v.getHoraSalida().getHour(), v.getHoraLlegada().getHour(),
-                            calcularDuracion(v), v.getCargaDisponible()));
+                            calcularDuracion(v), v.getCargaDisponible(),
+                            v.getHoraSalida(), v.getHoraLlegada()));
 
             capacidadVuelos.putIfAbsent(v.getId().toString(), v.getCargaDisponible());
             capacidadAlmacen.putIfAbsent(origenId, v.getOrigen().getCapacidadAlmacen());
@@ -402,7 +402,8 @@ public class ACORoutingStrategy implements RoutingStrategy {
                                      String origenId, String origenIata,
                                      String destinoId, String destinoIata,
                                      int horaSalida, int horaLlegada,
-                                     int duracionHoras, int capacidad) {}
+                                     int duracionHoras, int capacidad,
+                                     OffsetDateTime horaSalidaDt, OffsetDateTime horaLlegadaDt) {}
 
     private record MaletaInterna(String id, String origenId, String destinoId,
                                   String origenIata, String destinoIata,

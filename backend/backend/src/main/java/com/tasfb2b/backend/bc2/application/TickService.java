@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -162,7 +163,7 @@ public class TickService {
             OffsetDateTime inicio = OffsetDateTime.of(
                     sesion.getFechaInicioVirtual(),
                     sesion.getHoraInicioVirtual(),
-                    OffsetDateTime.now().getOffset());
+                    ZoneOffset.UTC);
             sesion.setDiaHoraVirtual(inicio);
         } else {
             sesion.setDiaHoraVirtual(sesion.getDiaHoraVirtual().plusMinutes(virtualMinutos));
@@ -293,9 +294,10 @@ public class TickService {
                     Equipaje eq = seg.getPlanViaje().getEquipaje();
                     int cantidad = eq.getCantidad() != null ? eq.getCantidad() : 1;
 
+                    // Último segmento = no quedan segmentos de mayor orden sin completar
                     boolean esUltimoSegmento = seg.getPlanViaje().getSegmentos().stream()
                             .noneMatch(s -> s.getOrden() > seg.getOrden()
-                                    && s.getEstado() == EstadoSegmento.PENDIENTE);
+                                    && s.getEstado() != EstadoSegmento.COMPLETADO);
 
                     if (esUltimoSegmento) {
                         eq.setEstado(EstadoEquipaje.ENTREGADO);
