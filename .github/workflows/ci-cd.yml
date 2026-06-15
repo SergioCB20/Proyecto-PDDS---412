@@ -102,11 +102,15 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          command_timeout: 30m
           script: |
             set -e
 
             cd "${{ secrets.SERVER_DIR }}"
             git fetch origin main && git reset --hard origin/main
+
+            # 0. Limpiar WAR antiguo de despliegues previos (back/ era contexto /back/)
+            sudo rm -rf /opt/tomcat11/webapps/back.war /opt/tomcat11/webapps/back/
 
             # ── Backend ──────────────────────────
             cd backend/backend
@@ -150,13 +154,13 @@ jobs:
 
             # ── Health check progresivo ──────────
             echo "Waiting for backend to be ready..."
-            for i in $(seq 1 18); do
+            for i in $(seq 1 60); do
               if curl -sf http://localhost:8080/health > /dev/null 2>&1; then
                 echo "✅ Backend healthy after ${i}0s"
                 break
               fi
-              if [ "$i" -eq 18 ]; then
-                echo "⚠️ Backend health check failed after 180s"
+              if [ "$i" -eq 60 ]; then
+                echo "⚠️ Backend health check failed after 600s"
                 echo "--- Últimas 60 líneas de catalina.out ---"
                 sudo tail -60 /opt/tomcat11/logs/catalina.out 2>/dev/null || sudo tail -60 /var/log/tomcat11/catalina.out 2>/dev/null || sudo journalctl -u tomcat11 --no-pager -n 60 2>/dev/null || echo "(no se pudo leer el log de Tomcat)"
                 echo "--- Fin del log ---"
