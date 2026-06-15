@@ -8,12 +8,13 @@ import type { VueloTelemetria } from '@/lib/types';
 interface PanelVuelosProps {
   vuelos: VueloTelemetria[];
   onVueloClick?: (id: string, codigo: string) => void;
+  origenFilter?: string;
+  destinoFilter?: string;
+  onFilterChange?: (filters: { origen: string; destino: string }) => void;
 }
 
-export function PanelVuelos({ vuelos, onVueloClick }: PanelVuelosProps) {
+export function PanelVuelos({ vuelos, onVueloClick, origenFilter = '', destinoFilter = '', onFilterChange }: PanelVuelosProps) {
   const [filtroCodigo, setFiltroCodigo] = useState('');
-  const [filtroOrigen, setFiltroOrigen] = useState('');
-  const [filtroDestino, setFiltroDestino] = useState('');
   const [orden, setOrden] = useState('');
 
   const opcionesOrigen = useMemo(() => {
@@ -29,11 +30,11 @@ export function PanelVuelos({ vuelos, onVueloClick }: PanelVuelosProps) {
   const vuelosFiltrados = useMemo(() => {
     return vuelos.filter(v => {
       if (filtroCodigo && !v.codigo_vuelo.toLowerCase().includes(filtroCodigo.toLowerCase())) return false;
-      if (filtroOrigen && v.origen_iata !== filtroOrigen) return false;
-      if (filtroDestino && v.destino_iata !== filtroDestino) return false;
+      if (origenFilter && v.origen_iata !== origenFilter) return false;
+      if (destinoFilter && v.destino_iata !== destinoFilter) return false;
       return true;
     });
-  }, [vuelos, filtroCodigo, filtroOrigen, filtroDestino]);
+  }, [vuelos, filtroCodigo, origenFilter, destinoFilter]);
 
   const opcionesOrden = [
     { value: '', label: 'Sin orden' },
@@ -70,12 +71,11 @@ export function PanelVuelos({ vuelos, onVueloClick }: PanelVuelosProps) {
     return lista;
   }, [vuelosFiltrados, orden]);
 
-  const hayFiltrosActivos = filtroCodigo || filtroOrigen || filtroDestino;
+  const hayFiltrosActivos = filtroCodigo || origenFilter || destinoFilter;
 
   const limpiarFiltros = () => {
     setFiltroCodigo('');
-    setFiltroOrigen('');
-    setFiltroDestino('');
+    onFilterChange?.({ origen: '', destino: '' });
   };
 
   if (vuelos.length === 0) {
@@ -108,16 +108,16 @@ export function PanelVuelos({ vuelos, onVueloClick }: PanelVuelosProps) {
           <Select
             placeholder="Origen"
             options={opcionesOrigen}
-            value={filtroOrigen}
-            onChange={e => setFiltroOrigen(e.target.value)}
+            value={origenFilter}
+            onChange={e => onFilterChange?.({ origen: e.target.value, destino: destinoFilter })}
           />
         </div>
         <div className="flex-1 min-w-[100px]">
           <Select
             placeholder="Destino"
             options={opcionesDestino}
-            value={filtroDestino}
-            onChange={e => setFiltroDestino(e.target.value)}
+            value={destinoFilter}
+            onChange={e => onFilterChange?.({ origen: origenFilter, destino: e.target.value })}
           />
         </div>
       </div>

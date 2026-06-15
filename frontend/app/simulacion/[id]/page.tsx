@@ -152,6 +152,8 @@ function SimulacionContent() {
   const [ultimoVirtual, setUltimoVirtual] = useState<string>('');
 
   const [selectedEnvio, setSelectedEnvio] = useState<SelectedEnvio | null>(null);
+  const [vueloFilterOrigen, setVueloFilterOrigen] = useState('');
+  const [vueloFilterDestino, setVueloFilterDestino] = useState('');
 
   const [metricasPoll, setMetricasPoll] = useState<MetricasSimulacion>({
     sesion_id: sesionIdParam,
@@ -202,6 +204,14 @@ function SimulacionContent() {
   const hayTelemetria = telemetria !== null && (telemetria.nodos?.length > 0 || telemetria.vuelos?.length > 0);
   const nodosMapa = hayTelemetria ? nodosTelemetria : initialNodos;
   const vuelosMapa = hayTelemetria ? vuelosTelemetria : initialVuelos;
+
+  const vuelosMapaFiltrados = useMemo(() => {
+    return vuelosMapa.filter(v => {
+      if (vueloFilterOrigen && v.origen.codigo_iata !== vueloFilterOrigen) return false;
+      if (vueloFilterDestino && v.destino.codigo_iata !== vueloFilterDestino) return false;
+      return true;
+    });
+  }, [vuelosMapa, vueloFilterOrigen, vueloFilterDestino]);
 
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -362,7 +372,7 @@ function SimulacionContent() {
       <div className="flex-1 p-4">
         <GeoMapa
           nodos={nodosMapa}
-          vuelos={vuelosMapa}
+          vuelos={vuelosMapaFiltrados}
           mostrarAviones={true}
           animacionActiva={estado === 'EN_CURSO'}
           className="h-full"
@@ -516,6 +526,12 @@ function SimulacionContent() {
               <PanelVuelos
                 vuelos={telemetria.vuelos}
                 onVueloClick={(id, codigo) => setSelectedEnvio({ tipo: 'vuelo', id, codigo })}
+                origenFilter={vueloFilterOrigen}
+                destinoFilter={vueloFilterDestino}
+                onFilterChange={({ origen, destino }) => {
+                  setVueloFilterOrigen(origen);
+                  setVueloFilterDestino(destino);
+                }}
               />
             )}
 
