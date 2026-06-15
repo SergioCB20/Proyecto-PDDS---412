@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { fetchEntregadosRecientes } from '@/lib/api';
 import type { EnvioEntregadoResponse } from '@/lib/types';
 
@@ -9,27 +9,49 @@ interface PanelEntregadosProps {
   activo: boolean;
 }
 
+type State = {
+  data: EnvioEntregadoResponse[] | null;
+  loading: boolean;
+  error: string;
+};
+
+type Action =
+  | { type: 'FETCH_START' }
+  | { type: 'FETCH_SUCCESS'; data: EnvioEntregadoResponse[] }
+  | { type: 'FETCH_ERROR'; error: string };
+
+function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case 'FETCH_START':
+      return { data: null, loading: true, error: '' };
+    case 'FETCH_SUCCESS':
+      return { data: action.data, loading: false, error: '' };
+    case 'FETCH_ERROR':
+      return { data: null, loading: false, error: action.error };
+  }
+}
+
 export function PanelEntregados({ sesionId, activo }: PanelEntregadosProps) {
-  const [data, setData] = useState<EnvioEntregadoResponse[] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [{ data, loading, error }, dispatch] = useReducer(reducer, {
+    data: null,
+    loading: true,
+    error: '',
+  });
+
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const cargar = async () => {
+  const cargar = useCallback(async () => {
+    dispatch({ type: 'FETCH_START' });
     try {
       const result = await fetchEntregadosRecientes(sesionId, 4);
-      setData(result);
-      setError('');
+      dispatch({ type: 'FETCH_SUCCESS', data: result });
     } catch (err: unknown) {
       const e = err as { mensaje?: string; message?: string };
-      setError(e.mensaje || e.message || 'Error al cargar entregados');
-    } finally {
-      setLoading(false);
+      dispatch({ type: 'FETCH_ERROR', error: e.mensaje || e.message || 'Error al cargar entregados' });
     }
-  };
+  }, [sesionId]);
 
   useEffect(() => {
-    setLoading(true);
     cargar();
 
     if (activo) {
@@ -42,7 +64,7 @@ export function PanelEntregados({ sesionId, activo }: PanelEntregadosProps) {
         intervalRef.current = null;
       }
     };
-  }, [sesionId, activo]);
+  }, [cargar, activo]);
 
   return (
     <div className="p-4 border-t border-slate-200 dark:border-slate-700">

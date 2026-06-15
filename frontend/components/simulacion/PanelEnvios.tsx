@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useReducer, useRef } from 'react';
 import { fetchEnviosVuelo, fetchEnviosNodo } from '@/lib/api';
 import type { EnvioItemResponse } from '@/lib/types';
 
@@ -16,10 +16,35 @@ interface PanelEnviosProps {
   onClose: () => void;
 }
 
+type State = {
+  data: EnvioItemResponse[] | null;
+  loading: boolean;
+  error: string;
+};
+
+type Action =
+  | { type: 'FETCH_START' }
+  | { type: 'FETCH_SUCCESS'; data: EnvioItemResponse[] }
+  | { type: 'FETCH_ERROR'; error: string };
+
+function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case 'FETCH_START':
+      return { data: null, loading: true, error: '' };
+    case 'FETCH_SUCCESS':
+      return { data: action.data, loading: false, error: '' };
+    case 'FETCH_ERROR':
+      return { data: null, loading: false, error: action.error };
+  }
+}
+
 export function PanelEnvios({ sesionId, selectedEnvio, onClose }: PanelEnviosProps) {
-  const [data, setData] = useState<EnvioItemResponse[] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [{ data, loading, error }, dispatch] = useReducer(reducer, {
+    data: null,
+    loading: true,
+    error: '',
+  });
+
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -27,18 +52,15 @@ export function PanelEnvios({ sesionId, selectedEnvio, onClose }: PanelEnviosPro
   }, []);
 
   useEffect(() => {
-    setLoading(true);
-    setError('');
-    setData(null);
+    dispatch({ type: 'FETCH_START' });
 
     const fetchFn = selectedEnvio.tipo === 'vuelo'
       ? fetchEnviosVuelo(sesionId, selectedEnvio.id)
       : fetchEnviosNodo(sesionId, selectedEnvio.id);
 
     fetchFn
-      .then(setData)
-      .catch(err => setError(err?.mensaje || 'Error al cargar envíos'))
-      .finally(() => setLoading(false));
+      .then(data => dispatch({ type: 'FETCH_SUCCESS', data }))
+      .catch(err => dispatch({ type: 'FETCH_ERROR', error: err?.mensaje || 'Error al cargar envíos' }));
   }, [sesionId, selectedEnvio]);
 
   const titulo = selectedEnvio.tipo === 'vuelo'
