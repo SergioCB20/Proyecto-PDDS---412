@@ -93,7 +93,7 @@ public class SesionEjecucion {
     private TipoSimulacion tipoSimulacion = TipoSimulacion.VENTANA_FIJA;
 
     @Column(name = "ventana_horas")
-    private Integer ventanaHoras = 4;
+    private Integer ventanaHoras = 2;
 
     @Column(name = "duracion_dias")
     private Integer duracionDias = 5;
