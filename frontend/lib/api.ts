@@ -1,4 +1,4 @@
-import type { ApiError, EnvioItemResponse } from './types';
+import type { ApiError, EnvioEntregadoResponse, EnvioItemResponse } from './types';
 
 function getBaseUrl(): string {
   if (typeof window !== 'undefined') {
@@ -107,4 +107,8 @@ export async function fetchEnviosVuelo(sesionId: string, vueloId: string): Promi
 
 export async function fetchEnviosNodo(sesionId: string, nodoIata: string): Promise<EnvioItemResponse[]> {
   return api.get<EnvioItemResponse[]>(`/sesiones/${sesionId}/envios/nodo/${nodoIata}`);
+}
+
+export async function fetchEntregadosRecientes(sesionId: string, horas = 4): Promise<EnvioEntregadoResponse[]> {
+  return api.get<EnvioEntregadoResponse[]>(`/sesiones/${sesionId}/envios/entregados-recientes?horas=${horas}`);
 }

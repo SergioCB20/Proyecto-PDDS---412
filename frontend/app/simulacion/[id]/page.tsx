@@ -11,6 +11,7 @@ import { useTelemetria } from '@/lib/useTelemetria';
 import { colorNodoPorOcupacion } from '@/lib/colors';
 import { PanelVuelos } from '@/components/simulacion/PanelVuelos';
 import { PanelNodos } from '@/components/simulacion/PanelNodos';
+import { PanelEntregados } from '@/components/simulacion/PanelEntregados';
 import { PanelEnvios } from '@/components/simulacion/PanelEnvios';
 import type { SelectedEnvio } from '@/components/simulacion/PanelEnvios';
 import type { Nodo, NodoEnMapa, Vuelo, VueloEnMapa, VueloPageResponse, MetricasSimulacion, VueloTelemetria } from '@/lib/types';
@@ -515,6 +516,13 @@ function SimulacionContent() {
               <PanelVuelos
                 vuelos={telemetria.vuelos}
                 onVueloClick={(id, codigo) => setSelectedEnvio({ tipo: 'vuelo', id, codigo })}
+              />
+            )}
+
+            {(estado === 'EN_CURSO' || estado === 'FINALIZADA' || estado === 'PAUSADA') && (
+              <PanelEntregados
+                sesionId={backendSesionId || sesionIdParam}
+                activo={estado === 'EN_CURSO'}
               />
             )}
 
