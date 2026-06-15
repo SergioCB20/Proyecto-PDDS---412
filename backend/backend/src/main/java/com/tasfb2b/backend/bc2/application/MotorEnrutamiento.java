@@ -48,10 +48,13 @@ public class MotorEnrutamiento {
     }
 
     public List<RutaResult> calcularRutasLote(List<Equipaje> equipajes) {
-        if (equipajes.isEmpty()) return List.of();
-
         List<Vuelo> programados = vueloRepository.findByEstadoAndEsPlantilla(EstadoVuelo.PROGRAMADO, false, Pageable.unpaged())
                 .getContent();
+        return calcularRutasLote(equipajes, programados);
+    }
+
+    public List<RutaResult> calcularRutasLote(List<Equipaje> equipajes, List<Vuelo> programados) {
+        if (equipajes.isEmpty()) return List.of();
 
         List<RoutingStrategy.ParametroRuta> params = new ArrayList<>();
         for (Equipaje e : equipajes) {

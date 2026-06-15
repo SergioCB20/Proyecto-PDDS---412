@@ -100,7 +100,6 @@ public class SesionService {
         return new SesionResponse(sesion.getId(), sesion.getTipo().name(), sesion.getEstado().name());
     }
 
-    @Transactional
     public SesionIniciarResponse iniciarSesion(UUID id) {
         SesionEjecucion sesion = sesionRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Sesion no encontrada"));
@@ -117,33 +116,42 @@ public class SesionService {
         }
 
         if (sesion.getTipo() == TipoSesion.SIMULADA) {
-            LocalDate desde = sesion.getFechaInicioVirtual();
-            LocalDate hasta = desde.plusDays(sesion.getDuracionDias() != null ? sesion.getDuracionDias() : 30);
-
-            log.info("Limpiando instancias previas para sesion {} entre {} y {}", id, desde, hasta);
-            try {
-                vueloService.eliminarInstanciasPorFecha(desde, hasta);
-            } catch (Exception e) {
-                log.warn("Error limpiando instancias para sesion {}: {}", id, e.getMessage());
-            }
-
-            log.info("Clonando plantillas para sesion {} en fecha {}", id, sesion.getFechaInicioVirtual());
-            try {
-                int clonadas = vueloService.clonarPlantillas(sesion.getFechaInicioVirtual());
-                log.info("Dia {}: {} vuelos clonados", sesion.getFechaInicioVirtual(), clonadas);
-            } catch (Exception e) {
-                log.warn("No se pudieron clonar plantillas para sesion {}: {}", id, e.getMessage());
-            }
+            prepararInstanciasSimulacion(sesion);
         }
 
-        if (sesion.getTipo() == TipoSesion.SIMULADA) {
-            ReporteSesion reporte = new ReporteSesion(UUID.randomUUID(), id);
-            reporte.setSlaIncumplidoPct(BigDecimal.ZERO);
-            reporte.setTotalReplanificadas(0);
-            reporteSesionRepository.save(reporte);
-            log.info("ReporteSesion pre-creado {} para sesion {}", reporte.getId(), id);
+        return activarSesion(sesion);
+    }
+
+    @Transactional
+    public void prepararInstanciasSimulacion(SesionEjecucion sesion) {
+        UUID id = sesion.getId();
+        LocalDate desde = sesion.getFechaInicioVirtual();
+        LocalDate hasta = desde.plusDays(sesion.getDuracionDias() != null ? sesion.getDuracionDias() : 30);
+
+        log.info("Limpiando instancias previas para sesion {} entre {} y {}", id, desde, hasta);
+        try {
+            vueloService.eliminarInstanciasPorFecha(desde, hasta);
+        } catch (Exception e) {
+            log.warn("Error limpiando instancias para sesion {}: {}", id, e.getMessage());
         }
 
+        log.info("Clonando plantillas para sesion {} en fecha {}", id, sesion.getFechaInicioVirtual());
+        try {
+            int clonadas = vueloService.clonarPlantillas(sesion.getFechaInicioVirtual());
+            log.info("Dia {}: {} vuelos clonados", sesion.getFechaInicioVirtual(), clonadas);
+        } catch (Exception e) {
+            log.warn("No se pudieron clonar plantillas para sesion {}: {}", id, e.getMessage());
+        }
+
+        ReporteSesion reporte = new ReporteSesion(UUID.randomUUID(), id);
+        reporte.setSlaIncumplidoPct(BigDecimal.ZERO);
+        reporte.setTotalReplanificadas(0);
+        reporteSesionRepository.save(reporte);
+        log.info("ReporteSesion pre-creado {} para sesion {}", reporte.getId(), id);
+    }
+
+    @Transactional
+    public SesionIniciarResponse activarSesion(SesionEjecucion sesion) {
         sesion.setEstado(EstadoSesion.EN_CURSO);
         sesion.setFechaInicioReal(OffsetDateTime.now());
         sesionRepository.save(sesion);

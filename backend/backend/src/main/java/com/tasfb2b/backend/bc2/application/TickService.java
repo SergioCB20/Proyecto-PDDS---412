@@ -105,9 +105,18 @@ public class TickService {
         procesarVuelosLlegada(sesion);
         evaluarCancelaciones(sesion, now);
         actualizarSla(sesion);
-        boolean colapso = detectarColapso(sesion, now);
+
+        // Un solo save al final del tick
+        sesionRepository.save(sesion);
+
+        // Cargar datos UNA SOLA VEZ para telemetria
+        List<NodoLogistico> nodos = nodoRepository.findAllByOrderByCodigoIataAsc();
+        List<Vuelo> vuelos = vueloRepository.findByEstadoInAndEsPlantilla(
+                List.of(EstadoVuelo.PROGRAMADO, EstadoVuelo.EN_RUTA), false);
+
+        boolean colapso = detectarColapso(sesion, now, nodos);
         escribirMetricas(sesion, now);
-        telemetriaService.emitirTelemetria(sesion);
+        telemetriaService.emitirTelemetria(sesion, nodos, vuelos);
 
         if (colapso) {
             detenerSesionPorColapso(sesion, now);
@@ -129,7 +138,7 @@ public class TickService {
         sesion.setSegundosRealesTranscurridos(
                 (sesion.getSegundosRealesTranscurridos() != null ? sesion.getSegundosRealesTranscurridos() : 0)
                         + (int) (TICK_INTERVAL_MS / 1000));
-        sesionRepository.save(sesion);
+        // Save se hace al final del tick en procesarTick
     }
 
     private void clonarParaNuevoDia(SesionEjecucion sesion) {
@@ -182,32 +191,45 @@ public class TickService {
         List<Vuelo> saliendo = vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaLessThanEqual(
                 EstadoVuelo.PROGRAMADO, false, virtual);
 
+        if (saliendo.isEmpty()) return;
+
+        List<Vuelo> vuelosActualizar = new ArrayList<>();
+        List<SegmentoPlan> segmentosActualizar = new ArrayList<>();
+        List<Equipaje> equipajesActualizar = new ArrayList<>();
+        Map<UUID, Integer> nodosCarga = new HashMap<>();
+
         for (Vuelo vuelo : saliendo) {
             vuelo.setEstado(EstadoVuelo.EN_RUTA);
-            vueloRepository.save(vuelo);
+            vuelosActualizar.add(vuelo);
 
             NodoLogistico origen = vuelo.getOrigen();
-            int cargaSaliendo = 0;
 
             List<SegmentoPlan> segmentos = segmentoPlanRepository.findByVueloIdAndEstado(
                     vuelo.getId(), EstadoSegmento.PENDIENTE);
             for (SegmentoPlan seg : segmentos) {
                 seg.setEstado(EstadoSegmento.EN_CURSO);
-                segmentoPlanRepository.save(seg);
+                segmentosActualizar.add(seg);
 
                 if (seg.getPlanViaje() != null && seg.getPlanViaje().getEquipaje() != null) {
                     Equipaje eq = seg.getPlanViaje().getEquipaje();
                     eq.setEstado(EstadoEquipaje.EN_VUELO);
                     eq.setVueloActual(vuelo);
-                    equipajeRepository.save(eq);
-                    cargaSaliendo += eq.getCantidad() != null ? eq.getCantidad() : 1;
+                    equipajesActualizar.add(eq);
+                    int cantidad = eq.getCantidad() != null ? eq.getCantidad() : 1;
+                    nodosCarga.merge(origen.getId(), cantidad, Integer::sum);
                 }
             }
+        }
 
-            if (cargaSaliendo > 0) {
-                origen.setOcupacionActual(Math.max(0, origen.getOcupacionActual() - cargaSaliendo));
-                nodoRepository.save(origen);
-            }
+        vueloRepository.saveAll(vuelosActualizar);
+        segmentoPlanRepository.saveAll(segmentosActualizar);
+        equipajeRepository.saveAll(equipajesActualizar);
+
+        for (Map.Entry<UUID, Integer> entry : nodosCarga.entrySet()) {
+            nodoRepository.findById(entry.getKey()).ifPresent(nodo -> {
+                nodo.setOcupacionActual(Math.max(0, nodo.getOcupacionActual() - entry.getValue()));
+                nodoRepository.save(nodo);
+            });
         }
     }
 
@@ -216,18 +238,24 @@ public class TickService {
         List<Vuelo> llegando = vueloRepository.findByEstadoAndEsPlantillaAndHoraLlegadaLessThanEqual(
                 EstadoVuelo.EN_RUTA, false, virtual);
 
+        if (llegando.isEmpty()) return;
+
+        List<Vuelo> vuelosActualizar = new ArrayList<>();
+        List<SegmentoPlan> segmentosActualizar = new ArrayList<>();
+        List<Equipaje> equipajesActualizar = new ArrayList<>();
+        Map<UUID, Integer> nodosCarga = new HashMap<>();
+
         for (Vuelo vuelo : llegando) {
             vuelo.setEstado(EstadoVuelo.COMPLETADO);
-            vueloRepository.save(vuelo);
+            vuelosActualizar.add(vuelo);
 
             NodoLogistico destino = vuelo.getDestino();
-            int cargaLlegando = 0;
 
             List<SegmentoPlan> segmentos = segmentoPlanRepository.findByVueloIdAndEstado(
                     vuelo.getId(), EstadoSegmento.EN_CURSO);
             for (SegmentoPlan seg : segmentos) {
                 seg.setEstado(EstadoSegmento.COMPLETADO);
-                segmentoPlanRepository.save(seg);
+                segmentosActualizar.add(seg);
 
                 if (seg.getPlanViaje() != null && seg.getPlanViaje().getEquipaje() != null) {
                     Equipaje eq = seg.getPlanViaje().getEquipaje();
@@ -242,16 +270,22 @@ public class TickService {
                         eq.setVueloActual(null);
                     } else {
                         eq.setEstado(EstadoEquipaje.EN_ALMACEN);
-                        cargaLlegando += cantidad;
+                        nodosCarga.merge(destino.getId(), cantidad, Integer::sum);
                     }
-                    equipajeRepository.save(eq);
+                    equipajesActualizar.add(eq);
                 }
             }
+        }
 
-            if (cargaLlegando > 0) {
-                destino.setOcupacionActual(destino.getOcupacionActual() + cargaLlegando);
-                nodoRepository.save(destino);
-            }
+        vueloRepository.saveAll(vuelosActualizar);
+        segmentoPlanRepository.saveAll(segmentosActualizar);
+        equipajeRepository.saveAll(equipajesActualizar);
+
+        for (Map.Entry<UUID, Integer> entry : nodosCarga.entrySet()) {
+            nodoRepository.findById(entry.getKey()).ifPresent(nodo -> {
+                nodo.setOcupacionActual(nodo.getOcupacionActual() + entry.getValue());
+                nodoRepository.save(nodo);
+            });
         }
     }
 
@@ -286,14 +320,13 @@ public class TickService {
 
         double sla = (totalEntregados * 100.0) / planes.size();
         sesion.setSlaAcumuladoPct(BigDecimal.valueOf(sla));
-        sesionRepository.save(sesion);
+        // Save se hace al final del tick en procesarTick
     }
 
-    private boolean detectarColapso(SesionEjecucion sesion, OffsetDateTime now) {
+    private boolean detectarColapso(SesionEjecucion sesion, OffsetDateTime now, List<NodoLogistico> nodos) {
         BigDecimal rojoMax = sesion.getAlmacenRojoMax();
         if (rojoMax == null) return false;
 
-        List<NodoLogistico> nodos = nodoRepository.findAllByOrderByCodigoIataAsc();
         for (NodoLogistico nodo : nodos) {
             double pct = nodo.getOcupacionPorcentaje();
             if (pct > rojoMax.doubleValue()) {
