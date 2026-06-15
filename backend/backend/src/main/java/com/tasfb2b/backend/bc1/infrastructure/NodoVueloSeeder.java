@@ -9,7 +9,6 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
 import java.io.BufferedReader;
@@ -34,15 +33,18 @@ public class NodoVueloSeeder {
     private NodoLogisticoRepository nodoRepository;
 
     @EventListener(ApplicationReadyEvent.class)
-    @Transactional
     public void seed() {
         if (nodoRepository.count() > 0) {
             log.info("NodoVueloSeeder: nodos ya existen, omitiendo seed");
             return;
         }
 
-        log.info("NodoVueloSeeder: ejecutando seed de nodos y vuelos...");
+        log.info("NodoVueloSeeder: ejecutando seed de nodos y vuelos (asíncrono)...");
+        Thread seedThread = new Thread(this::executeSeed, "nodo-vuelo-seeder");
+        seedThread.start();
+    }
 
+    private void executeSeed() {
         try {
             ClassPathResource resource = new ClassPathResource("db/migration/V20__seed_nodos_vuelos.sql");
             String sql;
