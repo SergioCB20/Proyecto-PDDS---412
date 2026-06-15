@@ -293,6 +293,13 @@ public class SesionService {
             }
         }
 
+        log.info("Reseteando ocupacion de nodos a 0 para sesion {}", id);
+        try {
+            jdbcTemplate.update("UPDATE nodos_logisticos SET ocupacion_actual = 0");
+        } catch (Exception e) {
+            log.warn("Error reseteando ocupacion de nodos: {}", e.getMessage());
+        }
+
         try {
             redisCacheService.setEstadoSesion(sesion.getId(), "FINALIZADA");
             redisCacheService.eliminarMetricasSesion(sesion.getId());

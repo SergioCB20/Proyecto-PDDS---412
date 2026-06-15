@@ -9,6 +9,7 @@ import com.tasfb2b.backend.bc2.infrastructure.ReporteSesionRepository;
 import com.tasfb2b.backend.bc2.infrastructure.SesionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,16 +23,22 @@ public class SesionPreparacionAsync {
 
     private static final Logger log = LoggerFactory.getLogger(SesionPreparacionAsync.class);
 
+    // Fecha del primer día de datos en los archivos _envios_*.txt
+    private static final LocalDate FECHA_BASE_ARCHIVO = LocalDate.of(2026, 1, 2);
+
     private final SesionRepository sesionRepository;
     private final VueloService vueloService;
     private final ReporteSesionRepository reporteSesionRepository;
+    private final JdbcTemplate jdbcTemplate;
 
     public SesionPreparacionAsync(SesionRepository sesionRepository,
                                    VueloService vueloService,
-                                   ReporteSesionRepository reporteSesionRepository) {
+                                   ReporteSesionRepository reporteSesionRepository,
+                                   JdbcTemplate jdbcTemplate) {
         this.sesionRepository = sesionRepository;
         this.vueloService = vueloService;
         this.reporteSesionRepository = reporteSesionRepository;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @Async
@@ -74,11 +81,46 @@ public class SesionPreparacionAsync {
                 } catch (Exception e) {
                     log.warn("No se pudieron clonar plantillas para sesion {}: {}", id, e.getMessage());
                 }
+
+                alinearFechasEquipajes(sesion);
             }
+
+            alinearFechasEquipajes(sesion);
 
             log.info("Preparacion async completada para sesion {}", id);
         } catch (Exception e) {
             log.error("Error en preparacion async de sesion {}: {}", id, e.getMessage());
         }
+    }
+
+    private void alinearFechasEquipajes(SesionEjecucion sesion) {
+        LocalDate fechaInicioVirtual = sesion.getFechaInicioVirtual();
+
+        if (sesion.getFechaAlineadaA() != null) {
+            log.info("Alineacion ya aplicada para sesion {}: fecha_alineada_a={}", sesion.getId(), sesion.getFechaAlineadaA());
+            return;
+        }
+
+        long offsetDias = java.time.temporal.ChronoUnit.DAYS.between(FECHA_BASE_ARCHIVO, fechaInicioVirtual);
+        if (offsetDias == 0) {
+            log.info("Fechas ya alineadas para sesion {}", sesion.getId());
+            sesion.setFechaAlineadaA(fechaInicioVirtual);
+            sesionRepository.save(sesion);
+            return;
+        }
+
+        String signo = offsetDias > 0 ? "+" : "-";
+        long diasAbs = Math.abs(offsetDias);
+        int actualizados = jdbcTemplate.update(
+            "UPDATE equipajes SET fecha_operacion = fecha_operacion + (? * INTERVAL '1 day'), " +
+            "sla_comprometido = sla_comprometido + (? * INTERVAL '1 day') " +
+            "WHERE estado = 'REGISTRADO'",
+            offsetDias, offsetDias
+        );
+        log.info("Alineacion de fechas para sesion {}: {} dias ({}{}). {} equipajes actualizados.",
+            sesion.getId(), diasAbs, signo, diasAbs, actualizados);
+
+        sesion.setFechaAlineadaA(fechaInicioVirtual);
+        sesionRepository.save(sesion);
     }
 }
