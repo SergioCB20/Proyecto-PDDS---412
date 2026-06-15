@@ -26,9 +26,24 @@ public interface EquipajeRepository extends JpaRepository<Equipaje, UUID> {
             @Param("sesionId") UUID sesionId,
             @Param("vueloId") UUID vueloId);
 
-    @Query("SELECT e FROM Equipaje e JOIN PlanViaje pv ON pv.equipaje = e " +
+    /**
+     * Bolsas EN_ALMACEN en un nodo: busca por origen (primer nodo) o por destino del
+     * último segmento COMPLETADO (nodo intermedio). Cubre ambos casos sin depender de
+     * vueloActual que es null cuando el equipaje está almacenado.
+     */
+    @Query("SELECT DISTINCT e FROM Equipaje e " +
+           "JOIN PlanViaje pv ON pv.equipaje = e " +
            "WHERE pv.sesionId = :sesionId AND e.estado = :estado " +
-           "AND e.vueloActual.destino.codigoIata = :nodoIata")
+           "AND (" +
+           "  e.origenIata = :nodoIata " +
+           "  OR EXISTS (" +
+           "    SELECT sp FROM SegmentoPlan sp " +
+           "    WHERE sp.planViaje = pv AND sp.estado = 'COMPLETADO' " +
+           "    AND sp.nodoDestino.codigoIata = :nodoIata " +
+           "    AND sp.orden = (SELECT MAX(sp2.orden) FROM SegmentoPlan sp2 " +
+           "                   WHERE sp2.planViaje = pv AND sp2.estado = 'COMPLETADO')" +
+           "  )" +
+           ")")
     List<Equipaje> findBySesionIdAndEstadoAndNodoIata(
             @Param("sesionId") UUID sesionId,
             @Param("estado") EstadoEquipaje estado,

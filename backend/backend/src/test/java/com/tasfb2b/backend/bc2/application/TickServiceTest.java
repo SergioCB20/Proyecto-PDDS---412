@@ -65,7 +65,7 @@ class TickServiceTest {
                 vueloService,
                 replanificacionService, eventPublisher,
                 reporteSesionRepository, puntoSLARepository,
-                planViajeRepository, 120);
+                planViajeRepository);
 
         sesion = new SesionEjecucion(
                 UUID.randomUUID(), TipoSesion.SIMULADA,
