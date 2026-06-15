@@ -200,6 +200,8 @@ export interface NodoTelemetria {
   ocupacion_actual: number;
   ocupacion_pct: number;
   color: string;
+  continente: string;
+  zona_horaria: string;
 }
 
 export interface VueloTelemetria {
@@ -218,6 +220,22 @@ export interface VueloTelemetria {
   carga_disponible: number;
   ocupacion_pct: number;
   color: string;
+  hora_salida: string;
+  hora_llegada: string;
+}
+
+export interface EnvioItemResponse {
+  origen_iata: string;
+  destino_iata: string;
+  codigo_equipaje: string;
+  cantidad: number;
+}
+
+export interface EnvioEntregadoResponse {
+  origen_iata: string;
+  destino_iata: string;
+  codigo_vuelo: string;
+  cantidad: number;
 }
 
 export interface TelemetriaMensaje {

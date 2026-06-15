@@ -2,6 +2,10 @@ package com.tasfb2b.backend.bc2.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tasfb2b.backend.bc1.application.VueloService;
+import com.tasfb2b.backend.bc1.domain.Equipaje;
+import com.tasfb2b.backend.bc1.domain.EstadoEquipaje;
+import com.tasfb2b.backend.bc1.infrastructure.EquipajeRepository;
+import com.tasfb2b.backend.bc1.infrastructure.PlanViajeRepository;
 import com.tasfb2b.backend.bc2.domain.*;
 import com.tasfb2b.backend.bc2.infrastructure.PuntoSLARepository;
 import com.tasfb2b.backend.bc2.infrastructure.ReporteSesionRepository;
@@ -33,19 +37,25 @@ public class SesionService {
     private final ApplicationEventPublisher eventPublisher;
     private final ReporteSesionRepository reporteSesionRepository;
     private final PuntoSLARepository puntoSLARepository;
+    private final EquipajeRepository equipajeRepository;
+    private final PlanViajeRepository planViajeRepository;
 
     public SesionService(SesionRepository sesionRepository,
                          VueloService vueloService,
                          RedisCacheService redisCacheService,
                          ApplicationEventPublisher eventPublisher,
                          ReporteSesionRepository reporteSesionRepository,
-                         PuntoSLARepository puntoSLARepository) {
+                         PuntoSLARepository puntoSLARepository,
+                         EquipajeRepository equipajeRepository,
+                         PlanViajeRepository planViajeRepository) {
         this.sesionRepository = sesionRepository;
         this.vueloService = vueloService;
         this.redisCacheService = redisCacheService;
         this.eventPublisher = eventPublisher;
         this.reporteSesionRepository = reporteSesionRepository;
         this.puntoSLARepository = puntoSLARepository;
+        this.equipajeRepository = equipajeRepository;
+        this.planViajeRepository = planViajeRepository;
     }
 
     public SesionResponse crearSesion(CrearSesionRequest request) {
@@ -137,11 +147,15 @@ public class SesionService {
         }
 
         if (sesion.getTipo() == TipoSesion.SIMULADA) {
-            ReporteSesion reporte = new ReporteSesion(UUID.randomUUID(), id);
-            reporte.setSlaIncumplidoPct(BigDecimal.ZERO);
-            reporte.setTotalReplanificadas(0);
-            reporteSesionRepository.save(reporte);
-            log.info("ReporteSesion pre-creado {} para sesion {}", reporte.getId(), id);
+            if (reporteSesionRepository.findBySesionId(id).isEmpty()) {
+                ReporteSesion reporte = new ReporteSesion(UUID.randomUUID(), id);
+                reporte.setSlaIncumplidoPct(BigDecimal.ZERO);
+                reporte.setTotalReplanificadas(0);
+                reporteSesionRepository.save(reporte);
+                log.info("ReporteSesion pre-creado {} para sesion {}", reporte.getId(), id);
+            } else {
+                log.info("ReporteSesion ya existe para sesion {}, se reutiliza", id);
+            }
         }
 
         sesion.setEstado(EstadoSesion.EN_CURSO);
@@ -250,6 +264,72 @@ public class SesionService {
         );
     }
 
+    public List<EnvioItemResponse> obtenerEnviosVuelo(UUID sesionId, UUID vueloId) {
+        sesionRepository.findById(sesionId)
+            .orElseThrow(() -> new IllegalArgumentException("Sesion no encontrada: " + sesionId));
+
+        List<Equipaje> equipajes = equipajeRepository.findBySesionIdAndVueloActualId(sesionId, vueloId);
+
+        return equipajes.stream()
+            .map(e -> new EnvioItemResponse(
+                e.getOrigenIata(),
+                e.getDestinoIata(),
+                e.getIdExterno() != null ? e.getIdExterno() : e.getId().toString(),
+                e.getCantidad() != null ? e.getCantidad() : 1
+            ))
+            .toList();
+    }
+
+    public List<EnvioItemResponse> obtenerEnviosNodo(UUID sesionId, String nodoIata) {
+        sesionRepository.findById(sesionId)
+            .orElseThrow(() -> new IllegalArgumentException("Sesion no encontrada: " + sesionId));
+
+        List<Equipaje> equipajes = equipajeRepository.findBySesionIdAndEstadoAndNodoIata(
+            sesionId, EstadoEquipaje.EN_ALMACEN, nodoIata);
+
+        return equipajes.stream()
+            .map(e -> new EnvioItemResponse(
+                e.getOrigenIata(),
+                e.getDestinoIata(),
+                e.getIdExterno() != null ? e.getIdExterno() : e.getId().toString(),
+                e.getCantidad() != null ? e.getCantidad() : 1
+            ))
+            .toList();
+    }
+
+    public List<EnvioEntregadoResponse> obtenerEntregadosRecientes(UUID sesionId, int horas) {
+        SesionEjecucion sesion = sesionRepository.findById(sesionId)
+            .orElseThrow(() -> new IllegalArgumentException("Sesion no encontrada: " + sesionId));
+
+        if (sesion.getDiaHoraVirtual() == null) {
+            return List.of();
+        }
+
+        OffsetDateTime hasta = sesion.getDiaHoraVirtual();
+        OffsetDateTime desde = hasta.minusHours(horas);
+
+        List<Equipaje> equipajes = planViajeRepository.findEntregadosRecientes(sesionId, desde, hasta);
+
+        return equipajes.stream()
+            .map(e -> {
+                String codigoVuelo = "";
+                if (e.getPlanViaje() != null && e.getPlanViaje().getSegmentos() != null) {
+                    codigoVuelo = e.getPlanViaje().getSegmentos().stream()
+                        .filter(sp -> sp.getEstado().name().equals("COMPLETADO"))
+                        .max(java.util.Comparator.comparingInt(sp -> sp.getOrden() != null ? sp.getOrden() : 0))
+                        .map(sp -> sp.getVuelo() != null ? sp.getVuelo().getCodigoVuelo() : "")
+                        .orElse("");
+                }
+                return new EnvioEntregadoResponse(
+                    e.getOrigenIata(),
+                    e.getDestinoIata(),
+                    codigoVuelo,
+                    e.getCantidad() != null ? e.getCantidad() : 1
+                );
+            })
+            .toList();
+    }
+
     public SesionEjecucion obtenerSesion(UUID id) {
         return sesionRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Sesion no encontrada"));
@@ -274,7 +354,7 @@ public class SesionService {
                 s.getTipoSimulacion() != null ? s.getTipoSimulacion().name() : "VENTANA_FIJA",
                 s.getEstado().name(),
                 s.getFechaInicioVirtual().toString(),
-                s.getCreatedAt().toString()
+                s.getCreatedAt() != null ? s.getCreatedAt().toString() : null
             ))
             .toList();
     }

@@ -15,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,7 +27,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class ReporteService {
@@ -55,6 +58,7 @@ public class ReporteService {
     }
 
     @EventListener
+    @Async
     @Transactional
     public void onSesionFinalizada(SesionFinalizada event) {
         generarReporte(event.sesionId(), event.estadoFinal());
@@ -97,8 +101,16 @@ public class ReporteService {
         return toResponse(reporte);
     }
 
+    @Transactional(readOnly = true)
     public String generarCsvRutas(UUID sesionId) {
-        List<PlanViaje> planes = planViajeRepository.findBySesionId(sesionId);
+        List<PlanViaje> planes = planViajeRepository.findBySesionIdWithEquipaje(sesionId);
+        if (planes.isEmpty()) return "";
+
+        List<UUID> planIds = planes.stream().map(PlanViaje::getId).toList();
+        List<SegmentoPlan> todosSegmentos = segmentoPlanRepository.findByPlanViajeIdInOrderByOrdenAsc(planIds);
+        Map<UUID, List<SegmentoPlan>> segmentosPorPlan = todosSegmentos.stream()
+                .collect(Collectors.groupingBy(seg -> seg.getPlanViaje().getId()));
+
         StringBuilder csv = new StringBuilder();
         csv.append("equipaje_id,origen_iata,destino_iata,sla_comprometido,")
            .append("segmento_orden,vuelo_codigo,nodo_origen_iata,nodo_destino_iata,")
@@ -111,7 +123,7 @@ public class ReporteService {
             String destino = eq.getDestinoIata();
             String sla = eq.getSlaComprometido() != null ? eq.getSlaComprometido().toString() : "";
 
-            List<SegmentoPlan> segs = segmentoPlanRepository.findByPlanViajeIdOrderByOrdenAsc(plan.getId());
+            List<SegmentoPlan> segs = segmentosPorPlan.getOrDefault(plan.getId(), List.of());
             if (segs.isEmpty()) {
                 csv.append(eqId).append(",").append(origen).append(",").append(destino).append(",").append(sla)
                    .append(",,,,\n");
