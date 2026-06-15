@@ -98,7 +98,7 @@ public class SesionEjecucion {
     @Column(name = "duracion_dias")
     private Integer duracionDias = 5;
 
-    @Column(name = "k", precision = 8, scale = 2)
+    @Column(name = "k")
     private Double k = 120.0;
 
     @Column(name = "sa_segundos")
