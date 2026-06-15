@@ -18,6 +18,8 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.concurrent.CompletableFuture;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -39,6 +41,7 @@ public class SesionService {
     private final PuntoSLARepository puntoSLARepository;
     private final EquipajeRepository equipajeRepository;
     private final PlanViajeRepository planViajeRepository;
+    private final SesionPreparacionAsync sesionPreparacionAsync;
 
     public SesionService(SesionRepository sesionRepository,
                          VueloService vueloService,
@@ -47,7 +50,8 @@ public class SesionService {
                          ReporteSesionRepository reporteSesionRepository,
                          PuntoSLARepository puntoSLARepository,
                          EquipajeRepository equipajeRepository,
-                         PlanViajeRepository planViajeRepository) {
+                         PlanViajeRepository planViajeRepository,
+                         SesionPreparacionAsync sesionPreparacionAsync) {
         this.sesionRepository = sesionRepository;
         this.vueloService = vueloService;
         this.redisCacheService = redisCacheService;
@@ -56,6 +60,7 @@ public class SesionService {
         this.puntoSLARepository = puntoSLARepository;
         this.equipajeRepository = equipajeRepository;
         this.planViajeRepository = planViajeRepository;
+        this.sesionPreparacionAsync = sesionPreparacionAsync;
     }
 
     public SesionResponse crearSesion(CrearSesionRequest request) {
@@ -125,9 +130,11 @@ public class SesionService {
             throw new IllegalStateException("Ya existe una sesion EN_CURSO. Detenela antes de iniciar otra.");
         }
 
-        prepararInstanciasSimulacion(id);
+        SesionIniciarResponse response = activarSesion(sesion);
 
-        return activarSesion(sesion);
+        sesionPreparacionAsync.preparar(id);
+
+        return response;
     }
 
     @Transactional
