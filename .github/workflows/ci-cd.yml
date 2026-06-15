@@ -158,6 +158,16 @@ jobs:
             echo "✅ Frontend restarted."
 
             # ── Health check progresivo ──────────
+            # ── Pre-diagnóstico antes del health check ──
+            sleep 15
+            echo "=== Estado de Tomcat ==="
+            sudo systemctl status tomcat11 --no-pager 2>&1 || echo "(systemctl status falló)"
+            echo "=== Puertos en escucha (8080) ==="
+            sudo ss -tlnp 2>&1 | grep 8080 || echo "(no hay nada en 8080)"
+            echo "=== Últimas líneas de journalctl ==="
+            sudo journalctl -u tomcat11 --no-pager -n 100 --no-hostname 2>&1 | tail -60 || echo "(journalctl falló)"
+            echo "=== Fin pre-diagnóstico ==="
+
             echo "Waiting for backend to be ready..."
             for i in $(seq 1 60); do
               if curl -sf http://localhost:8080/health > /dev/null 2>&1; then
@@ -166,9 +176,18 @@ jobs:
               fi
               if [ "$i" -eq 60 ]; then
                 echo "⚠️ Backend health check failed after 600s"
-                echo "--- Últimas 60 líneas de catalina.out ---"
-                sudo tail -60 /opt/tomcat11/logs/catalina.out 2>/dev/null || sudo tail -60 /var/log/tomcat11/catalina.out 2>/dev/null || sudo journalctl -u tomcat11 --no-pager -n 60 2>/dev/null || echo "(no se pudo leer el log de Tomcat)"
-                echo "--- Fin del log ---"
+                echo "=== Diagnóstico ==="
+                echo "--- systemctl status ---"
+                sudo systemctl status tomcat11 --no-pager 2>&1 || true
+                echo "--- journalctl (últimas 100 líneas) ---"
+                sudo journalctl -u tomcat11 --no-pager -n 100 --no-hostname 2>&1 || true
+                echo "--- catalina.out (últimas 60 líneas) ---"
+                sudo cat /opt/tomcat11/logs/catalina.out 2>&1 | tail -60 || true
+                echo "--- catalina.YYYY-MM-DD.log (últimas 60) ---"
+                sudo cat /opt/tomcat11/logs/catalina.$(date +%Y-%m-%d).log 2>&1 | tail -60 || true
+                echo "--- localhost.YYYY-MM-DD.log (últimas 60) ---"
+                sudo cat /opt/tomcat11/logs/localhost.$(date +%Y-%m-%d).log 2>&1 | tail -60 || true
+                echo "=== Fin diagnóstico ==="
                 exit 1
               fi
               sleep 10
