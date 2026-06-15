@@ -110,7 +110,6 @@ public class SesionService {
         return new SesionResponse(sesion.getId(), sesion.getTipo().name(), sesion.getEstado().name());
     }
 
-    @Transactional
     public SesionIniciarResponse iniciarSesion(UUID id) {
         SesionEjecucion sesion = sesionRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Sesion no encontrada"));
@@ -125,6 +124,16 @@ public class SesionService {
         if (enCursoCount > 0) {
             throw new IllegalStateException("Ya existe una sesion EN_CURSO. Detenela antes de iniciar otra.");
         }
+
+        prepararInstanciasSimulacion(id);
+
+        return activarSesion(sesion);
+    }
+
+    @Transactional
+    public void prepararInstanciasSimulacion(UUID id) {
+        SesionEjecucion sesion = sesionRepository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("Sesion no encontrada"));
 
         if (sesion.getTipo() == TipoSesion.SIMULADA) {
             LocalDate desde = sesion.getFechaInicioVirtual();
@@ -157,7 +166,10 @@ public class SesionService {
                 log.info("ReporteSesion ya existe para sesion {}, se reutiliza", id);
             }
         }
+    }
 
+    @Transactional
+    public SesionIniciarResponse activarSesion(SesionEjecucion sesion) {
         sesion.setEstado(EstadoSesion.EN_CURSO);
         sesion.setFechaInicioReal(OffsetDateTime.now());
         sesionRepository.save(sesion);
