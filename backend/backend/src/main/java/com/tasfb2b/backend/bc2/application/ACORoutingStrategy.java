@@ -44,16 +44,20 @@ public class ACORoutingStrategy implements RoutingStrategy {
     public RutaResult calcularRuta(NodoLogistico origen, NodoLogistico destino,
                                    OffsetDateTime slaComprometido, List<Vuelo> vuelosProgramados) {
         List<ParametroRuta> params = List.of(new ParametroRuta(origen, destino, slaComprometido));
-        List<RutaResult> resultados = optimizarLote(params, vuelosProgramados, null);
+        List<RutaResult> resultados = optimizarLote(params, vuelosProgramados, (OffsetDateTime) null);
         return resultados.isEmpty() ? RutaResult.sinRuta("Error en ACO") : resultados.get(0);
     }
 
     @Override
     public List<RutaResult> optimizarLote(List<ParametroRuta> parametros,
                                           List<Vuelo> vuelosProgramados,
-                                          TiempoInterno tiempoSimulado) {
+                                          OffsetDateTime horaVirtual) {
         construirGrafo(vuelosProgramados);
         inicializarFeromonas();
+
+        // Si no se recibe hora virtual (replanificación sin sesión), usar now()
+        OffsetDateTime refVirtual = horaVirtual != null ? horaVirtual : OffsetDateTime.now();
+        int horaSolicitudDia = refVirtual.getHour();
 
         List<MaletaInterna> maletas = new ArrayList<>();
         int idx = 0;
@@ -64,8 +68,8 @@ public class ACORoutingStrategy implements RoutingStrategy {
                     p.destino().getId().toString(),
                     p.origen().getCodigoIata(),
                     p.destino().getCodigoIata(),
-                    0, 1,
-                    calcularTiempoMaximo(p.slaComprometido())
+                    horaSolicitudDia, 1,
+                    calcularTiempoMaximo(p.slaComprometido(), refVirtual)
             ));
             idx++;
         }
@@ -194,8 +198,8 @@ public class ACORoutingStrategy implements RoutingStrategy {
         }
     }
 
-    private int calcularTiempoMaximo(OffsetDateTime sla) {
-        long horas = java.time.Duration.between(OffsetDateTime.now(), sla).toHours();
+    private int calcularTiempoMaximo(OffsetDateTime sla, OffsetDateTime horaVirtual) {
+        long horas = java.time.Duration.between(horaVirtual, sla).toHours();
         return Math.max(1, (int) horas);
     }
 

@@ -6,6 +6,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -34,4 +37,8 @@ public interface VueloRepository extends JpaRepository<Vuelo, UUID>, JpaSpecific
     long countByEstadoAndEsPlantilla(EstadoVuelo estado, Boolean esPlantilla);
     boolean existsByFechaOperacionAndEsPlantilla(LocalDate fechaOperacion, Boolean esPlantilla);
     boolean existsByFechaOperacionAndEstadoInAndEsPlantilla(LocalDate fechaOperacion, List<EstadoVuelo> estados, Boolean esPlantilla);
+
+    @Modifying
+    @Query("UPDATE Vuelo v SET v.cargaDisponible = v.cargaDisponible - 1 WHERE v.id = :id AND v.cargaDisponible > 0")
+    int decrementarCargaDisponible(@Param("id") UUID id);
 }

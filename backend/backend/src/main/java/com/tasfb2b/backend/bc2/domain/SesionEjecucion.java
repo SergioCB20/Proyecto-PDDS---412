@@ -104,6 +104,9 @@ public class SesionEjecucion {
     @Column(name = "sa_segundos")
     private Integer saSegundos = 30;
 
+    @Column(name = "fecha_alineada_a")
+    private LocalDate fechaAlineadaA;
+
     @Column(name = "created_at")
     private OffsetDateTime createdAt;
 
@@ -211,4 +214,7 @@ public class SesionEjecucion {
 
     public Integer getSaSegundos() { return saSegundos; }
     public void setSaSegundos(Integer saSegundos) { this.saSegundos = saSegundos; }
+
+    public LocalDate getFechaAlineadaA() { return fechaAlineadaA; }
+    public void setFechaAlineadaA(LocalDate fechaAlineadaA) { this.fechaAlineadaA = fechaAlineadaA; }
 }

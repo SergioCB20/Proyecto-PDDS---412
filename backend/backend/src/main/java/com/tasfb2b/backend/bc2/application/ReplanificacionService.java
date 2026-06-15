@@ -3,6 +3,7 @@ package com.tasfb2b.backend.bc2.application;
 import com.tasfb2b.backend.bc1.domain.*;
 import com.tasfb2b.backend.bc1.infrastructure.*;
 import com.tasfb2b.backend.bc2.domain.*;
+import java.util.stream.Stream;
 import com.tasfb2b.backend.bc2.infrastructure.*;
 import com.tasfb2b.backend.shared.events.ReplanificacionIniciada;
 import com.tasfb2b.backend.shared.events.VueloCanceladoEvent;
@@ -31,6 +32,7 @@ public class ReplanificacionService {
     private final ItemLoteRepository itemLoteRepository;
     private final SesionRepository sesionRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final SegmentoPlanRepository segmentoPlanRepository;
 
     public ReplanificacionService(EquipajeRepository equipajeRepository,
                                   VueloRepository vueloRepository,
@@ -40,7 +42,8 @@ public class ReplanificacionService {
                                   LoteReplanificacionRepository loteRepository,
                                   ItemLoteRepository itemLoteRepository,
                                   SesionRepository sesionRepository,
-                                  ApplicationEventPublisher eventPublisher) {
+                                  ApplicationEventPublisher eventPublisher,
+                                  SegmentoPlanRepository segmentoPlanRepository) {
         this.equipajeRepository = equipajeRepository;
         this.vueloRepository = vueloRepository;
         this.nodoRepository = nodoRepository;
@@ -50,13 +53,20 @@ public class ReplanificacionService {
         this.itemLoteRepository = itemLoteRepository;
         this.sesionRepository = sesionRepository;
         this.eventPublisher = eventPublisher;
+        this.segmentoPlanRepository = segmentoPlanRepository;
     }
 
     public void replanificarEnSesion(UUID sesionId, UUID vueloId, String causa, OffsetDateTime momentoVirtual) {
         Vuelo vuelo = vueloRepository.findById(vueloId)
                 .orElseThrow(() -> new IllegalArgumentException("Vuelo no encontrado: " + vueloId));
 
-        List<Equipaje> afectados = equipajeRepository.findByVueloActualId(vueloId);
+        // Equipajes EN_VUELO actualmente en este vuelo
+        List<Equipaje> enVuelo = equipajeRepository.findByVueloActualId(vueloId);
+        // Equipajes ENRUTADOS cuyo segmento pendiente usa este vuelo (vuelo aún no salió)
+        List<Equipaje> enrutadosPendientes = segmentoPlanRepository
+                .findEquipajesByVueloIdAndEstado(vueloId, EstadoSegmento.PENDIENTE);
+        List<Equipaje> afectados = Stream.concat(enVuelo.stream(), enrutadosPendientes.stream())
+                .distinct().collect(java.util.stream.Collectors.toList());
 
         vuelo.setEstado(EstadoVuelo.CANCELADO);
         vueloRepository.save(vuelo);

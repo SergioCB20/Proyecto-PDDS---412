@@ -202,17 +202,19 @@ public class PlanificacionWorker {
         NodoLogistico primerNodoOrigen = nodoRepository.findById(primerSegmento.nodoOrigenId())
                 .orElseThrow(() -> new RuntimeException("Nodo no encontrado: " + primerSegmento.nodoOrigenId()));
 
-        primerVuelo.setCargaDisponible(primerVuelo.getCargaDisponible() - 1);
-        vueloRepository.save(primerVuelo);
-
-        primerNodoOrigen.setOcupacionActual(primerNodoOrigen.getOcupacionActual() + 1);
-        nodoRepository.save(primerNodoOrigen);
+        // Updates atómicos para evitar lost updates con SimulacionEnrutamientoService corriendo en paralelo
+        vueloRepository.decrementarCargaDisponible(primerVuelo.getId());
+        nodoRepository.actualizarOcupacion(primerNodoOrigen.getId(), 1);
 
         equipaje.setEstado(EstadoEquipaje.ENRUTADO);
         equipajeRepository.save(equipaje);
 
-        redisCacheService.actualizarCargaDisponibleVuelo(primerVuelo.getId(), primerVuelo.getCargaDisponible());
-        redisCacheService.actualizarOcupacionNodo(primerNodoOrigen.getId(), primerNodoOrigen.getOcupacionActual());
+        int cargaActualizada = vueloRepository.findById(primerVuelo.getId())
+                .map(Vuelo::getCargaDisponible).orElse(primerVuelo.getCargaDisponible() - 1);
+        int ocupacionActualizada = nodoRepository.findById(primerNodoOrigen.getId())
+                .map(NodoLogistico::getOcupacionActual).orElse(primerNodoOrigen.getOcupacionActual() + 1);
+        redisCacheService.actualizarCargaDisponibleVuelo(primerVuelo.getId(), cargaActualizada);
+        redisCacheService.actualizarOcupacionNodo(primerNodoOrigen.getId(), ocupacionActualizada);
 
         eventPublisher.publishEvent(new EquipajePlanificadoEvent(
                 equipaje.getId(), planViaje.getId(),

@@ -50,10 +50,15 @@ public class MotorEnrutamiento {
     public List<RutaResult> calcularRutasLote(List<Equipaje> equipajes) {
         List<Vuelo> programados = vueloRepository.findByEstadoAndEsPlantilla(EstadoVuelo.PROGRAMADO, false, Pageable.unpaged())
                 .getContent();
-        return calcularRutasLote(equipajes, programados);
+        return calcularRutasLote(equipajes, programados, null);
     }
 
     public List<RutaResult> calcularRutasLote(List<Equipaje> equipajes, List<Vuelo> programados) {
+        return calcularRutasLote(equipajes, programados, null);
+    }
+
+    public List<RutaResult> calcularRutasLote(List<Equipaje> equipajes, List<Vuelo> programados,
+                                               OffsetDateTime horaVirtual) {
         if (equipajes.isEmpty()) return List.of();
 
         List<RoutingStrategy.ParametroRuta> params = new ArrayList<>();
@@ -73,15 +78,7 @@ public class MotorEnrutamiento {
 
         if (params.isEmpty()) return List.of();
 
-        OffsetDateTime referencia = equipajes.get(0).getFechaIngreso();
-        if (referencia == null) {
-            referencia = OffsetDateTime.now();
-        }
-        TiempoInterno tiempoSimulado = TiempoInterno.desde(
-                OffsetDateTime.now(),
-                referencia);
-
-        return batchStrategy.optimizarLote(params, programados, tiempoSimulado);
+        return batchStrategy.optimizarLote(params, programados, horaVirtual);
     }
 
 }

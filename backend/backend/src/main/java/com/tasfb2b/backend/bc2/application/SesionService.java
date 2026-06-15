@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -130,6 +131,7 @@ public class SesionService {
         return new SesionResponse(sesion.getId(), sesion.getTipo().name(), sesion.getEstado().name());
     }
 
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public SesionIniciarResponse iniciarSesion(UUID id) {
         SesionEjecucion sesion = sesionRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Sesion no encontrada"));
@@ -138,7 +140,7 @@ public class SesionService {
             throw new IllegalStateException("No se puede iniciar la sesion en estado: " + sesion.getEstado());
         }
 
-        long enCursoCount = sesionRepository.findByEstado(EstadoSesion.EN_CURSO).stream()
+        long enCursoCount = sesionRepository.findByEstadoWithLock(EstadoSesion.EN_CURSO).stream()
             .filter(s -> !s.getId().equals(id))
             .count();
         if (enCursoCount > 0) {
@@ -174,7 +176,7 @@ public class SesionService {
                 log.warn("No se pudieron clonar plantillas para sesion {}: {}", id, e.getMessage());
             }
 
-            alinearFechasEquipajes(sesion.getFechaInicioVirtual());
+            alinearFechasEquipajes(sesion);
         }
 
         if (sesion.getTipo() == TipoSesion.SIMULADA) {
@@ -196,10 +198,20 @@ public class SesionService {
      * Los archivos tienen datos desde FECHA_BASE_ARCHIVO (2026-01-02).
      * Si la sesión empieza en fecha distinta, se aplica el offset en días.
      */
-    private void alinearFechasEquipajes(LocalDate fechaInicioVirtual) {
+    private void alinearFechasEquipajes(SesionEjecucion sesion) {
+        LocalDate fechaInicioVirtual = sesion.getFechaInicioVirtual();
+
+        // Idempotente: si ya se alineó para esta sesión, no volver a aplicar el offset
+        if (sesion.getFechaAlineadaA() != null) {
+            log.info("Alineacion ya aplicada para sesion {}: fecha_alineada_a={}", sesion.getId(), sesion.getFechaAlineadaA());
+            return;
+        }
+
         long offsetDias = java.time.temporal.ChronoUnit.DAYS.between(FECHA_BASE_ARCHIVO, fechaInicioVirtual);
         if (offsetDias == 0) {
             log.info("Fechas ya alineadas: fecha_inicio_virtual={} coincide con fecha base de archivos", fechaInicioVirtual);
+            sesion.setFechaAlineadaA(fechaInicioVirtual);
+            sesionRepository.save(sesion);
             return;
         }
 
@@ -213,6 +225,9 @@ public class SesionService {
         );
         log.info("Alineacion de fechas: {} dias ({}{}). {} equipajes actualizados.",
             diasAbs, signo, diasAbs, actualizados);
+
+        sesion.setFechaAlineadaA(fechaInicioVirtual);
+        sesionRepository.save(sesion);
     }
 
     @Transactional
