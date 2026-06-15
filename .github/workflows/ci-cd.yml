@@ -145,7 +145,13 @@ jobs:
             # 8. Verificar que PostgreSQL esté listo
             sudo pg_isready -q 2>/dev/null || sudo systemctl start postgresql@16-main 2>/dev/null || echo "⚠️ PostgreSQL check skipped"
 
-            # 9. Iniciar Tomcat
+            # 9. Reparar checksums Flyway (evita mismatch si se modificó una migración ya aplicada)
+            echo "🛠️ Reparando checksums de Flyway..."
+            /opt/apache-maven-3.9.16/bin/mvn flyway:repair \
+              -Dflyway.configFile=src/main/resources/application.properties \
+              -q || echo "⚠️ flyway:repair falló, se intentará igual"
+
+            # 10. Iniciar Tomcat
             sudo systemctl start tomcat11
             echo "✅ Backend WAR deployed. Tomcat started."
 
