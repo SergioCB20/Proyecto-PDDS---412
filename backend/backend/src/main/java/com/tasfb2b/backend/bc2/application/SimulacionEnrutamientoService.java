@@ -83,7 +83,7 @@ public class SimulacionEnrutamientoService {
             List<PlanViaje> planesBatch = new ArrayList<>();
             List<SegmentoPlan> segmentosBatch = new ArrayList<>();
             List<UUID> vuelosActualizar = new ArrayList<>();
-            List<UUID> nodosActualizar = new ArrayList<>();
+            Map<UUID, Integer> nodosActualizar = new HashMap<>();
 
             for (int j = 0; j < subBatch.size(); j++) {
                 Equipaje eq = subBatch.get(j);
@@ -140,7 +140,8 @@ public class SimulacionEnrutamientoService {
                 if (primerVuelo != null) {
                     vuelosActualizar.add(primerVuelo.getId());
                 }
-                nodosActualizar.add(primerSeg.nodoOrigenId());
+                int cantidad = eq.getCantidad() != null ? eq.getCantidad() : 1;
+                nodosActualizar.merge(primerSeg.nodoOrigenId(), cantidad, Integer::sum);
             }
 
             // Guardar todo en lote
@@ -169,13 +170,16 @@ public class SimulacionEnrutamientoService {
                 });
     }
 
-    private void batchActualizarNodos(List<UUID> nodoIds) {
-        if (nodoIds.isEmpty()) return;
+    private void batchActualizarNodos(Map<UUID, Integer> nodosMap) {
+        if (nodosMap.isEmpty()) return;
+        List<UUID> nodoIds = new ArrayList<>(nodosMap.keySet());
+        List<Integer> cantidades = new ArrayList<>(nodosMap.values());
         jdbcTemplate.batchUpdate(
-                "UPDATE nodos_logisticos SET ocupacion_actual = ocupacion_actual + 1 WHERE id = ?",
+                "UPDATE nodos_logisticos SET ocupacion_actual = ocupacion_actual + ? WHERE id = ?",
                 new BatchPreparedStatementSetter() {
                     public void setValues(PreparedStatement ps, int i) throws SQLException {
-                        ps.setObject(1, nodoIds.get(i));
+                        ps.setInt(1, cantidades.get(i));
+                        ps.setObject(2, nodoIds.get(i));
                     }
                     public int getBatchSize() { return nodoIds.size(); }
                 });

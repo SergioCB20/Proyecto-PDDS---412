@@ -204,7 +204,8 @@ public class PlanificacionWorker {
 
         // Updates atómicos para evitar lost updates con SimulacionEnrutamientoService corriendo en paralelo
         vueloRepository.decrementarCargaDisponible(primerVuelo.getId());
-        nodoRepository.actualizarOcupacion(primerNodoOrigen.getId(), 1);
+        int cantidad = equipaje.getCantidad() != null ? equipaje.getCantidad() : 1;
+        nodoRepository.actualizarOcupacion(primerNodoOrigen.getId(), cantidad);
 
         equipaje.setEstado(EstadoEquipaje.ENRUTADO);
         equipajeRepository.save(equipaje);
