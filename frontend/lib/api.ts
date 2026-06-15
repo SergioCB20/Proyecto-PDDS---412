@@ -12,7 +12,7 @@ function getBaseUrl(): string {
 }
 
 const BASE_URL = getBaseUrl();
-const REQUEST_TIMEOUT_MS = 60_000;
+const REQUEST_TIMEOUT_MS = 30_000;
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const controller = new AbortController();
@@ -38,6 +38,15 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     }
 
     return res.json();
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw {
+        status: 408,
+        error: 'TIMEOUT',
+        mensaje: 'La operación tardó demasiado. Verifique la conexión e intente nuevamente.',
+      } satisfies ApiError;
+    }
+    throw err;
   } finally {
     clearTimeout(timeoutId);
   }
@@ -73,6 +82,16 @@ export const api = {
         throw error;
       }
       return res.json() as Promise<T>;
+    }).catch((err) => {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        const error: ApiError = {
+          status: 408,
+          error: 'TIMEOUT',
+          mensaje: 'La operación tardó demasiado. Verifique la conexión e intente nuevamente.',
+        };
+        throw error;
+      }
+      throw err;
     }).finally(() => clearTimeout(timeoutId));
   },
   downloadBlob: async (path: string) => {
@@ -95,6 +114,15 @@ export const api = {
         throw error;
       }
       return res.blob();
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        throw {
+          status: 408,
+          error: 'TIMEOUT',
+          mensaje: 'La operación tardó demasiado. Verifique la conexión e intente nuevamente.',
+        } satisfies ApiError;
+      }
+      throw err;
     } finally {
       clearTimeout(timeoutId);
     }

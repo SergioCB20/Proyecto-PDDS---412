@@ -48,12 +48,28 @@ public class TelemetriaService {
         }
     }
 
+    // Método sobrecargado que recibe nodos y vuelos precargados (desde TickService)
+    public void emitirTelemetria(SesionEjecucion sesion, List<NodoLogistico> nodos, List<Vuelo> vuelos) {
+        try {
+            String json = buildTelemetryJson(sesion, nodos, vuelos);
+            telemetriaWebSocket.broadcast(json);
+        } catch (Exception e) {
+            log.warn("Error emitting telemetry for session {}: {}", sesion.getId(), e.getMessage());
+        }
+    }
+
     private String buildTelemetryJson(SesionEjecucion sesion) {
+        List<NodoLogistico> nodos = nodoRepository.findAllByOrderByCodigoIataAsc();
+        List<Vuelo> vuelos = vueloRepository.findByEstadoInAndEsPlantilla(
+                List.of(EstadoVuelo.PROGRAMADO, EstadoVuelo.EN_RUTA), false);
+        return buildTelemetryJson(sesion, nodos, vuelos);
+    }
+
+    private String buildTelemetryJson(SesionEjecucion sesion, List<NodoLogistico> nodos, List<Vuelo> vuelos) {
         ObjectNode root = objectMapper.createObjectNode();
         root.put("timestamp", OffsetDateTime.now().toString());
 
         ArrayNode nodosArr = root.putArray("nodos");
-        List<NodoLogistico> nodos = nodoRepository.findAllByOrderByCodigoIataAsc();
         for (NodoLogistico nodo : nodos) {
             ObjectNode n = nodosArr.addObject();
             n.put("id", nodo.getId().toString());
@@ -70,9 +86,6 @@ public class TelemetriaService {
         }
 
         ArrayNode vuelosArr = root.putArray("vuelos");
-        List<Vuelo> vuelos = vueloRepository.findByEstadoInAndEsPlantilla(
-                List.of(EstadoVuelo.PROGRAMADO, EstadoVuelo.EN_RUTA), false);
-
         for (Vuelo vuelo : vuelos) {
             ObjectNode v = vuelosArr.addObject();
             v.put("id", vuelo.getId().toString());

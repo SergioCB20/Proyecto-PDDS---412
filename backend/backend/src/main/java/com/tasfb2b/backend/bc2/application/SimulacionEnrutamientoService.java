@@ -4,15 +4,20 @@ import com.tasfb2b.backend.bc1.domain.*;
 import com.tasfb2b.backend.bc1.infrastructure.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Pageable;
+import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class SimulacionEnrutamientoService {
@@ -41,6 +46,7 @@ public class SimulacionEnrutamientoService {
         this.segmentoPlanRepository = segmentoPlanRepository;
     }
 
+    @Transactional
     public ResultadoVentana enrutarVentana(UUID sesionId, OffsetDateTime inicioVentana, OffsetDateTime finVentana) {
         List<Equipaje> equipajes = jdbcTemplate.query(
                 "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad, fecha_ingreso " +
@@ -54,10 +60,30 @@ public class SimulacionEnrutamientoService {
             return new ResultadoVentana(0, false, null, null);
         }
 
+        // Cargar vuelos programados UNA SOLA VEZ para todos los sub-lotes
+        List<Vuelo> programados = vueloRepository.findByEstadoAndEsPlantilla(
+                EstadoVuelo.PROGRAMADO, false, Pageable.unpaged()).getContent();
+        Map<UUID, Vuelo> vuelosMap = programados.stream()
+                .collect(Collectors.toMap(Vuelo::getId, v -> v));
+
+        // Cargar nodos UNA SOLA VEZ
+        List<NodoLogistico> todosNodos = nodoRepository.findAll();
+        Map<String, NodoLogistico> nodosPorIata = todosNodos.stream()
+                .collect(Collectors.toMap(NodoLogistico::getCodigoIata, n -> n));
+        Map<UUID, NodoLogistico> nodosPorId = todosNodos.stream()
+                .collect(Collectors.toMap(NodoLogistico::getId, n -> n));
+
+        List<UUID> equipajesEnrutados = new ArrayList<>();
         int enrutados = 0;
+
         for (int i = 0; i < equipajes.size(); i += SUB_BATCH_SIZE) {
             List<Equipaje> subBatch = equipajes.subList(i, Math.min(i + SUB_BATCH_SIZE, equipajes.size()));
-            List<RutaResult> resultados = motorEnrutamiento.calcularRutasLote(subBatch);
+            List<RutaResult> resultados = motorEnrutamiento.calcularRutasLote(subBatch, programados);
+
+            List<PlanViaje> planesBatch = new ArrayList<>();
+            List<SegmentoPlan> segmentosBatch = new ArrayList<>();
+            List<UUID> vuelosActualizar = new ArrayList<>();
+            List<UUID> nodosActualizar = new ArrayList<>();
 
             for (int j = 0; j < subBatch.size(); j++) {
                 Equipaje eq = subBatch.get(j);
@@ -69,88 +95,105 @@ public class SimulacionEnrutamientoService {
                     return new ResultadoVentana(enrutados, true, inicioVentana, eq.getId());
                 }
 
-                crearPlanViaje(eq, ruta, sesionId);
-                marcarEnrutado(eq.getId());
+                PlanViaje planViaje = new PlanViaje();
+                planViaje.setId(UUID.randomUUID());
+                planViaje.setEquipaje(eq);
+                planViaje.setEstadoSla(EstadoSla.EN_TIEMPO);
+                planViaje.setSesionId(sesionId);
+                planViaje.setTiempoEntregaEst(
+                        ruta.segmentos().get(ruta.segmentos().size() - 1).horaLlegada());
+                planViaje.setSegmentos(new ArrayList<>());
+
+                SegmentoInfo primerSeg = ruta.segmentos().get(0);
+                Vuelo primerVuelo = vuelosMap.get(primerSeg.vueloId());
+                if (primerVuelo != null) {
+                    planViaje.setUbicacionTipo(UbicacionTipo.VUELO);
+                    planViaje.setUbicacionId(primerVuelo.getId());
+                    planViaje.setUbicacionLat(primerVuelo.getOrigenLat());
+                    planViaje.setUbicacionLon(primerVuelo.getOrigenLon());
+                }
+
+                for (SegmentoInfo segInfo : ruta.segmentos()) {
+                    Vuelo segVuelo = vuelosMap.get(segInfo.vueloId());
+                    if (segVuelo == null) {
+                        return new ResultadoVentana(enrutados, true, inicioVentana, eq.getId());
+                    }
+                    NodoLogistico segOrigen = nodosPorId.get(segInfo.nodoOrigenId());
+                    NodoLogistico segDestino = nodosPorId.get(segInfo.nodoDestinoId());
+
+                    SegmentoPlan segmento = new SegmentoPlan();
+                    segmento.setId(UUID.randomUUID());
+                    segmento.setPlanViaje(planViaje);
+                    segmento.setVuelo(segVuelo);
+                    segmento.setNodoOrigen(segOrigen);
+                    segmento.setNodoDestino(segDestino);
+                    segmento.setOrden(segInfo.orden());
+                    segmento.setHoraSalidaProg(segInfo.horaSalida());
+                    segmento.setEstado(EstadoSegmento.PENDIENTE);
+                    segmentosBatch.add(segmento);
+                }
+
+                planesBatch.add(planViaje);
+                equipajesEnrutados.add(eq.getId());
                 enrutados++;
+
+                if (primerVuelo != null) {
+                    vuelosActualizar.add(primerVuelo.getId());
+                }
+                nodosActualizar.add(primerSeg.nodoOrigenId());
             }
+
+            // Guardar todo en lote
+            planViajeRepository.saveAll(planesBatch);
+            segmentoPlanRepository.saveAll(segmentosBatch);
+
+            // Batch updates con JDBC
+            batchActualizarVuelos(vuelosActualizar);
+            batchActualizarNodos(nodosActualizar);
+            batchMarcarEnrutados(equipajesEnrutados);
+            equipajesEnrutados.clear();
         }
 
         return new ResultadoVentana(enrutados, false, null, null);
     }
 
-    private void marcarEnrutado(UUID equipajeId) {
-        jdbcTemplate.update("UPDATE equipajes SET estado = 'ENRUTADO' WHERE id = ?", equipajeId);
+    private void batchActualizarVuelos(List<UUID> vueloIds) {
+        if (vueloIds.isEmpty()) return;
+        jdbcTemplate.batchUpdate(
+                "UPDATE vuelos SET carga_disponible = carga_disponible - 1 WHERE id = ?",
+                new BatchPreparedStatementSetter() {
+                    public void setValues(PreparedStatement ps, int i) throws SQLException {
+                        ps.setObject(1, vueloIds.get(i));
+                    }
+                    public int getBatchSize() { return vueloIds.size(); }
+                });
     }
 
-    @Transactional
-    void crearPlanViaje(Equipaje equipaje, RutaResult ruta, UUID sesionId) {
-        PlanViaje planViaje = new PlanViaje();
-        planViaje.setId(UUID.randomUUID());
-        planViaje.setEquipaje(equipaje);
-        planViaje.setEstadoSla(EstadoSla.EN_TIEMPO);
-        planViaje.setSesionId(sesionId);
-        planViaje.setTiempoEntregaEst(ruta.segmentos().get(ruta.segmentos().size() - 1).horaLlegada());
-
-        SegmentoInfo primerSeg = ruta.segmentos().get(0);
-        Vuelo primerVuelo = vueloRepository.findById(primerSeg.vueloId()).orElse(null);
-        if (primerVuelo != null) {
-            planViaje.setUbicacionTipo(UbicacionTipo.VUELO);
-            planViaje.setUbicacionId(primerVuelo.getId());
-            planViaje.setUbicacionLat(primerVuelo.getOrigenLat());
-            planViaje.setUbicacionLon(primerVuelo.getOrigenLon());
-        }
-
-        planViaje.setSegmentos(new ArrayList<>());
-        planViajeRepository.save(planViaje);
-
-        StringBuilder rutaLog = new StringBuilder();
-        rutaLog.append("RUTA equipaje=").append(equipaje.getId())
-                .append(" origen=").append(equipaje.getOrigenIata())
-                .append(" destino=").append(equipaje.getDestinoIata())
-                .append(" segmentos=");
-
-        for (SegmentoInfo segInfo : ruta.segmentos()) {
-            Vuelo segVuelo = vueloRepository.findById(segInfo.vueloId())
-                    .orElseThrow(() -> new RuntimeException("Vuelo no encontrado: " + segInfo.vueloId()));
-            NodoLogistico segOrigen = nodoRepository.findById(segInfo.nodoOrigenId())
-                    .orElseThrow(() -> new RuntimeException("Nodo origen no encontrado: " + segInfo.nodoOrigenId()));
-            NodoLogistico segDestino = nodoRepository.findById(segInfo.nodoDestinoId())
-                    .orElseThrow(() -> new RuntimeException("Nodo destino no encontrado: " + segInfo.nodoDestinoId()));
-
-            SegmentoPlan segmento = new SegmentoPlan();
-            segmento.setId(UUID.randomUUID());
-            segmento.setPlanViaje(planViaje);
-            segmento.setVuelo(segVuelo);
-            segmento.setNodoOrigen(segOrigen);
-            segmento.setNodoDestino(segDestino);
-            segmento.setOrden(segInfo.orden());
-            segmento.setHoraSalidaProg(segInfo.horaSalida());
-            segmento.setEstado(EstadoSegmento.PENDIENTE);
-            segmentoPlanRepository.save(segmento);
-
-            rutaLog.append(" [").append(segInfo.orden()).append("] ")
-                    .append(segInfo.nodoOrigenIata()).append("->")
-                    .append(segInfo.nodoDestinoIata())
-                    .append(" (").append(segInfo.vueloCodigo()).append(" ")
-                    .append(segInfo.horaSalida()).append(")");
-        }
-
-        log.info(rutaLog.toString());
-
-        if (primerVuelo != null) {
-            primerVuelo.setCargaDisponible(primerVuelo.getCargaDisponible() - 1);
-            vueloRepository.save(primerVuelo);
-
-            NodoLogistico origen = nodoRepository.findById(primerSeg.nodoOrigenId())
-                    .orElse(null);
-            if (origen != null) {
-                origen.setOcupacionActual(origen.getOcupacionActual() + 1);
-                nodoRepository.save(origen);
-            }
-        }
+    private void batchActualizarNodos(List<UUID> nodoIds) {
+        if (nodoIds.isEmpty()) return;
+        jdbcTemplate.batchUpdate(
+                "UPDATE nodos_logisticos SET ocupacion_actual = ocupacion_actual + 1 WHERE id = ?",
+                new BatchPreparedStatementSetter() {
+                    public void setValues(PreparedStatement ps, int i) throws SQLException {
+                        ps.setObject(1, nodoIds.get(i));
+                    }
+                    public int getBatchSize() { return nodoIds.size(); }
+                });
     }
 
-    private Equipaje mapEquipaje(ResultSet rs, int rowNum) throws java.sql.SQLException {
+    private void batchMarcarEnrutados(List<UUID> equipajeIds) {
+        if (equipajeIds.isEmpty()) return;
+        jdbcTemplate.batchUpdate(
+                "UPDATE equipajes SET estado = 'ENRUTADO' WHERE id = ?",
+                new BatchPreparedStatementSetter() {
+                    public void setValues(PreparedStatement ps, int i) throws SQLException {
+                        ps.setObject(1, equipajeIds.get(i));
+                    }
+                    public int getBatchSize() { return equipajeIds.size(); }
+                });
+    }
+
+    private Equipaje mapEquipaje(ResultSet rs, int rowNum) throws SQLException {
         Equipaje eq = new Equipaje();
         eq.setId(UUID.fromString(rs.getString("id")));
         eq.setOrigenIata(rs.getString("origen_iata"));

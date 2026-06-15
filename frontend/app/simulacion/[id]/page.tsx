@@ -238,7 +238,7 @@ function SimulacionContent() {
   }, [backendSesionId, fechaInicioReal]);
 
   useEffect(() => {
-    if (backendSesionId && estado === 'EN_CURSO') {
+    if (backendSesionId && estado === 'EN_CURSO' && !connected) {
       pollingRef.current = setInterval(fetchMetricas, 3000);
     } else if (pollingRef.current) {
       clearInterval(pollingRef.current);
@@ -247,7 +247,7 @@ function SimulacionContent() {
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
-  }, [backendSesionId, estado, fetchMetricas]);
+  }, [backendSesionId, estado, fetchMetricas, connected]);
 
   useEffect(() => {
     if (backendSesionId && accionRef.current === 'ninguna') {
