@@ -4,7 +4,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -12,21 +11,15 @@ public class CargaSimulacionRunner {
 
     private static final Logger log = LoggerFactory.getLogger(CargaSimulacionRunner.class);
 
-    private final CargaSimulacionService cargaSimulacionService;
+    private final CargaSimulacionAsyncRunner asyncRunner;
 
-    public CargaSimulacionRunner(CargaSimulacionService cargaSimulacionService) {
-        this.cargaSimulacionService = cargaSimulacionService;
+    public CargaSimulacionRunner(CargaSimulacionAsyncRunner asyncRunner) {
+        this.asyncRunner = asyncRunner;
     }
 
-    @Async
     @EventListener(ApplicationReadyEvent.class)
-    public void run() {
-        try {
-            var resultado = cargaSimulacionService.cargarTodos();
-            log.info("Carga automatica completada: {} equipajes insertados desde {} lineas ({} errores)",
-                    resultado.totalEquipajes(), resultado.totalLineas(), resultado.lineasError());
-        } catch (CargaSimulacionService.CargaException e) {
-            log.error("Error en carga automatica: {}", e.getMessage());
-        }
+    public void onReady() {
+        log.info("Delegando carga automatica a hilo async...");
+        asyncRunner.cargar();
     }
 }
