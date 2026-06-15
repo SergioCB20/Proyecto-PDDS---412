@@ -14,7 +14,6 @@ import com.tasfb2b.backend.shared.events.SesionFinalizada;
 import com.tasfb2b.backend.shared.infrastructure.RedisCacheService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -63,8 +62,7 @@ public class TickService {
                        ApplicationEventPublisher eventPublisher,
                        ReporteSesionRepository reporteSesionRepository,
                        PuntoSLARepository puntoSLARepository,
-                       PlanViajeRepository planViajeRepository,
-                       @Value("${app.simulacion.k}") double k) {
+                       PlanViajeRepository planViajeRepository) {
         this.sesionRepository = sesionRepository;
         this.vueloRepository = vueloRepository;
         this.equipajeRepository = equipajeRepository;
@@ -78,7 +76,7 @@ public class TickService {
         this.reporteSesionRepository = reporteSesionRepository;
         this.puntoSLARepository = puntoSLARepository;
         this.planViajeRepository = planViajeRepository;
-        this.k = k;
+        this.k = 120.0; // fallback; el valor real viene de sesion.getK()
     }
 
     @Scheduled(fixedRate = TICK_INTERVAL_MS)
@@ -99,6 +97,13 @@ public class TickService {
         OffsetDateTime now = OffsetDateTime.now();
 
         avanzarRelojVirtual(sesion);
+
+        // Auto-finalizar al completar 5 días virtuales
+        if (debeFinalizarPorTiempo(sesion)) {
+            finalizarSesionPorTiempo(sesion, now);
+            return;
+        }
+
         clonarParaNuevoDia(sesion);
         registrarPuntoSla(sesion);
         procesarVuelosSalida(sesion);
@@ -123,8 +128,35 @@ public class TickService {
         }
     }
 
+    private boolean debeFinalizarPorTiempo(SesionEjecucion sesion) {
+        if (sesion.getDiaHoraVirtual() == null || sesion.getFechaInicioVirtual() == null) return false;
+        LocalDate fechaFin = sesion.getFechaInicioVirtual().plusDays(5);
+        return !sesion.getDiaHoraVirtual().toLocalDate().isBefore(fechaFin);
+    }
+
+    private void finalizarSesionPorTiempo(SesionEjecucion sesion, OffsetDateTime now) {
+        log.info("Sesion {} alcanzó 5 dias virtuales. Finalizando automaticamente.", sesion.getId());
+        sesion.setEstado(EstadoSesion.FINALIZADA);
+        sesion.setFechaFinReal(now);
+        sesionRepository.save(sesion);
+
+        ultimaHoraRegistrada.remove(sesion.getId());
+        ultimaFechaClonada.remove(sesion.getId());
+
+        try {
+            redisCacheService.setEstadoSesion(sesion.getId(), "FINALIZADA");
+            redisCacheService.eliminarMetricasSesion(sesion.getId());
+        } catch (Exception e) {
+            log.warn("Redis no disponible al finalizar sesion {}: {}", sesion.getId(), e.getMessage());
+        }
+
+        eventPublisher.publishEvent(new SesionFinalizada(sesion.getId(), "FINALIZADA", now));
+        telemetriaService.emitirTelemetria(sesion);
+    }
+
     private void avanzarRelojVirtual(SesionEjecucion sesion) {
-        long virtualMinutos = (long) ((TICK_INTERVAL_MS / 1000.0) * k / 60);
+        double kEfectivo = sesion.getK() != null ? sesion.getK() : k;
+        long virtualMinutos = (long) ((TICK_INTERVAL_MS / 1000.0) * kEfectivo / 60);
 
         if (sesion.getDiaHoraVirtual() == null) {
             OffsetDateTime inicio = OffsetDateTime.of(

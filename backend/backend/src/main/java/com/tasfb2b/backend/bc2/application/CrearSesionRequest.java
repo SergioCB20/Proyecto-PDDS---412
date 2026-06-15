@@ -10,6 +10,16 @@ public record CrearSesionRequest(
     String tipo_simulacion,
     Integer ventana_horas,
     Integer duracion_dias,
+    /**
+     * Factor tiempo_virtual/tiempo_real. Con tick=5s: k=120→60 min real, k=240→30 min real.
+     * Rango válido para simulación 5D: 120–240. Default: 120.
+     */
+    Double k,
+    /**
+     * Intervalo en segundos reales entre ejecuciones del planificador ACO (salto del algoritmo).
+     * Default: 30s.
+     */
+    Integer sa_segundos,
     UmbralesRequest umbrales_almacen,
     UmbralesRequest umbrales_vuelo
 ) {

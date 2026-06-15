@@ -15,6 +15,7 @@ import com.tasfb2b.backend.shared.infrastructure.RedisCacheService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,6 +40,11 @@ public class SesionService {
     private final PuntoSLARepository puntoSLARepository;
     private final EquipajeRepository equipajeRepository;
     private final PlanViajeRepository planViajeRepository;
+    private final JdbcTemplate jdbcTemplate;
+    private final SimulacionPlanificador simulacionPlanificador;
+
+    // Fecha del primer día de datos en los archivos _envios_*.txt
+    private static final LocalDate FECHA_BASE_ARCHIVO = LocalDate.of(2026, 1, 2);
 
     public SesionService(SesionRepository sesionRepository,
                          VueloService vueloService,
@@ -47,7 +53,9 @@ public class SesionService {
                          ReporteSesionRepository reporteSesionRepository,
                          PuntoSLARepository puntoSLARepository,
                          EquipajeRepository equipajeRepository,
-                         PlanViajeRepository planViajeRepository) {
+                         PlanViajeRepository planViajeRepository,
+                         JdbcTemplate jdbcTemplate,
+                         SimulacionPlanificador simulacionPlanificador) {
         this.sesionRepository = sesionRepository;
         this.vueloService = vueloService;
         this.redisCacheService = redisCacheService;
@@ -56,6 +64,8 @@ public class SesionService {
         this.puntoSLARepository = puntoSLARepository;
         this.equipajeRepository = equipajeRepository;
         this.planViajeRepository = planViajeRepository;
+        this.jdbcTemplate = jdbcTemplate;
+        this.simulacionPlanificador = simulacionPlanificador;
     }
 
     public SesionResponse crearSesion(CrearSesionRequest request) {
@@ -79,8 +89,18 @@ public class SesionService {
         if (request.ventana_horas() != null) {
             sesion.setVentanaHoras(request.ventana_horas());
         }
-        if (request.duracion_dias() != null) {
-            sesion.setDuracionDias(request.duracion_dias());
+        // Simulación siempre 5 días; ignorar duracion_dias del request
+        sesion.setDuracionDias(5);
+
+        if (request.k() != null) {
+            double k = request.k();
+            if (k < 120 || k > 240) {
+                throw new IllegalArgumentException("k debe estar entre 120 (60 min) y 240 (30 min)");
+            }
+            sesion.setK(k);
+        }
+        if (request.sa_segundos() != null) {
+            sesion.setSaSegundos(request.sa_segundos());
         }
 
         if (request.umbrales_almacen() != null) {
@@ -137,7 +157,7 @@ public class SesionService {
 
         if (sesion.getTipo() == TipoSesion.SIMULADA) {
             LocalDate desde = sesion.getFechaInicioVirtual();
-            LocalDate hasta = desde.plusDays(sesion.getDuracionDias() != null ? sesion.getDuracionDias() : 30);
+            LocalDate hasta = desde.plusDays(5);
 
             log.info("Limpiando instancias previas para sesion {} entre {} y {}", id, desde, hasta);
             try {
@@ -153,6 +173,8 @@ public class SesionService {
             } catch (Exception e) {
                 log.warn("No se pudieron clonar plantillas para sesion {}: {}", id, e.getMessage());
             }
+
+            alinearFechasEquipajes(sesion.getFechaInicioVirtual());
         }
 
         if (sesion.getTipo() == TipoSesion.SIMULADA) {
@@ -166,6 +188,31 @@ public class SesionService {
                 log.info("ReporteSesion ya existe para sesion {}, se reutiliza", id);
             }
         }
+    }
+
+    /**
+     * Alinea las fechas de operación de los equipajes REGISTRADO para que coincidan
+     * con el rango de fechas virtuales de la sesión.
+     * Los archivos tienen datos desde FECHA_BASE_ARCHIVO (2026-01-02).
+     * Si la sesión empieza en fecha distinta, se aplica el offset en días.
+     */
+    private void alinearFechasEquipajes(LocalDate fechaInicioVirtual) {
+        long offsetDias = java.time.temporal.ChronoUnit.DAYS.between(FECHA_BASE_ARCHIVO, fechaInicioVirtual);
+        if (offsetDias == 0) {
+            log.info("Fechas ya alineadas: fecha_inicio_virtual={} coincide con fecha base de archivos", fechaInicioVirtual);
+            return;
+        }
+
+        String signo = offsetDias > 0 ? "+" : "-";
+        long diasAbs = Math.abs(offsetDias);
+        int actualizados = jdbcTemplate.update(
+            "UPDATE equipajes SET fecha_operacion = fecha_operacion + (? * INTERVAL '1 day'), " +
+            "sla_comprometido = sla_comprometido + (? * INTERVAL '1 day') " +
+            "WHERE estado = 'REGISTRADO'",
+            offsetDias, offsetDias
+        );
+        log.info("Alineacion de fechas: {} dias ({}{}). {} equipajes actualizados.",
+            diasAbs, signo, diasAbs, actualizados);
     }
 
     @Transactional
@@ -230,6 +277,8 @@ public class SesionService {
         } catch (Exception e) {
             log.warn("Redis no disponible al detener sesion {}: {}", sesion.getId(), e.getMessage());
         }
+
+        simulacionPlanificador.limpiarSesion(sesion.getId());
 
         eventPublisher.publishEvent(new SesionFinalizada(
                 sesion.getId(), "FINALIZADA", OffsetDateTime.now()));

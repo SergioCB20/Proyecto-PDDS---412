@@ -98,6 +98,12 @@ public class SesionEjecucion {
     @Column(name = "duracion_dias")
     private Integer duracionDias = 5;
 
+    @Column(name = "k", precision = 8, scale = 2)
+    private Double k = 120.0;
+
+    @Column(name = "sa_segundos")
+    private Integer saSegundos = 30;
+
     @Column(name = "created_at")
     private OffsetDateTime createdAt;
 
@@ -199,4 +205,10 @@ public class SesionEjecucion {
 
     public Integer getDuracionDias() { return duracionDias; }
     public void setDuracionDias(Integer duracionDias) { this.duracionDias = duracionDias; }
+
+    public Double getK() { return k; }
+    public void setK(Double k) { this.k = k; }
+
+    public Integer getSaSegundos() { return saSegundos; }
+    public void setSaSegundos(Integer saSegundos) { this.saSegundos = saSegundos; }
 }
