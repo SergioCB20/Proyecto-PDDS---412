@@ -40,7 +40,11 @@ export default function LoginPage() {
       }
     } catch (err: unknown) {
       const apiErr = err as { mensaje?: string; status?: number };
-      setError(apiErr.mensaje || 'Error al iniciar sesion');
+      if (apiErr.status === 504 || apiErr.status === 502) {
+        setError('El servidor no está disponible temporalmente. Espere unos segundos e intente nuevamente.');
+      } else {
+        setError(apiErr.mensaje || 'Error al iniciar sesion');
+      }
     } finally {
       setLoading(false);
     }
