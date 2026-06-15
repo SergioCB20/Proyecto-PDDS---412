@@ -1,9 +1,9 @@
-import type { ApiError } from './types';
+import type { ApiError, EnvioEntregadoResponse, EnvioItemResponse } from './types';
 
 function getBaseUrl(): string {
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
-    if (host === 'localhost' || host === '127.0.0.1') {
+    if (host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host === '::1') {
       return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
     }
     return '/back/api';
@@ -12,17 +12,11 @@ function getBaseUrl(): string {
 }
 
 const BASE_URL = getBaseUrl();
-const REQUEST_TIMEOUT_MS = 30_000;
-
-function isAbortError(err: unknown): boolean {
-  return err instanceof DOMException && err.name === 'AbortError';
-}
-
-const TIMEOUT_ERROR = { status: 408, error: 'TIMEOUT', mensaje: 'La operación tardó demasiado. Verifique la conexión e intente nuevamente.' };
+const REQUEST_TIMEOUT_MS = 60_000;
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeoutId = setTimeout(() => controller.abort('Timeout'), REQUEST_TIMEOUT_MS);
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
   try {
     const res = await fetch(`${BASE_URL}${path}`, {
@@ -44,11 +38,6 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     }
 
     return res.json();
-  } catch (err) {
-    if (isAbortError(err)) {
-      throw TIMEOUT_ERROR;
-    }
-    throw err;
   } finally {
     clearTimeout(timeoutId);
   }
@@ -63,19 +52,18 @@ export const api = {
   patch: <T>(path: string, body: unknown) =>
     request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
-  upload: async <T>(path: string, formData: FormData) => {
+  upload: <T>(path: string, formData: FormData) => {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const timeoutId = setTimeout(() => controller.abort('Timeout'), REQUEST_TIMEOUT_MS);
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    try {
-      const res = await fetch(`${BASE_URL}${path}`, {
-        method: 'POST',
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        signal: controller.signal,
-        body: formData,
-      });
+    return fetch(`${BASE_URL}${path}`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      signal: controller.signal,
+      body: formData,
+    }).then(async (res) => {
       if (!res.ok) {
         const error: ApiError = await res.json().catch(() => ({
           status: res.status,
@@ -85,18 +73,11 @@ export const api = {
         throw error;
       }
       return res.json() as Promise<T>;
-    } catch (err) {
-      if (isAbortError(err)) {
-        throw TIMEOUT_ERROR;
-      }
-      throw err;
-    } finally {
-      clearTimeout(timeoutId);
-    }
+    }).finally(() => clearTimeout(timeoutId));
   },
   downloadBlob: async (path: string) => {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const timeoutId = setTimeout(() => controller.abort('Timeout'), REQUEST_TIMEOUT_MS);
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     try {
       const res = await fetch(`${BASE_URL}${path}`, {
@@ -114,13 +95,20 @@ export const api = {
         throw error;
       }
       return res.blob();
-    } catch (err) {
-      if (isAbortError(err)) {
-        throw TIMEOUT_ERROR;
-      }
-      throw err;
     } finally {
       clearTimeout(timeoutId);
     }
   },
 };
+
+export async function fetchEnviosVuelo(sesionId: string, vueloId: string): Promise<EnvioItemResponse[]> {
+  return api.get<EnvioItemResponse[]>(`/sesiones/${sesionId}/envios/vuelo/${vueloId}`);
+}
+
+export async function fetchEnviosNodo(sesionId: string, nodoIata: string): Promise<EnvioItemResponse[]> {
+  return api.get<EnvioItemResponse[]>(`/sesiones/${sesionId}/envios/nodo/${nodoIata}`);
+}
+
+export async function fetchEntregadosRecientes(sesionId: string, horas = 4): Promise<EnvioEntregadoResponse[]> {
+  return api.get<EnvioEntregadoResponse[]>(`/sesiones/${sesionId}/envios/entregados-recientes?horas=${horas}`);
+}
