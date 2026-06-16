@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Package, Clock, MapPin, RefreshCw, ChevronDown, ChevronUp, CheckCircle, XCircle, Plane, Upload, FileSpreadsheet, AlertTriangle, Download } from 'lucide-react';
+import { useEffect, useState, useMemo, useRef } from 'react';
+import { Package, RefreshCw, ChevronDown, ChevronUp, CheckCircle, XCircle, Plane, Upload, FileSpreadsheet, AlertTriangle, Menu, ChevronLeft } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { api } from '@/lib/api';
 import { nodoToEnMapa } from '@/lib/mock';
@@ -12,9 +12,25 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Modal } from '@/components/ui/Modal';
+import { PanelVuelosOperacion } from '@/components/operacion/PanelVuelosOperacion';
+import { PanelNodosOperacion } from '@/components/operacion/PanelNodosOperacion';
+import { PanelEntregadosOperacion } from '@/components/operacion/PanelEntregadosOperacion';
+import { PanelEnviosOperacion } from '@/components/operacion/PanelEnviosOperacion';
+import type { SelectedEnvioOperacion } from '@/components/operacion/PanelEnviosOperacion';
+import { MetricasOperacion } from '@/components/operacion/MetricasOperacion';
+import { ResumenVuelosOperacion } from '@/components/operacion/ResumenVuelosOperacion';
 import type { Nodo, Vuelo, VueloEnMapa, VueloPageResponse, NodoEnMapa, CrearEquipajeRequest, CrearEquipajeResponse, CargaMasivaPreview, CargaMasivaConfirmResponse } from '@/lib/types';
 
 const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false });
+
+const ESTADOS_VUELO_VALIDOS = ['PROGRAMADO', 'EN_RUTA', 'CANCELADO', 'COMPLETADO'] as const;
+
+function matchEstadoVuelo(valor: string): VueloEnMapa['estado'] {
+  if (ESTADOS_VUELO_VALIDOS.includes(valor as typeof ESTADOS_VUELO_VALIDOS[number])) {
+    return valor as VueloEnMapa['estado'];
+  }
+  return 'PROGRAMADO';
+}
 
 interface EquipajeReciente {
   id_externo: string;
@@ -33,7 +49,7 @@ export default function OperacionPage() {
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
 
-  const [formOpen, setFormOpen] = useState(true);
+  const [formOpen, setFormOpen] = useState(false);
   const [formData, setFormData] = useState({
     idEquipaje: '',
     destinoIata: '',
@@ -69,6 +85,11 @@ export default function OperacionPage() {
   const [sseConnected, setSseConnected] = useState(false);
   const { data: telemetria } = useTelemetria(true);
   const [notificaciones, setNotificaciones] = useState<{ id: number; tipo: 'success' | 'error'; mensaje: string }[]>([]);
+
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [selectedEnvio, setSelectedEnvio] = useState<SelectedEnvioOperacion | null>(null);
+  const [vueloFilterOrigen, setVueloFilterOrigen] = useState('');
+  const [vueloFilterDestino, setVueloFilterDestino] = useState('');
 
   const agregarNotificacion = (tipo: 'success' | 'error', mensaje: string) => {
     const id = Date.now();
@@ -153,15 +174,6 @@ export default function OperacionPage() {
       clearTimeout(timer);
     };
   }, []);
-
-  const ESTADOS_VUELO_VALIDOS = ['PROGRAMADO', 'EN_RUTA', 'CANCELADO', 'COMPLETADO'] as const;
-
-  function matchEstadoVuelo(valor: string): VueloEnMapa['estado'] {
-    if (ESTADOS_VUELO_VALIDOS.includes(valor as typeof ESTADOS_VUELO_VALIDOS[number])) {
-      return valor as VueloEnMapa['estado'];
-    }
-    return 'PROGRAMADO';
-  }
 
   useEffect(() => {
     if (!telemetria?.nodos || telemetria.nodos.length === 0) return;
@@ -435,363 +447,430 @@ export default function OperacionPage() {
     label: `${v.codigo_vuelo} (${v.origen.codigo_iata} → ${v.destino.codigo_iata}) ${new Date(v.hora_salida).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`,
   }));
 
+  const vuelosMapaFiltrados = useMemo(() => {
+    return allVuelos.filter(v => {
+      if (vueloFilterOrigen && v.origen.codigo_iata !== vueloFilterOrigen) return false;
+      if (vueloFilterDestino && v.destino.codigo_iata !== vueloFilterDestino) return false;
+      return true;
+    });
+  }, [allVuelos, vueloFilterOrigen, vueloFilterDestino]);
+
   return (
     <div className="flex h-[calc(100vh-3.5rem)]">
       <div className="flex-1 p-4">
         <GeoMapa
           nodos={nodos}
-          vuelos={allVuelos}
+          vuelos={vuelosMapaFiltrados}
           mostrarAviones={true}
           animacionActiva={false}
           className="h-full"
         />
       </div>
 
-      <div className="w-80 border-l border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col overflow-y-auto">
-        <div className="p-4 border-b border-slate-200 dark:border-slate-700">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="font-semibold text-slate-900 dark:text-slate-100">Operacion en Vivo</h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Ultima actualizacion: {lastUpdate ? lastUpdate.toLocaleTimeString('es-ES') : '...'}
-              </p>
-            </div>
-            <button
-              onClick={fetchData}
-              disabled={loading}
-              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 disabled:opacity-50"
-              title="Actualizar"
-            >
-              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-            </button>
-          </div>
-          <div className="flex items-center gap-2 px-4 py-1.5 border-b border-slate-200 dark:border-slate-700">
-            <span className={`w-2 h-2 rounded-full ${sseConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-            <span className="text-xs text-slate-500">
-              SSE {sseConnected ? 'conectado' : 'desconectado'}
-            </span>
-          </div>
-          {apiError && (
-            <div className="flex items-center gap-2 px-4 py-2 border-b border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30">
-              <XCircle size={14} className="text-red-600 dark:text-red-400 flex-shrink-0" />
-              <span className="text-xs text-red-700 dark:text-red-300">{apiError}</span>
-            </div>
+      <div className={`border-l border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col overflow-y-auto transition-all duration-300 ${isCollapsed ? 'w-12' : 'w-80'}`}>
+        <div className="p-2 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+          {!isCollapsed && (
+            <h2 className="font-semibold text-slate-900 dark:text-slate-100 text-sm truncate">Operación en Vivo</h2>
           )}
-          {notificaciones.length > 0 && (
-            <div className="px-4 py-2 space-y-1 border-b border-slate-200 dark:border-slate-700">
-              {notificaciones.map(n => (
-                <div
-                  key={n.id}
-                  className={`flex items-center gap-2 p-2 rounded-lg text-xs ${
-                    n.tipo === 'success'
-                      ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                      : 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300'
-                  }`}
-                >
-                  {n.tipo === 'success' ? <CheckCircle size={12} /> : <XCircle size={12} />}
-                  {n.mensaje}
-                </div>
-              ))}
-            </div>
-          )}
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            title={isCollapsed ? 'Expandir panel' : 'Colapsar panel'}
+          >
+            {isCollapsed ? <Menu size={18} /> : <ChevronLeft size={18} />}
+          </button>
         </div>
 
-        <div className="p-4 flex-1 overflow-y-auto">
-          <div className="flex gap-2 mb-3">
-            <button
-              onClick={() => setFormOpen(!formOpen)}
-              className="flex-1 flex items-center justify-between p-3 rounded-lg bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <Package size={16} className="text-blue-600 dark:text-blue-400" />
-                <span className="font-medium text-sm text-blue-900 dark:text-blue-100">Individual</span>
-              </div>
-              {formOpen ? <ChevronUp size={16} className="text-blue-600 dark:text-blue-400" /> : <ChevronDown size={16} className="text-blue-600 dark:text-blue-400" />}
-            </button>
-            <button
-              onClick={() => setCargaMasivaOpen(true)}
-              className="flex-1 flex items-center justify-center gap-2 p-3 rounded-lg bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors"
-            >
-              <FileSpreadsheet size={16} className="text-green-600 dark:text-green-400" />
-              <span className="font-medium text-sm text-green-900 dark:text-green-100">Carga Masiva</span>
-            </button>
-            <button
-              onClick={() => { resetVueloForm(); setVueloFormOpen(!vueloFormOpen); }}
-              className="flex-1 flex items-center justify-center gap-2 p-3 rounded-lg bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-colors"
-            >
-              <Plane size={16} className="text-purple-600 dark:text-purple-400" />
-              <span className="font-medium text-sm text-purple-900 dark:text-purple-100">
-                {editingVuelo ? 'Editando...' : 'Nuevo Vuelo'}
-              </span>
-            </button>
+        {isCollapsed ? (
+          <div className="flex flex-col items-center gap-3 py-4 px-1">
+            <Badge variant={sseConnected ? 'green' : 'red'} className="!px-1 !text-[10px]">
+              {sseConnected ? 'SSE' : 'OFF'}
+            </Badge>
+            <span className={`w-2 h-2 rounded-full ${telemetria ? 'bg-green-500' : 'bg-red-500'}`} title={telemetria ? 'WebSocket conectado' : 'WebSocket desconectado'} />
           </div>
-
-          {formOpen && (
-            <form onSubmit={handleSubmit} className="space-y-3 mb-4 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-              <Input
-                label="ID Equipaje"
-                placeholder="MAL-2025-00123"
-                value={formData.idEquipaje}
-                onChange={e => setFormData(prev => ({ ...prev, idEquipaje: e.target.value }))}
-                error={formErrors.idEquipaje}
-                autoComplete="off"
-              />
-
-              <Select
-                label="Destino IATA"
-                placeholder={nodos.length === 0 ? 'No hay destinos disponibles' : 'Seleccionar destino'}
-                options={destinoOptions}
-                value={formData.destinoIata}
-                onChange={e => setFormData(prev => ({ ...prev, destinoIata: e.target.value }))}
-                error={formErrors.destinoIata}
-                disabled={nodos.length === 0}
-              />
-
-              <Select
-                label="Vuelo"
-                placeholder={vuelosProgramados.length === 0 ? 'No hay vuelos programados' : 'Seleccionar vuelo'}
-                options={vueloOptions}
-                value={formData.vueloId}
-                onChange={e => setFormData(prev => ({ ...prev, vueloId: e.target.value }))}
-                error={formErrors.vueloId}
-                disabled={vuelosProgramados.length === 0}
-              />
-
-              <Input
-                label="SLA Comprometido (horas)"
-                type="number"
-                placeholder="24"
-                min="1"
-                value={formData.slaComprometido}
-                onChange={e => setFormData(prev => ({ ...prev, slaComprometido: e.target.value }))}
-                error={formErrors.slaComprometido}
-              />
-
-              {formError && (
-                <div className="flex items-center gap-2 p-2 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
+        ) : (
+          <>
+            <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-semibold text-slate-900 dark:text-slate-100">Operación en Vivo</h2>
+                <button
+                  onClick={fetchData}
+                  disabled={loading}
+                  className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 disabled:opacity-50"
+                  title="Actualizar"
+                >
+                  <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+                </button>
+              </div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className={`w-2 h-2 rounded-full ${sseConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+                <span className="text-xs text-slate-500">
+                  SSE {sseConnected ? 'conectado' : 'desconectado'}
+                </span>
+                <span className="w-1 h-1 rounded-full bg-slate-300 mx-1" />
+                <span className={`w-2 h-2 rounded-full ${telemetria ? 'bg-green-500' : 'bg-red-500'}`} />
+                <span className="text-xs text-slate-500">
+                  WS {telemetria ? 'conectado' : 'desconectado'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Última actualización: {lastUpdate ? lastUpdate.toLocaleTimeString('es-ES') : '...'}
+              </p>
+              {apiError && (
+                <div className="flex items-center gap-2 p-2 mt-2 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
                   <XCircle size={14} className="text-red-600 dark:text-red-400 flex-shrink-0" />
-                  <span className="text-xs text-red-700 dark:text-red-300">{formError}</span>
+                  <span className="text-xs text-red-700 dark:text-red-300">{apiError}</span>
                 </div>
               )}
-
-              <Button type="submit" disabled={formLoading} className="w-full">
-                {formLoading ? 'Registrando...' : 'Registrar'}
-              </Button>
-            </form>
-          )}
-
-          {vueloFormOpen && (
-            <form onSubmit={handleVueloSubmit} className="space-y-3 mb-4 p-3 rounded-lg bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800">
-              <h4 className="text-sm font-medium text-purple-900 dark:text-purple-100">
-                {editingVuelo ? 'Editar Vuelo' : 'Nuevo Vuelo'}
-              </h4>
-              <Input
-                label="Código Vuelo"
-                placeholder="LA2402"
-                value={vueloFormData.codigo_vuelo}
-                onChange={e => setVueloFormData(prev => ({ ...prev, codigo_vuelo: e.target.value }))}
-              />
-              <Select
-                label="Origen"
-                placeholder={nodos.length === 0 ? 'No hay nodos disponibles' : 'Seleccionar origen'}
-                options={nodos.map(n => ({ value: n.id, label: `${n.codigo_iata} - ${n.nombre}` }))}
-                value={vueloFormData.origen_id}
-                onChange={e => setVueloFormData(prev => ({ ...prev, origen_id: e.target.value }))}
-                disabled={nodos.length === 0}
-              />
-              <Select
-                label="Destino"
-                placeholder={nodos.length === 0 ? 'No hay nodos disponibles' : 'Seleccionar destino'}
-                options={nodos.map(n => ({ value: n.id, label: `${n.codigo_iata} - ${n.nombre}` }))}
-                value={vueloFormData.destino_id}
-                onChange={e => setVueloFormData(prev => ({ ...prev, destino_id: e.target.value }))}
-                disabled={nodos.length === 0}
-              />
-              <Input
-                label="Hora Salida"
-                type="datetime-local"
-                value={vueloFormData.hora_salida}
-                onChange={e => setVueloFormData(prev => ({ ...prev, hora_salida: e.target.value }))}
-              />
-              <Input
-                label="Hora Llegada"
-                type="datetime-local"
-                value={vueloFormData.hora_llegada}
-                onChange={e => setVueloFormData(prev => ({ ...prev, hora_llegada: e.target.value }))}
-              />
-              <Input
-                label="Capacidad de Carga"
-                type="number"
-                placeholder="200"
-                min="1"
-                value={vueloFormData.capacidad_carga}
-                onChange={e => setVueloFormData(prev => ({ ...prev, capacidad_carga: e.target.value }))}
-              />
-              {vueloFormError && (
-                <div className="flex items-center gap-2 p-2 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
-                  <XCircle size={14} className="text-red-600 dark:text-red-400 flex-shrink-0" />
-                  <span className="text-xs text-red-700 dark:text-red-300">{vueloFormError}</span>
-                </div>
-              )}
-              <div className="flex gap-2">
-                <Button type="submit" disabled={vueloFormLoading} className="flex-1">
-                  {vueloFormLoading ? 'Guardando...' : (editingVuelo ? 'Actualizar' : 'Crear')}
-                </Button>
-                <Button type="button" variant="secondary" onClick={() => { resetVueloForm(); setVueloFormOpen(false); }}>
-                  Cancelar
-                </Button>
-              </div>
-            </form>
-          )}
-
-          {formSuccess && (
-            <div className="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800">
-              <div className="flex items-center gap-2 mb-2">
-                <CheckCircle size={16} className="text-green-600 dark:text-green-400" />
-                <span className="font-medium text-sm text-green-900 dark:text-green-100">Equipaje registrado</span>
-              </div>
-              <div className="space-y-1 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-slate-600 dark:text-slate-400">ID:</span>
-                  <span className="font-medium text-slate-900 dark:text-slate-100">{formSuccess.id}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600 dark:text-slate-400">Estado:</span>
-                  <Badge variant="green">{formSuccess.estado}</Badge>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="flex items-center gap-2 mb-3 mt-4">
-            <Package size={16} className="text-slate-400" />
-            <h3 className="font-medium text-sm text-slate-700 dark:text-slate-300">
-              Equipajes Recientes
-            </h3>
-            <Badge variant="blue">{equipajesRecientes.length}</Badge>
-          </div>
-
-          <div className="space-y-2">
-            {equipajesRecientes.map((eq, i) => (
-              <div
-                key={i}
-                className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
-                <div className="p-1.5 rounded-lg bg-slate-200 dark:bg-slate-700">
-                  <Package size={14} className="text-slate-500" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
-                      {eq.id_externo}
-                    </span>
-                    <Badge variant={estadoColor(eq.estado)}>{eq.estado.replace('_', ' ')}</Badge>
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <MapPin size={11} className="text-slate-400" />
-                    <span className="text-xs text-slate-500">{eq.destino}</span>
-                    <Clock size={11} className="text-slate-400 ml-2" />
-                    <span className="text-xs text-slate-400">{eq.tiempo}</span>
-                  </div>
-                </div>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => handleEditarEquipaje(eq)}
-                    className="p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-500"
-                    title="Editar equipaje"
-                  >
-                    <Package size={14} />
-                  </button>
-                  <button
-                    onClick={() => handleEliminarEquipaje(eq.id_externo)}
-                    className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500"
-                    title="Eliminar equipaje"
-                  >
-                    <XCircle size={14} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {vuelosEnRuta.length > 0 && (
-            <>
-              <div className="flex items-center gap-2 mb-3 mt-4">
-                <Plane size={16} className="text-slate-400" />
-                <h3 className="font-medium text-sm text-slate-700 dark:text-slate-300">
-                  Vuelos en Ruta
-                </h3>
-                <Badge variant="blue">{vuelosEnRuta.length}</Badge>
-              </div>
-              <div className="space-y-2">
-                {vuelosEnRuta.map((vuelo) => {
-                  const ocupacion = vuelo.capacidad_carga > 0
-                    ? Math.round((1 - vuelo.carga_disponible / vuelo.capacidad_carga) * 100)
-                    : 0;
-                  return (
+              {notificaciones.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {notificaciones.map(n => (
                     <div
-                      key={vuelo.id}
-                      className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                      key={n.id}
+                      className={`flex items-center gap-2 p-2 rounded-lg text-xs ${
+                        n.tipo === 'success'
+                          ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                          : 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                      }`}
                     >
-                      <div className="p-1.5 rounded-lg bg-blue-200 dark:bg-blue-700">
-                        <Plane size={14} className="text-blue-600 dark:text-blue-300" />
+                      {n.tipo === 'success' ? <CheckCircle size={12} /> : <XCircle size={12} />}
+                      {n.mensaje}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <MetricasOperacion />
+
+            <ResumenVuelosOperacion vuelos={telemetria?.vuelos ?? []} />
+
+            {telemetria?.nodos && telemetria.nodos.length > 0 && (
+              <PanelNodosOperacion
+                nodos={telemetria.nodos}
+                vuelos={telemetria.vuelos ?? []}
+                onNodoClick={(id, codigo) => setSelectedEnvio({ tipo: 'nodo', id, codigo })}
+              />
+            )}
+
+            {telemetria?.vuelos && telemetria.vuelos.length > 0 && (
+              <PanelVuelosOperacion
+                vuelos={telemetria.vuelos}
+                onVueloClick={(id, codigo) => setSelectedEnvio({ tipo: 'vuelo', id, codigo })}
+                origenFilter={vueloFilterOrigen}
+                destinoFilter={vueloFilterDestino}
+                onFilterChange={({ origen, destino }) => {
+                  setVueloFilterOrigen(origen);
+                  setVueloFilterDestino(destino);
+                }}
+              />
+            )}
+
+            <PanelEntregadosOperacion activo={true} />
+
+            {selectedEnvio && (
+              <PanelEnviosOperacion
+                selectedEnvio={selectedEnvio}
+                onClose={() => setSelectedEnvio(null)}
+              />
+            )}
+
+            <div className="p-4 border-t border-slate-200 dark:border-slate-700">
+              <div className="flex gap-2 mb-3">
+                <button
+                  onClick={() => setFormOpen(!formOpen)}
+                  className="flex-1 flex items-center justify-between p-3 rounded-lg bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <Package size={16} className="text-blue-600 dark:text-blue-400" />
+                    <span className="font-medium text-sm text-blue-900 dark:text-blue-100">Individual</span>
+                  </div>
+                  {formOpen ? <ChevronUp size={16} className="text-blue-600 dark:text-blue-400" /> : <ChevronDown size={16} className="text-blue-600 dark:text-blue-400" />}
+                </button>
+                <button
+                  onClick={() => setCargaMasivaOpen(true)}
+                  className="flex-1 flex items-center justify-center gap-2 p-3 rounded-lg bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors"
+                >
+                  <FileSpreadsheet size={16} className="text-green-600 dark:text-green-400" />
+                  <span className="font-medium text-sm text-green-900 dark:text-green-100">Carga Masiva</span>
+                </button>
+                <button
+                  onClick={() => { resetVueloForm(); setVueloFormOpen(!vueloFormOpen); }}
+                  className="flex-1 flex items-center justify-center gap-2 p-3 rounded-lg bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-colors"
+                >
+                  <Plane size={16} className="text-purple-600 dark:text-purple-400" />
+                  <span className="font-medium text-sm text-purple-900 dark:text-purple-100">
+                    {editingVuelo ? 'Editando...' : 'Nuevo Vuelo'}
+                  </span>
+                </button>
+              </div>
+
+              {formOpen && (
+                <form onSubmit={handleSubmit} className="space-y-3 mb-4 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                  <Input
+                    label="ID Equipaje"
+                    placeholder="MAL-2025-00123"
+                    value={formData.idEquipaje}
+                    onChange={e => setFormData(prev => ({ ...prev, idEquipaje: e.target.value }))}
+                    error={formErrors.idEquipaje}
+                    autoComplete="off"
+                  />
+
+                  <Select
+                    label="Destino IATA"
+                    placeholder={nodos.length === 0 ? 'No hay destinos disponibles' : 'Seleccionar destino'}
+                    options={destinoOptions}
+                    value={formData.destinoIata}
+                    onChange={e => setFormData(prev => ({ ...prev, destinoIata: e.target.value }))}
+                    error={formErrors.destinoIata}
+                    disabled={nodos.length === 0}
+                  />
+
+                  <Select
+                    label="Vuelo"
+                    placeholder={vuelosProgramados.length === 0 ? 'No hay vuelos programados' : 'Seleccionar vuelo'}
+                    options={vueloOptions}
+                    value={formData.vueloId}
+                    onChange={e => setFormData(prev => ({ ...prev, vueloId: e.target.value }))}
+                    error={formErrors.vueloId}
+                    disabled={vuelosProgramados.length === 0}
+                  />
+
+                  <Input
+                    label="SLA Comprometido (horas)"
+                    type="number"
+                    placeholder="24"
+                    min="1"
+                    value={formData.slaComprometido}
+                    onChange={e => setFormData(prev => ({ ...prev, slaComprometido: e.target.value }))}
+                    error={formErrors.slaComprometido}
+                  />
+
+                  {formError && (
+                    <div className="flex items-center gap-2 p-2 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
+                      <XCircle size={14} className="text-red-600 dark:text-red-400 flex-shrink-0" />
+                      <span className="text-xs text-red-700 dark:text-red-300">{formError}</span>
+                    </div>
+                  )}
+
+                  <Button type="submit" disabled={formLoading} className="w-full">
+                    {formLoading ? 'Registrando...' : 'Registrar'}
+                  </Button>
+                </form>
+              )}
+
+              {vueloFormOpen && (
+                <form onSubmit={handleVueloSubmit} className="space-y-3 mb-4 p-3 rounded-lg bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800">
+                  <h4 className="text-sm font-medium text-purple-900 dark:text-purple-100">
+                    {editingVuelo ? 'Editar Vuelo' : 'Nuevo Vuelo'}
+                  </h4>
+                  <Input
+                    label="Código Vuelo"
+                    placeholder="LA2402"
+                    value={vueloFormData.codigo_vuelo}
+                    onChange={e => setVueloFormData(prev => ({ ...prev, codigo_vuelo: e.target.value }))}
+                  />
+                  <Select
+                    label="Origen"
+                    placeholder={nodos.length === 0 ? 'No hay nodos disponibles' : 'Seleccionar origen'}
+                    options={nodos.map(n => ({ value: n.id, label: `${n.codigo_iata} - ${n.nombre}` }))}
+                    value={vueloFormData.origen_id}
+                    onChange={e => setVueloFormData(prev => ({ ...prev, origen_id: e.target.value }))}
+                    disabled={nodos.length === 0}
+                  />
+                  <Select
+                    label="Destino"
+                    placeholder={nodos.length === 0 ? 'No hay nodos disponibles' : 'Seleccionar destino'}
+                    options={nodos.map(n => ({ value: n.id, label: `${n.codigo_iata} - ${n.nombre}` }))}
+                    value={vueloFormData.destino_id}
+                    onChange={e => setVueloFormData(prev => ({ ...prev, destino_id: e.target.value }))}
+                    disabled={nodos.length === 0}
+                  />
+                  <Input
+                    label="Hora Salida"
+                    type="datetime-local"
+                    value={vueloFormData.hora_salida}
+                    onChange={e => setVueloFormData(prev => ({ ...prev, hora_salida: e.target.value }))}
+                  />
+                  <Input
+                    label="Hora Llegada"
+                    type="datetime-local"
+                    value={vueloFormData.hora_llegada}
+                    onChange={e => setVueloFormData(prev => ({ ...prev, hora_llegada: e.target.value }))}
+                  />
+                  <Input
+                    label="Capacidad de Carga"
+                    type="number"
+                    placeholder="200"
+                    min="1"
+                    value={vueloFormData.capacidad_carga}
+                    onChange={e => setVueloFormData(prev => ({ ...prev, capacidad_carga: e.target.value }))}
+                  />
+                  {vueloFormError && (
+                    <div className="flex items-center gap-2 p-2 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
+                      <XCircle size={14} className="text-red-600 dark:text-red-400 flex-shrink-0" />
+                      <span className="text-xs text-red-700 dark:text-red-300">{vueloFormError}</span>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <Button type="submit" disabled={vueloFormLoading} className="flex-1">
+                      {vueloFormLoading ? 'Guardando...' : (editingVuelo ? 'Actualizar' : 'Crear')}
+                    </Button>
+                    <Button type="button" variant="secondary" onClick={() => { resetVueloForm(); setVueloFormOpen(false); }}>
+                      Cancelar
+                    </Button>
+                  </div>
+                </form>
+              )}
+
+              {formSuccess && (
+                <div className="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle size={16} className="text-green-600 dark:text-green-400" />
+                    <span className="font-medium text-sm text-green-900 dark:text-green-100">Equipaje registrado</span>
+                  </div>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-slate-600 dark:text-slate-400">ID:</span>
+                      <span className="font-medium text-slate-900 dark:text-slate-100">{formSuccess.id}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600 dark:text-slate-400">Estado:</span>
+                      <Badge variant="green">{formSuccess.estado}</Badge>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 mb-3 mt-4">
+                <Package size={16} className="text-slate-400" />
+                <h3 className="font-medium text-sm text-slate-700 dark:text-slate-300">
+                  Equipajes Recientes
+                </h3>
+                <Badge variant="blue">{equipajesRecientes.length}</Badge>
+              </div>
+
+              <div className="space-y-2">
+                {equipajesRecientes.map((eq, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    <div className="p-1.5 rounded-lg bg-slate-200 dark:bg-slate-700">
+                      <Package size={14} className="text-slate-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                          {eq.id_externo}
+                        </span>
+                        <Badge variant={estadoColor(eq.estado)}>{eq.estado.replace('_', ' ')}</Badge>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
-                          {vuelo.codigo_vuelo}
-                        </div>
-                        <div className="text-xs text-slate-500">
-                          {vuelo.origen.codigo_iata} → {vuelo.destino.codigo_iata}
-                        </div>
-                        <div className="mt-1 flex items-center gap-2">
-                          <div className="flex-1 h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
-                            <div
-                              className="h-full rounded-full bg-blue-500"
-                              style={{ width: `${Math.min(ocupacion, 100)}%` }}
-                            />
-                          </div>
-                          <span className="text-xs font-medium text-slate-600 dark:text-slate-400 tabular-nums">
-                            {vuelo.carga_disponible}/{vuelo.capacidad_carga}
-                          </span>
-                        </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-xs text-slate-500">{eq.destino}</span>
+                        <span className="text-xs text-slate-400">{eq.tiempo}</span>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
-
-          <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-            <h3 className="font-medium text-sm text-slate-700 dark:text-slate-300 mb-3">
-              Resumen de Nodos
-            </h3>
-            <div className="space-y-2">
-              {nodos.map((nodo) => (
-                <div key={nodo.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50">
-                  <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                    {nodo.codigo_iata}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-500">
-                      {nodo.ocupacion_actual}/{nodo.capacidad_almacen}
-                    </span>
-                    <span
-                      className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: nodo.color }}
-                    />
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => handleEditarEquipaje(eq)}
+                        className="p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-500"
+                        title="Editar equipaje"
+                      >
+                        <Package size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleEliminarEquipaje(eq.id_externo)}
+                        className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500"
+                        title="Eliminar equipaje"
+                      >
+                        <XCircle size={14} />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+                ))}
+              </div>
 
-        <div className="p-4 border-t border-slate-200 dark:border-slate-700">
-          <p className="text-xs text-slate-400 text-center">
-            Polling cada 5s — preparado para Redis
-          </p>
-        </div>
+              {vuelosEnRuta.length > 0 && (
+                <>
+                  <div className="flex items-center gap-2 mb-3 mt-4">
+                    <Plane size={16} className="text-slate-400" />
+                    <h3 className="font-medium text-sm text-slate-700 dark:text-slate-300">
+                      Vuelos en Ruta
+                    </h3>
+                    <Badge variant="blue">{vuelosEnRuta.length}</Badge>
+                  </div>
+                  <div className="space-y-2">
+                    {vuelosEnRuta.map((vuelo) => {
+                      const ocupacion = vuelo.capacidad_carga > 0
+                        ? Math.round((1 - vuelo.carga_disponible / vuelo.capacidad_carga) * 100)
+                        : 0;
+                      return (
+                        <div
+                          key={vuelo.id}
+                          className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        >
+                          <div className="p-1.5 rounded-lg bg-blue-200 dark:bg-blue-700">
+                            <Plane size={14} className="text-blue-600 dark:text-blue-300" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                              {vuelo.codigo_vuelo}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              {vuelo.origen.codigo_iata} → {vuelo.destino.codigo_iata}
+                            </div>
+                            <div className="mt-1 flex items-center gap-2">
+                              <div className="flex-1 h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                                <div
+                                  className="h-full rounded-full bg-blue-500"
+                                  style={{ width: `${Math.min(ocupacion, 100)}%` }}
+                                />
+                              </div>
+                              <span className="text-xs font-medium text-slate-600 dark:text-slate-400 tabular-nums">
+                                {vuelo.carga_disponible}/{vuelo.capacidad_carga}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => handleEditarVuelo(vuelo)}
+                              className="p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-500"
+                              title="Editar vuelo"
+                            >
+                              <Plane size={14} />
+                            </button>
+                            <button
+                              onClick={() => handleEliminarVuelo(vuelo)}
+                              className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500"
+                              title="Eliminar vuelo"
+                            >
+                              <XCircle size={14} />
+                            </button>
+                            <button
+                              onClick={() => handleDescargarManifiesto(vuelo)}
+                              disabled={manifestLoading === vuelo.id}
+                              className="p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/30 text-green-500 disabled:opacity-50"
+                              title="Descargar manifiesto"
+                            >
+                              <Upload size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-slate-200 dark:border-slate-700">
+              <p className="text-xs text-slate-400 text-center">
+                Polling cada 5s — WebSocket + SSE en tiempo real
+              </p>
+            </div>
+          </>
+        )}
       </div>
 
       <Modal

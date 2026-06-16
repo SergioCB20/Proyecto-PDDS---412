@@ -107,6 +107,25 @@ public class EquipajeController {
         }
     }
 
+    @GetMapping
+    public ResponseEntity<?> listar(
+            @RequestParam(required = false) String vuelo_id,
+            @RequestParam(required = false) String estado,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        return ResponseEntity.ok(equipajeService.listarEquipajes(vuelo_id, estado, page, size));
+    }
+
+    @GetMapping("/recientes")
+    public ResponseEntity<?> recientes(@RequestParam(defaultValue = "4") int horas) {
+        return ResponseEntity.ok(equipajeService.obtenerEntregadosRecientes(horas));
+    }
+
+    @GetMapping("/metricas")
+    public ResponseEntity<?> metricas() {
+        return ResponseEntity.ok(equipajeService.obtenerMetricasOperacion());
+    }
+
     private UUID extraerNodoIdDelToken(String authHeader) {
         if (authHeader == null || !authHeader.startsWith("Bearer ")) return null;
         String token = authHeader.substring(7);

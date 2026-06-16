@@ -8,6 +8,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.data.domain.PageRequest;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -278,6 +279,153 @@ public class EquipajeService {
                 equipaje.getIdExterno(),
                 equipaje.getDestinoIata(),
                 pv
+        );
+    }
+
+    public record EquipajeListItemResponse(
+            UUID id,
+            String id_externo,
+            String estado,
+            String origen_iata,
+            String destino_iata,
+            OffsetDateTime fecha_ingreso,
+            Integer cantidad
+    ) {}
+
+    public record EnvioItemOperacionResponse(
+            String origen_iata,
+            String destino_iata,
+            String codigo_equipaje,
+            Integer cantidad
+    ) {}
+
+    public record EntregadoRecienteResponse(
+            String origen_iata,
+            String destino_iata,
+            String codigo_vuelo,
+            Integer cantidad
+    ) {}
+
+    public record MetricasOperacionResponse(
+            long total_equipajes,
+            long equipajes_registrados,
+            long equipajes_en_vuelo,
+            long equipajes_en_almacen,
+            long equipajes_entregados,
+            long equipajes_replanificacion,
+            long equipajes_incumplimiento_sla,
+            long vuelos_programados,
+            long vuelos_en_ruta,
+            long vuelos_completados,
+            long vuelos_cancelados
+    ) {}
+
+    public List<EquipajeListItemResponse> listarEquipajes(String vueloId, String estado, int page, int size) {
+        if (vueloId != null && !vueloId.isBlank()) {
+            UUID vid = UUID.fromString(vueloId);
+            List<Equipaje> equipajes = equipajeRepository.findByVueloActualId(vid);
+            return equipajes.stream()
+                    .map(e -> new EquipajeListItemResponse(
+                            e.getId(), e.getIdExterno(), e.getEstado().name(),
+                            e.getOrigenIata(), e.getDestinoIata(),
+                            e.getFechaIngreso(), e.getCantidad()))
+                    .toList();
+        }
+        if (estado != null && !estado.isBlank()) {
+            EstadoEquipaje est = EstadoEquipaje.valueOf(estado);
+            var result = equipajeRepository.findByEstado(est, PageRequest.of(page, size));
+            return result.getContent().stream()
+                    .map(e -> new EquipajeListItemResponse(
+                            e.getId(), e.getIdExterno(), e.getEstado().name(),
+                            e.getOrigenIata(), e.getDestinoIata(),
+                            e.getFechaIngreso(), e.getCantidad()))
+                    .toList();
+        }
+        var result = equipajeRepository.findAll(PageRequest.of(page, size));
+        return result.getContent().stream()
+                .map(e -> new EquipajeListItemResponse(
+                        e.getId(), e.getIdExterno(), e.getEstado().name(),
+                        e.getOrigenIata(), e.getDestinoIata(),
+                        e.getFechaIngreso(), e.getCantidad()))
+                .toList();
+    }
+
+    public List<EnvioItemOperacionResponse> obtenerEnviosVuelo(UUID vueloId) {
+        List<Equipaje> equipajes = equipajeRepository.findByVueloActualId(vueloId);
+        return equipajes.stream()
+                .map(e -> new EnvioItemOperacionResponse(
+                        e.getOrigenIata(),
+                        e.getDestinoIata(),
+                        e.getIdExterno() != null ? e.getIdExterno() : e.getId().toString(),
+                        e.getCantidad() != null ? e.getCantidad() : 1
+                ))
+                .toList();
+    }
+
+    public List<EnvioItemOperacionResponse> obtenerEnviosNodo(String nodoIata) {
+        List<Equipaje> enAlmacen = equipajeRepository.findByEstadoAndDestinoIata(EstadoEquipaje.EN_ALMACEN, nodoIata);
+        List<Equipaje> origen = equipajeRepository.findByEstadoAndOrigenIata(EstadoEquipaje.REGISTRADO, nodoIata);
+
+        java.util.Set<UUID> ids = new java.util.HashSet<>();
+        java.util.List<Equipaje> result = new java.util.ArrayList<>();
+        for (Equipaje e : enAlmacen) {
+            if (ids.add(e.getId())) result.add(e);
+        }
+        for (Equipaje e : origen) {
+            if (ids.add(e.getId())) result.add(e);
+        }
+
+        return result.stream()
+                .map(e -> new EnvioItemOperacionResponse(
+                        e.getOrigenIata(),
+                        e.getDestinoIata(),
+                        e.getIdExterno() != null ? e.getIdExterno() : e.getId().toString(),
+                        e.getCantidad() != null ? e.getCantidad() : 1
+                ))
+                .toList();
+    }
+
+    public List<EntregadoRecienteResponse> obtenerEntregadosRecientes(int horas) {
+        OffsetDateTime desde = OffsetDateTime.now().minusHours(horas);
+        List<Equipaje> equipajes = equipajeRepository.findEntregadosRecientes(desde, PageRequest.of(0, 100));
+        return equipajes.stream()
+                .map(e -> {
+                    String codigoVuelo = "";
+                    if (e.getPlanViaje() != null && e.getPlanViaje().getSegmentos() != null) {
+                        codigoVuelo = e.getPlanViaje().getSegmentos().stream()
+                                .filter(sp -> sp.getEstado().name().equals("COMPLETADO"))
+                                .max(java.util.Comparator.comparingInt(sp -> sp.getOrden() != null ? sp.getOrden() : 0))
+                                .map(sp -> sp.getVuelo() != null ? sp.getVuelo().getCodigoVuelo() : "")
+                                .orElse("");
+                    }
+                    return new EntregadoRecienteResponse(
+                            e.getOrigenIata(),
+                            e.getDestinoIata(),
+                            codigoVuelo,
+                            e.getCantidad() != null ? e.getCantidad() : 1
+                    );
+                })
+                .toList();
+    }
+
+    public MetricasOperacionResponse obtenerMetricasOperacion() {
+        long total = equipajeRepository.count();
+        long registrados = equipajeRepository.countByEstado(EstadoEquipaje.REGISTRADO);
+        long enVuelo = equipajeRepository.countByEstado(EstadoEquipaje.EN_VUELO);
+        long enAlmacen = equipajeRepository.countByEstado(EstadoEquipaje.EN_ALMACEN);
+        long entregados = equipajeRepository.countByEstado(EstadoEquipaje.ENTREGADO);
+        long replanificacion = equipajeRepository.countByEstado(EstadoEquipaje.EN_REPLANIFICACION);
+        long incumplimiento = equipajeRepository.countByEstado(EstadoEquipaje.INCUMPLIMIENTO_SLA);
+
+        long programados = vueloRepository.countByEstadoAndEsPlantilla(EstadoVuelo.PROGRAMADO, false);
+        long enRuta = vueloRepository.countByEstadoAndEsPlantilla(EstadoVuelo.EN_RUTA, false);
+        long completados = vueloRepository.countByEstadoAndEsPlantilla(EstadoVuelo.COMPLETADO, false);
+        long cancelados = vueloRepository.countByEstadoAndEsPlantilla(EstadoVuelo.CANCELADO, false);
+
+        return new MetricasOperacionResponse(
+                total, registrados, enVuelo, enAlmacen, entregados,
+                replanificacion, incumplimiento,
+                programados, enRuta, completados, cancelados
         );
     }
 

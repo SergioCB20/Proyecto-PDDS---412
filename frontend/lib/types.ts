@@ -244,3 +244,27 @@ export interface TelemetriaMensaje {
   vuelos: VueloTelemetria[];
   metricas_sesion: MetricasSimulacion;
 }
+
+export interface MetricasOperacion {
+  total_equipajes: number;
+  equipajes_registrados: number;
+  equipajes_en_vuelo: number;
+  equipajes_en_almacen: number;
+  equipajes_entregados: number;
+  equipajes_replanificacion: number;
+  equipajes_incumplimiento_sla: number;
+  vuelos_programados: number;
+  vuelos_en_ruta: number;
+  vuelos_completados: number;
+  vuelos_cancelados: number;
+}
+
+export interface EquipajeListItem {
+  id: string;
+  id_externo: string;
+  estado: string;
+  origen_iata: string;
+  destino_iata: string;
+  fecha_ingreso: string;
+  cantidad: number;
+}

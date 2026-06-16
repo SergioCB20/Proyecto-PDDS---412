@@ -1,6 +1,7 @@
 package com.tasfb2b.backend.bc1.infrastructure;
 
 import com.tasfb2b.backend.bc1.application.VueloService;
+import com.tasfb2b.backend.bc1.application.EquipajeService;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -17,9 +18,11 @@ import java.util.UUID;
 public class VueloController {
 
     private final VueloService vueloService;
+    private final EquipajeService equipajeService;
 
-    public VueloController(VueloService vueloService) {
+    public VueloController(VueloService vueloService, EquipajeService equipajeService) {
         this.vueloService = vueloService;
+        this.equipajeService = equipajeService;
     }
 
     @GetMapping
@@ -77,5 +80,10 @@ public class VueloController {
             return ResponseEntity.unprocessableEntity()
                     .body(Map.of("status", 422, "error", "VALIDACION", "mensaje", e.getMessage()));
         }
+    }
+
+    @GetMapping("/{id}/equipajes")
+    public ResponseEntity<?> obtenerEquipajes(@PathVariable UUID id) {
+        return ResponseEntity.ok(equipajeService.obtenerEnviosVuelo(id));
     }
 }
