@@ -26,6 +26,20 @@ public interface EquipajeRepository extends JpaRepository<Equipaje, UUID> {
             @Param("sesionId") UUID sesionId,
             @Param("vueloId") UUID vueloId);
 
+    long countByEstado(EstadoEquipaje estado);
+
+    @Query("SELECT e FROM Equipaje e WHERE e.estado = 'ENTREGADO' AND e.fechaOperacion >= :desde ORDER BY e.fechaOperacion DESC")
+    List<Equipaje> findEntregadosRecientes(@Param("desde") java.time.OffsetDateTime desde, org.springframework.data.domain.Pageable pageable);
+
+    @Query("SELECT e FROM Equipaje e WHERE e.estado = :estado AND e.vueloActual.id = :vueloId")
+    List<Equipaje> findByEstadoAndVueloActualId(@Param("estado") EstadoEquipaje estado, @Param("vueloId") UUID vueloId);
+
+    @Query("SELECT e FROM Equipaje e WHERE e.estado = :estado AND e.origenIata = :nodoIata")
+    List<Equipaje> findByEstadoAndOrigenIata(@Param("estado") EstadoEquipaje estado, @Param("nodoIata") String nodoIata);
+
+    @Query("SELECT e FROM Equipaje e WHERE e.estado = :estado AND e.destinoIata = :nodoIata")
+    List<Equipaje> findByEstadoAndDestinoIata(@Param("estado") EstadoEquipaje estado, @Param("nodoIata") String nodoIata);
+
     /**
      * Bolsas EN_ALMACEN en un nodo: busca por origen (primer nodo) o por destino del
      * último segmento COMPLETADO (nodo intermedio). Cubre ambos casos sin depender de
