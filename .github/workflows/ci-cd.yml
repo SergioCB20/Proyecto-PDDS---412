@@ -106,15 +106,24 @@ jobs:
           script: |
             set -e
 
+            echo "=== Espacio en disco ANTES de limpieza ==="
+            df -h / | tail -1
+
             cd "${{ secrets.SERVER_DIR }}"
             git fetch origin main && git reset --hard origin/main
 
             # 0. Liberar espacio en disco para evitar out-of-disk
+            echo "🧹 Limpiando cache de npm, logs del sistema, builds anteriores..."
+            rm -rf ~/.npm/_cacache 2>/dev/null || true
             sudo apt clean -qq 2>/dev/null || true
             sudo journalctl --vacuum-time=3d --quiet 2>/dev/null || true
+            sudo rm -f /var/log/syslog.* /var/log/btmp.* /var/log/auth.log.* /var/log/*.gz 2>/dev/null || true
             sudo rm -rf frontend/node_modules backend/backend/target 2>/dev/null || true
             # Limpiar WAR antiguo de despliegues previos (back/ era contexto /back/)
             sudo rm -rf /opt/tomcat11/webapps/back.war /opt/tomcat11/webapps/back/
+
+            echo "=== Espacio en disco DESPUES de limpieza ==="
+            df -h / | tail -1
 
             # ── Backend ──────────────────────────
             cd backend/backend

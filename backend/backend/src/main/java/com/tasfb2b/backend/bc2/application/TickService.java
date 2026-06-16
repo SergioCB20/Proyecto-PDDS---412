@@ -46,6 +46,7 @@ public class TickService {
     private final ReporteSesionRepository reporteSesionRepository;
     private final PuntoSLARepository puntoSLARepository;
     private final PlanViajeRepository planViajeRepository;
+    private final SesionReadinessManager readinessManager;
     private final double k;
 
     private final ConcurrentHashMap<UUID, Integer> ultimaHoraRegistrada = new ConcurrentHashMap<>();
@@ -62,8 +63,9 @@ public class TickService {
                        ReplanificacionService replanificacionService,
                        ApplicationEventPublisher eventPublisher,
                        ReporteSesionRepository reporteSesionRepository,
-                       PuntoSLARepository puntoSLARepository,
-                       PlanViajeRepository planViajeRepository) {
+                        PuntoSLARepository puntoSLARepository,
+                        PlanViajeRepository planViajeRepository,
+                        SesionReadinessManager readinessManager) {
         this.sesionRepository = sesionRepository;
         this.vueloRepository = vueloRepository;
         this.equipajeRepository = equipajeRepository;
@@ -77,6 +79,7 @@ public class TickService {
         this.reporteSesionRepository = reporteSesionRepository;
         this.puntoSLARepository = puntoSLARepository;
         this.planViajeRepository = planViajeRepository;
+        this.readinessManager = readinessManager;
         this.k = 120.0; // fallback; el valor real viene de sesion.getK()
     }
 
@@ -95,6 +98,10 @@ public class TickService {
     }
 
     private void procesarTick(SesionEjecucion sesion) {
+        if (!readinessManager.estaLista(sesion.getId())) {
+            return;
+        }
+
         OffsetDateTime now = OffsetDateTime.now();
 
         avanzarRelojVirtual(sesion);
@@ -143,6 +150,7 @@ public class TickService {
 
         ultimaHoraRegistrada.remove(sesion.getId());
         ultimaFechaClonada.remove(sesion.getId());
+        readinessManager.eliminar(sesion.getId());
 
         try {
             redisCacheService.setEstadoSesion(sesion.getId(), "FINALIZADA");
@@ -371,6 +379,7 @@ public class TickService {
                 sesion.setFechaFinReal(now);
                 sesionRepository.save(sesion);
 
+                readinessManager.eliminar(sesion.getId());
                 redisCacheService.setEstadoSesion(sesion.getId(), "COLAPSADA");
                 redisCacheService.setMetricasSesion(sesion.getId(), buildMetricasJson(sesion, now, true));
 

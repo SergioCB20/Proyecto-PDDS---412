@@ -27,6 +27,7 @@ public class SimulacionPlanificador {
 
     private final SesionRepository sesionRepository;
     private final SimulacionEnrutamientoService enrutamientoService;
+    private final SesionReadinessManager readinessManager;
     private final RedisCacheService redisCacheService;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -38,11 +39,13 @@ public class SimulacionPlanificador {
 
     public SimulacionPlanificador(SesionRepository sesionRepository,
                                   SimulacionEnrutamientoService enrutamientoService,
+                                  SesionReadinessManager readinessManager,
                                   RedisCacheService redisCacheService,
                                   ApplicationEventPublisher eventPublisher,
                                   @Value("${app.simulacion.sa-segundos}") long saSegundosFallback) {
         this.sesionRepository = sesionRepository;
         this.enrutamientoService = enrutamientoService;
+        this.readinessManager = readinessManager;
         this.redisCacheService = redisCacheService;
         this.eventPublisher = eventPublisher;
         this.saSegundosFallback = saSegundosFallback;
@@ -62,6 +65,7 @@ public class SimulacionPlanificador {
         for (SesionEjecucion sesion : sesiones) {
             if (sesion.getTipo() != TipoSesion.SIMULADA) continue;
             if (sesion.getEstado() != EstadoSesion.EN_CURSO) continue;
+            if (!readinessManager.estaLista(sesion.getId())) continue;
 
             long saMs = (sesion.getSaSegundos() != null ? sesion.getSaSegundos() : saSegundosFallback) * 1000L;
             long ultimaEjecucion = ultimaPlanificacionMs.getOrDefault(sesion.getId(), 0L);

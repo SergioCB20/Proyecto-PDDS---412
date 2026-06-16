@@ -41,6 +41,8 @@ public class SesionService {
     private final PuntoSLARepository puntoSLARepository;
     private final EquipajeRepository equipajeRepository;
     private final PlanViajeRepository planViajeRepository;
+    private final SesionPreparacionAsync sesionPreparacionAsync;
+    private final SesionReadinessManager readinessManager;
     private final JdbcTemplate jdbcTemplate;
     private final SimulacionPlanificador simulacionPlanificador;
 
@@ -55,7 +57,9 @@ public class SesionService {
                          PuntoSLARepository puntoSLARepository,
                          EquipajeRepository equipajeRepository,
                          PlanViajeRepository planViajeRepository,
-                          JdbcTemplate jdbcTemplate,
+                         SesionPreparacionAsync sesionPreparacionAsync,
+                         SesionReadinessManager readinessManager,
+                         JdbcTemplate jdbcTemplate,
                          SimulacionPlanificador simulacionPlanificador) {
         this.sesionRepository = sesionRepository;
         this.vueloService = vueloService;
@@ -65,6 +69,8 @@ public class SesionService {
         this.puntoSLARepository = puntoSLARepository;
         this.equipajeRepository = equipajeRepository;
         this.planViajeRepository = planViajeRepository;
+        this.sesionPreparacionAsync = sesionPreparacionAsync;
+        this.readinessManager = readinessManager;
         this.jdbcTemplate = jdbcTemplate;
         this.simulacionPlanificador = simulacionPlanificador;
     }
@@ -147,13 +153,11 @@ public class SesionService {
             throw new IllegalStateException("Ya existe una sesion EN_CURSO. Detenela antes de iniciar otra.");
         }
 
-        // Preparar vuelos y alinear fechas ANTES de activar la sesion
-        // para que el TickService encuentre todo listo desde el primer tick
-        if (sesion.getTipo() == TipoSesion.SIMULADA) {
-            prepararInstanciasSimulacion(id);
-        }
-
         SesionIniciarResponse response = activarSesion(sesion);
+
+        // Lanzar preparacion async (clonar vuelos, alinear fechas)
+        // TickService y SimulacionPlanificador saltan hasta que marcarLista() se ejecute
+        sesionPreparacionAsync.preparar(id);
 
         return response;
     }
@@ -318,6 +322,7 @@ public class SesionService {
             log.warn("Redis no disponible al detener sesion {}: {}", sesion.getId(), e.getMessage());
         }
 
+        readinessManager.eliminar(sesion.getId());
         simulacionPlanificador.limpiarSesion(sesion.getId());
 
         eventPublisher.publishEvent(new SesionFinalizada(
