@@ -30,15 +30,18 @@ public class SesionPreparacionAsync {
     private final VueloService vueloService;
     private final ReporteSesionRepository reporteSesionRepository;
     private final JdbcTemplate jdbcTemplate;
+    private final SesionReadinessManager readinessManager;
 
     public SesionPreparacionAsync(SesionRepository sesionRepository,
                                    VueloService vueloService,
                                    ReporteSesionRepository reporteSesionRepository,
-                                   JdbcTemplate jdbcTemplate) {
+                                   JdbcTemplate jdbcTemplate,
+                                   SesionReadinessManager readinessManager) {
         this.sesionRepository = sesionRepository;
         this.vueloService = vueloService;
         this.reporteSesionRepository = reporteSesionRepository;
         this.jdbcTemplate = jdbcTemplate;
+        this.readinessManager = readinessManager;
     }
 
     @Async
@@ -85,6 +88,7 @@ public class SesionPreparacionAsync {
                 alinearFechasEquipajes(sesion);
             }
 
+            readinessManager.marcarLista(id);
             log.info("Preparacion async completada para sesion {}", id);
         } catch (Exception e) {
             log.error("Error en preparacion async de sesion {}: {}", id, e.getMessage());
