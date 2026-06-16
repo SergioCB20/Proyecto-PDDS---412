@@ -48,13 +48,29 @@ public class SimulacionEnrutamientoService {
 
     @Transactional
     public ResultadoVentana enrutarVentana(UUID sesionId, OffsetDateTime inicioVentana, OffsetDateTime finVentana) {
-        List<Equipaje> equipajes = jdbcTemplate.query(
+        List<Equipaje> backlog = jdbcTemplate.query(
+                "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad, fecha_ingreso " +
+                        "FROM equipajes" +
+                        " WHERE estado = 'REGISTRADO' AND fecha_operacion < ? " +
+                        "ORDER BY fecha_operacion",
+                this::mapEquipaje,
+                inicioVentana);
+
+        List<Equipaje> window = jdbcTemplate.query(
                 "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad, fecha_ingreso " +
                         "FROM equipajes" +
                         " WHERE estado = 'REGISTRADO' AND fecha_operacion >= ? AND fecha_operacion < ? " +
                         "ORDER BY fecha_operacion",
                 this::mapEquipaje,
                 inicioVentana, finVentana);
+
+        if (!backlog.isEmpty()) {
+            log.info("Backlog: {} equipajes atrasados en ventana {}-{}", backlog.size(), inicioVentana, finVentana);
+        }
+
+        List<Equipaje> equipajes = new ArrayList<>(backlog.size() + window.size());
+        equipajes.addAll(backlog);
+        equipajes.addAll(window);
 
         if (equipajes.isEmpty()) {
             return new ResultadoVentana(0, false, null, null);

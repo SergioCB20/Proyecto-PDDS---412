@@ -85,8 +85,6 @@ public class SesionPreparacionAsync {
                 alinearFechasEquipajes(sesion);
             }
 
-            alinearFechasEquipajes(sesion);
-
             log.info("Preparacion async completada para sesion {}", id);
         } catch (Exception e) {
             log.error("Error en preparacion async de sesion {}: {}", id, e.getMessage());
@@ -101,21 +99,34 @@ public class SesionPreparacionAsync {
             return;
         }
 
-        long offsetDias = java.time.temporal.ChronoUnit.DAYS.between(FECHA_BASE_ARCHIVO, fechaInicioVirtual);
-        if (offsetDias == 0) {
+        long targetOffset = java.time.temporal.ChronoUnit.DAYS.between(FECHA_BASE_ARCHIVO, fechaInicioVirtual);
+
+        long appliedOffset = 0;
+        try {
+            Integer prev = jdbcTemplate.queryForObject(
+                "SELECT COALESCE(MAX(fecha_alineada_a) - DATE '2026-01-02', 0) " +
+                "FROM sesiones_ejecucion WHERE fecha_alineada_a IS NOT NULL AND id != ?",
+                Integer.class, sesion.getId());
+            appliedOffset = prev != null ? prev.longValue() : 0;
+        } catch (Exception e) {
+            // No hay alineaciones previas
+        }
+
+        long delta = targetOffset - appliedOffset;
+        if (delta == 0) {
             log.info("Fechas ya alineadas para sesion {}", sesion.getId());
             sesion.setFechaAlineadaA(fechaInicioVirtual);
             sesionRepository.save(sesion);
             return;
         }
 
-        String signo = offsetDias > 0 ? "+" : "-";
-        long diasAbs = Math.abs(offsetDias);
+        String signo = delta > 0 ? "+" : "-";
+        long diasAbs = Math.abs(delta);
         int actualizados = jdbcTemplate.update(
             "UPDATE equipajes SET fecha_operacion = fecha_operacion + (? * INTERVAL '1 day'), " +
             "sla_comprometido = sla_comprometido + (? * INTERVAL '1 day') " +
             "WHERE estado = 'REGISTRADO'",
-            offsetDias, offsetDias
+            delta, delta
         );
         log.info("Alineacion de fechas para sesion {}: {} dias ({}{}). {} equipajes actualizados.",
             sesion.getId(), diasAbs, signo, diasAbs, actualizados);

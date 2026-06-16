@@ -208,30 +208,42 @@ public class SesionService {
     private void alinearFechasEquipajes(SesionEjecucion sesion) {
         LocalDate fechaInicioVirtual = sesion.getFechaInicioVirtual();
 
-        // Idempotente: si ya se alineó para esta sesión, no volver a aplicar el offset
         if (sesion.getFechaAlineadaA() != null) {
             log.info("Alineacion ya aplicada para sesion {}: fecha_alineada_a={}", sesion.getId(), sesion.getFechaAlineadaA());
             return;
         }
 
-        long offsetDias = java.time.temporal.ChronoUnit.DAYS.between(FECHA_BASE_ARCHIVO, fechaInicioVirtual);
-        if (offsetDias == 0) {
-            log.info("Fechas ya alineadas: fecha_inicio_virtual={} coincide con fecha base de archivos", fechaInicioVirtual);
+        long targetOffset = java.time.temporal.ChronoUnit.DAYS.between(FECHA_BASE_ARCHIVO, fechaInicioVirtual);
+
+        long appliedOffset = 0;
+        try {
+            Integer prev = jdbcTemplate.queryForObject(
+                "SELECT COALESCE(MAX(fecha_alineada_a) - DATE '2026-01-02', 0) " +
+                "FROM sesiones_ejecucion WHERE fecha_alineada_a IS NOT NULL AND id != ?",
+                Integer.class, sesion.getId());
+            appliedOffset = prev != null ? prev.longValue() : 0;
+        } catch (Exception e) {
+            // No hay alineaciones previas
+        }
+
+        long delta = targetOffset - appliedOffset;
+        if (delta == 0) {
+            log.info("Fechas ya alineadas para sesion {}", sesion.getId());
             sesion.setFechaAlineadaA(fechaInicioVirtual);
             sesionRepository.save(sesion);
             return;
         }
 
-        String signo = offsetDias > 0 ? "+" : "-";
-        long diasAbs = Math.abs(offsetDias);
+        String signo = delta > 0 ? "+" : "-";
+        long diasAbs = Math.abs(delta);
         int actualizados = jdbcTemplate.update(
             "UPDATE equipajes SET fecha_operacion = fecha_operacion + (? * INTERVAL '1 day'), " +
             "sla_comprometido = sla_comprometido + (? * INTERVAL '1 day') " +
             "WHERE estado = 'REGISTRADO'",
-            offsetDias, offsetDias
+            delta, delta
         );
-        log.info("Alineacion de fechas: {} dias ({}{}). {} equipajes actualizados.",
-            diasAbs, signo, diasAbs, actualizados);
+        log.info("Alineacion de fechas para sesion {}: {} dias ({}{}). {} equipajes actualizados.",
+            sesion.getId(), diasAbs, signo, diasAbs, actualizados);
 
         sesion.setFechaAlineadaA(fechaInicioVirtual);
         sesionRepository.save(sesion);
