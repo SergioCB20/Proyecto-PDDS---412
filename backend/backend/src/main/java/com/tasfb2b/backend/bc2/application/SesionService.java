@@ -20,8 +20,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.concurrent.CompletableFuture;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -43,7 +41,6 @@ public class SesionService {
     private final PuntoSLARepository puntoSLARepository;
     private final EquipajeRepository equipajeRepository;
     private final PlanViajeRepository planViajeRepository;
-    private final SesionPreparacionAsync sesionPreparacionAsync;
     private final JdbcTemplate jdbcTemplate;
     private final SimulacionPlanificador simulacionPlanificador;
 
@@ -58,8 +55,7 @@ public class SesionService {
                          PuntoSLARepository puntoSLARepository,
                          EquipajeRepository equipajeRepository,
                          PlanViajeRepository planViajeRepository,
-                         SesionPreparacionAsync sesionPreparacionAsync,
-                         JdbcTemplate jdbcTemplate,
+                          JdbcTemplate jdbcTemplate,
                          SimulacionPlanificador simulacionPlanificador) {
         this.sesionRepository = sesionRepository;
         this.vueloService = vueloService;
@@ -69,7 +65,6 @@ public class SesionService {
         this.puntoSLARepository = puntoSLARepository;
         this.equipajeRepository = equipajeRepository;
         this.planViajeRepository = planViajeRepository;
-        this.sesionPreparacionAsync = sesionPreparacionAsync;
         this.jdbcTemplate = jdbcTemplate;
         this.simulacionPlanificador = simulacionPlanificador;
     }
@@ -152,9 +147,13 @@ public class SesionService {
             throw new IllegalStateException("Ya existe una sesion EN_CURSO. Detenela antes de iniciar otra.");
         }
 
-        SesionIniciarResponse response = activarSesion(sesion);
+        // Preparar vuelos y alinear fechas ANTES de activar la sesion
+        // para que el TickService encuentre todo listo desde el primer tick
+        if (sesion.getTipo() == TipoSesion.SIMULADA) {
+            prepararInstanciasSimulacion(id);
+        }
 
-        sesionPreparacionAsync.preparar(id);
+        SesionIniciarResponse response = activarSesion(sesion);
 
         return response;
     }

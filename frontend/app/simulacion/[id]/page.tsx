@@ -201,9 +201,8 @@ function SimulacionContent() {
       posicionActual: { lat: v.lat_actual, lon: v.lon_actual },
     })), [telemetria]);
 
-  const hayTelemetria = telemetria !== null && (telemetria.nodos?.length > 0 || telemetria.vuelos?.length > 0);
-  const nodosMapa = hayTelemetria ? nodosTelemetria : initialNodos;
-  const vuelosMapa = hayTelemetria ? vuelosTelemetria : initialVuelos;
+  const nodosMapa = telemetria?.nodos?.length ? nodosTelemetria : initialNodos;
+  const vuelosMapa = telemetria?.vuelos?.length ? vuelosTelemetria : initialVuelos;
 
   const vuelosMapaFiltrados = useMemo(() => {
     return vuelosMapa.filter(v => {

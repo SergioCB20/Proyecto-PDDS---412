@@ -22,7 +22,7 @@ public interface PlanViajeRepository extends JpaRepository<PlanViaje, UUID> {
     @Query("SELECT e FROM Equipaje e " +
            "JOIN PlanViaje pv ON pv.equipaje = e " +
            "JOIN SegmentoPlan sp ON sp.planViaje = pv " +
-           "JOIN Vuelo v ON v = sp.vuelo " +
+           "JOIN sp.vuelo v " +
            "WHERE pv.sesionId = :sesionId " +
            "AND e.estado = 'ENTREGADO' " +
            "AND sp.estado = 'COMPLETADO' " +
