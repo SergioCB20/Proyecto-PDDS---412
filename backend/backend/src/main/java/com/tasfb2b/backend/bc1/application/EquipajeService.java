@@ -333,16 +333,16 @@ public class EquipajeService {
         }
         if (estado != null && !estado.isBlank()) {
             EstadoEquipaje est = EstadoEquipaje.valueOf(estado);
-            var page = equipajeRepository.findByEstado(est, PageRequest.of(page, size));
-            return page.getContent().stream()
+            var result = equipajeRepository.findByEstado(est, PageRequest.of(page, size));
+            return result.getContent().stream()
                     .map(e -> new EquipajeListItemResponse(
                             e.getId(), e.getIdExterno(), e.getEstado().name(),
                             e.getOrigenIata(), e.getDestinoIata(),
                             e.getFechaIngreso(), e.getCantidad()))
                     .toList();
         }
-        var page = equipajeRepository.findAll(PageRequest.of(page, size));
-        return page.getContent().stream()
+        var result = equipajeRepository.findAll(PageRequest.of(page, size));
+        return result.getContent().stream()
                 .map(e -> new EquipajeListItemResponse(
                         e.getId(), e.getIdExterno(), e.getEstado().name(),
                         e.getOrigenIata(), e.getDestinoIata(),
