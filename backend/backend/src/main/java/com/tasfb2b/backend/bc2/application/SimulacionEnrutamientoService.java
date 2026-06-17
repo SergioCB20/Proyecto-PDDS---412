@@ -105,7 +105,7 @@ public class SimulacionEnrutamientoService {
 
         for (int i = 0; i < equipajes.size(); i += SUB_BATCH_SIZE) {
             List<Equipaje> subBatch = equipajes.subList(i, Math.min(i + SUB_BATCH_SIZE, equipajes.size()));
-            List<RutaResult> resultados = motorEnrutamiento.calcularRutasLote(subBatch, programados, inicioVentana);
+            List<RutaResult> resultados = motorEnrutamiento.calcularRutasLote(subBatch, programados, inicioVentana, nodosPorIata);
 
             List<PlanViaje> planesBatch = new ArrayList<>();
             List<SegmentoPlan> segmentosBatch = new ArrayList<>();

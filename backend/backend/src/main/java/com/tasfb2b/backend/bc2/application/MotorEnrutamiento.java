@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class MotorEnrutamiento {
@@ -59,6 +60,12 @@ public class MotorEnrutamiento {
 
     public List<RutaResult> calcularRutasLote(List<Equipaje> equipajes, List<Vuelo> programados,
                                                OffsetDateTime horaVirtual) {
+        return calcularRutasLote(equipajes, programados, horaVirtual, null);
+    }
+
+    public List<RutaResult> calcularRutasLote(List<Equipaje> equipajes, List<Vuelo> programados,
+                                               OffsetDateTime horaVirtual,
+                                               Map<String, NodoLogistico> nodosPorIata) {
         if (equipajes.isEmpty()) return List.of();
 
         List<RoutingStrategy.ParametroRuta> params = new ArrayList<>();
@@ -66,10 +73,14 @@ public class MotorEnrutamiento {
             String origenIata = e.getOrigenIata();
             if (origenIata == null) continue;
 
-            NodoLogistico origen = nodoRepository.findByCodigoIata(origenIata).orElse(null);
+            NodoLogistico origen = nodosPorIata != null
+                    ? nodosPorIata.get(origenIata)
+                    : nodoRepository.findByCodigoIata(origenIata).orElse(null);
             if (origen == null) continue;
 
-            NodoLogistico destino = nodoRepository.findByCodigoIata(e.getDestinoIata()).orElse(null);
+            NodoLogistico destino = nodosPorIata != null
+                    ? nodosPorIata.get(e.getDestinoIata())
+                    : nodoRepository.findByCodigoIata(e.getDestinoIata()).orElse(null);
             if (destino == null) continue;
 
             params.add(new RoutingStrategy.ParametroRuta(
