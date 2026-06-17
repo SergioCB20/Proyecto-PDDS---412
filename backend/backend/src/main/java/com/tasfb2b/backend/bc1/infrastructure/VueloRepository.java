@@ -38,6 +38,9 @@ public interface VueloRepository extends JpaRepository<Vuelo, UUID>, JpaSpecific
     @Query(value = "SELECT DISTINCT ON (v.codigo_vuelo) v.* FROM vuelos v WHERE v.es_plantilla = true ORDER BY v.codigo_vuelo, v.id", nativeQuery = true)
     List<Vuelo> findDistinctPlantillas();
     long countByEstadoAndEsPlantilla(EstadoVuelo estado, Boolean esPlantilla);
+
+    @Query(value = "SELECT estado::text, COUNT(*)::bigint FROM vuelos WHERE es_plantilla = false GROUP BY estado", nativeQuery = true)
+    List<Object[]> countByEstadoNotPlantillaGrouped();
     boolean existsByFechaOperacionAndEsPlantilla(LocalDate fechaOperacion, Boolean esPlantilla);
     boolean existsByFechaOperacionAndEstadoInAndEsPlantilla(LocalDate fechaOperacion, List<EstadoVuelo> estados, Boolean esPlantilla);
     long countByFechaOperacionAndEsPlantilla(LocalDate fechaOperacion, Boolean esPlantilla);

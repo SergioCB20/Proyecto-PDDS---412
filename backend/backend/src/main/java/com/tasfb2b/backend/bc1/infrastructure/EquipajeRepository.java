@@ -28,6 +28,9 @@ public interface EquipajeRepository extends JpaRepository<Equipaje, UUID> {
 
     long countByEstado(EstadoEquipaje estado);
 
+    @Query(value = "SELECT estado::text, COUNT(*)::bigint FROM equipajes GROUP BY estado", nativeQuery = true)
+    List<Object[]> countByEstadoGrouped();
+
     @Query("SELECT e FROM Equipaje e WHERE e.estado = 'ENTREGADO' AND e.fechaOperacion >= :desde ORDER BY e.fechaOperacion DESC")
     List<Equipaje> findEntregadosRecientes(@Param("desde") java.time.OffsetDateTime desde, org.springframework.data.domain.Pageable pageable);
 
