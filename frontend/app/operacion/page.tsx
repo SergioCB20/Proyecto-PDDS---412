@@ -83,7 +83,7 @@ export default function OperacionPage() {
   const [editingVuelo, setEditingVuelo] = useState<Vuelo | null>(null);
 
   const [sseConnected, setSseConnected] = useState(false);
-  const { data: telemetria } = useTelemetria(true);
+  const { data: telemetria, connected: wsConnected } = useTelemetria(true);
   const [notificaciones, setNotificaciones] = useState<{ id: number; tipo: 'success' | 'error'; mensaje: string }[]>([]);
 
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -109,7 +109,8 @@ export default function OperacionPage() {
 
     const conectar = () => {
       eventSource = new EventSource(url);
-      setSseConnected(true);
+
+      eventSource.onopen = () => setSseConnected(true);
 
       eventSource.addEventListener('planificacion-completada', (e) => {
         try {
@@ -486,7 +487,7 @@ export default function OperacionPage() {
             <Badge variant={sseConnected ? 'green' : 'red'} className="!px-1 !text-[10px]">
               {sseConnected ? 'SSE' : 'OFF'}
             </Badge>
-            <span className={`w-2 h-2 rounded-full ${telemetria ? 'bg-green-500' : 'bg-red-500'}`} title={telemetria ? 'WebSocket conectado' : 'WebSocket desconectado'} />
+            <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`} title={wsConnected ? 'WebSocket conectado' : 'WebSocket desconectado'} />
           </div>
         ) : (
           <>
@@ -508,9 +509,9 @@ export default function OperacionPage() {
                   SSE {sseConnected ? 'conectado' : 'desconectado'}
                 </span>
                 <span className="w-1 h-1 rounded-full bg-slate-300 mx-1" />
-                <span className={`w-2 h-2 rounded-full ${telemetria ? 'bg-green-500' : 'bg-red-500'}`} />
+                <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`} />
                 <span className="text-xs text-slate-500">
-                  WS {telemetria ? 'conectado' : 'desconectado'}
+                  WS {wsConnected ? 'conectado' : 'desconectado'}
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
