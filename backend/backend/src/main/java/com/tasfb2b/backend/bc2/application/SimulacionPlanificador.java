@@ -35,6 +35,7 @@ public class SimulacionPlanificador {
     private final SesionRepository sesionRepository;
     private final SimulacionEnrutamientoService enrutamientoService;
     private final SesionReadinessManager readinessManager;
+    private final SesionLockManager lockManager;
     private final RedisCacheService redisCacheService;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -50,6 +51,7 @@ public class SimulacionPlanificador {
     public SimulacionPlanificador(SesionRepository sesionRepository,
                                   SimulacionEnrutamientoService enrutamientoService,
                                   SesionReadinessManager readinessManager,
+                                  SesionLockManager lockManager,
                                   RedisCacheService redisCacheService,
                                   ApplicationEventPublisher eventPublisher,
                                   @Value("${app.simulacion.sa-segundos}") long saSegundosFallback,
@@ -57,6 +59,7 @@ public class SimulacionPlanificador {
         this.sesionRepository = sesionRepository;
         this.enrutamientoService = enrutamientoService;
         this.readinessManager = readinessManager;
+        this.lockManager = lockManager;
         this.redisCacheService = redisCacheService;
         this.eventPublisher = eventPublisher;
         this.saSegundosFallback = saSegundosFallback;
@@ -96,11 +99,17 @@ public class SimulacionPlanificador {
 
             if ((ahora - ultimaEjecucion) < saMs) continue;
 
+            // Serializa con el tick (corren en hilos distintos del scheduler):
+            // ambos mutan segmentos_plan/vuelos/nodos de la MISMA sesión.
+            var lock = lockManager.obtener(sesion.getId());
+            lock.lock();
             try {
                 ejecutarPlanificacion(sesion);
                 ultimaPlanificacionMs.put(sesion.getId(), ahora);
             } catch (Exception e) {
                 log.error("Error en planificacion para sesion {}: {}", sesion.getId(), e.getMessage(), e);
+            } finally {
+                lock.unlock();
             }
         }
 
@@ -152,5 +161,6 @@ public class SimulacionPlanificador {
     /** Limpia el estado interno al detener/finalizar una sesión. */
     public void limpiarSesion(UUID sesionId) {
         ultimaPlanificacionMs.remove(sesionId);
+        lockManager.eliminar(sesionId);
     }
 }

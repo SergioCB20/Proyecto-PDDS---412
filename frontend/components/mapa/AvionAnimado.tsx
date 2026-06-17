@@ -191,17 +191,18 @@ const AvionAnimado = React.memo(function AvionAnimado({
 
   return (
     <Marker ref={markerRef} position={frozenPos} icon={icono}>
-      <Tooltip direction="top" offset={[0, -14]}>
-        <div className="text-center min-w-[100px]">
-          <div className="font-bold text-sm">{vuelo.codigo_vuelo}</div>
-          <div className="text-xs text-slate-600">
+      {/* Etiqueta permanente: almacenamiento ocupado siempre visible para vuelos en viaje */}
+      <Tooltip permanent direction="top" offset={[0, -14]} className="avion-carga-tooltip">
+        <div className="text-center min-w-[90px]">
+          <div className="font-bold text-xs">{vuelo.codigo_vuelo}</div>
+          <div className="text-[10px] text-slate-600">
             {vuelo.origen.codigo_iata} → {vuelo.destino.codigo_iata}
           </div>
-          <div className="text-xs mt-1">
-            <span className="text-slate-500">Ocupado: </span>
-            <span className="font-semibold">{ocupada}/{vuelo.capacidad_carga}</span>
+          <div className="text-[11px] mt-0.5">
+            <span className="text-slate-500">Carga: </span>
+            <span className="font-bold">{ocupada}/{vuelo.capacidad_carga}</span>
           </div>
-          <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden mt-1">
+          <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden mt-0.5">
             <div
               className="h-full rounded-full transition-all duration-500"
               style={{

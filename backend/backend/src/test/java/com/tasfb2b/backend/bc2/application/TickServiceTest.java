@@ -44,6 +44,7 @@ class TickServiceTest {
     @Mock private PuntoSLARepository puntoSLARepository;
     @Mock private PlanViajeRepository planViajeRepository;
     @Mock private SesionReadinessManager readinessManager;
+    @Mock private SesionLockManager lockManager;
 
     private ObjectMapper objectMapper;
     private TickService tickService;
@@ -66,7 +67,8 @@ class TickServiceTest {
                 vueloService,
                 replanificacionService, eventPublisher,
                 reporteSesionRepository, puntoSLARepository,
-                planViajeRepository, readinessManager);
+                planViajeRepository, readinessManager, lockManager);
+        lenient().when(lockManager.obtener(any())).thenReturn(new java.util.concurrent.locks.ReentrantLock());
 
         sesion = new SesionEjecucion(
                 UUID.randomUUID(), TipoSesion.SIMULADA,

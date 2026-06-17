@@ -207,6 +207,8 @@ function SimulacionContent() {
 
   const vuelosMapaFiltrados = useMemo(() => {
     return vuelosMapa.filter(v => {
+      // El mapa muestra SOLO vuelos en viaje (EN_RUTA), no los programados.
+      if (v.estado !== 'EN_RUTA') return false;
       if (vueloFilterOrigen && v.origen.codigo_iata !== vueloFilterOrigen) return false;
       if (vueloFilterDestino && v.destino.codigo_iata !== vueloFilterDestino) return false;
       return true;
