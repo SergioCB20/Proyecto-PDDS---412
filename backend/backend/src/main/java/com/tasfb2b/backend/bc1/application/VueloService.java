@@ -245,7 +245,7 @@ public class VueloService {
             return 0;
         }
 
-        List<Vuelo> plantillas = vueloRepository.findByEsPlantilla(true);
+        List<Vuelo> plantillas = vueloRepository.findDistinctPlantillas();
         List<Vuelo> instancias = new ArrayList<>(plantillas.size());
 
         for (Vuelo plantilla : plantillas) {
