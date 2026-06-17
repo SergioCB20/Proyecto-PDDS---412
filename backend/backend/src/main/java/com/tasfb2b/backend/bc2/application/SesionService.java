@@ -20,6 +20,8 @@ import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -164,9 +166,14 @@ public class SesionService {
 
         SesionIniciarResponse response = activarSesion(sesion);
 
-        // Lanzar preparacion async via TaskExecutor (clonar vuelos)
-        // TickService y SimulacionPlanificador saltan hasta que marcarLista() se ejecute
-        taskExecutor.execute(() -> sesionPreparacionAsync.preparar(id));
+        // Lanzar preparacion async DESPUES de que la transaccion commitee
+        // para que el async vea la sesion en estado EN_CURSO en la BD
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                taskExecutor.execute(() -> sesionPreparacionAsync.preparar(id));
+            }
+        });
 
         return response;
     }
