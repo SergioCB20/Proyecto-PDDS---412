@@ -15,6 +15,7 @@ import com.tasfb2b.backend.bc1.infrastructure.VueloRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,15 +40,18 @@ public class VueloService {
     private final EquipajeRepository equipajeRepository;
     private final PlanVuelosRepository planVuelosRepository;
     private final SegmentoPlanRepository segmentoPlanRepository;
+    private final JdbcTemplate jdbcTemplate;
 
     public VueloService(VueloRepository vueloRepository, NodoLogisticoRepository nodoRepository,
                         EquipajeRepository equipajeRepository, PlanVuelosRepository planVuelosRepository,
-                        SegmentoPlanRepository segmentoPlanRepository) {
+                        SegmentoPlanRepository segmentoPlanRepository,
+                        JdbcTemplate jdbcTemplate) {
         this.vueloRepository = vueloRepository;
         this.nodoRepository = nodoRepository;
         this.equipajeRepository = equipajeRepository;
         this.planVuelosRepository = planVuelosRepository;
         this.segmentoPlanRepository = segmentoPlanRepository;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     public record CrearVueloRequest(
@@ -283,28 +287,36 @@ public class VueloService {
 
     @Transactional
     public void eliminarInstanciasPorFecha(LocalDate desde, LocalDate hasta) {
-        List<Vuelo> instancias = vueloRepository.findByEsPlantillaAndFechaOperacionBetween(false, desde, hasta);
-        if (instancias.isEmpty()) {
+        // Contar instancias sin cargarlas en memoria
+        Integer count = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM vuelos WHERE es_plantilla = false AND fecha_operacion BETWEEN ? AND ?",
+            Integer.class, desde, hasta);
+        if (count == null || count == 0) {
             log.info("No hay instancias de simulacion para limpiar entre {} y {}", desde, hasta);
             return;
         }
+        log.info("Limpiando {} instancias de simulacion entre {} y {}", count, desde, hasta);
 
-        List<UUID> ids = instancias.stream().map(Vuelo::getId).toList();
-        log.info("Limpiando {} instancias de simulacion entre {} y {}", ids.size(), desde, hasta);
+        // Nullificar vuelo_actual_id usando JOIN directo (índice idx_equipajes_vuelo_actual)
+        int equipajesNullificados = jdbcTemplate.update(
+            "UPDATE equipajes SET vuelo_actual_id = NULL " +
+            "WHERE vuelo_actual_id IN (" +
+            "  SELECT id FROM vuelos WHERE es_plantilla = false AND fecha_operacion BETWEEN ? AND ?" +
+            ")", desde, hasta);
 
-        List<Equipaje> equipajes = equipajeRepository.findByVueloActualIdIn(ids);
-        for (Equipaje eq : equipajes) {
-            eq.setVueloActual(null);
-        }
-        equipajeRepository.saveAll(equipajes);
+        // Eliminar segmentos usando JOIN directo (índice idx_segmentos_vuelo_id)
+        int segmentosEliminados = jdbcTemplate.update(
+            "DELETE FROM segmentos_plan WHERE vuelo_id IN (" +
+            "  SELECT id FROM vuelos WHERE es_plantilla = false AND fecha_operacion BETWEEN ? AND ?" +
+            ")", desde, hasta);
 
-        List<SegmentoPlan> segmentos = segmentoPlanRepository.findByVueloIdIn(ids);
-        segmentoPlanRepository.deleteAll(segmentos);
-
-        vueloRepository.deleteAll(instancias);
+        // Eliminar las instancias de vuelo
+        jdbcTemplate.update(
+            "DELETE FROM vuelos WHERE es_plantilla = false AND fecha_operacion BETWEEN ? AND ?",
+            desde, hasta);
 
         log.info("Limpiadas {} instancias ({} equipajes nullificados, {} segmentos eliminados)",
-                ids.size(), equipajes.size(), segmentos.size());
+                count, equipajesNullificados, segmentosEliminados);
     }
 
     public static class VueloNoEncontradoException extends RuntimeException {

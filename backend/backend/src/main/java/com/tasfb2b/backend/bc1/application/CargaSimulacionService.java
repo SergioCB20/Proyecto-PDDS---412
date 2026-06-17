@@ -52,6 +52,12 @@ public class CargaSimulacionService {
     }
 
     public ResultadoCarga cargarTodos() {
+        Integer existentes = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM equipajes", Integer.class);
+        if (existentes != null && existentes > 0) {
+            log.info("Equipajes ya cargados ({} registros), omitiendo carga", existentes);
+            return new ResultadoCarga(0, 0, 0);
+        }
+
         File dir = new File(rutaArchivos);
         if (!dir.exists() || !dir.isDirectory()) {
             throw new CargaException("Directorio no encontrado: " + rutaArchivos);

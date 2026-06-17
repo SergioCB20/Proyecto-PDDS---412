@@ -82,8 +82,17 @@ public class SesionService {
     }
 
     public SesionResponse crearSesion(CrearSesionRequest request) {
-        LocalDate fecha = LocalDate.parse(request.fecha_inicio_virtual());
-        LocalTime hora = LocalTime.parse(request.hora_inicio_virtual());
+        LocalDate fecha = (request.fecha_inicio_virtual() != null)
+            ? LocalDate.parse(request.fecha_inicio_virtual())
+            : FECHA_BASE_ARCHIVO;
+        LocalTime hora = (request.hora_inicio_virtual() != null)
+            ? LocalTime.parse(request.hora_inicio_virtual())
+            : LocalTime.MIDNIGHT;
+        if (fecha.isBefore(FECHA_BASE_ARCHIVO)) {
+            throw new IllegalArgumentException(
+                "fecha_inicio_virtual debe ser >= " + FECHA_BASE_ARCHIVO +
+                " (fecha base de los archivos de envíos)");
+        }
 
         SesionEjecucion sesion = new SesionEjecucion(
             UUID.randomUUID(),
@@ -98,9 +107,6 @@ public class SesionService {
 
         if (request.tipo_simulacion() != null) {
             sesion.setTipoSimulacion(TipoSimulacion.valueOf(request.tipo_simulacion()));
-        }
-        if (request.ventana_horas() != null) {
-            sesion.setVentanaHoras(request.ventana_horas());
         }
         // Simulación siempre 5 días; ignorar duracion_dias del request
         sesion.setDuracionDias(5);
@@ -288,6 +294,16 @@ public class SesionService {
             } catch (Exception e) {
                 log.warn("Error limpiando instancias al detener sesion {}: {}", id, e.getMessage());
             }
+        }
+
+        log.info("Reseteando equipajes de la sesion {} a REGISTRADO", id);
+        try {
+            int resetados = jdbcTemplate.update(
+                "UPDATE equipajes SET estado = 'REGISTRADO', vuelo_actual_id = NULL " +
+                "WHERE id IN (SELECT equipaje_id FROM planes_viaje WHERE sesion_id = ?)", id);
+            log.info("Reseteados {} equipajes a REGISTRADO para sesion {}", resetados, id);
+        } catch (Exception e) {
+            log.warn("Error reseteando equipajes al detener sesion {}: {}", id, e.getMessage());
         }
 
         log.info("Reseteando ocupacion de nodos a 0 para sesion {}", id);
