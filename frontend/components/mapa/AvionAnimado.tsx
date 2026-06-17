@@ -191,8 +191,8 @@ const AvionAnimado = React.memo(function AvionAnimado({
 
   return (
     <Marker ref={markerRef} position={frozenPos} icon={icono}>
-      {/* Etiqueta permanente: almacenamiento ocupado siempre visible para vuelos en viaje */}
-      <Tooltip permanent direction="top" offset={[0, -14]} className="avion-carga-tooltip">
+      {/* Etiqueta de carga: visible solo al pasar el cursor sobre el avión */}
+      <Tooltip direction="top" offset={[0, -14]} className="avion-carga-tooltip">
         <div className="text-center min-w-[90px]">
           <div className="font-bold text-xs">{vuelo.codigo_vuelo}</div>
           <div className="text-[10px] text-slate-600">
