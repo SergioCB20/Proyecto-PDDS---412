@@ -306,6 +306,17 @@ public class SesionService {
             log.warn("Error reseteando equipajes al detener sesion {}: {}", id, e.getMessage());
         }
 
+        log.info("Eliminando planes_viaje de la sesion {}", id);
+        try {
+            jdbcTemplate.update(
+                "DELETE FROM segmentos_plan WHERE plan_viaje_id IN " +
+                "(SELECT id FROM planes_viaje WHERE sesion_id = ?)", id);
+            int planes = jdbcTemplate.update("DELETE FROM planes_viaje WHERE sesion_id = ?", id);
+            log.info("Eliminados {} planes_viaje para sesion {}", planes, id);
+        } catch (Exception e) {
+            log.warn("Error eliminando planes_viaje al detener sesion {}: {}", id, e.getMessage());
+        }
+
         log.info("Reseteando ocupacion de nodos a 0 para sesion {}", id);
         try {
             jdbcTemplate.update("UPDATE nodos_logisticos SET ocupacion_actual = 0");

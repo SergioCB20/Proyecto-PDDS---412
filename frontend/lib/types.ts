@@ -114,6 +114,8 @@ export interface MetricasSimulacion {
   vuelos_cancelados: number;
   maletas_replanificadas: number;
   fecha_inicio_real?: string | null;
+  /** virtual/real time ratio sent from backend */
+  k?: number;
 }
 
 export interface CrearUsuarioRequest {
@@ -222,6 +224,8 @@ export interface VueloTelemetria {
   color: string;
   hora_salida: string;
   hora_llegada: string;
+  /** 0–1 fraction of route completed, computed server-side from virtual time */
+  progreso: number;
 }
 
 export interface EnvioItemResponse {
