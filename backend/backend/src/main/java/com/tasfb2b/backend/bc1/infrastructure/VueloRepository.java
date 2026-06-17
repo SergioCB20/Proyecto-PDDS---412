@@ -37,6 +37,7 @@ public interface VueloRepository extends JpaRepository<Vuelo, UUID>, JpaSpecific
     long countByEstadoAndEsPlantilla(EstadoVuelo estado, Boolean esPlantilla);
     boolean existsByFechaOperacionAndEsPlantilla(LocalDate fechaOperacion, Boolean esPlantilla);
     boolean existsByFechaOperacionAndEstadoInAndEsPlantilla(LocalDate fechaOperacion, List<EstadoVuelo> estados, Boolean esPlantilla);
+    long countByFechaOperacionAndEsPlantilla(LocalDate fechaOperacion, Boolean esPlantilla);
 
     @Modifying
     @Query("UPDATE Vuelo v SET v.cargaDisponible = v.cargaDisponible - 1 WHERE v.id = :id AND v.cargaDisponible > 0")
