@@ -14,9 +14,6 @@ const COLORES: Record<string, string> = {
   COMPLETADO: COLOR_VUELO.COMPLETADO,
 };
 
-/** ms between WebSocket ticks — used as the animation stride */
-const TICK_MS = 5000;
-
 function esCoordenadaValida(v: number): boolean {
   return Number.isFinite(v) && Math.abs(v) <= 180;
 }
@@ -45,7 +42,6 @@ function crearIconoAvion(color: string, rotacion: number = 0) {
 interface AvionAnimadoProps {
   vuelo: VueloEnMapa;
   animacionActiva?: boolean;
-  /** k factor (virtual/real); used for velocity extrapolation between ticks */
   k?: number;
 }
 
@@ -57,18 +53,15 @@ const AvionAnimado = React.memo(function AvionAnimado({
   const markerRef = useRef<L.Marker>(null);
   const rafRef = useRef<number>(0);
 
-  // Bezier control point — stable as long as origin/dest don't change
   const { ctrlLat, ctrlLon } = useMemo(
     () => bezierControlPoint(vuelo.origen_lat, vuelo.origen_lon, vuelo.destino_lat, vuelo.destino_lon),
     [vuelo.origen_lat, vuelo.origen_lon, vuelo.destino_lat, vuelo.destino_lon]
   );
 
-  // State for icon (bearing updates when progress changes substantially)
   const [icono, setIcono] = useState(() =>
     crearIconoAvion(COLORES[vuelo.estado] || '#6b7280', 0)
   );
 
-  // Frozen initial position for React-Leaflet Marker mount
   const [frozenPos] = useState<[number, number]>(() => {
     const p = vuelo.posicionActual;
     if (p && esCoordenadaValida(p.lat) && esCoordenadaValida(p.lon)) {
@@ -77,44 +70,46 @@ const AvionAnimado = React.memo(function AvionAnimado({
     return [vuelo.origen_lat, vuelo.origen_lon];
   });
 
-  // Animation state in refs to avoid stale closures in rAF
-  const animRef = useRef({
-    progresoBase: vuelo.progreso ?? 0,   // progreso at last tick
-    progresoTarget: vuelo.progreso ?? 0, // progreso at current tick
-    velocidad: 0,                         // progreso/ms extrapolation rate
-    tickTime: performance.now(),          // real time of last tick
-    progresoCurrent: vuelo.progreso ?? 0, // last rendered progreso
+  /**
+   * Single ref that holds all animation state so the rAF closure never goes stale.
+   * Updated from effects; never causes re-renders.
+   */
+  const flightRef = useRef({
+    progreso: vuelo.progreso ?? 0,    // server-confirmed progreso at lastTickTime
+    lastTickTime: performance.now(),  // real time of last server confirmation
+    horaSalidaMs: vuelo.hora_salida ? new Date(vuelo.hora_salida).getTime() : 0,
+    horaLlegadaMs: vuelo.hora_llegada ? new Date(vuelo.hora_llegada).getTime() : 0,
+    k,
+    lastBearingT: -1,                 // last t at which we updated the bearing icon
   });
 
-  // Update animation target when telemetry delivers a new progreso
+  // Keep flight metadata in sync (no rAF restart needed — ref is always fresh)
   useEffect(() => {
-    const newProgreso = vuelo.progreso ?? 0;
-    const anim = animRef.current;
-    const now = performance.now();
-    const elapsed = now - anim.tickTime;
+    const ref = flightRef.current;
+    ref.progreso = vuelo.progreso ?? 0;
+    ref.lastTickTime = performance.now();
+    ref.horaSalidaMs = vuelo.hora_salida ? new Date(vuelo.hora_salida).getTime() : 0;
+    ref.horaLlegadaMs = vuelo.hora_llegada ? new Date(vuelo.hora_llegada).getTime() : 0;
+    ref.k = k;
+  }, [vuelo.progreso, vuelo.hora_salida, vuelo.hora_llegada, k]);
 
-    // Velocity = how much progreso changed per ms over the last tick interval
-    const delta = newProgreso - anim.progresoBase;
-    anim.velocidad = elapsed > 0 ? delta / elapsed : 0;
-
-    anim.progresoBase = anim.progresoCurrent; // start from where we visually are
-    anim.progresoTarget = newProgreso;
-    anim.tickTime = now;
-  }, [vuelo.progreso]);
-
-  // Also update icon color when state changes
+  // Update icon color on state change
   useEffect(() => {
     setIcono(crearIconoAvion(COLORES[vuelo.estado] || '#6b7280', 0));
+    flightRef.current.lastBearingT = -1; // force bearing refresh
   }, [vuelo.estado]);
 
-  // Continuous rAF loop — runs when animacionActiva and vuelo is EN_RUTA
+  /**
+   * Continuous rAF loop.
+   * Only restarts when the flight identity / route changes — NOT on every tick.
+   * All live data (progreso, k, timestamps) is read from flightRef.current.
+   */
   useEffect(() => {
     const marker = markerRef.current;
     if (!marker) return;
 
     if (!animacionActiva || vuelo.estado !== 'EN_RUTA') {
-      // Snap to current progreso without animation
-      const t = Math.min(Math.max(animRef.current.progresoTarget, 0), 1);
+      const t = Math.min(Math.max(flightRef.current.progreso, 0), 1);
       const [lat, lng] = bezierPoint(
         vuelo.origen_lat, vuelo.origen_lon,
         ctrlLat, ctrlLon,
@@ -136,18 +131,20 @@ const AvionAnimado = React.memo(function AvionAnimado({
 
     function frame() {
       if (!running || !marker) return;
-      const anim = animRef.current;
+
+      const ref = flightRef.current;
       const now = performance.now();
-      const elapsed = now - anim.tickTime;
+      const elapsed = now - ref.lastTickTime; // ms since last server confirmation
 
-      // Extrapolate: continue at the measured velocity beyond the last known target
-      const extrapolated = anim.progresoTarget + anim.velocidad * elapsed;
-      // Interpolate smoothly from base toward extrapolated over TICK_MS
-      const tAnim = Math.min(elapsed / TICK_MS, 1);
-      const progreso = anim.progresoBase + (extrapolated - anim.progresoBase) * tAnim;
-      const t = Math.min(Math.max(progreso, 0), 1);
+      // Theoretical velocity: progreso/ms in real time
+      // progreso spans [0,1] over the virtual flight duration.
+      // In real time that same span takes durVirtual/k ms.
+      const durVirtual = ref.horaLlegadaMs - ref.horaSalidaMs;
+      const velocity = durVirtual > 0 && ref.k > 0 ? ref.k / durVirtual : 0;
 
-      anim.progresoCurrent = t;
+      // Extrapolate from last server position at constant velocity
+      const extrapolated = ref.progreso + velocity * elapsed;
+      const t = Math.min(Math.max(extrapolated, 0), 1);
 
       const [lat, lng] = bezierPoint(
         vuelo.origen_lat, vuelo.origen_lon,
@@ -157,9 +154,9 @@ const AvionAnimado = React.memo(function AvionAnimado({
       );
       marker.setLatLng([lat, lng]);
 
-      // Update bearing every ~10% of Bezier to avoid per-frame icon recreation
-      const prevT = anim.progresoCurrent;
-      if (Math.abs(t - prevT) > 0.05 || prevT === 0) {
+      // Refresh bearing icon only when progreso shifts by ≥3% (avoids per-frame setState)
+      if (Math.abs(t - ref.lastBearingT) >= 0.03) {
+        ref.lastBearingT = t;
         const bearing = bezierBearing(
           vuelo.origen_lat, vuelo.origen_lon,
           ctrlLat, ctrlLon,
@@ -180,14 +177,14 @@ const AvionAnimado = React.memo(function AvionAnimado({
       cancelAnimationFrame(rafRef.current);
     };
   }, [
+    // Only restart the loop when the flight route/identity changes
     animacionActiva,
     vuelo.estado,
+    vuelo.id,
     vuelo.origen_lat, vuelo.origen_lon,
     vuelo.destino_lat, vuelo.destino_lon,
     ctrlLat, ctrlLon,
-    // progreso change re-triggers via the separate useEffect above (animRef update)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    vuelo.progreso,
+    // NOTE: vuelo.progreso / k intentionally excluded — handled via flightRef
   ]);
 
   const ocupada = vuelo.capacidad_carga - vuelo.carga_disponible;

@@ -51,7 +51,7 @@ export default function GeoMapa({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         {nodos.map((nodo) => (
-          <GeoMapaNodo key={`${nodo.codigo_iata}-${nodo.color}`} nodo={nodo} />
+          <GeoMapaNodo key={nodo.codigo_iata} nodo={nodo} />
         ))}
         {mostrarAviones && vuelos.map((vuelo) => (
           <GeoMapaVuelo
