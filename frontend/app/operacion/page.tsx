@@ -103,7 +103,8 @@ export default function OperacionPage() {
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     if (!token) return;
 
-    const url = `${getApiBaseUrl().replace('/api', '')}/api/eventos/planificacion?token=${encodeURIComponent(token)}`;
+    const base = getApiBaseUrl().replace(/\/api\/?$/, '');
+    const url = `${base}/api/eventos/planificacion?token=${encodeURIComponent(token)}`;
     let eventSource: EventSource | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
