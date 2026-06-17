@@ -9,9 +9,7 @@ import com.tasfb2b.backend.bc2.infrastructure.ReporteSesionRepository;
 import com.tasfb2b.backend.bc2.infrastructure.SesionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -37,9 +35,8 @@ public class SesionPreparacionAsync {
         this.readinessManager = readinessManager;
     }
 
-    @Async
-    @Transactional
     public void preparar(UUID id) {
+        log.info("Preparacion async iniciada para sesion {}", id);
         try {
             SesionEjecucion sesion = sesionRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Sesion no encontrada: " + id));

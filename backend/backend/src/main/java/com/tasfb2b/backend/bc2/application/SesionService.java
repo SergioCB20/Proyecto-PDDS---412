@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +44,7 @@ public class SesionService {
     private final PlanViajeRepository planViajeRepository;
     private final SesionPreparacionAsync sesionPreparacionAsync;
     private final SesionReadinessManager readinessManager;
+    private final TaskExecutor taskExecutor;
     private final JdbcTemplate jdbcTemplate;
     private final SimulacionPlanificador simulacionPlanificador;
 
@@ -59,6 +61,7 @@ public class SesionService {
                          PlanViajeRepository planViajeRepository,
                          SesionPreparacionAsync sesionPreparacionAsync,
                          SesionReadinessManager readinessManager,
+                         TaskExecutor taskExecutor,
                          JdbcTemplate jdbcTemplate,
                          SimulacionPlanificador simulacionPlanificador) {
         this.sesionRepository = sesionRepository;
@@ -71,6 +74,7 @@ public class SesionService {
         this.planViajeRepository = planViajeRepository;
         this.sesionPreparacionAsync = sesionPreparacionAsync;
         this.readinessManager = readinessManager;
+        this.taskExecutor = taskExecutor;
         this.jdbcTemplate = jdbcTemplate;
         this.simulacionPlanificador = simulacionPlanificador;
     }
@@ -160,9 +164,9 @@ public class SesionService {
 
         SesionIniciarResponse response = activarSesion(sesion);
 
-        // Lanzar preparacion async (clonar vuelos)
+        // Lanzar preparacion async via TaskExecutor (clonar vuelos)
         // TickService y SimulacionPlanificador saltan hasta que marcarLista() se ejecute
-        sesionPreparacionAsync.preparar(id);
+        taskExecutor.execute(() -> sesionPreparacionAsync.preparar(id));
 
         return response;
     }
