@@ -153,9 +153,14 @@ public class SesionService {
             throw new IllegalStateException("Ya existe una sesion EN_CURSO. Detenela antes de iniciar otra.");
         }
 
+        // Calcular delta de fechas (rápido, sin UPDATE masivo)
+        if (sesion.getTipo() == TipoSesion.SIMULADA && sesion.getFechaAlineadaA() == null) {
+            alinearFechasEquipajes(sesion);
+        }
+
         SesionIniciarResponse response = activarSesion(sesion);
 
-        // Lanzar preparacion async (clonar vuelos, alinear fechas)
+        // Lanzar preparacion async (clonar vuelos)
         // TickService y SimulacionPlanificador saltan hasta que marcarLista() se ejecute
         sesionPreparacionAsync.preparar(id);
 
@@ -203,53 +208,19 @@ public class SesionService {
     }
 
     /**
-     * Alinea las fechas de operación de los equipajes REGISTRADO para que coincidan
-     * con el rango de fechas virtuales de la sesión.
-     * Los archivos tienen datos desde FECHA_BASE_ARCHIVO (2026-01-02).
-     * Si la sesión empieza en fecha distinta, se aplica el offset en días.
+     * Marca la sesión como alineada a la fecha virtual.
+     * Ya no modifica los 44M registros de equipajes — el planificador
+     * ajusta la ventana de búsqueda con el delta sobre la marcha.
      */
     private void alinearFechasEquipajes(SesionEjecucion sesion) {
-        LocalDate fechaInicioVirtual = sesion.getFechaInicioVirtual();
-
         if (sesion.getFechaAlineadaA() != null) {
-            log.info("Alineacion ya aplicada para sesion {}: fecha_alineada_a={}", sesion.getId(), sesion.getFechaAlineadaA());
             return;
         }
-
-        long targetOffset = java.time.temporal.ChronoUnit.DAYS.between(FECHA_BASE_ARCHIVO, fechaInicioVirtual);
-
-        long appliedOffset = 0;
-        try {
-            Integer prev = jdbcTemplate.queryForObject(
-                "SELECT COALESCE(MAX(fecha_alineada_a) - DATE '2026-01-02', 0) " +
-                "FROM sesiones_ejecucion WHERE fecha_alineada_a IS NOT NULL AND id != ?",
-                Integer.class, sesion.getId());
-            appliedOffset = prev != null ? prev.longValue() : 0;
-        } catch (Exception e) {
-            // No hay alineaciones previas
-        }
-
-        long delta = targetOffset - appliedOffset;
-        if (delta == 0) {
-            log.info("Fechas ya alineadas para sesion {}", sesion.getId());
-            sesion.setFechaAlineadaA(fechaInicioVirtual);
-            sesionRepository.save(sesion);
-            return;
-        }
-
-        String signo = delta > 0 ? "+" : "-";
-        long diasAbs = Math.abs(delta);
-        int actualizados = jdbcTemplate.update(
-            "UPDATE equipajes SET fecha_operacion = fecha_operacion + (? * INTERVAL '1 day'), " +
-            "sla_comprometido = sla_comprometido + (? * INTERVAL '1 day') " +
-            "WHERE estado = 'REGISTRADO'",
-            delta, delta
-        );
-        log.info("Alineacion de fechas para sesion {}: {} dias ({}{}). {} equipajes actualizados.",
-            sesion.getId(), diasAbs, signo, diasAbs, actualizados);
-
-        sesion.setFechaAlineadaA(fechaInicioVirtual);
+        sesion.setFechaAlineadaA(sesion.getFechaInicioVirtual());
         sesionRepository.save(sesion);
+        log.info("Alineacion virtual para sesion {}: delta={} dias (sin UPDATE masivo)",
+            sesion.getId(),
+            java.time.temporal.ChronoUnit.DAYS.between(FECHA_BASE_ARCHIVO, sesion.getFechaInicioVirtual()));
     }
 
     @Transactional
