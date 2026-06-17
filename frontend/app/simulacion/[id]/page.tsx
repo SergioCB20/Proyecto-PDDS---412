@@ -192,13 +192,14 @@ function SimulacionContent() {
       origen_lon: v.origen_lon,
       destino_lat: v.destino_lat,
       destino_lon: v.destino_lon,
-      hora_salida: '',
-      hora_llegada: '',
+      hora_salida: v.hora_salida ?? '',
+      hora_llegada: v.hora_llegada ?? '',
       capacidad_carga: v.capacidad_carga,
       carga_disponible: v.carga_disponible,
       es_plantilla: false,
       fecha_operacion: '',
       posicionActual: { lat: v.lat_actual, lon: v.lon_actual },
+      progreso: v.progreso ?? 0,
     })), [telemetria]);
 
   const nodosMapa = telemetria?.nodos?.length ? nodosTelemetria : initialNodos;
@@ -206,6 +207,8 @@ function SimulacionContent() {
 
   const vuelosMapaFiltrados = useMemo(() => {
     return vuelosMapa.filter(v => {
+      // El mapa muestra SOLO vuelos en viaje (EN_RUTA), no los programados.
+      if (v.estado !== 'EN_RUTA') return false;
       if (vueloFilterOrigen && v.origen.codigo_iata !== vueloFilterOrigen) return false;
       if (vueloFilterDestino && v.destino.codigo_iata !== vueloFilterDestino) return false;
       return true;
@@ -374,6 +377,7 @@ function SimulacionContent() {
           vuelos={vuelosMapaFiltrados}
           mostrarAviones={true}
           animacionActiva={estado === 'EN_CURSO'}
+          k={telemetria?.metricas_sesion?.k ?? 120}
           className="h-full"
         />
       </div>

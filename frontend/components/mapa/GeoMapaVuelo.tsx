@@ -4,11 +4,13 @@ import React, { useMemo } from 'react';
 import { Polyline, Tooltip } from 'react-leaflet';
 import { COLOR_VUELO, COLOR_NODO } from '@/lib/colors';
 import type { VueloEnMapa } from '@/lib/types';
+import { bezierCurvePoints } from '@/lib/bezier';
 import AvionAnimado from './AvionAnimado';
 
 interface GeoMapaVueloProps {
   vuelo: VueloEnMapa;
   animacionActiva?: boolean;
+  k?: number;
 }
 
 const COLORES: Record<string, string> = {
@@ -31,40 +33,8 @@ function OcupacionBar({ ocupada, total }: { ocupada: number; total: number }) {
   );
 }
 
-function calcularCurvaBezier(
-  origen: [number, number],
-  destino: [number, number],
-  puntos: number = 50
-): [number, number][] {
-  const [lat1, lon1] = origen;
-  const [lat2, lon2] = destino;
 
-  const midLat = (lat1 + lat2) / 2;
-  const midLon = (lon1 + lon2) / 2;
-
-  const dLat = lat2 - lat1;
-  const dLon = lon2 - lon1;
-  const dist = Math.sqrt(dLat * dLat + dLon * dLon);
-
-  const offset = Math.max(dist * 0.3, 0.5);
-  const perpLon = -dLat / dist * offset;
-  const perpLat = dLon / dist * offset;
-
-  const ctrlLat = midLat + perpLat;
-  const ctrlLon = midLon + perpLon;
-
-  const result: [number, number][] = [];
-  for (let i = 0; i <= puntos; i++) {
-    const t = i / puntos;
-    const t1 = 1 - t;
-    const lat = t1 * t1 * lat1 + 2 * t1 * t * ctrlLat + t * t * lat2;
-    const lon = t1 * t1 * lon1 + 2 * t1 * t * ctrlLon + t * t * lon2;
-    result.push([lat, lon]);
-  }
-  return result;
-}
-
-export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false }: GeoMapaVueloProps) {
+export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false, k = 120 }: GeoMapaVueloProps) {
   const color = COLORES[vuelo.estado] || '#6b7280';
   const opacidadMarcador = animacionActiva ? 1 : 0.4;
   const opacidadRuta = animacionActiva ? 0.5 : 0.2;
@@ -74,7 +44,7 @@ export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false
 
   const puntosCurva = useMemo(() => {
     if (!tieneRuta) return [];
-    return calcularCurvaBezier(
+    return bezierCurvePoints(
       [vuelo.origen_lat, vuelo.origen_lon],
       [vuelo.destino_lat, vuelo.destino_lon]
     );
@@ -109,6 +79,7 @@ export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false
       <AvionAnimado
         vuelo={vuelo}
         animacionActiva={animacionActiva}
+        k={k}
       />
     </>
   );

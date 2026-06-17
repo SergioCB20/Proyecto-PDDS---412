@@ -14,6 +14,8 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PostConstruct;
+
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
@@ -33,11 +35,15 @@ public class SimulacionPlanificador {
     private final SesionRepository sesionRepository;
     private final SimulacionEnrutamientoService enrutamientoService;
     private final SesionReadinessManager readinessManager;
+    private final SesionLockManager lockManager;
     private final RedisCacheService redisCacheService;
     private final ApplicationEventPublisher eventPublisher;
 
-    // sa_segundos global de fallback (aplicación.properties)
+    // sa_segundos global de fallback (application.properties)
     private final long saSegundosFallback;
+
+    // ventana_horas desde application.properties (no desde la sesión en BD)
+    private final int ventanaHorasApp;
 
     // Rastrea el último momento en que se ejecutó la planificación para cada sesión
     private final Map<UUID, Long> ultimaPlanificacionMs = new ConcurrentHashMap<>();
@@ -45,15 +51,31 @@ public class SimulacionPlanificador {
     public SimulacionPlanificador(SesionRepository sesionRepository,
                                   SimulacionEnrutamientoService enrutamientoService,
                                   SesionReadinessManager readinessManager,
+                                  SesionLockManager lockManager,
                                   RedisCacheService redisCacheService,
                                   ApplicationEventPublisher eventPublisher,
-                                  @Value("${app.simulacion.sa-segundos}") long saSegundosFallback) {
+                                  @Value("${app.simulacion.sa-segundos}") long saSegundosFallback,
+                                  @Value("${app.simulacion.ventana-horas:4}") int ventanaHorasApp) {
         this.sesionRepository = sesionRepository;
         this.enrutamientoService = enrutamientoService;
         this.readinessManager = readinessManager;
+        this.lockManager = lockManager;
         this.redisCacheService = redisCacheService;
         this.eventPublisher = eventPublisher;
         this.saSegundosFallback = saSegundosFallback;
+        this.ventanaHorasApp = ventanaHorasApp;
+    }
+
+    /** Al arrancar, marca como listas todas las sesiones EN_CURSO que sobrevivieron un reinicio. */
+    @PostConstruct
+    public void recuperarSesionesEnCurso() {
+        List<SesionEjecucion> activas = sesionRepository.findByEstado(EstadoSesion.EN_CURSO);
+        for (SesionEjecucion s : activas) {
+            if (s.getTipo() == TipoSesion.SIMULADA) {
+                readinessManager.marcarLista(s.getId());
+                log.info("Sesion {} recuperada tras reinicio, marcada lista para planificacion", s.getId());
+            }
+        }
     }
 
     /**
@@ -77,11 +99,17 @@ public class SimulacionPlanificador {
 
             if ((ahora - ultimaEjecucion) < saMs) continue;
 
+            // Serializa con el tick (corren en hilos distintos del scheduler):
+            // ambos mutan segmentos_plan/vuelos/nodos de la MISMA sesión.
+            var lock = lockManager.obtener(sesion.getId());
+            lock.lock();
             try {
                 ejecutarPlanificacion(sesion);
                 ultimaPlanificacionMs.put(sesion.getId(), ahora);
             } catch (Exception e) {
                 log.error("Error en planificacion para sesion {}: {}", sesion.getId(), e.getMessage(), e);
+            } finally {
+                lock.unlock();
             }
         }
 
@@ -96,7 +124,7 @@ public class SimulacionPlanificador {
 
         long saMs = (sesion.getSaSegundos() != null ? sesion.getSaSegundos() : saSegundosFallback) * 1000L;
         OffsetDateTime inicioVentana = virtual;
-        OffsetDateTime finVentana = virtual.plusHours(sesion.getVentanaHoras() != null ? sesion.getVentanaHoras() : 4);
+        OffsetDateTime finVentana = virtual.plusHours(ventanaHorasApp);
 
         long deltaDias = ChronoUnit.DAYS.between(FECHA_BASE_ARCHIVO, sesion.getFechaInicioVirtual());
 
@@ -133,5 +161,6 @@ public class SimulacionPlanificador {
     /** Limpia el estado interno al detener/finalizar una sesión. */
     public void limpiarSesion(UUID sesionId) {
         ultimaPlanificacionMs.remove(sesionId);
+        lockManager.eliminar(sesionId);
     }
 }

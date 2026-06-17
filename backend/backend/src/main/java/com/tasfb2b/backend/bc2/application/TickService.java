@@ -47,6 +47,7 @@ public class TickService {
     private final PuntoSLARepository puntoSLARepository;
     private final PlanViajeRepository planViajeRepository;
     private final SesionReadinessManager readinessManager;
+    private final SesionLockManager lockManager;
     private final double k;
 
     private final ConcurrentHashMap<UUID, Integer> ultimaHoraRegistrada = new ConcurrentHashMap<>();
@@ -65,7 +66,8 @@ public class TickService {
                        ReporteSesionRepository reporteSesionRepository,
                         PuntoSLARepository puntoSLARepository,
                         PlanViajeRepository planViajeRepository,
-                        SesionReadinessManager readinessManager) {
+                        SesionReadinessManager readinessManager,
+                        SesionLockManager lockManager) {
         this.sesionRepository = sesionRepository;
         this.vueloRepository = vueloRepository;
         this.equipajeRepository = equipajeRepository;
@@ -80,6 +82,7 @@ public class TickService {
         this.puntoSLARepository = puntoSLARepository;
         this.planViajeRepository = planViajeRepository;
         this.readinessManager = readinessManager;
+        this.lockManager = lockManager;
         this.k = 120.0; // fallback; el valor real viene de sesion.getK()
     }
 
@@ -102,6 +105,18 @@ public class TickService {
             return;
         }
 
+        // Serializa con el planificador (corren en hilos distintos del scheduler):
+        // ambos mutan segmentos_plan/vuelos/nodos de la MISMA sesión.
+        var lock = lockManager.obtener(sesion.getId());
+        lock.lock();
+        try {
+            ejecutarTick(sesion);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private void ejecutarTick(SesionEjecucion sesion) {
         OffsetDateTime now = OffsetDateTime.now();
 
         avanzarRelojVirtual(sesion);
@@ -151,6 +166,7 @@ public class TickService {
         ultimaHoraRegistrada.remove(sesion.getId());
         ultimaFechaClonada.remove(sesion.getId());
         readinessManager.eliminar(sesion.getId());
+        lockManager.eliminar(sesion.getId());
 
         try {
             redisCacheService.setEstadoSesion(sesion.getId(), "FINALIZADA");
@@ -249,12 +265,16 @@ public class TickService {
 
         for (Vuelo vuelo : saliendo) {
             vuelo.setEstado(EstadoVuelo.EN_RUTA);
-            vuelosActualizar.add(vuelo);
 
             NodoLogistico origen = vuelo.getOrigen();
 
             List<SegmentoPlan> segmentos = segmentoPlanRepository.findByVueloIdAndEstado(
                     vuelo.getId(), EstadoSegmento.PENDIENTE);
+
+            // Carga real que aborda este vuelo al despegar — fija la ocupación del
+            // vuelo de forma determinista, independiente del contador carga_disponible
+            // que el planificador ajusta/restaura ciclo a ciclo.
+            int abordando = 0;
             for (SegmentoPlan seg : segmentos) {
                 seg.setEstado(EstadoSegmento.EN_CURSO);
                 segmentosActualizar.add(seg);
@@ -265,9 +285,15 @@ public class TickService {
                     eq.setVueloActual(vuelo);
                     equipajesActualizar.add(eq);
                     int cantidad = eq.getCantidad() != null ? eq.getCantidad() : 1;
+                    abordando += cantidad;
                     nodosCarga.merge(origen.getId(), cantidad, Integer::sum);
                 }
             }
+
+            // Ocupación = capacidad - lo que realmente abordó. Visible en el mapa.
+            int capacidad = vuelo.getCapacidadCarga() != null ? vuelo.getCapacidadCarga() : 0;
+            vuelo.setCargaDisponible(Math.max(0, capacidad - abordando));
+            vuelosActualizar.add(vuelo);
         }
 
         vueloRepository.saveAll(vuelosActualizar);

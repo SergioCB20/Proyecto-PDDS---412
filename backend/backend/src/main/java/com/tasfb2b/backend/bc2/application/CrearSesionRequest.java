@@ -8,7 +8,6 @@ public record CrearSesionRequest(
     String hora_inicio_virtual,
     BigDecimal prob_cancelacion,
     String tipo_simulacion,
-    Integer ventana_horas,
     Integer duracion_dias,
     /**
      * Factor tiempo_virtual/tiempo_real. Con tick=5s: k=120→60 min real, k=240→30 min real.

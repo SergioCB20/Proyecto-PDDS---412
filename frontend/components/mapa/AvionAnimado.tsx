@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Marker, Tooltip, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import { COLOR_VUELO } from '@/lib/colors';
+import { bezierControlPoint, bezierPoint, bezierBearing } from '@/lib/bezier';
 import type { VueloEnMapa } from '@/lib/types';
 
 const COLORES: Record<string, string> = {
@@ -13,37 +14,8 @@ const COLORES: Record<string, string> = {
   COMPLETADO: COLOR_VUELO.COMPLETADO,
 };
 
-function calcBearing(
-  from: { lat: number; lon: number },
-  to: { lat: number; lon: number }
-): number {
-  const dLon = ((to.lon - from.lon) * Math.PI) / 180;
-  const lat1 = (from.lat * Math.PI) / 180;
-  const lat2 = (to.lat * Math.PI) / 180;
-  const y = Math.sin(dLon) * Math.cos(lat2);
-  const x =
-    Math.cos(lat1) * Math.sin(lat2) -
-    Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
-  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
-}
-
-function easeInOutQuad(t: number): number {
-  return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
-}
-
 function esCoordenadaValida(v: number): boolean {
   return Number.isFinite(v) && Math.abs(v) <= 180;
-}
-
-function calcPosicionEnRuta(
-  origen: L.LatLng,
-  destino: L.LatLng,
-  progreso: number
-): [number, number] {
-  return [
-    origen.lat + (destino.lat - origen.lat) * progreso,
-    origen.lng + (destino.lng - origen.lng) * progreso,
-  ];
 }
 
 function crearIconoAvion(color: string, rotacion: number = 0) {
@@ -70,20 +42,24 @@ function crearIconoAvion(color: string, rotacion: number = 0) {
 interface AvionAnimadoProps {
   vuelo: VueloEnMapa;
   animacionActiva?: boolean;
+  k?: number;
 }
 
-const AvionAnimado = React.memo(function AvionAnimado({ vuelo, animacionActiva = false }: AvionAnimadoProps) {
+const AvionAnimado = React.memo(function AvionAnimado({
+  vuelo,
+  animacionActiva = false,
+  k = 120,
+}: AvionAnimadoProps) {
   const markerRef = useRef<L.Marker>(null);
-  const animRef = useRef<number>(0);
-  const progresoRef = useRef(0);
-  const prevEstadoRef = useRef(vuelo.estado);
+  const rafRef = useRef<number>(0);
 
-  const origenLL = L.latLng(vuelo.origen_lat, vuelo.origen_lon);
-  const destinoLL = L.latLng(vuelo.destino_lat, vuelo.destino_lon);
-  const distTotal = origenLL.distanceTo(destinoLL);
-  const bearing = calcBearing(
-    { lat: vuelo.origen_lat, lon: vuelo.origen_lon },
-    { lat: vuelo.destino_lat, lon: vuelo.destino_lon }
+  const { ctrlLat, ctrlLon } = useMemo(
+    () => bezierControlPoint(vuelo.origen_lat, vuelo.origen_lon, vuelo.destino_lat, vuelo.destino_lon),
+    [vuelo.origen_lat, vuelo.origen_lon, vuelo.destino_lat, vuelo.destino_lon]
+  );
+
+  const [icono, setIcono] = useState(() =>
+    crearIconoAvion(COLORES[vuelo.estado] || '#6b7280', 0)
   );
 
   const [frozenPos] = useState<[number, number]>(() => {
@@ -93,82 +69,140 @@ const AvionAnimado = React.memo(function AvionAnimado({ vuelo, animacionActiva =
     }
     return [vuelo.origen_lat, vuelo.origen_lon];
   });
-  const icono = useMemo(
-    () => crearIconoAvion(COLORES[vuelo.estado] || '#6b7280', bearing),
-    [vuelo.estado, bearing]
-  );
 
+  /**
+   * Single ref that holds all animation state so the rAF closure never goes stale.
+   * Updated from effects; never causes re-renders.
+   */
+  const flightRef = useRef({
+    progreso: vuelo.progreso ?? 0,    // server-confirmed progreso at lastTickTime
+    lastTickTime: performance.now(),  // real time of last server confirmation
+    horaSalidaMs: vuelo.hora_salida ? new Date(vuelo.hora_salida).getTime() : 0,
+    horaLlegadaMs: vuelo.hora_llegada ? new Date(vuelo.hora_llegada).getTime() : 0,
+    k,
+    lastBearingT: -1,                 // last t at which we updated the bearing icon
+  });
+
+  // Keep flight metadata in sync (no rAF restart needed — ref is always fresh)
+  useEffect(() => {
+    const ref = flightRef.current;
+    ref.progreso = vuelo.progreso ?? 0;
+    ref.lastTickTime = performance.now();
+    ref.horaSalidaMs = vuelo.hora_salida ? new Date(vuelo.hora_salida).getTime() : 0;
+    ref.horaLlegadaMs = vuelo.hora_llegada ? new Date(vuelo.hora_llegada).getTime() : 0;
+    ref.k = k;
+  }, [vuelo.progreso, vuelo.hora_salida, vuelo.hora_llegada, k]);
+
+  // Update icon color on state change
+  useEffect(() => {
+    setIcono(crearIconoAvion(COLORES[vuelo.estado] || '#6b7280', 0));
+    flightRef.current.lastBearingT = -1; // force bearing refresh
+  }, [vuelo.estado]);
+
+  /**
+   * Continuous rAF loop.
+   * Only restarts when the flight identity / route changes — NOT on every tick.
+   * All live data (progreso, k, timestamps) is read from flightRef.current.
+   */
   useEffect(() => {
     const marker = markerRef.current;
     if (!marker) return;
 
-    const p = vuelo.posicionActual;
-    if (!p || !esCoordenadaValida(p.lat) || !esCoordenadaValida(p.lon)) {
-      return;
-    }
-
-    const actual = L.latLng(p.lat, p.lon);
-    const distRecorrida = origenLL.distanceTo(actual);
-    const progresoObjetivo = distTotal > 0 ? Math.min(distRecorrida / distTotal, 1) : 0;
-
-    if (vuelo.estado !== prevEstadoRef.current) {
-      prevEstadoRef.current = vuelo.estado;
-    }
-
-    if (!animacionActiva || distTotal === 0) {
-      const [lat, lng] = calcPosicionEnRuta(origenLL, destinoLL, progresoObjetivo);
+    if (!animacionActiva || vuelo.estado !== 'EN_RUTA') {
+      const t = Math.min(Math.max(flightRef.current.progreso, 0), 1);
+      const [lat, lng] = bezierPoint(
+        vuelo.origen_lat, vuelo.origen_lon,
+        ctrlLat, ctrlLon,
+        vuelo.destino_lat, vuelo.destino_lon,
+        t
+      );
       marker.setLatLng([lat, lng]);
-      progresoRef.current = progresoObjetivo;
+      const bearing = bezierBearing(
+        vuelo.origen_lat, vuelo.origen_lon,
+        ctrlLat, ctrlLon,
+        vuelo.destino_lat, vuelo.destino_lon,
+        t
+      );
+      setIcono(crearIconoAvion(COLORES[vuelo.estado] || '#6b7280', bearing));
       return;
     }
 
-    const progInicio = progresoRef.current;
-    const duracion = 2000;
-    const tiempoInicio = performance.now();
+    let running = true;
 
-    function animar(tiempo: number) {
-      const t = Math.min((tiempo - tiempoInicio) / duracion, 1);
-      const suavizado = easeInOutQuad(t);
-      const progActual = progInicio + (progresoObjetivo - progInicio) * suavizado;
-      const [lat, lng] = calcPosicionEnRuta(origenLL, destinoLL, progActual);
-      if (marker) marker.setLatLng([lat, lng]);
-      if (t < 1) {
-        animRef.current = requestAnimationFrame(animar);
-      } else {
-        progresoRef.current = progresoObjetivo;
+    function frame() {
+      if (!running || !marker) return;
+
+      const ref = flightRef.current;
+      const now = performance.now();
+      const elapsed = now - ref.lastTickTime; // ms since last server confirmation
+
+      // Theoretical velocity: progreso/ms in real time
+      // progreso spans [0,1] over the virtual flight duration.
+      // In real time that same span takes durVirtual/k ms.
+      const durVirtual = ref.horaLlegadaMs - ref.horaSalidaMs;
+      const velocity = durVirtual > 0 && ref.k > 0 ? ref.k / durVirtual : 0;
+
+      // Extrapolate from last server position at constant velocity
+      const extrapolated = ref.progreso + velocity * elapsed;
+      const t = Math.min(Math.max(extrapolated, 0), 1);
+
+      const [lat, lng] = bezierPoint(
+        vuelo.origen_lat, vuelo.origen_lon,
+        ctrlLat, ctrlLon,
+        vuelo.destino_lat, vuelo.destino_lon,
+        t
+      );
+      marker.setLatLng([lat, lng]);
+
+      // Refresh bearing icon only when progreso shifts by ≥3% (avoids per-frame setState)
+      if (Math.abs(t - ref.lastBearingT) >= 0.03) {
+        ref.lastBearingT = t;
+        const bearing = bezierBearing(
+          vuelo.origen_lat, vuelo.origen_lon,
+          ctrlLat, ctrlLon,
+          vuelo.destino_lat, vuelo.destino_lon,
+          t
+        );
+        setIcono(crearIconoAvion(COLORES[vuelo.estado] || '#6b7280', bearing));
       }
+
+      rafRef.current = requestAnimationFrame(frame);
     }
 
-    cancelAnimationFrame(animRef.current);
-    animRef.current = requestAnimationFrame(animar);
+    cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(frame);
 
-    return () => cancelAnimationFrame(animRef.current);
+    return () => {
+      running = false;
+      cancelAnimationFrame(rafRef.current);
+    };
   }, [
-    vuelo.posicionActual?.lat,
-    vuelo.posicionActual?.lon,
-    vuelo.estado,
+    // Only restart the loop when the flight route/identity changes
     animacionActiva,
+    vuelo.estado,
+    vuelo.id,
+    vuelo.origen_lat, vuelo.origen_lon,
+    vuelo.destino_lat, vuelo.destino_lon,
+    ctrlLat, ctrlLon,
+    // NOTE: vuelo.progreso / k intentionally excluded — handled via flightRef
   ]);
 
   const ocupada = vuelo.capacidad_carga - vuelo.carga_disponible;
 
   return (
-    <Marker
-      ref={markerRef}
-      position={frozenPos}
-      icon={icono}
-    >
-      <Tooltip direction="top" offset={[0, -14]}>
-        <div className="text-center min-w-[100px]">
-          <div className="font-bold text-sm">{vuelo.codigo_vuelo}</div>
-          <div className="text-xs text-slate-600">
+    <Marker ref={markerRef} position={frozenPos} icon={icono}>
+      {/* Etiqueta permanente: almacenamiento ocupado siempre visible para vuelos en viaje */}
+      <Tooltip permanent direction="top" offset={[0, -14]} className="avion-carga-tooltip">
+        <div className="text-center min-w-[90px]">
+          <div className="font-bold text-xs">{vuelo.codigo_vuelo}</div>
+          <div className="text-[10px] text-slate-600">
             {vuelo.origen.codigo_iata} → {vuelo.destino.codigo_iata}
           </div>
-          <div className="text-xs mt-1">
-            <span className="text-slate-500">Ocupado: </span>
-            <span className="font-semibold">{ocupada}/{vuelo.capacidad_carga}</span>
+          <div className="text-[11px] mt-0.5">
+            <span className="text-slate-500">Carga: </span>
+            <span className="font-bold">{ocupada}/{vuelo.capacidad_carga}</span>
           </div>
-          <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden mt-1">
+          <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden mt-0.5">
             <div
               className="h-full rounded-full transition-all duration-500"
               style={{
@@ -200,12 +234,15 @@ const AvionAnimado = React.memo(function AvionAnimado({ vuelo, animacionActiva =
           <div
             className="px-2 py-1 rounded text-white text-xs font-bold"
             style={{
-              backgroundColor: ocupada === 0 ? '#22c55e' :
+              backgroundColor:
+                ocupada === 0 ? '#22c55e' :
                 (ocupada / vuelo.capacidad_carga) < 0.7 ? '#22c55e' :
-                (ocupada / vuelo.capacidad_carga) < 0.9 ? '#eab308' : '#ef4444'
+                (ocupada / vuelo.capacidad_carga) < 0.9 ? '#eab308' : '#ef4444',
             }}
           >
-            {vuelo.capacidad_carga > 0 ? ((ocupada / vuelo.capacidad_carga) * 100).toFixed(0) : 0}% ocupado
+            {vuelo.capacidad_carga > 0
+              ? ((ocupada / vuelo.capacidad_carga) * 100).toFixed(0)
+              : 0}% ocupado
           </div>
         </div>
       </Popup>

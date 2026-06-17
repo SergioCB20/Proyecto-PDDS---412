@@ -44,6 +44,7 @@ services:
       REDIS_PORT: 6379
       JWT_SECRET: dev_jwt_secret_key_at_least_32_chars_long
       SIMULACION_SA: "120"
+      SIMULACION_VENTANA_HORAS: "4"
       RUTA_ENVIOS: /data/envios/
       APP_REPORTES_RUTA_ARCHIVOS: /data/reportes
     volumes:
