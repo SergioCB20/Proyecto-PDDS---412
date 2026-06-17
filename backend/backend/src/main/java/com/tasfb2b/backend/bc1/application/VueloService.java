@@ -234,6 +234,10 @@ public class VueloService {
         );
     }
 
+    public boolean existenInstanciasParaFecha(LocalDate fechaOperacion) {
+        return vueloRepository.countByFechaOperacionAndEsPlantilla(fechaOperacion, false) > 0;
+    }
+
     @Transactional
     public int clonarPlantillas(LocalDate fechaOperacion) {
         if (vueloRepository.existsByFechaOperacionAndEsPlantilla(fechaOperacion, false)) {

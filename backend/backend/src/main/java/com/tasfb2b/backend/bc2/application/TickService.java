@@ -190,6 +190,12 @@ public class TickService {
         LocalDate ultima = ultimaFechaClonada.get(sesion.getId());
         if (fechaActual.equals(ultima)) return;
 
+        // Si ya existen instancias para esta fecha (ej. preparacion las clonó), marcar y salir
+        if (vueloService.existenInstanciasParaFecha(fechaActual)) {
+            ultimaFechaClonada.put(sesion.getId(), fechaActual);
+            return;
+        }
+
         try {
             int clonadas = vueloService.clonarPlantillas(fechaActual);
             if (clonadas > 0) {
@@ -200,6 +206,8 @@ public class TickService {
         } catch (Exception e) {
             log.warn("Error en clonado progresivo para sesion {} fecha {}: {}",
                     sesion.getId(), fechaActual, e.getMessage());
+            // Si falló por duplicado, los vuelos ya existen: marcar para no reintentar
+            ultimaFechaClonada.put(sesion.getId(), fechaActual);
         }
     }
 
