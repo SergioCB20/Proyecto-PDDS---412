@@ -11,7 +11,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.PageRequest;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class EquipajeService {
@@ -410,17 +412,32 @@ public class EquipajeService {
 
     public MetricasOperacionResponse obtenerMetricasOperacion() {
         long total = equipajeRepository.count();
-        long registrados = equipajeRepository.countByEstado(EstadoEquipaje.REGISTRADO);
-        long enVuelo = equipajeRepository.countByEstado(EstadoEquipaje.EN_VUELO);
-        long enAlmacen = equipajeRepository.countByEstado(EstadoEquipaje.EN_ALMACEN);
-        long entregados = equipajeRepository.countByEstado(EstadoEquipaje.ENTREGADO);
-        long replanificacion = equipajeRepository.countByEstado(EstadoEquipaje.EN_REPLANIFICACION);
-        long incumplimiento = equipajeRepository.countByEstado(EstadoEquipaje.INCUMPLIMIENTO_SLA);
 
-        long programados = vueloRepository.countByEstadoAndEsPlantilla(EstadoVuelo.PROGRAMADO, false);
-        long enRuta = vueloRepository.countByEstadoAndEsPlantilla(EstadoVuelo.EN_RUTA, false);
-        long completados = vueloRepository.countByEstadoAndEsPlantilla(EstadoVuelo.COMPLETADO, false);
-        long cancelados = vueloRepository.countByEstadoAndEsPlantilla(EstadoVuelo.CANCELADO, false);
+        Map<String, Long> equipajePorEstado = equipajeRepository.countByEstadoGrouped()
+                .stream()
+                .collect(Collectors.toMap(
+                        row -> (String) row[0],
+                        row -> (Long) row[1]
+                ));
+
+        long registrados = equipajePorEstado.getOrDefault("REGISTRADO", 0L);
+        long enVuelo = equipajePorEstado.getOrDefault("EN_VUELO", 0L);
+        long enAlmacen = equipajePorEstado.getOrDefault("EN_ALMACEN", 0L);
+        long entregados = equipajePorEstado.getOrDefault("ENTREGADO", 0L);
+        long replanificacion = equipajePorEstado.getOrDefault("EN_REPLANIFICACION", 0L);
+        long incumplimiento = equipajePorEstado.getOrDefault("INCUMPLIMIENTO_SLA", 0L);
+
+        Map<String, Long> vueloPorEstado = vueloRepository.countByEstadoNotPlantillaGrouped()
+                .stream()
+                .collect(Collectors.toMap(
+                        row -> (String) row[0],
+                        row -> (Long) row[1]
+                ));
+
+        long programados = vueloPorEstado.getOrDefault("PROGRAMADO", 0L);
+        long enRuta = vueloPorEstado.getOrDefault("EN_RUTA", 0L);
+        long completados = vueloPorEstado.getOrDefault("COMPLETADO", 0L);
+        long cancelados = vueloPorEstado.getOrDefault("CANCELADO", 0L);
 
         return new MetricasOperacionResponse(
                 total, registrados, enVuelo, enAlmacen, entregados,
