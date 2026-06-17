@@ -148,6 +148,8 @@ public class SimulacionEnrutamientoService {
 
         List<UUID> equipajesEnrutados = new ArrayList<>();
         int enrutados = 0;
+        int sinRutaTotal = 0;
+        UUID primerSinRutaGlobal = null;
 
         for (int i = 0; i < equipajes.size(); i += SUB_BATCH_SIZE) {
             List<Equipaje> subBatch = equipajes.subList(i, Math.min(i + SUB_BATCH_SIZE, equipajes.size()));
@@ -158,14 +160,17 @@ public class SimulacionEnrutamientoService {
             List<UUID> vuelosActualizar = new ArrayList<>();
             Map<UUID, Integer> nodosActualizar = new HashMap<>();
 
+            int sinRutaLote = 0;
+            UUID primerSinRutaLote = null;
             for (int j = 0; j < subBatch.size(); j++) {
                 Equipaje eq = subBatch.get(j);
                 RutaResult ruta = (j < resultados.size()) ? resultados.get(j) : null;
 
                 if (ruta == null || !ruta.exitoso() || ruta.segmentos().isEmpty()) {
-                    log.warn("Colapso: equipaje {} sin ruta disponible en ventana {}-{}",
-                            eq.getId(), inicioVentana, finVentana);
-                    return new ResultadoVentana(enrutados, true, inicioVentana, eq.getId());
+                    log.debug("SinRuta: equipaje {} en ventana {}-{}", eq.getId(), inicioVentana, finVentana);
+                    sinRutaLote++;
+                    if (primerSinRutaLote == null) primerSinRutaLote = eq.getId();
+                    continue;
                 }
 
                 PlanViaje planViaje = new PlanViaje();
@@ -186,10 +191,16 @@ public class SimulacionEnrutamientoService {
                     planViaje.setUbicacionLon(primerVuelo.getOrigenLon());
                 }
 
+                boolean segmentoValido = true;
                 for (SegmentoInfo segInfo : ruta.segmentos()) {
                     Vuelo segVuelo = vuelosMap.get(segInfo.vueloId());
                     if (segVuelo == null) {
-                        return new ResultadoVentana(enrutados, true, inicioVentana, eq.getId());
+                        log.debug("SinRuta (vuelo no encontrado): equipaje {} en ventana {}-{}",
+                                eq.getId(), inicioVentana, finVentana);
+                        sinRutaLote++;
+                        if (primerSinRutaLote == null) primerSinRutaLote = eq.getId();
+                        segmentoValido = false;
+                        break;
                     }
                     NodoLogistico segOrigen = nodosPorId.get(segInfo.nodoOrigenId());
                     NodoLogistico segDestino = nodosPorId.get(segInfo.nodoDestinoId());
@@ -205,6 +216,7 @@ public class SimulacionEnrutamientoService {
                     segmento.setEstado(EstadoSegmento.PENDIENTE);
                     segmentosBatch.add(segmento);
                 }
+                if (!segmentoValido) continue;
 
                 planesBatch.add(planViaje);
                 equipajesEnrutados.add(eq.getId());
@@ -217,6 +229,11 @@ public class SimulacionEnrutamientoService {
                 nodosActualizar.merge(primerSeg.nodoOrigenId(), cantidad, Integer::sum);
             }
 
+            if (sinRutaLote > 0) {
+                log.warn("SinRuta: {} equipajes sin ruta en ventana {}-{} (primero: {})",
+                        sinRutaLote, inicioVentana, finVentana, primerSinRutaLote);
+            }
+
             // Guardar todo en lote
             planViajeRepository.saveAll(planesBatch);
             segmentoPlanRepository.saveAll(segmentosBatch);
@@ -226,9 +243,17 @@ public class SimulacionEnrutamientoService {
             batchActualizarNodos(nodosActualizar);
             batchMarcarEnrutados(equipajesEnrutados);
             equipajesEnrutados.clear();
+            sinRutaTotal += sinRutaLote;
+            if (primerSinRutaLote != null && primerSinRutaGlobal == null) primerSinRutaGlobal = primerSinRutaLote;
         }
 
-        return new ResultadoVentana(enrutados, false, null, null);
+        boolean colapso = (sinRutaTotal > 0 && enrutados == 0);
+        if (colapso) {
+            log.warn("Colapso: 0 equipajes enrutados en ventana {}-{} ({} sin ruta)",
+                    inicioVentana, finVentana, sinRutaTotal);
+        }
+        return new ResultadoVentana(enrutados, colapso, colapso ? inicioVentana : null,
+                colapso ? primerSinRutaGlobal : null);
     }
 
     private void batchActualizarVuelos(List<UUID> vueloIds) {

@@ -200,7 +200,8 @@ public class ACORoutingStrategy implements RoutingStrategy {
 
     private int calcularTiempoMaximo(OffsetDateTime sla, OffsetDateTime horaVirtual) {
         long horas = java.time.Duration.between(horaVirtual, sla).toHours();
-        return Math.max(1, (int) horas);
+        // Si el SLA ya venció, dar 24 horas de margen para enrutar con best-effort
+        return horas > 0 ? (int) horas : 24;
     }
 
     private ResultadoInterno construirRuta(MaletaInterna maleta,
