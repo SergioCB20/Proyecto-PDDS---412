@@ -76,10 +76,10 @@ export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false
           </Tooltip>
         </Polyline>
       )}
-      {vuelo.estado === 'EN_RUTA' && (
+      {(vuelo.estado === 'EN_RUTA' || vuelo.estado === 'PROGRAMADO') && (
         <AvionAnimado
           vuelo={vuelo}
-          animacionActiva={animacionActiva}
+          animacionActiva={animacionActiva && vuelo.estado === 'EN_RUTA'}
           k={k}
         />
       )}
