@@ -155,7 +155,7 @@ export default function OperacionPage() {
   const toggleOperacion = async () => {
     setToggleLoading(true);
     try {
-      const res = await api.post<{ activo: boolean }>('/operacion/toggle');
+      const res = await api.post<{ activo: boolean }>('/operacion/toggle', {});
       setOperacionActiva(res.activo);
     } catch {
       agregarNotificacion('error', 'Error al cambiar estado');
