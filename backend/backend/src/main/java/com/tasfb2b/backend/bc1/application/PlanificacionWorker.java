@@ -41,18 +41,20 @@ public class PlanificacionWorker {
     private final ApplicationEventPublisher eventPublisher;
     private final RedisCacheService redisCacheService;
     private final SseService sseService;
+    private final OperacionTickService operacionTickService;
 
     public PlanificacionWorker(ColaPlanificacionRepository colaRepository,
-                               EquipajeRepository equipajeRepository,
-                               VueloRepository vueloRepository,
-                               NodoLogisticoRepository nodoRepository,
-                               PlanViajeRepository planViajeRepository,
-                               SegmentoPlanRepository segmentoPlanRepository,
-                               MotorEnrutamiento motorEnrutamiento,
-                               SesionRepository sesionRepository,
-                               ApplicationEventPublisher eventPublisher,
-                               RedisCacheService redisCacheService,
-                               SseService sseService) {
+                                EquipajeRepository equipajeRepository,
+                                VueloRepository vueloRepository,
+                                NodoLogisticoRepository nodoRepository,
+                                PlanViajeRepository planViajeRepository,
+                                SegmentoPlanRepository segmentoPlanRepository,
+                                MotorEnrutamiento motorEnrutamiento,
+                                SesionRepository sesionRepository,
+                                ApplicationEventPublisher eventPublisher,
+                                RedisCacheService redisCacheService,
+                                SseService sseService,
+                                OperacionTickService operacionTickService) {
         this.colaRepository = colaRepository;
         this.equipajeRepository = equipajeRepository;
         this.vueloRepository = vueloRepository;
@@ -64,6 +66,7 @@ public class PlanificacionWorker {
         this.eventPublisher = eventPublisher;
         this.redisCacheService = redisCacheService;
         this.sseService = sseService;
+        this.operacionTickService = operacionTickService;
     }
 
     @Scheduled(fixedDelay = 500)
@@ -77,7 +80,8 @@ public class PlanificacionWorker {
     }
 
     private boolean haySesionActiva() {
-        return !sesionRepository.findByEstado(EstadoSesion.EN_CURSO).isEmpty();
+        return !sesionRepository.findByEstado(EstadoSesion.EN_CURSO).isEmpty()
+            || operacionTickService.estaActivo();
     }
 
     private void procesarItemSimple() {

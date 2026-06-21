@@ -51,10 +51,8 @@ export default function OperacionPage() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [formData, setFormData] = useState({
-    idEquipaje: '',
     destinoIata: '',
     vueloId: '',
-    slaComprometido: '',
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [formLoading, setFormLoading] = useState(false);
@@ -277,10 +275,8 @@ export default function OperacionPage() {
 
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
-    if (!formData.idEquipaje.trim()) errors.idEquipaje = 'ID de equipaje es requerido';
     if (!formData.destinoIata) errors.destinoIata = 'Destino es requerido';
     if (!formData.vueloId) errors.vueloId = 'Vuelo es requerido';
-    if (!formData.slaComprometido.trim()) errors.slaComprometido = 'SLA es requerido';
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -294,21 +290,16 @@ export default function OperacionPage() {
 
     setFormLoading(true);
     try {
-      const slaDatetime = new Date();
-      slaDatetime.setHours(slaDatetime.getHours() + parseInt(formData.slaComprometido));
-
       const request: CrearEquipajeRequest = {
-        id_equipaje: formData.idEquipaje,
         destino_iata: formData.destinoIata,
         vuelo_id: formData.vueloId,
-        sla_comprometido: slaDatetime.toISOString(),
       };
 
       const response = await api.post<CrearEquipajeResponse>('/equipajes', request);
       setFormSuccess(response);
-      setFormData({ idEquipaje: '', destinoIata: '', vueloId: '', slaComprometido: '' });
+      setFormData({ destinoIata: '', vueloId: '' });
       setEquipajesRecientes(prev => [
-        { id_externo: formData.idEquipaje, destino: formData.destinoIata, estado: response.estado, tiempo: 'ahora' },
+        { id_externo: response.id_externo || response.id.slice(0, 8), destino: formData.destinoIata, estado: response.estado, tiempo: 'ahora' },
         ...prev.slice(0, 7),
       ]);
     } catch (err: unknown) {
@@ -372,10 +363,8 @@ export default function OperacionPage() {
 
   const handleEditarEquipaje = (eq: EquipajeReciente) => {
     setFormData({
-      idEquipaje: eq.id_externo,
       destinoIata: eq.destino,
       vueloId: '',
-      slaComprometido: '',
     });
     setFormOpen(true);
   };
@@ -688,15 +677,6 @@ export default function OperacionPage() {
 
               {formOpen && (
                 <form onSubmit={handleSubmit} className="space-y-3 mb-4 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-                  <Input
-                    label="ID Equipaje"
-                    placeholder="MAL-2025-00123"
-                    value={formData.idEquipaje}
-                    onChange={e => setFormData(prev => ({ ...prev, idEquipaje: e.target.value }))}
-                    error={formErrors.idEquipaje}
-                    autoComplete="off"
-                  />
-
                   <Select
                     label="Destino IATA"
                     placeholder={nodos.length === 0 ? 'No hay destinos disponibles' : 'Seleccionar destino'}
@@ -715,16 +695,6 @@ export default function OperacionPage() {
                     onChange={e => setFormData(prev => ({ ...prev, vueloId: e.target.value }))}
                     error={formErrors.vueloId}
                     disabled={vuelosProgramados.length === 0}
-                  />
-
-                  <Input
-                    label="SLA Comprometido (horas)"
-                    type="number"
-                    placeholder="24"
-                    min="1"
-                    value={formData.slaComprometido}
-                    onChange={e => setFormData(prev => ({ ...prev, slaComprometido: e.target.value }))}
-                    error={formErrors.slaComprometido}
                   />
 
                   {formError && (
@@ -812,8 +782,12 @@ export default function OperacionPage() {
                   </div>
                   <div className="space-y-1 text-xs">
                     <div className="flex justify-between">
-                      <span className="text-slate-600 dark:text-slate-400">ID:</span>
-                      <span className="font-medium text-slate-900 dark:text-slate-100">{formSuccess.id}</span>
+                      <span className="text-slate-600 dark:text-slate-400">ID Interno:</span>
+                      <span className="font-medium text-slate-900 dark:text-slate-100">{formSuccess.id.slice(0, 8)}...</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600 dark:text-slate-400">Código:</span>
+                      <span className="font-medium text-slate-900 dark:text-slate-100">{formSuccess.id_externo || formSuccess.id.slice(0, 8)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-600 dark:text-slate-400">Estado:</span>
@@ -985,7 +959,7 @@ export default function OperacionPage() {
                 {csvFile ? csvFile.name : 'Subir archivo CSV'}
               </p>
               <p className="text-xs text-slate-500 mt-1">
-                Formato: id_equipaje, destino_iata, vuelo_id, sla_comprometido
+                Formato: destino_iata, vuelo_id
               </p>
             </label>
           </div>

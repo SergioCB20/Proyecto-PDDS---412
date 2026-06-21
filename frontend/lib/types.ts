@@ -158,10 +158,10 @@ export interface ReporteSesion {
 }
 
 export interface CrearEquipajeRequest {
-  id_equipaje: string;
+  id_equipaje?: string;
   destino_iata: string;
   vuelo_id: string;
-  sla_comprometido: string;
+  sla_comprometido?: string;
 }
 
 export interface CrearEquipajeResponse {
