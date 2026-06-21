@@ -152,9 +152,17 @@ export default function OperacionPage() {
     setLoading(true);
     setApiError(null);
     try {
+      const ahora = new Date();
+      const baseDate = '2026-01-15';
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const hh = pad(ahora.getUTCHours());
+      const mm = pad(ahora.getUTCMinutes());
+      const ss = pad(ahora.getUTCSeconds());
+      const wStart = `${baseDate}T${hh}:${mm}:${ss}Z`;
+      const wEnd = new Date(new Date(wStart).getTime() + 4 * 3600000).toISOString();
       const [nodosData, vuelosData] = await Promise.all([
         api.get<Nodo[]>('/nodos'),
-        api.get<VueloPageResponse>('/vuelos?size=200'),
+        api.get<VueloPageResponse>(`/vuelos?size=300&fecha_desde=${encodeURIComponent(wStart)}&fecha_hasta=${encodeURIComponent(wEnd)}`),
       ]);
       const mapped = vuelosData.content.map((v: Vuelo): VueloEnMapa => ({ ...v }));
       setNodos(nodosData.map(nodoToEnMapa));
@@ -210,8 +218,8 @@ export default function OperacionPage() {
         origen_lon: v.origen_lon,
         destino_lat: v.destino_lat,
         destino_lon: v.destino_lon,
-        hora_salida: '',
-        hora_llegada: '',
+        hora_salida: v.hora_salida || '',
+        hora_llegada: v.hora_llegada || '',
         capacidad_carga: v.capacidad_carga,
         carga_disponible: v.carga_disponible,
         es_plantilla: false,
@@ -452,11 +460,25 @@ export default function OperacionPage() {
   }));
 
   const vuelosMapaFiltrados = useMemo(() => {
+    const ahora = new Date();
+    const nowMin = ahora.getUTCHours() * 60 + ahora.getUTCMinutes();
+    const endMin = nowMin + 240;
+
     return allVuelos.filter(v => {
       if (v.estado !== 'PROGRAMADO' && v.estado !== 'EN_RUTA') return false;
       if (vueloFilterOrigen && v.origen.codigo_iata !== vueloFilterOrigen) return false;
       if (vueloFilterDestino && v.destino.codigo_iata !== vueloFilterDestino) return false;
-      return true;
+
+      if (v.estado === 'EN_RUTA') return true;
+
+      if (!v.hora_salida) return false;
+      const hs = new Date(v.hora_salida);
+      const hsMin = hs.getUTCHours() * 60 + hs.getUTCMinutes();
+      if (endMin < 1440) {
+        return hsMin >= nowMin && hsMin < endMin;
+      } else {
+        return hsMin >= nowMin || hsMin < (endMin - 1440);
+      }
     });
   }, [allVuelos, vueloFilterOrigen, vueloFilterDestino]);
 
