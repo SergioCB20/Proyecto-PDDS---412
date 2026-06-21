@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { Package, RefreshCw, ChevronDown, ChevronUp, CheckCircle, XCircle, Plane, Upload, FileSpreadsheet, AlertTriangle, Menu, ChevronLeft } from 'lucide-react';
+import { Package, RefreshCw, ChevronDown, ChevronUp, CheckCircle, XCircle, Plane, Upload, FileSpreadsheet, AlertTriangle, Menu, ChevronLeft, Power } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { api } from '@/lib/api';
 import { nodoToEnMapa } from '@/lib/mock';
@@ -88,6 +88,10 @@ export default function OperacionPage() {
   const animacionActiva = wsConnected && (telemetria?.vuelos?.some(v => v.estado === 'EN_RUTA') ?? false);
   const [notificaciones, setNotificaciones] = useState<{ id: number; tipo: 'success' | 'error'; mensaje: string }[]>([]);
 
+  const ultimaTelemetria = useRef<number>(0);
+  const [operacionActiva, setOperacionActiva] = useState(true);
+  const [toggleLoading, setToggleLoading] = useState(false);
+
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [selectedEnvio, setSelectedEnvio] = useState<SelectedEnvioOperacion | null>(null);
   const [vueloFilterOrigen, setVueloFilterOrigen] = useState('');
@@ -148,11 +152,37 @@ export default function OperacionPage() {
     };
   }, []);
 
+  const toggleOperacion = async () => {
+    setToggleLoading(true);
+    try {
+      const res = await api.post<{ activo: boolean }>('/operacion/toggle', {});
+      setOperacionActiva(res.activo);
+    } catch {
+      agregarNotificacion('error', 'Error al cambiar estado');
+    } finally {
+      setToggleLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    api.get<{ activo: boolean }>('/operacion/estado')
+      .then(res => setOperacionActiva(res.activo))
+      .catch(() => {});
+  }, []);
+
   const fetchData = async () => {
     setLoading(true);
     setApiError(null);
     try {
       const ahora = new Date();
+
+      // Si WS ha entregado datos en los últimos 15s, saltar REST para evitar flicker
+      if (ultimaTelemetria.current > 0 && ahora.getTime() - ultimaTelemetria.current < 15000) {
+        setLastUpdate(new Date());
+        setLoading(false);
+        return;
+      }
+
       const baseDate = '2026-01-15';
       const pad = (n: number) => String(n).padStart(2, '0');
       const hh = pad(ahora.getUTCHours());
@@ -206,6 +236,8 @@ export default function OperacionPage() {
     queueMicrotask(() => {
       setNodos(telemetriaNodos);
     });
+
+    ultimaTelemetria.current = Date.now();
 
     if (telemetria.vuelos && telemetria.vuelos.length > 0) {
       const telemetriaVuelos: VueloEnMapa[] = telemetria.vuelos.map(v => ({
@@ -515,6 +547,7 @@ export default function OperacionPage() {
               {sseConnected ? 'SSE' : 'OFF'}
             </Badge>
             <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`} title={wsConnected ? 'WebSocket conectado' : 'WebSocket desconectado'} />
+            <span className={`w-2 h-2 rounded-full ${operacionActiva ? 'bg-green-500' : 'bg-red-500'}`} title={operacionActiva ? 'Operación activa' : 'Operación detenida'} />
           </div>
         ) : (
           <>
@@ -540,6 +573,26 @@ export default function OperacionPage() {
                 <span className="text-xs text-slate-500">
                   WS {wsConnected ? 'conectado' : 'desconectado'}
                 </span>
+              </div>
+              <div className="flex items-center justify-between mt-2 mb-1">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${operacionActiva ? 'bg-green-500' : 'bg-red-500'}`} />
+                  <span className="text-xs text-slate-500">
+                    Operación {operacionActiva ? 'activa' : 'detenida'}
+                  </span>
+                </div>
+                <button
+                  onClick={toggleOperacion}
+                  disabled={toggleLoading}
+                  className={`p-1.5 rounded-lg transition-colors ${
+                    operacionActiva
+                      ? 'bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400'
+                      : 'bg-green-50 hover:bg-green-100 dark:bg-green-900/30 dark:hover:bg-green-900/50 text-green-600 dark:text-green-400'
+                  }`}
+                  title={operacionActiva ? 'Detener operación' : 'Activar operación'}
+                >
+                  <Power size={14} className={toggleLoading ? 'animate-spin' : ''} />
+                </button>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
                 Última actualización: {lastUpdate ? lastUpdate.toLocaleTimeString('es-ES') : '...'}
