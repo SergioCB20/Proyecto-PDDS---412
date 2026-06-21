@@ -84,6 +84,8 @@ export default function OperacionPage() {
 
   const [sseConnected, setSseConnected] = useState(false);
   const { data: telemetria, connected: wsConnected } = useTelemetria(true);
+  const k = useMemo(() => telemetria?.metricas_sesion?.k ?? 120, [telemetria]);
+  const animacionActiva = wsConnected && (telemetria?.vuelos?.some(v => v.estado === 'EN_RUTA') ?? false);
   const [notificaciones, setNotificaciones] = useState<{ id: number; tipo: 'success' | 'error'; mensaje: string }[]>([]);
 
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -451,6 +453,7 @@ export default function OperacionPage() {
 
   const vuelosMapaFiltrados = useMemo(() => {
     return allVuelos.filter(v => {
+      if (v.estado !== 'PROGRAMADO' && v.estado !== 'EN_RUTA') return false;
       if (vueloFilterOrigen && v.origen.codigo_iata !== vueloFilterOrigen) return false;
       if (vueloFilterDestino && v.destino.codigo_iata !== vueloFilterDestino) return false;
       return true;
@@ -464,7 +467,8 @@ export default function OperacionPage() {
           nodos={nodos}
           vuelos={vuelosMapaFiltrados}
           mostrarAviones={true}
-          animacionActiva={false}
+          animacionActiva={animacionActiva}
+          k={k}
           className="h-full"
         />
       </div>
