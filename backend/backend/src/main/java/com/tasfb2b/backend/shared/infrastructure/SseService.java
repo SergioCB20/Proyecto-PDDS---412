@@ -2,10 +2,12 @@ package com.tasfb2b.backend.shared.infrastructure;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -80,5 +82,21 @@ public class SseService {
             emitter.complete();
             log.info("SSE emitter removed for session {}", sessionId);
         }
+    }
+
+    @Scheduled(fixedRate = 30_000)
+    public void enviarHeartbeat() {
+        if (emitters.isEmpty()) return;
+        String timestamp = OffsetDateTime.now().toString();
+        emitters.forEach((sessionId, emitter) -> {
+            try {
+                emitter.send(SseEmitter.event()
+                        .name("heartbeat")
+                        .data("{\"timestamp\":\"" + timestamp + "\"}"));
+            } catch (IOException e) {
+                log.warn("Error al enviar heartbeat SSE para session {}: {}", sessionId, e.getMessage());
+                emitters.remove(sessionId);
+            }
+        });
     }
 }

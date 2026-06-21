@@ -96,4 +96,21 @@ public class RedisCacheService {
             log.warn("Redis no disponible en eliminarMetricasSesion({}): {}", sesionId, e.getMessage());
         }
     }
+
+    public void set(String key, String value, long ttlSeconds) {
+        try {
+            redisTemplate.opsForValue().set(key, value, java.time.Duration.ofSeconds(ttlSeconds));
+        } catch (Exception e) {
+            log.warn("Redis no disponible en set({}): {}", key, e.getMessage());
+        }
+    }
+
+    public String get(String key) {
+        try {
+            return redisTemplate.opsForValue().get(key);
+        } catch (Exception e) {
+            log.warn("Redis no disponible en get({}): {}", key, e.getMessage());
+            return null;
+        }
+    }
 }

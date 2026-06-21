@@ -89,11 +89,13 @@ public class VueloService {
             int totalPages
     ) {}
 
-    public VueloPageResponse listar(String estado, String destinoIata, OffsetDateTime fechaDesde, OffsetDateTime fechaHasta, Pageable pageable) {
+    public VueloPageResponse listar(String estado, String destinoIata, OffsetDateTime fechaDesde, OffsetDateTime fechaHasta, Boolean esPlantilla, Pageable pageable) {
         Specification<Vuelo> spec = (root, query, cb) -> cb.conjunction();
 
-        spec = spec.and((root, query, cb) ->
-                cb.equal(root.get("esPlantilla"), false));
+        if (esPlantilla != null) {
+            spec = spec.and((root, query, cb) ->
+                    cb.equal(root.get("esPlantilla"), esPlantilla));
+        }
 
         if (estado != null && !estado.isBlank()) {
             spec = spec.and((root, query, cb) ->
