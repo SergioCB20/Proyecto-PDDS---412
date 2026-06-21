@@ -8,6 +8,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.data.domain.PageRequest;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -410,7 +411,20 @@ public class EquipajeService {
                 .toList();
     }
 
+    private static final ObjectMapper METRICA_MAPPER = new ObjectMapper();
+    private static final String CACHE_KEY_METRICAS = "metricas:operacion";
+    private static final long CACHE_TTL_SECONDS = 5;
+
     public MetricasOperacionResponse obtenerMetricasOperacion() {
+        try {
+            String cached = redisCacheService.get(CACHE_KEY_METRICAS);
+            if (cached != null) {
+                return METRICA_MAPPER.readValue(cached, MetricasOperacionResponse.class);
+            }
+        } catch (Exception e) {
+            // Redis miss or parse error — fall through to DB query
+        }
+
         long total = equipajeRepository.count();
 
         Map<String, Long> equipajePorEstado = equipajeRepository.countByEstadoGrouped()
@@ -439,11 +453,19 @@ public class EquipajeService {
         long completados = vueloPorEstado.getOrDefault("COMPLETADO", 0L);
         long cancelados = vueloPorEstado.getOrDefault("CANCELADO", 0L);
 
-        return new MetricasOperacionResponse(
+        MetricasOperacionResponse result = new MetricasOperacionResponse(
                 total, registrados, enVuelo, enAlmacen, entregados,
                 replanificacion, incumplimiento,
                 programados, enRuta, completados, cancelados
         );
+
+        try {
+            redisCacheService.set(CACHE_KEY_METRICAS, METRICA_MAPPER.writeValueAsString(result), CACHE_TTL_SECONDS);
+        } catch (Exception e) {
+            // cache write failure is non-critical
+        }
+
+        return result;
     }
 
     public static class EquipajeNoEncontradoException extends RuntimeException {

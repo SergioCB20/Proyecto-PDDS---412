@@ -31,8 +31,9 @@ public class VueloController {
             @RequestParam(required = false) String destino_iata,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime fecha_desde,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime fecha_hasta,
+            @RequestParam(required = false) Boolean es_plantilla,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(vueloService.listar(estado, destino_iata, fecha_desde, fecha_hasta, pageable));
+        return ResponseEntity.ok(vueloService.listar(estado, destino_iata, fecha_desde, fecha_hasta, es_plantilla, pageable));
     }
 
     @GetMapping("/{id}")

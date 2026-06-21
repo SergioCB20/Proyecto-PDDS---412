@@ -152,7 +152,7 @@ export default function OperacionPage() {
     try {
       const [nodosData, vuelosData] = await Promise.all([
         api.get<Nodo[]>('/nodos'),
-        api.get<VueloPageResponse>('/vuelos?size=50'),
+        api.get<VueloPageResponse>('/vuelos?size=200'),
       ]);
       const mapped = vuelosData.content.map((v: Vuelo): VueloEnMapa => ({ ...v }));
       setNodos(nodosData.map(nodoToEnMapa));
