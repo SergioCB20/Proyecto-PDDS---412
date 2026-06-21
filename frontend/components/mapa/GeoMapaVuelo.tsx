@@ -34,6 +34,21 @@ function OcupacionBar({ ocupada, total }: { ocupada: number; total: number }) {
 }
 
 
+function areEqual(prevProps: GeoMapaVueloProps, nextProps: GeoMapaVueloProps): boolean {
+  if (prevProps.animacionActiva !== nextProps.animacionActiva) return false;
+  if (prevProps.k !== nextProps.k) return false;
+  const a = prevProps.vuelo;
+  const b = nextProps.vuelo;
+  if (a.id !== b.id || a.estado !== b.estado) return false;
+  if (a.carga_disponible !== b.carga_disponible) return false;
+  if (a.estado === 'EN_RUTA') {
+    const pa = a.posicionActual;
+    const pb = b.posicionActual;
+    if (pa?.lat !== pb?.lat || pa?.lon !== pb?.lon) return false;
+  }
+  return true;
+}
+
 export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false, k = 120 }: GeoMapaVueloProps) {
   const color = COLORES[vuelo.estado] || '#6b7280';
   const opacidadMarcador = animacionActiva ? 1 : 0.4;
@@ -85,4 +100,4 @@ export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false
       )}
     </>
   );
-});
+}, areEqual);

@@ -21,6 +21,8 @@ public class OperacionTickService {
     private static final Logger log = LoggerFactory.getLogger(OperacionTickService.class);
     private static final long TICK_INTERVAL_MS = 5000;
 
+    private volatile boolean activo = true;
+
     private final VueloRepository vueloRepository;
     private final EquipajeRepository equipajeRepository;
     private final SegmentoPlanRepository segmentoPlanRepository;
@@ -45,10 +47,14 @@ public class OperacionTickService {
         this.sesionRepository = sesionRepository;
     }
 
+    public boolean toggle() { this.activo = !this.activo; return this.activo; }
+    public boolean estaActivo() { return this.activo; }
+
     @Scheduled(fixedRate = TICK_INTERVAL_MS)
     @Transactional
     public void tick() {
         try {
+            if (!activo) return;
             if (!sesionRepository.findByEstado(EstadoSesion.EN_CURSO).isEmpty()) return;
 
             OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
