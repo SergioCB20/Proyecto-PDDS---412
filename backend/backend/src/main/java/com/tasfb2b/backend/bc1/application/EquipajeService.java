@@ -86,7 +86,7 @@ public class EquipajeService {
         NodoLogistico nodoOrigen = nodoRepository.findById(operadorNodoId)
                 .orElseThrow(() -> new ValidacionException("Nodo asignado al operador no encontrado"));
 
-        nodoRepository.findByCodigoIata(request.destino_iata())
+        NodoLogistico nodoDestino = nodoRepository.findByCodigoIata(request.destino_iata())
                 .orElseThrow(() -> new ValidacionException("Destino IATA no existe: " + request.destino_iata()));
 
         Vuelo vuelo = vueloRepository.findById(request.vuelo_id())
@@ -106,10 +106,20 @@ public class EquipajeService {
 
         Equipaje equipaje = new Equipaje();
         equipaje.setId(UUID.randomUUID());
-        equipaje.setIdExterno(request.id_equipaje());
+        String idExterno = request.id_equipaje();
+        if (idExterno == null || idExterno.isBlank()) {
+            idExterno = "ENV-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        }
+        equipaje.setIdExterno(idExterno);
         equipaje.setOrigenIata(nodoOrigen.getCodigoIata());
         equipaje.setDestinoIata(request.destino_iata());
-        equipaje.setSlaComprometido(request.sla_comprometido());
+        OffsetDateTime sla = request.sla_comprometido();
+        if (sla == null) {
+            boolean mismoContinente = nodoOrigen.getContinente() != null
+                    && nodoOrigen.getContinente().equals(nodoDestino.getContinente());
+            sla = OffsetDateTime.now().plusHours(mismoContinente ? 24 : 48);
+        }
+        equipaje.setSlaComprometido(sla);
         equipaje.setFechaIngreso(OffsetDateTime.now());
         equipaje.setEstado(EstadoEquipaje.REGISTRADO);
         equipaje.setVueloActual(vuelo);
@@ -124,7 +134,7 @@ public class EquipajeService {
         colaItem.setEstado(EstadoCola.PENDIENTE);
         colaItem.setIntentos(0);
         colaItem.setFechaCreacion(OffsetDateTime.now());
-        colaItem.setSlaComprometido(request.sla_comprometido());
+        colaItem.setSlaComprometido(sla);
         colaRepository.save(colaItem);
 
         return new EquipajeRegistradoResponse(
