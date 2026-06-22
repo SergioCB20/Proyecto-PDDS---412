@@ -148,7 +148,7 @@ export function PanelNodos({ nodos, vuelos, onNodoClick }: PanelNodosProps) {
 
       <div className="space-y-2 max-h-56 overflow-y-auto">
         {nodosOrdenados.map(n => {
-          const continenteLabel = n.continente || n.zona_horaria || '';
+          const continenteLabel = n.continente && n.continente !== 'Desconocido' ? n.continente : (n.zona_horaria ? n.zona_horaria.split('/')[0] : '');
           return (
             <div
               key={n.id}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { Package, RefreshCw, ChevronDown, ChevronUp, CheckCircle, XCircle, Plane, Upload, FileSpreadsheet, AlertTriangle, Menu, ChevronLeft, Power } from 'lucide-react';
+import { Package, RefreshCw, ChevronDown, ChevronUp, CheckCircle, XCircle, Plane, Upload, FileSpreadsheet, AlertTriangle, Menu, ChevronLeft, Power, Loader2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { api } from '@/lib/api';
 import { nodoToEnMapa } from '@/lib/mock';
@@ -89,6 +89,7 @@ export default function OperacionPage() {
   const [notificaciones, setNotificaciones] = useState<{ id: number; tipo: 'success' | 'error'; mensaje: string }[]>([]);
 
   const ultimaTelemetria = useRef<number>(0);
+  const [horaActual, setHoraActual] = useState(new Date());
   const [operacionActiva, setOperacionActiva] = useState(true);
   const [toggleLoading, setToggleLoading] = useState(false);
 
@@ -130,18 +131,37 @@ export default function OperacionPage() {
       eventSource.addEventListener('planificacion-completada', (e) => {
         try {
           const data = JSON.parse(e.data);
-          agregarNotificacion('success', `Equipaje ${data.equipaje_id.slice(0, 8)}... planificado (${data.tipo})`);
-          setEquipajesRecientes(prev => [
-            { id_externo: data.equipaje_id, destino: '', estado: 'ENRUTADO', tiempo: 'ahora' },
-            ...prev.slice(0, 7),
-          ]);
+          const idExterno = data.id_externo || data.equipaje_id;
+          agregarNotificacion('success', `Equipaje ${String(idExterno).slice(0, 8)}... planificado (${data.tipo})`);
+          setEquipajesRecientes(prev => {
+            const existente = prev.findIndex(x => x.id_externo === idExterno);
+            if (existente !== -1) {
+              const updated = [...prev];
+              updated[existente] = { ...updated[existente], estado: 'ENRUTADO', tiempo: 'ahora' };
+              return updated;
+            }
+            return [
+              { id_externo: idExterno, destino: '', estado: 'ENRUTADO', tiempo: 'ahora' },
+              ...prev.slice(0, 7),
+            ];
+          });
         } catch { /* ignore parse errors */ }
       });
 
       eventSource.addEventListener('planificacion-fallida', (e) => {
         try {
           const data = JSON.parse(e.data);
-          agregarNotificacion('error', `Fallo planificacion: ${data.error || data.equipaje_id?.slice(0, 8)}`);
+          const idExterno = data.id_externo || data.equipaje_id;
+          agregarNotificacion('error', `Fallo planificacion: ${data.error || String(idExterno).slice(0, 8)}`);
+          setEquipajesRecientes(prev => {
+            const existente = prev.findIndex(x => x.id_externo === idExterno);
+            if (existente !== -1) {
+              const updated = [...prev];
+              updated[existente] = { ...updated[existente], estado: 'INCUMPLIMIENTO_SLA', tiempo: 'ahora' };
+              return updated;
+            }
+            return prev;
+          });
         } catch { /* ignore parse errors */ }
       });
 
@@ -158,6 +178,11 @@ export default function OperacionPage() {
       eventSource?.close();
       if (reconnectTimer) clearTimeout(reconnectTimer);
     };
+  }, []);
+
+  useEffect(() => {
+    const id = setInterval(() => setHoraActual(new Date()), 1000);
+    return () => clearInterval(id);
   }, []);
 
   const toggleOperacion = async () => {
@@ -273,7 +298,8 @@ export default function OperacionPage() {
 
   const estadoColor = (estado: string): 'green' | 'yellow' | 'red' | 'blue' | 'default' => {
     if (estado === 'ENTREGADO') return 'green';
-    if (estado === 'EN_VUELO' || estado === 'EN_ALMACEN') return 'blue';
+    if (estado === 'ENRUTADO' || estado === 'EN_VUELO' || estado === 'EN_ALMACEN') return 'blue';
+    if (estado === 'REGISTRADO') return 'yellow';
     if (estado === 'EN_REPLANIFICACION') return 'yellow';
     if (estado === 'INCUMPLIMIENTO_SLA') return 'red';
     return 'default';
@@ -498,7 +524,9 @@ export default function OperacionPage() {
                 </button>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Última actualización: {lastUpdate ? lastUpdate.toLocaleTimeString('es-ES') : '...'}
+                {horaActual.toLocaleString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} local
+                &nbsp;·&nbsp;
+                {horaActual.toISOString().slice(11, 19)}Z UTC
               </p>
               {apiError && (
                 <div className="flex items-center gap-2 p-2 mt-2 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
@@ -678,6 +706,7 @@ export default function OperacionPage() {
                         <span className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
                           {eq.id_externo}
                         </span>
+                        {eq.estado === 'REGISTRADO' && <Loader2 size={12} className="animate-spin text-yellow-500" />}
                         <Badge variant={estadoColor(eq.estado)}>{eq.estado.replace('_', ' ')}</Badge>
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">

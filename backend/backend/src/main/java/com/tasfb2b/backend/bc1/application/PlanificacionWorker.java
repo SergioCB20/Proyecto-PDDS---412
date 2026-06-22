@@ -2,9 +2,10 @@ package com.tasfb2b.backend.bc1.application;
 
 import com.tasfb2b.backend.bc1.domain.*;
 import com.tasfb2b.backend.bc1.infrastructure.*;
-import com.tasfb2b.backend.bc2.application.*;
-import com.tasfb2b.backend.bc2.domain.EstadoSesion;
-import com.tasfb2b.backend.bc2.infrastructure.SesionRepository;
+import com.tasfb2b.backend.bc2.application.MotorEnrutamiento;
+import com.tasfb2b.backend.bc2.application.RutaResult;
+import com.tasfb2b.backend.bc2.application.RoutingStrategy;
+import com.tasfb2b.backend.bc2.application.SegmentoInfo;
 import com.tasfb2b.backend.shared.events.EquipajePlanificadoEvent;
 import com.tasfb2b.backend.shared.events.PlanViajeCreado;
 import com.tasfb2b.backend.shared.infrastructure.RedisCacheService;
@@ -37,11 +38,9 @@ public class PlanificacionWorker {
     private final PlanViajeRepository planViajeRepository;
     private final SegmentoPlanRepository segmentoPlanRepository;
     private final MotorEnrutamiento motorEnrutamiento;
-    private final SesionRepository sesionRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final RedisCacheService redisCacheService;
     private final SseService sseService;
-    private final OperacionTickService operacionTickService;
 
     public PlanificacionWorker(ColaPlanificacionRepository colaRepository,
                                 EquipajeRepository equipajeRepository,
@@ -50,11 +49,9 @@ public class PlanificacionWorker {
                                 PlanViajeRepository planViajeRepository,
                                 SegmentoPlanRepository segmentoPlanRepository,
                                 MotorEnrutamiento motorEnrutamiento,
-                                SesionRepository sesionRepository,
                                 ApplicationEventPublisher eventPublisher,
                                 RedisCacheService redisCacheService,
-                                SseService sseService,
-                                OperacionTickService operacionTickService) {
+                                SseService sseService) {
         this.colaRepository = colaRepository;
         this.equipajeRepository = equipajeRepository;
         this.vueloRepository = vueloRepository;
@@ -62,26 +59,16 @@ public class PlanificacionWorker {
         this.planViajeRepository = planViajeRepository;
         this.segmentoPlanRepository = segmentoPlanRepository;
         this.motorEnrutamiento = motorEnrutamiento;
-        this.sesionRepository = sesionRepository;
         this.eventPublisher = eventPublisher;
         this.redisCacheService = redisCacheService;
         this.sseService = sseService;
-        this.operacionTickService = operacionTickService;
     }
 
     @Scheduled(fixedDelay = 500)
     @Transactional
     public void procesarCola() {
         procesarTimeoutItems();
-
-        if (haySesionActiva()) {
-            procesarBatch();
-        }
-    }
-
-    private boolean haySesionActiva() {
-        return !sesionRepository.findByEstado(EstadoSesion.EN_CURSO).isEmpty()
-            || operacionTickService.estaActivo();
+        procesarBatch();
     }
 
     private void procesarItemSimple() {
@@ -297,6 +284,9 @@ public class PlanificacionWorker {
                               boolean exitoso, String error) {
         Map<String, Object> data = new java.util.LinkedHashMap<>();
         data.put("equipaje_id", item.getEquipajeId().toString());
+        if (equipaje != null) {
+            data.put("id_externo", equipaje.getIdExterno());
+        }
         data.put("tipo", item.getTipo().name());
         data.put("estado", exitoso ? "COMPLETADO" : "FALLIDO");
 
