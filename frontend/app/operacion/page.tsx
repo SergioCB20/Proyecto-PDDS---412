@@ -60,7 +60,16 @@ interface EquipajeReciente {
 export default function OperacionPage() {
   const [nodos, setNodos] = useState<NodoEnMapa[]>([]);
   const [allVuelos, setAllVuelos] = useState<VueloEnMapa[]>([]);
-  const [equipajesRecientes, setEquipajesRecientes] = useState<EquipajeReciente[]>([]);
+  const [equipajesRecientes, setEquipajesRecientes] = useState<EquipajeReciente[]>(() => {
+    try {
+      const saved = sessionStorage.getItem('equipajesRecientes');
+      if (saved) {
+        const parsed: EquipajeReciente[] = JSON.parse(saved);
+        return parsed.filter(eq => eq.estado !== 'INCUMPLIMIENTO_SLA');
+      }
+    } catch { /* ignore */ }
+    return [];
+  });
   const [loading, setLoading] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -184,6 +193,10 @@ export default function OperacionPage() {
     const id = setInterval(() => setHoraActual(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    sessionStorage.setItem('equipajesRecientes', JSON.stringify(equipajesRecientes));
+  }, [equipajesRecientes]);
 
   const toggleOperacion = async () => {
     setToggleLoading(true);
