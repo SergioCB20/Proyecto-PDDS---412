@@ -111,7 +111,14 @@ export default function OperacionPage() {
   const [selectedEnvio, setSelectedEnvio] = useState<SelectedEnvioOperacion | null>(null);
   const [vueloFilterOrigen, setVueloFilterOrigen] = useState('');
   const [vueloFilterDestino, setVueloFilterDestino] = useState('');
-  const [operadorNodo, setOperadorNodo] = useState<NodoEnMapa | null>(null);
+
+  const operadorNodo = useMemo(() => {
+    const nodoRefId = getNodoRefIdFromToken();
+    if (nodoRefId && nodos.length > 0) {
+      return nodos.find(n => n.id === nodoRefId) || null;
+    }
+    return null;
+  }, [nodos]);
 
   const agregarNotificacion = (tipo: 'success' | 'error', mensaje: string) => {
     const id = Date.now();
@@ -512,14 +519,6 @@ export default function OperacionPage() {
       }
     });
   }, [allVuelos, vueloFilterOrigen, vueloFilterDestino]);
-
-  useEffect(() => {
-    const nodoRefId = getNodoRefIdFromToken();
-    if (nodoRefId && nodos.length > 0) {
-      const match = nodos.find(n => n.id === nodoRefId) || null;
-      setOperadorNodo(match);
-    }
-  }, [nodos]);
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)]">
