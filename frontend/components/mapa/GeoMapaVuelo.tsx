@@ -51,7 +51,6 @@ function areEqual(prevProps: GeoMapaVueloProps, nextProps: GeoMapaVueloProps): b
 
 export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false, k = 120 }: GeoMapaVueloProps) {
   const color = COLORES[vuelo.estado] || '#6b7280';
-  const opacidadMarcador = animacionActiva ? 1 : 0.4;
   const opacidadRuta = animacionActiva ? 0.5 : 0.2;
 
   const tieneRuta = vuelo.origen_lat && vuelo.origen_lon && vuelo.destino_lat && vuelo.destino_lon;

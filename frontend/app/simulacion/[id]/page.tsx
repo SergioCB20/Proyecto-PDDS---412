@@ -144,7 +144,7 @@ function SimulacionContent() {
       }
     }
     loadInitial();
-  }, []);
+  }, [umbralAlmacenVerde, umbralAlmacenAmbar]);
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [fechaInicioReal, setFechaInicioReal] = useState<string | null>(null);
@@ -179,7 +179,7 @@ function SimulacionContent() {
       zona_horaria: '',
       color: colorNodoPorOcupacion(n.ocupacion_pct, { verdeMax: umbralAlmacenVerde, ambarMax: umbralAlmacenAmbar }),
       ocupacionPorcentaje: n.ocupacion_pct,
-    })), [telemetria]);
+    })), [telemetria, umbralAlmacenVerde, umbralAlmacenAmbar]);
 
   const vuelosTelemetria: VueloEnMapa[] = useMemo(() =>
     (telemetria?.vuelos ?? []).map(v => ({

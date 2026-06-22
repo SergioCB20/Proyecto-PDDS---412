@@ -3,7 +3,6 @@ package com.tasfb2b.backend.bc1.application;
 import com.tasfb2b.backend.bc1.domain.*;
 import com.tasfb2b.backend.bc1.infrastructure.*;
 import com.tasfb2b.backend.shared.events.EquipajeIngresadoEvent;
-import com.tasfb2b.backend.shared.infrastructure.RedisCacheService;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,7 +12,6 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
-import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -26,34 +24,26 @@ public class CargaMasivaService {
     private static final Logger log = LoggerFactory.getLogger(CargaMasivaService.class);
 
     private final EquipajeRepository equipajeRepository;
-    private final PlanViajeRepository planViajeRepository;
-    private final SegmentoPlanRepository segmentoPlanRepository;
-    private final VueloRepository vueloRepository;
     private final NodoLogisticoRepository nodoRepository;
+    private final ColaPlanificacionRepository colaRepository;
     private final ApplicationEventPublisher eventPublisher;
-    private final RedisCacheService redisCacheService;
 
     private final Map<UUID, List<RegistroPreview>> previewStore = new ConcurrentHashMap<>();
 
-    public CargaMasivaService(EquipajeRepository equipajeRepository, PlanViajeRepository planViajeRepository,
-                              SegmentoPlanRepository segmentoPlanRepository, VueloRepository vueloRepository,
-                              NodoLogisticoRepository nodoRepository, ApplicationEventPublisher eventPublisher,
-                              RedisCacheService redisCacheService) {
+    public CargaMasivaService(EquipajeRepository equipajeRepository,
+                              NodoLogisticoRepository nodoRepository,
+                              ColaPlanificacionRepository colaRepository,
+                              ApplicationEventPublisher eventPublisher) {
         this.equipajeRepository = equipajeRepository;
-        this.planViajeRepository = planViajeRepository;
-        this.segmentoPlanRepository = segmentoPlanRepository;
-        this.vueloRepository = vueloRepository;
         this.nodoRepository = nodoRepository;
+        this.colaRepository = colaRepository;
         this.eventPublisher = eventPublisher;
-        this.redisCacheService = redisCacheService;
     }
 
     public record RegistroPreview(
             int fila,
-            String idEquipaje,
             String destinoIata,
-            UUID vueloId,
-            OffsetDateTime slaComprometido,
+            int cantidad,
             String estadoValidacion,
             String motivo
     ) {}
@@ -65,7 +55,7 @@ public class CargaMasivaService {
             List<RegistroPreview> registros
     ) {}
 
-    public record ConfirmarRequest(List<String> ids_equipaje) {}
+    public record ConfirmarRequest() {}
 
     public record ConfirmarResponse(int ingresados, int fallidos) {}
 
@@ -86,8 +76,8 @@ public class CargaMasivaService {
             }
 
             String[] columnas = header.split(",");
-            if (columnas.length < 4) {
-                throw new CargaException("El CSV debe tener al menos 4 columnas: id_equipaje,destino_iata,vuelo_id,sla_comprometido");
+            if (columnas.length < 2) {
+                throw new CargaException("El CSV debe tener al menos 2 columnas: destino_iata,cantidad");
             }
 
             NodoLogistico nodoOrigen = nodoRepository.findById(operadorNodoId)
@@ -100,22 +90,16 @@ public class CargaMasivaService {
                 if (line.isBlank()) continue;
 
                 String[] partes = parseCsvLine(line);
-                if (partes.length < 4) {
-                    registros.add(new RegistroPreview(filaNum, "", "", null, null, "REVISION",
-                            "Fila mal formateada: se esperaban 4 columnas, se obtuvieron " + partes.length));
+                if (partes.length < 2) {
+                    registros.add(new RegistroPreview(filaNum, "", 0, "REVISION",
+                            "Fila mal formateada: se esperaban 2 columnas, se obtuvieron " + partes.length));
                     continue;
                 }
 
-                String idEquipaje = partes[0].trim();
-                String destinoIata = partes[1].trim();
-                String vueloIdStr = partes[2].trim();
-                String slaStr = partes[3].trim();
+                String destinoIata = partes[0].trim();
+                String cantidadStr = partes[1].trim();
 
                 List<String> errores = new ArrayList<>();
-
-                if (idEquipaje.isBlank()) {
-                    errores.add("id_equipaje vacío");
-                }
 
                 if (destinoIata.isBlank()) {
                     errores.add("destino_iata vacío");
@@ -123,41 +107,14 @@ public class CargaMasivaService {
                     errores.add("Destino IATA " + destinoIata + " no existe en el sistema");
                 }
 
-                UUID vueloId = null;
-                if (vueloIdStr.isBlank()) {
-                    errores.add("vuelo_id vacío");
-                } else {
-                    try {
-                        vueloId = UUID.fromString(vueloIdStr);
-                    } catch (IllegalArgumentException e) {
-                        errores.add("vuelo_id no es un UUID válido: " + vueloIdStr);
+                int cantidad = 0;
+                try {
+                    cantidad = Integer.parseInt(cantidadStr);
+                    if (cantidad < 1) {
+                        errores.add("cantidad debe ser al menos 1");
                     }
-                }
-
-                OffsetDateTime sla = null;
-                if (slaStr.isBlank()) {
-                    errores.add("sla_comprometido vacío");
-                } else {
-                    try {
-                        sla = OffsetDateTime.parse(slaStr);
-                    } catch (DateTimeParseException e) {
-                        errores.add("sla_comprometido no es una fecha ISO 8601 válida: " + slaStr);
-                    }
-                }
-
-                if (vueloId != null) {
-                    Optional<Vuelo> vueloOpt = vueloRepository.findById(vueloId);
-                    if (vueloOpt.isEmpty()) {
-                        errores.add("Vuelo " + vueloIdStr + " no existe en el sistema");
-                    } else {
-                        Vuelo vuelo = vueloOpt.get();
-                        if (vuelo.getEstado() != EstadoVuelo.PROGRAMADO) {
-                            errores.add("El vuelo " + vuelo.getCodigoVuelo() + " no está PROGRAMADO");
-                        }
-                        if (vuelo.getCargaDisponible() <= 0) {
-                            errores.add("Capacidad del vuelo " + vuelo.getCodigoVuelo() + " agotada");
-                        }
-                    }
+                } catch (NumberFormatException e) {
+                    errores.add("cantidad no es un número válido: " + cantidadStr);
                 }
 
                 if (nodoOrigen.getOcupacionActual() >= nodoOrigen.getCapacidadAlmacen()) {
@@ -165,9 +122,9 @@ public class CargaMasivaService {
                 }
 
                 if (errores.isEmpty()) {
-                    registros.add(new RegistroPreview(filaNum, idEquipaje, destinoIata, vueloId, sla, "VALIDO", null));
+                    registros.add(new RegistroPreview(filaNum, destinoIata, cantidad, "VALIDO", null));
                 } else {
-                    registros.add(new RegistroPreview(filaNum, idEquipaje, destinoIata, vueloId, sla, "REVISION",
+                    registros.add(new RegistroPreview(filaNum, destinoIata, cantidad, "REVISION",
                             String.join("; ", errores)));
                 }
             }
@@ -199,7 +156,6 @@ public class CargaMasivaService {
 
         List<RegistroPreview> validos = registros.stream()
                 .filter(r -> "VALIDO".equals(r.estadoValidacion()))
-                .filter(r -> request.ids_equipaje().contains(r.idEquipaje()))
                 .toList();
 
         NodoLogistico nodoOrigen = nodoRepository.findById(operadorNodoId)
@@ -210,66 +166,48 @@ public class CargaMasivaService {
 
         for (RegistroPreview preview : validos) {
             try {
-                Vuelo vuelo = vueloRepository.findById(preview.vueloId())
-                        .orElseThrow(() -> new RuntimeException("Vuelo no encontrado"));
-
-                if (vuelo.getEstado() != EstadoVuelo.PROGRAMADO || vuelo.getCargaDisponible() <= 0) {
-                    fallidos++;
-                    continue;
-                }
-
                 if (nodoOrigen.getOcupacionActual() >= nodoOrigen.getCapacidadAlmacen()) {
                     fallidos++;
                     continue;
                 }
 
+                NodoLogistico nodoDestino = nodoRepository.findByCodigoIata(preview.destinoIata()).orElse(null);
+                if (nodoDestino == null) {
+                    fallidos++;
+                    continue;
+                }
+
+                OffsetDateTime sla = OffsetDateTime.now().plusHours(
+                        nodoOrigen.getContinente() != null
+                                && nodoOrigen.getContinente().equals(nodoDestino.getContinente()) ? 24 : 48);
+
                 Equipaje equipaje = new Equipaje();
                 equipaje.setId(UUID.randomUUID());
-                equipaje.setIdExterno(preview.idEquipaje());
+                equipaje.setIdExterno("ENV-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
                 equipaje.setOrigenIata(nodoOrigen.getCodigoIata());
                 equipaje.setDestinoIata(preview.destinoIata());
-                equipaje.setSlaComprometido(preview.slaComprometido());
+                equipaje.setCantidad(preview.cantidad());
+                equipaje.setSlaComprometido(sla);
                 equipaje.setFechaIngreso(OffsetDateTime.now());
-                equipaje.setEstado(EstadoEquipaje.ENRUTADO);
-                equipaje.setVueloActual(vuelo);
+                equipaje.setEstado(EstadoEquipaje.REGISTRADO);
+                equipaje.setVueloActual(null);
                 equipajeRepository.save(equipaje);
 
                 eventPublisher.publishEvent(new EquipajeIngresadoEvent(equipaje.getId(), OffsetDateTime.now()));
 
-                PlanViaje planViaje = new PlanViaje();
-                planViaje.setId(UUID.randomUUID());
-                planViaje.setEquipaje(equipaje);
-                planViaje.setEstadoSla(EstadoSla.EN_TIEMPO);
-                planViaje.setTiempoEntregaEst(vuelo.getHoraLlegada());
-                planViaje.setUbicacionTipo(UbicacionTipo.VUELO);
-                planViaje.setUbicacionId(vuelo.getId());
-                planViaje.setUbicacionLat(vuelo.getOrigenLat());
-                planViaje.setUbicacionLon(vuelo.getOrigenLon());
-                planViajeRepository.save(planViaje);
-
-                SegmentoPlan segmento = new SegmentoPlan();
-                segmento.setId(UUID.randomUUID());
-                segmento.setPlanViaje(planViaje);
-                segmento.setVuelo(vuelo);
-                segmento.setNodoOrigen(vuelo.getOrigen());
-                segmento.setNodoDestino(vuelo.getDestino());
-                segmento.setOrden(1);
-                segmento.setHoraSalidaProg(vuelo.getHoraSalida());
-                segmento.setEstado(EstadoSegmento.PENDIENTE);
-                segmentoPlanRepository.save(segmento);
-
-                nodoOrigen.setOcupacionActual(nodoOrigen.getOcupacionActual() + 1);
-                nodoRepository.save(nodoOrigen);
-
-                vuelo.setCargaDisponible(vuelo.getCargaDisponible() - 1);
-                vueloRepository.save(vuelo);
-
-                redisCacheService.actualizarOcupacionNodo(nodoOrigen.getId(), nodoOrigen.getOcupacionActual());
-                redisCacheService.actualizarCargaDisponibleVuelo(vuelo.getId(), vuelo.getCargaDisponible());
+                ColaPlanificacion colaItem = new ColaPlanificacion();
+                colaItem.setId(UUID.randomUUID());
+                colaItem.setEquipajeId(equipaje.getId());
+                colaItem.setTipo(TipoCola.PLANIFICACION);
+                colaItem.setEstado(EstadoCola.PENDIENTE);
+                colaItem.setIntentos(0);
+                colaItem.setFechaCreacion(OffsetDateTime.now());
+                colaItem.setSlaComprometido(sla);
+                colaRepository.save(colaItem);
 
                 ingresados++;
             } catch (Exception e) {
-                log.error("Error al confirmar equipaje {}: {}", preview.idEquipaje(), e.getMessage(), e);
+                log.error("Error al confirmar equipaje fila {}: {}", preview.fila(), e.getMessage(), e);
                 fallidos++;
             }
         }
