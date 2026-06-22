@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { Upload } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import type { VueloTelemetria } from '@/lib/types';
@@ -8,12 +9,13 @@ import type { VueloTelemetria } from '@/lib/types';
 interface PanelVuelosOperacionProps {
   vuelos: VueloTelemetria[];
   onVueloClick?: (id: string, codigo: string) => void;
+  onDownloadManifiesto?: (id: string, codigo: string) => void;
   origenFilter?: string;
   destinoFilter?: string;
   onFilterChange?: (filters: { origen: string; destino: string }) => void;
 }
 
-export function PanelVuelosOperacion({ vuelos, onVueloClick, origenFilter = '', destinoFilter = '', onFilterChange }: PanelVuelosOperacionProps) {
+export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiesto, origenFilter = '', destinoFilter = '', onFilterChange }: PanelVuelosOperacionProps) {
   const [filtroCodigo, setFiltroCodigo] = useState('');
   const [orden, setOrden] = useState('');
 
@@ -169,6 +171,21 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, origenFilter = '', 
                   className="h-full rounded-full transition-all duration-500"
                   style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: colorHex }}
                 />
+              </div>
+              <div className="flex items-center justify-between text-[10px] text-slate-400 mt-0.5">
+                <span>Salida: {v.hora_salida ? new Date(v.hora_salida).toISOString().slice(11, 19) : '--:--:--'}Z</span>
+                <div className="flex items-center gap-2">
+                  <span>Llegada: {v.hora_llegada ? new Date(v.hora_llegada).toISOString().slice(11, 19) : '--:--:--'}Z</span>
+                  {onDownloadManifiesto && (
+                    <button
+                      onClick={e => { e.stopPropagation(); onDownloadManifiesto(v.id, v.codigo_vuelo); }}
+                      className="p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/30 text-green-500"
+                      title="Descargar manifiesto"
+                    >
+                      <Upload size={12} />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           );

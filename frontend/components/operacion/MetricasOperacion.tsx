@@ -77,18 +77,6 @@ export function MetricasOperacion() {
           color="bg-yellow-500"
         />
       </div>
-      <div className="mt-3 flex gap-2">
-        <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg bg-green-50 dark:bg-green-900/20">
-          <div className="w-2 h-2 rounded-full bg-green-500" />
-          <span className="text-xs text-slate-500">Activos</span>
-          <span className="ml-auto text-lg font-bold text-green-600">{metricas.vuelos_en_ruta}</span>
-        </div>
-        <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/20">
-          <div className="w-2 h-2 rounded-full bg-blue-500" />
-          <span className="text-xs text-slate-500">Prog.</span>
-          <span className="ml-auto text-lg font-bold text-blue-600">{metricas.vuelos_programados}</span>
-        </div>
-      </div>
       <div className="mt-2 text-xs text-slate-400 text-center">
         {totalVuelos} vuelos totales · {metricas.vuelos_cancelados} cancelados
       </div>
