@@ -54,18 +54,22 @@ public class OperacionTickService {
     @Transactional
     public void tick() {
         try {
+            // El clonado de plantillas debe ocurrir aunque el toggle esté OFF,
+            // para que PlanificacionWorker tenga vuelos disponibles para rutear.
+            if (sesionRepository.findByEstado(EstadoSesion.EN_CURSO).isEmpty()) {
+                LocalDate today = OffsetDateTime.now(ZoneOffset.UTC).toLocalDate();
+                if (!vueloService.existenInstanciasParaFecha(today)) {
+                    int clonadas = vueloService.clonarPlantillas(today);
+                    if (clonadas > 0) {
+                        log.info("Operacion: {} vuelos clonados para hoy {}", clonadas, today);
+                    }
+                }
+            }
+
             if (!activo) return;
             if (!sesionRepository.findByEstado(EstadoSesion.EN_CURSO).isEmpty()) return;
 
             OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-            LocalDate today = now.toLocalDate();
-
-            if (!vueloService.existenInstanciasParaFecha(today)) {
-                int clonadas = vueloService.clonarPlantillas(today);
-                if (clonadas > 0) {
-                    log.info("Operacion: {} vuelos clonados para hoy {}", clonadas, today);
-                }
-            }
 
             procesarSalidas(now);
             procesarLlegadas(now);
