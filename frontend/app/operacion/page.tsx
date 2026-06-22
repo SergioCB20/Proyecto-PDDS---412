@@ -98,6 +98,7 @@ export default function OperacionPage() {
   const [notificaciones, setNotificaciones] = useState<{ id: number; tipo: 'success' | 'error'; mensaje: string }[]>([]);
 
   const ultimaTelemetria = useRef<number>(0);
+  const wsTieneDatos = useRef(false);
   const [horaActual, setHoraActual] = useState(new Date());
   const [operacionActiva, setOperacionActiva] = useState(true);
   const [toggleLoading, setToggleLoading] = useState(false);
@@ -217,20 +218,14 @@ export default function OperacionPage() {
   }, []);
 
   const fetchData = async () => {
+    if (wsTieneDatos.current) return;
+
     setLoading(true);
     setApiError(null);
     try {
-      const ahora = new Date();
-
-      // Si WS ha entregado datos en los últimos 15s, saltar REST para evitar flicker
-      if (ultimaTelemetria.current > 0 && ahora.getTime() - ultimaTelemetria.current < 15000) {
-        setLastUpdate(new Date());
-        setLoading(false);
-        return;
-      }
-
       const baseDate = '2026-01-15';
       const pad = (n: number) => String(n).padStart(2, '0');
+      const ahora = new Date();
       const hh = pad(ahora.getUTCHours());
       const mm = pad(ahora.getUTCMinutes());
       const ss = pad(ahora.getUTCSeconds());
@@ -253,12 +248,8 @@ export default function OperacionPage() {
   };
 
   useEffect(() => {
-    const interval = setInterval(fetchData, 5000);
     const timer = setTimeout(fetchData, 0);
-    return () => {
-      clearInterval(interval);
-      clearTimeout(timer);
-    };
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -284,6 +275,7 @@ export default function OperacionPage() {
     ultimaTelemetria.current = Date.now();
 
     if (telemetria.vuelos && telemetria.vuelos.length > 0) {
+      wsTieneDatos.current = true;
       const telemetriaVuelos: VueloEnMapa[] = telemetria.vuelos.map(v => ({
         id: v.id,
         codigo_vuelo: v.codigo_vuelo,

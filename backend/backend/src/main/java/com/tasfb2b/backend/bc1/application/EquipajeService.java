@@ -431,9 +431,9 @@ public class EquipajeService {
             // Redis miss or parse error — fall through to DB query
         }
 
-        long total = equipajeRepository.count();
+        long total = equipajeRepository.countByFechaOperacionToday();
 
-        Map<String, Long> equipajePorEstado = equipajeRepository.countByEstadoGrouped()
+        Map<String, Long> equipajePorEstado = equipajeRepository.countByEstadoGroupedToday()
                 .stream()
                 .collect(Collectors.toMap(
                         row -> (String) row[0],
@@ -447,7 +447,7 @@ public class EquipajeService {
         long replanificacion = equipajePorEstado.getOrDefault("EN_REPLANIFICACION", 0L);
         long incumplimiento = equipajePorEstado.getOrDefault("INCUMPLIMIENTO_SLA", 0L);
 
-        Map<String, Long> vueloPorEstado = vueloRepository.countByEstadoNotPlantillaGrouped()
+        Map<String, Long> vueloPorEstado = vueloRepository.countByEstadoNotPlantillaGroupedToday()
                 .stream()
                 .collect(Collectors.toMap(
                         row -> (String) row[0],

@@ -35,7 +35,7 @@ public class AuthService {
 
     public record LoginRequest(String correo, String password) {}
     public record LoginResponse(String token, UsuarioDto usuario) {}
-    public record UsuarioDto(UUID id, String nombre, String correo, String rol, UUID nodoRefId) {}
+    public record UsuarioDto(UUID id, String nombre, String correo, String rol, UUID nodo_ref_id) {}
 
     @Transactional
     public LoginResponse autenticar(String correo, String password) {
