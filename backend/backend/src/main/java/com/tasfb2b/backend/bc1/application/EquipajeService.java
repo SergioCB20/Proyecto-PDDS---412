@@ -47,7 +47,7 @@ public class EquipajeService {
     public record RegistrarEquipajeRequest(
             String id_equipaje,
             String destino_iata,
-            UUID vuelo_id,
+            Integer cantidad,
             OffsetDateTime sla_comprometido
     ) {}
 
@@ -89,19 +89,13 @@ public class EquipajeService {
         NodoLogistico nodoDestino = nodoRepository.findByCodigoIata(request.destino_iata())
                 .orElseThrow(() -> new ValidacionException("Destino IATA no existe: " + request.destino_iata()));
 
-        Vuelo vuelo = vueloRepository.findById(request.vuelo_id())
-                .orElseThrow(() -> new ValidacionException("Vuelo no encontrado: " + request.vuelo_id()));
-
-        if (vuelo.getEstado() != EstadoVuelo.PROGRAMADO) {
-            throw new ValidacionException("El vuelo no esta en estado PROGRAMADO");
-        }
-
-        if (vuelo.getCargaDisponible() <= 0) {
-            throw new ValidacionException("Capacidad del vuelo agotada");
-        }
-
         if (nodoOrigen.getOcupacionActual() >= nodoOrigen.getCapacidadAlmacen()) {
             throw new ValidacionException("Capacidad del almacen superada en nodo " + nodoOrigen.getCodigoIata());
+        }
+
+        int cantidad = request.cantidad() != null ? request.cantidad() : 1;
+        if (cantidad < 1) {
+            throw new ValidacionException("La cantidad debe ser al menos 1");
         }
 
         Equipaje equipaje = new Equipaje();
@@ -113,6 +107,7 @@ public class EquipajeService {
         equipaje.setIdExterno(idExterno);
         equipaje.setOrigenIata(nodoOrigen.getCodigoIata());
         equipaje.setDestinoIata(request.destino_iata());
+        equipaje.setCantidad(cantidad);
         OffsetDateTime sla = request.sla_comprometido();
         if (sla == null) {
             boolean mismoContinente = nodoOrigen.getContinente() != null
@@ -122,7 +117,7 @@ public class EquipajeService {
         equipaje.setSlaComprometido(sla);
         equipaje.setFechaIngreso(OffsetDateTime.now());
         equipaje.setEstado(EstadoEquipaje.REGISTRADO);
-        equipaje.setVueloActual(vuelo);
+        equipaje.setVueloActual(null);
         equipajeRepository.save(equipaje);
 
         eventPublisher.publishEvent(new EquipajeIngresadoEvent(equipaje.getId(), OffsetDateTime.now()));
@@ -150,15 +145,16 @@ public class EquipajeService {
         Equipaje equipaje = equipajeRepository.findById(id)
                 .orElseThrow(() -> new EquipajeNoEncontradoException("Equipaje no encontrado: " + id));
 
-        NodoLogistico nodoDestino = nodoRepository.findByCodigoIata(request.destino_iata())
+        nodoRepository.findByCodigoIata(request.destino_iata())
                 .orElseThrow(() -> new ValidacionException("Destino IATA no existe"));
 
-        Vuelo vuelo = vueloRepository.findById(request.vuelo_id())
-                .orElseThrow(() -> new ValidacionException("Vuelo no encontrado"));
-
         equipaje.setDestinoIata(request.destino_iata());
-        equipaje.setSlaComprometido(request.sla_comprometido());
-        equipaje.setVueloActual(vuelo);
+        if (request.sla_comprometido() != null) {
+            equipaje.setSlaComprometido(request.sla_comprometido());
+        }
+        if (request.cantidad() != null) {
+            equipaje.setCantidad(request.cantidad());
+        }
         equipajeRepository.save(equipaje);
 
         PlanViaje planViaje = planViajeRepository.findByEquipajeId(id)

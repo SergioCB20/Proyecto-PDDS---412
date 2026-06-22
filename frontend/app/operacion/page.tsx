@@ -20,10 +20,28 @@ import type { SelectedEnvioOperacion } from '@/components/operacion/PanelEnviosO
 import { MetricasOperacion } from '@/components/operacion/MetricasOperacion';
 import { ResumenVuelosOperacion } from '@/components/operacion/ResumenVuelosOperacion';
 import type { Nodo, Vuelo, VueloEnMapa, VueloPageResponse, NodoEnMapa, CrearEquipajeRequest, CrearEquipajeResponse, CargaMasivaPreview, CargaMasivaConfirmResponse } from '@/lib/types';
+import { auth } from '@/lib/auth';
 
 const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false });
 
 const ESTADOS_VUELO_VALIDOS = ['PROGRAMADO', 'EN_RUTA', 'CANCELADO', 'COMPLETADO'] as const;
+
+function getNodoRefIdFromToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  const token = auth.getToken();
+  if (!token) return null;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = parts[1];
+    const padded = payload + '='.repeat((4 - (payload.length % 4)) % 4);
+    const base64 = padded.replace(/-/g, '+').replace(/_/g, '/');
+    const parsed = JSON.parse(atob(base64));
+    return parsed.nodo_ref_id || null;
+  } catch {
+    return null;
+  }
+}
 
 function matchEstadoVuelo(valor: string): VueloEnMapa['estado'] {
   if (ESTADOS_VUELO_VALIDOS.includes(valor as typeof ESTADOS_VUELO_VALIDOS[number])) {
@@ -41,7 +59,6 @@ interface EquipajeReciente {
 
 export default function OperacionPage() {
   const [nodos, setNodos] = useState<NodoEnMapa[]>([]);
-  const [vuelosProgramados, setVuelosProgramados] = useState<Vuelo[]>([]);
   const [vuelosEnRuta, setVuelosEnRuta] = useState<VueloEnMapa[]>([]);
   const [allVuelos, setAllVuelos] = useState<VueloEnMapa[]>([]);
   const [equipajesRecientes, setEquipajesRecientes] = useState<EquipajeReciente[]>([]);
@@ -52,7 +69,7 @@ export default function OperacionPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [formData, setFormData] = useState({
     destinoIata: '',
-    vueloId: '',
+    cantidad: 1,
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [formLoading, setFormLoading] = useState(false);
@@ -94,6 +111,7 @@ export default function OperacionPage() {
   const [selectedEnvio, setSelectedEnvio] = useState<SelectedEnvioOperacion | null>(null);
   const [vueloFilterOrigen, setVueloFilterOrigen] = useState('');
   const [vueloFilterDestino, setVueloFilterDestino] = useState('');
+  const [operadorNodo, setOperadorNodo] = useState<NodoEnMapa | null>(null);
 
   const agregarNotificacion = (tipo: 'success' | 'error', mensaje: string) => {
     const id = Date.now();
@@ -195,7 +213,6 @@ export default function OperacionPage() {
       const mapped = vuelosData.content.map((v: Vuelo): VueloEnMapa => ({ ...v }));
       setNodos(nodosData.map(nodoToEnMapa));
       setAllVuelos(mapped);
-      setVuelosProgramados(mapped.filter((v: VueloEnMapa) => v.estado === 'PROGRAMADO'));
       setVuelosEnRuta(mapped.filter((v: VueloEnMapa) => v.estado === 'EN_RUTA'));
       setLastUpdate(new Date());
     } catch (err: unknown) {
@@ -259,7 +276,6 @@ export default function OperacionPage() {
 
       queueMicrotask(() => {
         setAllVuelos(telemetriaVuelos);
-        setVuelosProgramados(telemetriaVuelos.filter(v => v.estado === 'PROGRAMADO'));
         setVuelosEnRuta(telemetriaVuelos.filter(v => v.estado === 'EN_RUTA'));
       });
     }
@@ -276,7 +292,7 @@ export default function OperacionPage() {
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
     if (!formData.destinoIata) errors.destinoIata = 'Destino es requerido';
-    if (!formData.vueloId) errors.vueloId = 'Vuelo es requerido';
+    if (!formData.cantidad || formData.cantidad < 1) errors.cantidad = 'Cantidad debe ser al menos 1';
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -292,12 +308,12 @@ export default function OperacionPage() {
     try {
       const request: CrearEquipajeRequest = {
         destino_iata: formData.destinoIata,
-        vuelo_id: formData.vueloId,
+        cantidad: formData.cantidad,
       };
 
       const response = await api.post<CrearEquipajeResponse>('/equipajes', request);
       setFormSuccess(response);
-      setFormData({ destinoIata: '', vueloId: '' });
+      setFormData({ destinoIata: '', cantidad: 1 });
       setEquipajesRecientes(prev => [
         { id_externo: response.id_externo || response.id.slice(0, 8), destino: formData.destinoIata, estado: response.estado, tiempo: 'ahora' },
         ...prev.slice(0, 7),
@@ -340,8 +356,7 @@ export default function OperacionPage() {
     setCsvConfirmLoading(true);
     setCsvError(null);
     try {
-      const ids_equipaje = registrosValidos.map(r => r.id_equipaje);
-      await api.post<CargaMasivaConfirmResponse>('/equipajes/carga-masiva/confirmar', { ids_equipaje });
+      await api.post<CargaMasivaConfirmResponse>('/equipajes/carga-masiva/confirmar', {});
       setCargaMasivaOpen(false);
       setCsvFile(null);
       setCsvPreview(null);
@@ -364,7 +379,7 @@ export default function OperacionPage() {
   const handleEditarEquipaje = (eq: EquipajeReciente) => {
     setFormData({
       destinoIata: eq.destino,
-      vueloId: '',
+      cantidad: 1,
     });
     setFormOpen(true);
   };
@@ -475,11 +490,6 @@ export default function OperacionPage() {
 
   const destinoOptions = nodos.filter(n => n.codigo_iata).map(n => ({ value: n.codigo_iata, label: n.codigo_iata })).sort((a, b) => a.label.localeCompare(b.label));
 
-  const vueloOptions = vuelosProgramados.map(v => ({
-    value: v.id,
-    label: `${v.codigo_vuelo} (${v.origen.codigo_iata} → ${v.destino.codigo_iata}) ${new Date(v.hora_salida).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`,
-  }));
-
   const vuelosMapaFiltrados = useMemo(() => {
     const ahora = new Date();
     const nowMin = ahora.getUTCHours() * 60 + ahora.getUTCMinutes();
@@ -503,9 +513,23 @@ export default function OperacionPage() {
     });
   }, [allVuelos, vueloFilterOrigen, vueloFilterDestino]);
 
+  useEffect(() => {
+    const nodoRefId = getNodoRefIdFromToken();
+    if (nodoRefId && nodos.length > 0) {
+      const match = nodos.find(n => n.id === nodoRefId) || null;
+      setOperadorNodo(match);
+    }
+  }, [nodos]);
+
   return (
     <div className="flex h-[calc(100vh-3.5rem)]">
-      <div className="flex-1 p-4">
+      <div className="flex-1 p-4 relative">
+        {operadorNodo && (
+          <div className="absolute top-6 right-6 z-[1000] bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-md border border-slate-200 dark:border-slate-700 flex items-center gap-2">
+            <Plane size={14} className="text-blue-600 dark:text-blue-400" />
+            <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{operadorNodo.codigo_iata}</span>
+          </div>
+        )}
         <GeoMapa
           nodos={nodos}
           vuelos={vuelosMapaFiltrados}
@@ -687,14 +711,14 @@ export default function OperacionPage() {
                     disabled={nodos.length === 0}
                   />
 
-                  <Select
-                    label="Vuelo"
-                    placeholder={vuelosProgramados.length === 0 ? 'No hay vuelos programados' : 'Seleccionar vuelo'}
-                    options={vueloOptions}
-                    value={formData.vueloId}
-                    onChange={e => setFormData(prev => ({ ...prev, vueloId: e.target.value }))}
-                    error={formErrors.vueloId}
-                    disabled={vuelosProgramados.length === 0}
+                  <Input
+                    label="Número de Maletas"
+                    type="number"
+                    placeholder="1"
+                    min="1"
+                    value={formData.cantidad}
+                    onChange={e => setFormData(prev => ({ ...prev, cantidad: Math.max(1, parseInt(e.target.value) || 1) }))}
+                    error={formErrors.cantidad}
                   />
 
                   {formError && (
@@ -959,7 +983,7 @@ export default function OperacionPage() {
                 {csvFile ? csvFile.name : 'Subir archivo CSV'}
               </p>
               <p className="text-xs text-slate-500 mt-1">
-                Formato: destino_iata, vuelo_id
+                Formato: destino_iata, cantidad
               </p>
             </label>
           </div>
@@ -999,24 +1023,22 @@ export default function OperacionPage() {
                         <table className="w-full text-xs">
                           <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0">
                             <tr>
-                              <th className="p-2 text-left">ID</th>
+                              <th className="p-2 text-left">Fila</th>
                               <th className="p-2 text-left">Destino</th>
-                              <th className="p-2 text-left">Vuelo</th>
-                              <th className="p-2 text-left">SLA</th>
+                              <th className="p-2 text-left">Maletas</th>
                             </tr>
                           </thead>
                           <tbody>
                             {registrosValidos.slice(0, 10).map((row, i) => (
                               <tr key={i} className="border-t border-slate-200 dark:border-slate-700">
-                                <td className="p-2">{row.id_equipaje}</td>
+                                <td className="p-2">{row.fila}</td>
                                 <td className="p-2">{row.destino_iata}</td>
-                                <td className="p-2">{row.vuelo_id}</td>
-                                <td className="p-2">{new Date(row.sla_comprometido).toLocaleString('es-ES')}</td>
+                                <td className="p-2">{row.cantidad}</td>
                               </tr>
                             ))}
                             {registrosValidos.length > 10 && (
                               <tr className="border-t border-slate-200 dark:border-slate-700">
-                                <td colSpan={4} className="p-2 text-center text-slate-500">
+                                <td colSpan={3} className="p-2 text-center text-slate-500">
                                   ...y {registrosValidos.length - 10} más
                                 </td>
                               </tr>
@@ -1032,7 +1054,7 @@ export default function OperacionPage() {
                           <thead className="bg-yellow-50 dark:bg-yellow-900/30 sticky top-0">
                             <tr>
                               <th className="p-2 text-left">Fila</th>
-                              <th className="p-2 text-left">ID</th>
+                              <th className="p-2 text-left">Destino</th>
                               <th className="p-2 text-left">Motivo</th>
                             </tr>
                           </thead>
@@ -1040,7 +1062,7 @@ export default function OperacionPage() {
                             {registrosRevision.map((row, i) => (
                               <tr key={i} className="border-t border-yellow-200 dark:border-yellow-800">
                                 <td className="p-2">{row.fila}</td>
-                                <td className="p-2">{row.id_equipaje}</td>
+                                <td className="p-2">{row.destino_iata}</td>
                                 <td className="p-2 text-red-600 dark:text-red-400">{row.motivo}</td>
                               </tr>
                             ))}
