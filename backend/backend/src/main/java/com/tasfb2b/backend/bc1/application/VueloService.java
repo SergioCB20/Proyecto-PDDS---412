@@ -321,6 +321,18 @@ public class VueloService {
                 count, equipajesNullificados, segmentosEliminados);
     }
 
+    @Transactional
+    public int resetearInstanciasPorFecha(LocalDate fechaOperacion) {
+        int actualizados = jdbcTemplate.update(
+            "UPDATE vuelos SET estado = ?, carga_disponible = capacidad_carga " +
+            "WHERE es_plantilla = false AND fecha_operacion = ? AND estado != ?",
+            EstadoVuelo.PROGRAMADO.name(), fechaOperacion, EstadoVuelo.PROGRAMADO.name());
+        if (actualizados > 0) {
+            log.info("Operacion: {} vuelos reseteados a PROGRAMADO para fecha {}", actualizados, fechaOperacion);
+        }
+        return actualizados;
+    }
+
     public static class VueloNoEncontradoException extends RuntimeException {
         public VueloNoEncontradoException(String msg) { super(msg); }
     }
