@@ -704,6 +704,7 @@ export default function OperacionPage() {
                   </div>
                 ))}
               </div>
+            </div>
 
             <div className="p-4 border-t border-slate-200 dark:border-slate-700">
               <p className="text-xs text-slate-400 text-center">
