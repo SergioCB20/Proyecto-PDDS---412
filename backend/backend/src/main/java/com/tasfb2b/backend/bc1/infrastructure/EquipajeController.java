@@ -33,7 +33,8 @@ public class EquipajeController {
         try {
             UUID nodoId = extraerNodoIdDelToken(authHeader);
             if (nodoId == null) {
-                nodoId = UUID.fromString("00000000-0000-0000-0003-000000000001");
+                throw new EquipajeService.ValidacionException(
+                    "El operador no tiene un nodo asignado. Asigne un nodo al operador antes de crear equipajes.");
             }
             var response = equipajeService.registrar(nodoId, request);
             return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
@@ -49,12 +50,15 @@ public class EquipajeController {
         try {
             UUID nodoId = extraerNodoIdDelToken(authHeader);
             if (nodoId == null) {
-                nodoId = UUID.fromString("00000000-0000-0000-0003-000000000001");
+                throw new EquipajeService.ValidacionException(
+                    "El operador no tiene un nodo asignado. Asigne un nodo al operador antes de crear equipajes.");
             }
             CargaMasivaService.PreviewResponse response = cargaMasivaService.procesarCsv(archivo, nodoId);
             return ResponseEntity.ok(response);
         } catch (CargaMasivaService.CargaException e) {
             return ResponseEntity.badRequest().body(error(400, "CARGA_INVALIDA", e.getMessage()));
+        } catch (EquipajeService.ValidacionException e) {
+            return ResponseEntity.unprocessableEntity().body(error(422, "VALIDACION_FALLIDA", e.getMessage()));
         }
     }
 
@@ -65,12 +69,15 @@ public class EquipajeController {
         try {
             UUID nodoId = extraerNodoIdDelToken(authHeader);
             if (nodoId == null) {
-                nodoId = UUID.fromString("00000000-0000-0000-0003-000000000001");
+                throw new EquipajeService.ValidacionException(
+                    "El operador no tiene un nodo asignado. Asigne un nodo al operador antes de crear equipajes.");
             }
             CargaMasivaService.ConfirmarResponse response = cargaMasivaService.confirmar(request, nodoId);
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (CargaMasivaService.CargaException e) {
             return ResponseEntity.badRequest().body(error(400, "CONFIRMAR_INVALIDO", e.getMessage()));
+        } catch (EquipajeService.ValidacionException e) {
+            return ResponseEntity.unprocessableEntity().body(error(422, "VALIDACION_FALLIDA", e.getMessage()));
         }
     }
 

@@ -41,6 +41,9 @@ public interface VueloRepository extends JpaRepository<Vuelo, UUID>, JpaSpecific
 
     @Query(value = "SELECT estado::text, COUNT(*)::bigint FROM vuelos WHERE es_plantilla = false GROUP BY estado", nativeQuery = true)
     List<Object[]> countByEstadoNotPlantillaGrouped();
+
+    @Query(value = "SELECT estado::text, COUNT(*)::bigint FROM vuelos WHERE es_plantilla = false AND fecha_operacion = CURRENT_DATE GROUP BY estado", nativeQuery = true)
+    List<Object[]> countByEstadoNotPlantillaGroupedToday();
     boolean existsByFechaOperacionAndEsPlantilla(LocalDate fechaOperacion, Boolean esPlantilla);
     boolean existsByFechaOperacionAndEstadoInAndEsPlantilla(LocalDate fechaOperacion, List<EstadoVuelo> estados, Boolean esPlantilla);
     long countByFechaOperacionAndEsPlantilla(LocalDate fechaOperacion, Boolean esPlantilla);
