@@ -2,6 +2,22 @@ package com.tasfb2b.backend.bc1.application;
 
 import com.tasfb2b.backend.bc1.domain.*;
 import com.tasfb2b.backend.bc1.infrastructure.*;
+import com.tasfb2b.backend.bc1.domain.EstadoCola;
+import com.tasfb2b.backend.bc1.domain.EstadoEquipaje;
+import com.tasfb2b.backend.bc1.domain.EstadoSla;
+import com.tasfb2b.backend.bc1.domain.EstadoSegmento;
+import com.tasfb2b.backend.bc1.domain.EstadoVuelo;
+import com.tasfb2b.backend.bc1.domain.Equipaje;
+import com.tasfb2b.backend.bc1.domain.NodoLogistico;
+import com.tasfb2b.backend.bc1.domain.PlanViaje;
+import com.tasfb2b.backend.bc1.domain.SegmentoPlan;
+import com.tasfb2b.backend.bc1.domain.UbicacionTipo;
+import com.tasfb2b.backend.bc1.infrastructure.ColaPlanificacionRepository;
+import com.tasfb2b.backend.bc1.infrastructure.EquipajeRepository;
+import com.tasfb2b.backend.bc1.infrastructure.NodoLogisticoRepository;
+import com.tasfb2b.backend.bc1.infrastructure.PlanViajeRepository;
+import com.tasfb2b.backend.bc1.infrastructure.SegmentoPlanRepository;
+import com.tasfb2b.backend.bc1.infrastructure.VueloRepository;
 import com.tasfb2b.backend.bc2.application.MotorEnrutamiento;
 import com.tasfb2b.backend.bc2.application.RutaResult;
 import com.tasfb2b.backend.bc2.application.RoutingStrategy;
@@ -13,6 +29,7 @@ import com.tasfb2b.backend.shared.infrastructure.SseService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -234,6 +251,14 @@ public class PlanificacionWorker {
                     .orElse(null);
             if (origen == null) {
                 throw new RuntimeException("Origen no encontrado para equipaje: " + equipaje.getOrigenIata());
+            }
+
+            boolean hayVuelos = !vueloRepository.findByEstadoAndEsPlantilla(EstadoVuelo.PROGRAMADO, false, Pageable.unpaged()).getContent().isEmpty();
+            if (!hayVuelos) {
+                item.setEstado(EstadoCola.PENDIENTE);
+                colaRepository.save(item);
+                log.debug("Item {} postergado: no hay vuelos PROGRAMADO disponibles", item.getId());
+                return;
             }
 
             RutaResult ruta = motorEnrutamiento.calcularRuta(
