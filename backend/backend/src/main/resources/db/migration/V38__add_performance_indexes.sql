@@ -1,4 +1,4 @@
--- V32: Índices compuestos para rendimiento en consultas frecuentes
+-- V38: Índices compuestos para rendimiento en consultas frecuentes
 
 -- TickService.procesarVuelosSalida: findByEstadoAndEsPlantillaAndHoraSalidaLessThanEqual
 CREATE INDEX IF NOT EXISTS idx_vuelos_est_plant_hsalida
