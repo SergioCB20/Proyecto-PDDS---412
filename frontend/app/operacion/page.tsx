@@ -52,6 +52,7 @@ function matchEstadoVuelo(valor: string): VueloEnMapa['estado'] {
 
 interface EquipajeReciente {
   id_externo: string;
+  origen: string;
   destino: string;
   estado: string;
   tiempo: string;
@@ -151,7 +152,7 @@ export default function OperacionPage() {
               return updated;
             }
             return [
-              { id_externo: idExterno, destino: '', estado: 'ENRUTADO', tiempo: 'ahora' },
+              { id_externo: idExterno, origen: '', destino: '', estado: 'ENRUTADO', tiempo: 'ahora' },
               ...prev.slice(0, 7),
             ];
           });
@@ -336,7 +337,7 @@ export default function OperacionPage() {
       setFormSuccess(response);
       setFormData({ destinoIata: '', cantidad: 1 });
       setEquipajesRecientes(prev => [
-        { id_externo: response.id_externo || response.id.slice(0, 8), destino: formData.destinoIata, estado: response.estado, tiempo: 'ahora' },
+        { id_externo: response.id_externo || response.id.slice(0, 8), origen: response.origen_iata || '', destino: formData.destinoIata, estado: response.estado, tiempo: 'ahora' },
         ...prev.slice(0, 7),
       ]);
     } catch (err: unknown) {
@@ -715,18 +716,20 @@ export default function OperacionPage() {
                         <Badge variant={estadoColor(eq.estado)}>{eq.estado.replace('_', ' ')}</Badge>
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-xs text-slate-500">{eq.destino}</span>
+                        <span className="text-xs text-slate-500">{eq.origen ? `${eq.origen} → ${eq.destino}` : eq.destino}</span>
                         <span className="text-xs text-slate-400">{eq.tiempo}</span>
                       </div>
                     </div>
                     <div className="flex gap-1">
-                      <button
-                        onClick={() => handleEditarEquipaje(eq)}
-                        className="p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-500"
-                        title="Editar equipaje"
-                      >
-                        <Package size={14} />
-                      </button>
+                      {eq.estado === 'ENRUTADO' && (
+                        <button
+                          onClick={() => handleEditarEquipaje(eq)}
+                          className="p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-500"
+                          title="Editar equipaje"
+                        >
+                          <Package size={14} />
+                        </button>
+                      )}
                       <button
                         onClick={() => handleEliminarEquipaje(eq.id_externo)}
                         className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500"

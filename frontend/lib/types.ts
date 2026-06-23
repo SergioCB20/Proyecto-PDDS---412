@@ -166,6 +166,7 @@ export interface CrearEquipajeResponse {
   id: string;
   estado: string;
   id_externo?: string;
+  origen_iata?: string;
   destino_iata?: string;
 }
 

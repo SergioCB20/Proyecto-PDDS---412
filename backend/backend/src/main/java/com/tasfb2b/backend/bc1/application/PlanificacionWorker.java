@@ -211,17 +211,17 @@ public class PlanificacionWorker {
                 .orElseThrow(() -> new RuntimeException("Nodo no encontrado: " + primerSegmento.nodoOrigenId()));
 
         // Updates atómicos para evitar lost updates con SimulacionEnrutamientoService corriendo en paralelo
-        vueloRepository.decrementarCargaDisponible(primerVuelo.getId());
         int cantidad = equipaje.getCantidad() != null ? equipaje.getCantidad() : 1;
+        vueloRepository.decrementarCargaDisponible(primerVuelo.getId(), cantidad);
         nodoRepository.actualizarOcupacion(primerNodoOrigen.getId(), cantidad);
 
         equipaje.setEstado(EstadoEquipaje.ENRUTADO);
         equipajeRepository.save(equipaje);
 
         int cargaActualizada = vueloRepository.findById(primerVuelo.getId())
-                .map(Vuelo::getCargaDisponible).orElse(primerVuelo.getCargaDisponible() - 1);
+                .map(Vuelo::getCargaDisponible).orElse(primerVuelo.getCargaDisponible() - cantidad);
         int ocupacionActualizada = nodoRepository.findById(primerNodoOrigen.getId())
-                .map(NodoLogistico::getOcupacionActual).orElse(primerNodoOrigen.getOcupacionActual() + 1);
+                .map(NodoLogistico::getOcupacionActual).orElse(primerNodoOrigen.getOcupacionActual() + cantidad);
         redisCacheService.actualizarCargaDisponibleVuelo(primerVuelo.getId(), cargaActualizada);
         redisCacheService.actualizarOcupacionNodo(primerNodoOrigen.getId(), ocupacionActualizada);
 
