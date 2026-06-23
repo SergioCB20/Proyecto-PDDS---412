@@ -55,12 +55,15 @@ public class SimulacionEnrutamientoService {
         Object[] idArray = ids.toArray(new UUID[0]);
 
         jdbcTemplate.update(
-            "UPDATE vuelos SET carga_disponible = carga_disponible + 1 " +
-            "WHERE id IN (" +
-            "  SELECT sp.vuelo_id FROM segmentos_plan sp " +
+            "UPDATE vuelos v SET carga_disponible = carga_disponible + sub.total " +
+            "FROM (" +
+            "  SELECT sp.vuelo_id, SUM(e.cantidad) AS total " +
+            "  FROM segmentos_plan sp " +
             "  JOIN planes_viaje pv ON sp.plan_viaje_id = pv.id " +
-            "  WHERE pv.sesion_id = ? AND pv.equipaje_id = ANY(?) AND sp.orden = 1" +
-            ")", sesionId, idArray);
+            "  JOIN equipajes e ON pv.equipaje_id = e.id " +
+            "  WHERE pv.sesion_id = ? AND pv.equipaje_id = ANY(?) AND sp.orden = 1 " +
+            "  GROUP BY sp.vuelo_id" +
+            ") sub WHERE v.id = sub.vuelo_id", sesionId, idArray);
 
         jdbcTemplate.update(
             "UPDATE nodos_logisticos n SET ocupacion_actual = GREATEST(0, ocupacion_actual - sub.total) " +
@@ -157,7 +160,7 @@ public class SimulacionEnrutamientoService {
 
             List<PlanViaje> planesBatch = new ArrayList<>();
             List<SegmentoPlan> segmentosBatch = new ArrayList<>();
-            List<UUID> vuelosActualizar = new ArrayList<>();
+            Map<UUID, Integer> vuelosActualizar = new HashMap<>();
             Map<UUID, Integer> nodosActualizar = new HashMap<>();
 
             int sinRutaLote = 0;
@@ -223,7 +226,8 @@ public class SimulacionEnrutamientoService {
                 enrutados++;
 
                 if (primerVuelo != null) {
-                    vuelosActualizar.add(primerVuelo.getId());
+                    int cantidad = eq.getCantidad() != null ? eq.getCantidad() : 1;
+                    vuelosActualizar.merge(primerVuelo.getId(), cantidad, Integer::sum);
                 }
                 int cantidad = eq.getCantidad() != null ? eq.getCantidad() : 1;
                 nodosActualizar.merge(primerSeg.nodoOrigenId(), cantidad, Integer::sum);
@@ -256,13 +260,16 @@ public class SimulacionEnrutamientoService {
                 colapso ? primerSinRutaGlobal : null);
     }
 
-    private void batchActualizarVuelos(List<UUID> vueloIds) {
-        if (vueloIds.isEmpty()) return;
+    private void batchActualizarVuelos(Map<UUID, Integer> vuelosMap) {
+        if (vuelosMap.isEmpty()) return;
+        List<UUID> vueloIds = new ArrayList<>(vuelosMap.keySet());
+        List<Integer> cantidades = new ArrayList<>(vuelosMap.values());
         jdbcTemplate.batchUpdate(
-                "UPDATE vuelos SET carga_disponible = carga_disponible - 1 WHERE id = ?",
+                "UPDATE vuelos SET carga_disponible = carga_disponible - ? WHERE id = ?",
                 new BatchPreparedStatementSetter() {
                     public void setValues(PreparedStatement ps, int i) throws SQLException {
-                        ps.setObject(1, vueloIds.get(i));
+                        ps.setInt(1, cantidades.get(i));
+                        ps.setObject(2, vueloIds.get(i));
                     }
                     public int getBatchSize() { return vueloIds.size(); }
                 });

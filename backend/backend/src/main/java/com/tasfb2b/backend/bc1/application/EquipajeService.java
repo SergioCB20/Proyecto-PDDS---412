@@ -63,6 +63,7 @@ public class EquipajeService {
             UUID id,
             String estado,
             String id_externo,
+            String origen_iata,
             String destino_iata
     ) {}
 
@@ -136,6 +137,7 @@ public class EquipajeService {
                 equipaje.getId(),
                 equipaje.getEstado().name(),
                 equipaje.getIdExterno(),
+                equipaje.getOrigenIata(),
                 equipaje.getDestinoIata()
         );
     }
@@ -190,7 +192,8 @@ public class EquipajeService {
 
         Vuelo vuelo = equipaje.getVueloActual();
         if (vuelo != null) {
-            vuelo.setCargaDisponible(vuelo.getCargaDisponible() + 1);
+            int cantidad = equipaje.getCantidad() != null ? equipaje.getCantidad() : 1;
+            vuelo.setCargaDisponible(vuelo.getCargaDisponible() + cantidad);
             vueloRepository.save(vuelo);
         }
 
@@ -431,7 +434,7 @@ public class EquipajeService {
             // Redis miss or parse error — fall through to DB query
         }
 
-        long total = equipajeRepository.countByFechaOperacionToday();
+        long total = equipajeRepository.countByFechaIngresoToday();
 
         Map<String, Long> equipajePorEstado = equipajeRepository.countByEstadoGroupedToday()
                 .stream()
@@ -447,7 +450,7 @@ public class EquipajeService {
         long replanificacion = equipajePorEstado.getOrDefault("EN_REPLANIFICACION", 0L);
         long incumplimiento = equipajePorEstado.getOrDefault("INCUMPLIMIENTO_SLA", 0L);
 
-        Map<String, Long> vueloPorEstado = vueloRepository.countByEstadoNotPlantillaGroupedToday()
+        Map<String, Long> vueloPorEstado = vueloRepository.countByEstadoNotPlantillaGrouped()
                 .stream()
                 .collect(Collectors.toMap(
                         row -> (String) row[0],
