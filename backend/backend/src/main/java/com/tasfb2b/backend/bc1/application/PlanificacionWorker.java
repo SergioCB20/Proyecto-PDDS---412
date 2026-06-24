@@ -2,9 +2,26 @@ package com.tasfb2b.backend.bc1.application;
 
 import com.tasfb2b.backend.bc1.domain.*;
 import com.tasfb2b.backend.bc1.infrastructure.*;
-import com.tasfb2b.backend.bc2.application.*;
-import com.tasfb2b.backend.bc2.domain.EstadoSesion;
-import com.tasfb2b.backend.bc2.infrastructure.SesionRepository;
+import com.tasfb2b.backend.bc1.domain.EstadoCola;
+import com.tasfb2b.backend.bc1.domain.EstadoEquipaje;
+import com.tasfb2b.backend.bc1.domain.EstadoSla;
+import com.tasfb2b.backend.bc1.domain.EstadoSegmento;
+import com.tasfb2b.backend.bc1.domain.EstadoVuelo;
+import com.tasfb2b.backend.bc1.domain.Equipaje;
+import com.tasfb2b.backend.bc1.domain.NodoLogistico;
+import com.tasfb2b.backend.bc1.domain.PlanViaje;
+import com.tasfb2b.backend.bc1.domain.SegmentoPlan;
+import com.tasfb2b.backend.bc1.domain.UbicacionTipo;
+import com.tasfb2b.backend.bc1.infrastructure.ColaPlanificacionRepository;
+import com.tasfb2b.backend.bc1.infrastructure.EquipajeRepository;
+import com.tasfb2b.backend.bc1.infrastructure.NodoLogisticoRepository;
+import com.tasfb2b.backend.bc1.infrastructure.PlanViajeRepository;
+import com.tasfb2b.backend.bc1.infrastructure.SegmentoPlanRepository;
+import com.tasfb2b.backend.bc1.infrastructure.VueloRepository;
+import com.tasfb2b.backend.bc2.application.MotorEnrutamiento;
+import com.tasfb2b.backend.bc2.application.RutaResult;
+import com.tasfb2b.backend.bc2.application.RoutingStrategy;
+import com.tasfb2b.backend.bc2.application.SegmentoInfo;
 import com.tasfb2b.backend.shared.events.EquipajePlanificadoEvent;
 import com.tasfb2b.backend.shared.events.PlanViajeCreado;
 import com.tasfb2b.backend.shared.infrastructure.RedisCacheService;
@@ -12,6 +29,7 @@ import com.tasfb2b.backend.shared.infrastructure.SseService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,22 +55,20 @@ public class PlanificacionWorker {
     private final PlanViajeRepository planViajeRepository;
     private final SegmentoPlanRepository segmentoPlanRepository;
     private final MotorEnrutamiento motorEnrutamiento;
-    private final SesionRepository sesionRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final RedisCacheService redisCacheService;
     private final SseService sseService;
 
     public PlanificacionWorker(ColaPlanificacionRepository colaRepository,
-                               EquipajeRepository equipajeRepository,
-                               VueloRepository vueloRepository,
-                               NodoLogisticoRepository nodoRepository,
-                               PlanViajeRepository planViajeRepository,
-                               SegmentoPlanRepository segmentoPlanRepository,
-                               MotorEnrutamiento motorEnrutamiento,
-                               SesionRepository sesionRepository,
-                               ApplicationEventPublisher eventPublisher,
-                               RedisCacheService redisCacheService,
-                               SseService sseService) {
+                                EquipajeRepository equipajeRepository,
+                                VueloRepository vueloRepository,
+                                NodoLogisticoRepository nodoRepository,
+                                PlanViajeRepository planViajeRepository,
+                                SegmentoPlanRepository segmentoPlanRepository,
+                                MotorEnrutamiento motorEnrutamiento,
+                                ApplicationEventPublisher eventPublisher,
+                                RedisCacheService redisCacheService,
+                                SseService sseService) {
         this.colaRepository = colaRepository;
         this.equipajeRepository = equipajeRepository;
         this.vueloRepository = vueloRepository;
@@ -60,7 +76,6 @@ public class PlanificacionWorker {
         this.planViajeRepository = planViajeRepository;
         this.segmentoPlanRepository = segmentoPlanRepository;
         this.motorEnrutamiento = motorEnrutamiento;
-        this.sesionRepository = sesionRepository;
         this.eventPublisher = eventPublisher;
         this.redisCacheService = redisCacheService;
         this.sseService = sseService;
@@ -70,14 +85,7 @@ public class PlanificacionWorker {
     @Transactional
     public void procesarCola() {
         procesarTimeoutItems();
-
-        if (haySesionActiva()) {
-            procesarBatch();
-        }
-    }
-
-    private boolean haySesionActiva() {
-        return !sesionRepository.findByEstado(EstadoSesion.EN_CURSO).isEmpty();
+        procesarBatch();
     }
 
     private void procesarItemSimple() {
@@ -202,17 +210,20 @@ public class PlanificacionWorker {
         NodoLogistico primerNodoOrigen = nodoRepository.findById(primerSegmento.nodoOrigenId())
                 .orElseThrow(() -> new RuntimeException("Nodo no encontrado: " + primerSegmento.nodoOrigenId()));
 
-        primerVuelo.setCargaDisponible(primerVuelo.getCargaDisponible() - 1);
-        vueloRepository.save(primerVuelo);
-
-        primerNodoOrigen.setOcupacionActual(primerNodoOrigen.getOcupacionActual() + 1);
-        nodoRepository.save(primerNodoOrigen);
+        // Updates atómicos para evitar lost updates con SimulacionEnrutamientoService corriendo en paralelo
+        int cantidad = equipaje.getCantidad() != null ? equipaje.getCantidad() : 1;
+        vueloRepository.decrementarCargaDisponible(primerVuelo.getId(), cantidad);
+        nodoRepository.actualizarOcupacion(primerNodoOrigen.getId(), cantidad);
 
         equipaje.setEstado(EstadoEquipaje.ENRUTADO);
         equipajeRepository.save(equipaje);
 
-        redisCacheService.actualizarCargaDisponibleVuelo(primerVuelo.getId(), primerVuelo.getCargaDisponible());
-        redisCacheService.actualizarOcupacionNodo(primerNodoOrigen.getId(), primerNodoOrigen.getOcupacionActual());
+        int cargaActualizada = vueloRepository.findById(primerVuelo.getId())
+                .map(Vuelo::getCargaDisponible).orElse(primerVuelo.getCargaDisponible() - cantidad);
+        int ocupacionActualizada = nodoRepository.findById(primerNodoOrigen.getId())
+                .map(NodoLogistico::getOcupacionActual).orElse(primerNodoOrigen.getOcupacionActual() + cantidad);
+        redisCacheService.actualizarCargaDisponibleVuelo(primerVuelo.getId(), cargaActualizada);
+        redisCacheService.actualizarOcupacionNodo(primerNodoOrigen.getId(), ocupacionActualizada);
 
         eventPublisher.publishEvent(new EquipajePlanificadoEvent(
                 equipaje.getId(), planViaje.getId(),
@@ -240,6 +251,14 @@ public class PlanificacionWorker {
                     .orElse(null);
             if (origen == null) {
                 throw new RuntimeException("Origen no encontrado para equipaje: " + equipaje.getOrigenIata());
+            }
+
+            boolean hayVuelos = !vueloRepository.findByEstadoAndEsPlantilla(EstadoVuelo.PROGRAMADO, false, Pageable.unpaged()).getContent().isEmpty();
+            if (!hayVuelos) {
+                item.setEstado(EstadoCola.PENDIENTE);
+                colaRepository.save(item);
+                log.debug("Item {} postergado: no hay vuelos PROGRAMADO disponibles", item.getId());
+                return;
             }
 
             RutaResult ruta = motorEnrutamiento.calcularRuta(
@@ -290,6 +309,9 @@ public class PlanificacionWorker {
                               boolean exitoso, String error) {
         Map<String, Object> data = new java.util.LinkedHashMap<>();
         data.put("equipaje_id", item.getEquipajeId().toString());
+        if (equipaje != null) {
+            data.put("id_externo", equipaje.getIdExterno());
+        }
         data.put("tipo", item.getTipo().name());
         data.put("estado", exitoso ? "COMPLETADO" : "FALLIDO");
 

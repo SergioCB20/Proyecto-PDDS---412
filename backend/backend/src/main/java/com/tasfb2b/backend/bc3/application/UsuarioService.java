@@ -35,11 +35,11 @@ public class UsuarioService {
         this.passwordEncoder = passwordEncoder;
     }
 
-    public record CrearUsuarioRequest(String nombre, String correo, String password, String rol, UUID nodoRefId) {}
+    public record CrearUsuarioRequest(String nombre, String correo, String password, String rol, UUID nodo_ref_id) {}
     public record ActualizarUsuarioRequest(String nombre) {}
     public record CambiarEstadoRequest(String estado) {}
 
-    public record UsuarioResponse(UUID id, String nombre, String correo, String rol, String estado, UUID nodoRefId, String nodoNombre) {}
+    public record UsuarioResponse(UUID id, String nombre, String correo, String rol, String estado, UUID nodo_ref_id, String nodo_nombre) {}
 
     public Page<UsuarioResponse> listar(Optional<String> estado, Pageable pageable) {
         Page<Usuario> page;
@@ -67,8 +67,8 @@ public class UsuarioService {
                 request.correo(),
                 passwordEncoder.encode(request.password())
         );
-        usuario.setNodoRefId(request.nodoRefId());
-        if (request.nodoRefId() != null) {
+        usuario.setNodoRefId(request.nodo_ref_id());
+        if (request.nodo_ref_id() != null) {
             usuario.setAsignadoEn(OffsetDateTime.now());
         }
 

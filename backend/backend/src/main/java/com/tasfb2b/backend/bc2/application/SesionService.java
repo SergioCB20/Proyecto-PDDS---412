@@ -15,8 +15,13 @@ import com.tasfb2b.backend.shared.infrastructure.RedisCacheService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -39,6 +44,15 @@ public class SesionService {
     private final PuntoSLARepository puntoSLARepository;
     private final EquipajeRepository equipajeRepository;
     private final PlanViajeRepository planViajeRepository;
+    private final SesionPreparacionAsync sesionPreparacionAsync;
+    private final SesionReadinessManager readinessManager;
+    private final TaskExecutor taskExecutor;
+    private final JdbcTemplate jdbcTemplate;
+    private final SimulacionPlanificador simulacionPlanificador;
+    private final SesionLockManager lockManager;
+
+    // Fecha del primer día de datos en los archivos _envios_*.txt
+    private static final LocalDate FECHA_BASE_ARCHIVO = LocalDate.of(2026, 1, 2);
 
     public SesionService(SesionRepository sesionRepository,
                          VueloService vueloService,
@@ -47,7 +61,13 @@ public class SesionService {
                          ReporteSesionRepository reporteSesionRepository,
                          PuntoSLARepository puntoSLARepository,
                          EquipajeRepository equipajeRepository,
-                         PlanViajeRepository planViajeRepository) {
+                         PlanViajeRepository planViajeRepository,
+                         SesionPreparacionAsync sesionPreparacionAsync,
+                         SesionReadinessManager readinessManager,
+                         TaskExecutor taskExecutor,
+                         JdbcTemplate jdbcTemplate,
+                         SimulacionPlanificador simulacionPlanificador,
+                         SesionLockManager lockManager) {
         this.sesionRepository = sesionRepository;
         this.vueloService = vueloService;
         this.redisCacheService = redisCacheService;
@@ -56,11 +76,26 @@ public class SesionService {
         this.puntoSLARepository = puntoSLARepository;
         this.equipajeRepository = equipajeRepository;
         this.planViajeRepository = planViajeRepository;
+        this.sesionPreparacionAsync = sesionPreparacionAsync;
+        this.readinessManager = readinessManager;
+        this.taskExecutor = taskExecutor;
+        this.jdbcTemplate = jdbcTemplate;
+        this.simulacionPlanificador = simulacionPlanificador;
+        this.lockManager = lockManager;
     }
 
     public SesionResponse crearSesion(CrearSesionRequest request) {
-        LocalDate fecha = LocalDate.parse(request.fecha_inicio_virtual());
-        LocalTime hora = LocalTime.parse(request.hora_inicio_virtual());
+        LocalDate fecha = (request.fecha_inicio_virtual() != null)
+            ? LocalDate.parse(request.fecha_inicio_virtual())
+            : FECHA_BASE_ARCHIVO;
+        LocalTime hora = (request.hora_inicio_virtual() != null)
+            ? LocalTime.parse(request.hora_inicio_virtual())
+            : LocalTime.MIDNIGHT;
+        if (fecha.isBefore(FECHA_BASE_ARCHIVO)) {
+            throw new IllegalArgumentException(
+                "fecha_inicio_virtual debe ser >= " + FECHA_BASE_ARCHIVO +
+                " (fecha base de los archivos de envíos)");
+        }
 
         SesionEjecucion sesion = new SesionEjecucion(
             UUID.randomUUID(),
@@ -76,11 +111,18 @@ public class SesionService {
         if (request.tipo_simulacion() != null) {
             sesion.setTipoSimulacion(TipoSimulacion.valueOf(request.tipo_simulacion()));
         }
-        if (request.ventana_horas() != null) {
-            sesion.setVentanaHoras(request.ventana_horas());
+        // Simulación siempre 5 días; ignorar duracion_dias del request
+        sesion.setDuracionDias(5);
+
+        if (request.k() != null) {
+            double k = request.k();
+            if (k < 120 || k > 240) {
+                throw new IllegalArgumentException("k debe estar entre 120 (60 min) y 240 (30 min)");
+            }
+            sesion.setK(k);
         }
-        if (request.duracion_dias() != null) {
-            sesion.setDuracionDias(request.duracion_dias());
+        if (request.sa_segundos() != null) {
+            sesion.setSaSegundos(request.sa_segundos());
         }
 
         if (request.umbrales_almacen() != null) {
@@ -110,6 +152,7 @@ public class SesionService {
         return new SesionResponse(sesion.getId(), sesion.getTipo().name(), sesion.getEstado().name());
     }
 
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public SesionIniciarResponse iniciarSesion(UUID id) {
         SesionEjecucion sesion = sesionRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Sesion no encontrada"));
@@ -118,16 +161,30 @@ public class SesionService {
             throw new IllegalStateException("No se puede iniciar la sesion en estado: " + sesion.getEstado());
         }
 
-        long enCursoCount = sesionRepository.findByEstado(EstadoSesion.EN_CURSO).stream()
+        long enCursoCount = sesionRepository.findByEstadoWithLock(EstadoSesion.EN_CURSO).stream()
             .filter(s -> !s.getId().equals(id))
             .count();
         if (enCursoCount > 0) {
             throw new IllegalStateException("Ya existe una sesion EN_CURSO. Detenela antes de iniciar otra.");
         }
 
-        prepararInstanciasSimulacion(id);
+        // Calcular delta de fechas (rápido, sin UPDATE masivo)
+        if (sesion.getTipo() == TipoSesion.SIMULADA && sesion.getFechaAlineadaA() == null) {
+            alinearFechasEquipajes(sesion);
+        }
 
-        return activarSesion(sesion);
+        SesionIniciarResponse response = activarSesion(sesion);
+
+        // Lanzar preparacion async DESPUES de que la transaccion commitee
+        // para que el async vea la sesion en estado EN_CURSO en la BD
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                taskExecutor.execute(() -> sesionPreparacionAsync.preparar(id));
+            }
+        });
+
+        return response;
     }
 
     @Transactional
@@ -137,7 +194,7 @@ public class SesionService {
 
         if (sesion.getTipo() == TipoSesion.SIMULADA) {
             LocalDate desde = sesion.getFechaInicioVirtual();
-            LocalDate hasta = desde.plusDays(sesion.getDuracionDias() != null ? sesion.getDuracionDias() : 30);
+            LocalDate hasta = desde.plusDays(5);
 
             log.info("Limpiando instancias previas para sesion {} entre {} y {}", id, desde, hasta);
             try {
@@ -153,6 +210,8 @@ public class SesionService {
             } catch (Exception e) {
                 log.warn("No se pudieron clonar plantillas para sesion {}: {}", id, e.getMessage());
             }
+
+            alinearFechasEquipajes(sesion);
         }
 
         if (sesion.getTipo() == TipoSesion.SIMULADA) {
@@ -166,6 +225,22 @@ public class SesionService {
                 log.info("ReporteSesion ya existe para sesion {}, se reutiliza", id);
             }
         }
+    }
+
+    /**
+     * Marca la sesión como alineada a la fecha virtual.
+     * Ya no modifica los 44M registros de equipajes — el planificador
+     * ajusta la ventana de búsqueda con el delta sobre la marcha.
+     */
+    private void alinearFechasEquipajes(SesionEjecucion sesion) {
+        if (sesion.getFechaAlineadaA() != null) {
+            return;
+        }
+        sesion.setFechaAlineadaA(sesion.getFechaInicioVirtual());
+        sesionRepository.save(sesion);
+        log.info("Alineacion virtual para sesion {}: delta={} dias (sin UPDATE masivo)",
+            sesion.getId(),
+            java.time.temporal.ChronoUnit.DAYS.between(FECHA_BASE_ARCHIVO, sesion.getFechaInicioVirtual()));
     }
 
     @Transactional
@@ -203,14 +278,30 @@ public class SesionService {
         return new SesionEstadoResponse(sesion.getEstado().name());
     }
 
-    @Transactional
+    // NO @Transactional: cada paso commitea por separado. Así marcar FINALIZADA
+    // se confirma de inmediato (sin mantener un lock de fila abierto mientras se
+    // espera el lock JVM) y los schedulers dejan de tomar la sesión en su próximo
+    // ciclo. Evita el deadlock lock-JVM + lock-de-fila.
     public SesionEstadoResponse detenerSesion(UUID id) {
         SesionEjecucion sesion = sesionRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Sesion no encontrada"));
 
+        // 1. Marca FINALIZADA + quita readiness — commit inmediato. tick/planificador
+        //    releen el estado cada ciclo, así no inician nuevos ciclos para esta sesión.
         sesion.setEstado(EstadoSesion.FINALIZADA);
         sesion.setFechaFinReal(OffsetDateTime.now());
         sesionRepository.save(sesion);
+        readinessManager.eliminar(id);
+
+        // 2. Espera ACOTADA a que termine cualquier ciclo de tick/planificador en vuelo
+        //    antes de borrar planes/segmentos — evita StaleObjectStateException.
+        var lock = lockManager.obtener(id);
+        boolean locked = false;
+        try {
+            locked = lock.tryLock(60, java.util.concurrent.TimeUnit.SECONDS);
+            if (!locked) {
+                log.warn("detenerSesion {}: lock no obtenido en 60s; limpieza best-effort", id);
+            }
 
         if (sesion.getTipo() == TipoSesion.SIMULADA) {
             LocalDate desde = sesion.getFechaInicioVirtual();
@@ -224,6 +315,34 @@ public class SesionService {
             }
         }
 
+        log.info("Reseteando equipajes de la sesion {} a REGISTRADO", id);
+        try {
+            int resetados = jdbcTemplate.update(
+                "UPDATE equipajes SET estado = 'REGISTRADO', vuelo_actual_id = NULL " +
+                "WHERE id IN (SELECT equipaje_id FROM planes_viaje WHERE sesion_id = ?)", id);
+            log.info("Reseteados {} equipajes a REGISTRADO para sesion {}", resetados, id);
+        } catch (Exception e) {
+            log.warn("Error reseteando equipajes al detener sesion {}: {}", id, e.getMessage());
+        }
+
+        log.info("Eliminando planes_viaje de la sesion {}", id);
+        try {
+            jdbcTemplate.update(
+                "DELETE FROM segmentos_plan WHERE plan_viaje_id IN " +
+                "(SELECT id FROM planes_viaje WHERE sesion_id = ?)", id);
+            int planes = jdbcTemplate.update("DELETE FROM planes_viaje WHERE sesion_id = ?", id);
+            log.info("Eliminados {} planes_viaje para sesion {}", planes, id);
+        } catch (Exception e) {
+            log.warn("Error eliminando planes_viaje al detener sesion {}: {}", id, e.getMessage());
+        }
+
+        log.info("Reseteando ocupacion de nodos a 0 para sesion {}", id);
+        try {
+            jdbcTemplate.update("UPDATE nodos_logisticos SET ocupacion_actual = 0");
+        } catch (Exception e) {
+            log.warn("Error reseteando ocupacion de nodos: {}", e.getMessage());
+        }
+
         try {
             redisCacheService.setEstadoSesion(sesion.getId(), "FINALIZADA");
             redisCacheService.eliminarMetricasSesion(sesion.getId());
@@ -231,10 +350,18 @@ public class SesionService {
             log.warn("Redis no disponible al detener sesion {}: {}", sesion.getId(), e.getMessage());
         }
 
+        simulacionPlanificador.limpiarSesion(sesion.getId());
+
         eventPublisher.publishEvent(new SesionFinalizada(
                 sesion.getId(), "FINALIZADA", OffsetDateTime.now()));
 
         return new SesionEstadoResponse(sesion.getEstado().name());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrumpido al detener sesion " + id, e);
+        } finally {
+            if (locked) lock.unlock();
+        }
     }
 
     public MetricasSesionResponse obtenerMetricas(UUID id) {

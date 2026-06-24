@@ -26,6 +26,9 @@ public class TelemetriaService {
 
     private static final Logger log = LoggerFactory.getLogger(TelemetriaService.class);
 
+    /** Horizonte virtual (horas) de vuelos PROGRAMADO incluidos en la telemetría. */
+    public static final int VENTANA_TELEMETRIA_HORAS = 6;
+
     private final NodoLogisticoRepository nodoRepository;
     private final VueloRepository vueloRepository;
     private final TelemetriaWebSocket telemetriaWebSocket;
@@ -60,8 +63,10 @@ public class TelemetriaService {
 
     private String buildTelemetryJson(SesionEjecucion sesion) {
         List<NodoLogistico> nodos = nodoRepository.findAllByOrderByCodigoIataAsc();
-        List<Vuelo> vuelos = vueloRepository.findByEstadoInAndEsPlantilla(
-                List.of(EstadoVuelo.PROGRAMADO, EstadoVuelo.EN_RUTA), false);
+        OffsetDateTime hasta = sesion.getDiaHoraVirtual() != null
+                ? sesion.getDiaHoraVirtual().plusHours(VENTANA_TELEMETRIA_HORAS)
+                : OffsetDateTime.now().plusYears(1);
+        List<Vuelo> vuelos = vueloRepository.findTelemetriaVuelos(hasta);
         return buildTelemetryJson(sesion, nodos, vuelos);
     }
 
@@ -99,18 +104,17 @@ public class TelemetriaService {
             v.put("destino_iata", vuelo.getDestino().getCodigoIata());
 
             if (vuelo.getEstado() == EstadoVuelo.EN_RUTA && sesion.getDiaHoraVirtual() != null) {
-                double progress = calcularProgreso(vuelo, sesion.getDiaHoraVirtual());
-                double lat = vuelo.getOrigenLat().doubleValue()
-                        + (vuelo.getDestinoLat().doubleValue() - vuelo.getOrigenLat().doubleValue())
-                        * Math.min(progress, 1.0);
-                double lon = vuelo.getOrigenLon().doubleValue()
-                        + (vuelo.getDestinoLon().doubleValue() - vuelo.getOrigenLon().doubleValue())
-                        * Math.min(progress, 1.0);
-                v.put("lat_actual", Math.round(lat * 1_000_000.0) / 1_000_000.0);
-                v.put("lon_actual", Math.round(lon * 1_000_000.0) / 1_000_000.0);
+                double t = Math.min(Math.max(calcularProgreso(vuelo, sesion.getDiaHoraVirtual()), 0.0), 1.0);
+                double[] pos = bezierPosition(
+                        vuelo.getOrigenLat().doubleValue(), vuelo.getOrigenLon().doubleValue(),
+                        vuelo.getDestinoLat().doubleValue(), vuelo.getDestinoLon().doubleValue(), t);
+                v.put("lat_actual", Math.round(pos[0] * 1_000_000.0) / 1_000_000.0);
+                v.put("lon_actual", Math.round(pos[1] * 1_000_000.0) / 1_000_000.0);
+                v.put("progreso", Math.round(t * 1_000_000.0) / 1_000_000.0);
             } else {
                 v.put("lat_actual", vuelo.getOrigenLat().doubleValue());
                 v.put("lon_actual", vuelo.getOrigenLon().doubleValue());
+                v.put("progreso", 0.0);
             }
 
             v.put("capacidad_carga", vuelo.getCapacidadCarga() != null ? vuelo.getCapacidadCarga() : 0);
@@ -135,6 +139,7 @@ public class TelemetriaService {
                 sesion.getVuelosCancelados() != null ? sesion.getVuelosCancelados() : 0);
         metrics.put("maletas_replanificadas",
                 sesion.getMaletasReplanificadas() != null ? sesion.getMaletasReplanificadas() : 0);
+        metrics.put("k", sesion.getK() != null ? sesion.getK() : 120.0);
 
         try {
             return objectMapper.writeValueAsString(root);
@@ -142,6 +147,29 @@ public class TelemetriaService {
             log.error("Error serializing telemetry JSON: {}", e.getMessage());
             return "{}";
         }
+    }
+
+    /** Quadratic Bezier position — matches the curve rendered by the frontend. */
+    private double[] bezierPosition(double lat1, double lon1, double lat2, double lon2, double t) {
+        double midLat = (lat1 + lat2) / 2.0;
+        double midLon = (lon1 + lon2) / 2.0;
+        double dLat = lat2 - lat1;
+        double dLon = lon2 - lon1;
+        double dist = Math.sqrt(dLat * dLat + dLon * dLon);
+        double ctrlLat, ctrlLon;
+        if (dist > 0) {
+            double offset = Math.max(dist * 0.3, 0.5);
+            ctrlLat = midLat + (dLon / dist) * offset;
+            ctrlLon = midLon + (-dLat / dist) * offset;
+        } else {
+            ctrlLat = midLat;
+            ctrlLon = midLon;
+        }
+        double t1 = 1 - t;
+        return new double[]{
+            t1 * t1 * lat1 + 2 * t1 * t * ctrlLat + t * t * lat2,
+            t1 * t1 * lon1 + 2 * t1 * t * ctrlLon + t * t * lon2
+        };
     }
 
     private double calcularProgreso(Vuelo vuelo, OffsetDateTime virtual) {

@@ -1,4 +1,4 @@
-import type { ApiError, EnvioEntregadoResponse, EnvioItemResponse } from './types';
+import type { ApiError, EnvioEntregadoResponse, EnvioItemResponse, MetricasOperacion } from './types';
 
 function getBaseUrl(): string {
   if (typeof window !== 'undefined') {
@@ -12,7 +12,7 @@ function getBaseUrl(): string {
 }
 
 const BASE_URL = getBaseUrl();
-const REQUEST_TIMEOUT_MS = 30_000;
+const REQUEST_TIMEOUT_MS = 120_000;
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const controller = new AbortController();
@@ -139,4 +139,20 @@ export async function fetchEnviosNodo(sesionId: string, nodoIata: string): Promi
 
 export async function fetchEntregadosRecientes(sesionId: string, horas = 4): Promise<EnvioEntregadoResponse[]> {
   return api.get<EnvioEntregadoResponse[]>(`/sesiones/${sesionId}/envios/entregados-recientes?horas=${horas}`);
+}
+
+export async function fetchEnviosVueloOperacion(vueloId: string): Promise<EnvioItemResponse[]> {
+  return api.get<EnvioItemResponse[]>(`/vuelos/${vueloId}/equipajes`);
+}
+
+export async function fetchEnviosNodoOperacion(nodoIata: string): Promise<EnvioItemResponse[]> {
+  return api.get<EnvioItemResponse[]>(`/nodos/${nodoIata}/equipajes`);
+}
+
+export async function fetchEntregadosRecientesOperacion(horas = 4): Promise<EnvioEntregadoResponse[]> {
+  return api.get<EnvioEntregadoResponse[]>(`/equipajes/recientes?horas=${horas}`);
+}
+
+export async function fetchMetricasOperacion(): Promise<MetricasOperacion> {
+  return api.get<MetricasOperacion>('/equipajes/metricas');
 }

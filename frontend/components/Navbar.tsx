@@ -28,7 +28,7 @@ export function Navbar() {
     <nav className="h-14 bg-slate-800 text-white flex items-center px-4 gap-6 shadow-md">
       <Link href="/" className="flex items-center gap-2 font-bold text-lg">
         <Plane size={22} className="text-blue-400" />
-        <span>TAS FB2B</span>
+        <span>TASF B2B</span>
       </Link>
 
       <div className="flex-1 flex items-center gap-1">

@@ -5,14 +5,19 @@ import com.lowagie.text.pdf.PdfPCell;
 import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfWriter;
 import com.tasfb2b.backend.bc1.domain.Equipaje;
+import com.tasfb2b.backend.bc1.domain.EstadoSegmento;
 import com.tasfb2b.backend.bc1.domain.Vuelo;
 import com.tasfb2b.backend.bc1.infrastructure.EquipajeRepository;
+import com.tasfb2b.backend.bc1.infrastructure.SegmentoPlanRepository;
 import com.tasfb2b.backend.bc1.infrastructure.VueloRepository;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -20,17 +25,42 @@ public class ManifiestoService {
 
     private final VueloRepository vueloRepository;
     private final EquipajeRepository equipajeRepository;
+    private final SegmentoPlanRepository segmentoPlanRepository;
 
-    public ManifiestoService(VueloRepository vueloRepository, EquipajeRepository equipajeRepository) {
+    public ManifiestoService(VueloRepository vueloRepository, EquipajeRepository equipajeRepository,
+                             SegmentoPlanRepository segmentoPlanRepository) {
         this.vueloRepository = vueloRepository;
         this.equipajeRepository = equipajeRepository;
+        this.segmentoPlanRepository = segmentoPlanRepository;
     }
 
     public byte[] generarManifiesto(UUID vueloId) {
         Vuelo vuelo = vueloRepository.findById(vueloId)
                 .orElseThrow(() -> new VueloNoEncontradoException("Vuelo no encontrado: " + vueloId));
 
-        List<Equipaje> equipajes = equipajeRepository.findByVueloActualId(vueloId);
+        Set<UUID> ids = new HashSet<>();
+        List<Equipaje> equipajes = new ArrayList<>();
+
+        for (Equipaje e : equipajeRepository.findByVueloActualId(vueloId)) {
+            if (ids.add(e.getId())) {
+                equipajes.add(e);
+            }
+        }
+
+        for (Equipaje e : segmentoPlanRepository.findEquipajesByVueloIdAndEstado(
+                vueloId, EstadoSegmento.PENDIENTE)) {
+            if (ids.add(e.getId())) {
+                equipajes.add(e);
+            }
+        }
+
+        for (Equipaje e : segmentoPlanRepository.findEquipajesByVueloIdAndEstado(
+                vueloId, EstadoSegmento.EN_CURSO)) {
+            if (ids.add(e.getId())) {
+                equipajes.add(e);
+            }
+        }
+
         if (equipajes.isEmpty()) {
             throw new ManifiestoVacioException("El vuelo " + vuelo.getCodigoVuelo() + " no tiene equipajes asignados");
         }

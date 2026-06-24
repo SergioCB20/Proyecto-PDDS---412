@@ -13,6 +13,11 @@ interface PanelVuelosProps {
   onFilterChange?: (filters: { origen: string; destino: string }) => void;
 }
 
+// Tope de tarjetas montadas en el DOM. Evita que un día con miles de vuelos
+// PROGRAMADO sature la pestaña. El filtrado opera sobre la lista completa; solo
+// se acota cuántas se renderizan a la vez.
+const MAX_RENDER = 100;
+
 export function PanelVuelos({ vuelos, onVueloClick, origenFilter = '', destinoFilter = '', onFilterChange }: PanelVuelosProps) {
   const [filtroCodigo, setFiltroCodigo] = useState('');
   const [orden, setOrden] = useState('');
@@ -70,6 +75,11 @@ export function PanelVuelos({ vuelos, onVueloClick, origenFilter = '', destinoFi
     }
     return lista;
   }, [vuelosFiltrados, orden]);
+
+  const vuelosVisibles = useMemo(
+    () => vuelosOrdenados.slice(0, MAX_RENDER),
+    [vuelosOrdenados]
+  );
 
   const hayFiltrosActivos = filtroCodigo || origenFilter || destinoFilter;
 
@@ -140,8 +150,14 @@ export function PanelVuelos({ vuelos, onVueloClick, origenFilter = '', destinoFi
         />
       </div>
 
+      {vuelosFiltrados.length > MAX_RENDER && (
+        <p className="text-[11px] text-slate-400 mb-2">
+          Mostrando las primeras {MAX_RENDER}; refina los filtros para ver el resto.
+        </p>
+      )}
+
       <div className="space-y-2 max-h-56 overflow-y-auto">
-        {vuelosOrdenados.map(v => {
+        {vuelosVisibles.map(v => {
           const ocupada = v.capacidad_carga - v.carga_disponible;
           const pct = v.capacidad_carga > 0 ? (ocupada / v.capacidad_carga) * 100 : 0;
           const colorHex = v.estado === 'EN_RUTA' ? '#22c55e' : v.estado === 'PROGRAMADO' ? '#3b82f6' : '#6b7280';

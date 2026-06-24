@@ -93,10 +93,19 @@ public class SesionEjecucion {
     private TipoSimulacion tipoSimulacion = TipoSimulacion.VENTANA_FIJA;
 
     @Column(name = "ventana_horas")
-    private Integer ventanaHoras = 4;
+    private Integer ventanaHoras = 2;
 
     @Column(name = "duracion_dias")
     private Integer duracionDias = 5;
+
+    @Column(name = "k")
+    private Double k = 120.0;
+
+    @Column(name = "sa_segundos")
+    private Integer saSegundos = 30;
+
+    @Column(name = "fecha_alineada_a")
+    private LocalDate fechaAlineadaA;
 
     @Column(name = "created_at")
     private OffsetDateTime createdAt;
@@ -199,4 +208,13 @@ public class SesionEjecucion {
 
     public Integer getDuracionDias() { return duracionDias; }
     public void setDuracionDias(Integer duracionDias) { this.duracionDias = duracionDias; }
+
+    public Double getK() { return k; }
+    public void setK(Double k) { this.k = k; }
+
+    public Integer getSaSegundos() { return saSegundos; }
+    public void setSaSegundos(Integer saSegundos) { this.saSegundos = saSegundos; }
+
+    public LocalDate getFechaAlineadaA() { return fechaAlineadaA; }
+    public void setFechaAlineadaA(LocalDate fechaAlineadaA) { this.fechaAlineadaA = fechaAlineadaA; }
 }

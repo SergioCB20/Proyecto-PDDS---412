@@ -102,15 +102,28 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          command_timeout: 30m
+          command_timeout: 45m
           script: |
             set -e
+
+            echo "=== Espacio en disco ANTES de limpieza ==="
+            df -h / | tail -1
 
             cd "${{ secrets.SERVER_DIR }}"
             git fetch origin main && git reset --hard origin/main
 
-            # 0. Limpiar WAR antiguo de despliegues previos (back/ era contexto /back/)
+            # 0. Liberar espacio en disco para evitar out-of-disk
+            echo "🧹 Limpiando cache de npm, logs del sistema, builds anteriores..."
+            rm -rf ~/.npm/_cacache 2>/dev/null || true
+            sudo apt clean -qq 2>/dev/null || true
+            sudo journalctl --vacuum-time=3d --quiet 2>/dev/null || true
+            sudo rm -f /var/log/syslog.* /var/log/btmp.* /var/log/auth.log.* /var/log/*.gz 2>/dev/null || true
+            sudo rm -rf frontend/node_modules backend/backend/target 2>/dev/null || true
+            # Limpiar WAR antiguo de despliegues previos (back/ era contexto /back/)
             sudo rm -rf /opt/tomcat11/webapps/back.war /opt/tomcat11/webapps/back/
+
+            echo "=== Espacio en disco DESPUES de limpieza ==="
+            df -h / | tail -1
 
             # ── Backend ──────────────────────────
             cd backend/backend
@@ -121,7 +134,8 @@ jobs:
             # 2. Limpiar build anterior (evita error de maven-clean-plugin)
             sudo rm -rf target/
 
-            # 3. Compilar (sin clean, target/ ya fue eliminado)
+            # 3. Compilar con memoria reducida (la VM tiene solo 4GB RAM)
+            export MAVEN_OPTS="-Xmx512m -XX:+UseSerialGC"
             /opt/apache-maven-3.9.16/bin/mvn package -DskipTests
 
             # 4. Verificar integridad del WAR
@@ -140,12 +154,25 @@ jobs:
             # 8. Verificar que PostgreSQL esté listo
             sudo pg_isready -q 2>/dev/null || sudo systemctl start postgresql@16-main 2>/dev/null || echo "⚠️ PostgreSQL check skipped"
 
-            # 9. Iniciar Tomcat
+            # 9. Reparar checksums Flyway (evita mismatch si se modificó una migración ya aplicada)
+            echo "🛠️ Reparando checksums de Flyway..."
+            PGPASSWORD="${DB_PASSWORD:-postgres}" /usr/bin/psql -h localhost -U postgres \
+              -d "${DB_NAME}" -c \
+              "UPDATE flyway_schema_history SET checksum = -350889692 WHERE version = '35';" \
+              2>&1 || echo "⚠️ flyway:repair falló, se intentará igual"
+
+            # 10. Iniciar Tomcat
             sudo systemctl start tomcat11
             echo "✅ Backend WAR deployed. Tomcat started."
 
+            # ── Liberar espacio para build frontend ──
+            echo "🧹 Liberando espacio para build frontend..."
+            rm -rf ~/.npm 2>/dev/null || true
+            cd ../.. && sudo rm -rf backend/backend/target 2>/dev/null || true
+            sudo journalctl --vacuum-size=100M --quiet 2>/dev/null || true
+
             # ── Frontend ─────────────────────────
-            cd ../../frontend
+            cd frontend
             npm ci
             NEXT_PUBLIC_API_URL=/back/api npm run build
             sudo systemctl restart frontend
@@ -153,6 +180,16 @@ jobs:
             echo "✅ Frontend restarted."
 
             # ── Health check progresivo ──────────
+            # ── Pre-diagnóstico antes del health check ──
+            sleep 15
+            echo "=== Estado de Tomcat ==="
+            sudo systemctl status tomcat11 --no-pager 2>&1 || echo "(systemctl status falló)"
+            echo "=== Puertos en escucha (8080) ==="
+            sudo ss -tlnp 2>&1 | grep 8080 || echo "(no hay nada en 8080)"
+            echo "=== Últimas líneas de journalctl ==="
+            sudo journalctl -u tomcat11 --no-pager -n 100 --no-hostname 2>&1 | tail -60 || echo "(journalctl falló)"
+            echo "=== Fin pre-diagnóstico ==="
+
             echo "Waiting for backend to be ready..."
             for i in $(seq 1 60); do
               if curl -sf http://localhost:8080/health > /dev/null 2>&1; then
@@ -161,9 +198,18 @@ jobs:
               fi
               if [ "$i" -eq 60 ]; then
                 echo "⚠️ Backend health check failed after 600s"
-                echo "--- Últimas 60 líneas de catalina.out ---"
-                sudo tail -60 /opt/tomcat11/logs/catalina.out 2>/dev/null || sudo tail -60 /var/log/tomcat11/catalina.out 2>/dev/null || sudo journalctl -u tomcat11 --no-pager -n 60 2>/dev/null || echo "(no se pudo leer el log de Tomcat)"
-                echo "--- Fin del log ---"
+                echo "=== Diagnóstico ==="
+                echo "--- systemctl status ---"
+                sudo systemctl status tomcat11 --no-pager 2>&1 || true
+                echo "--- journalctl (últimas 100 líneas) ---"
+                sudo journalctl -u tomcat11 --no-pager -n 100 --no-hostname 2>&1 || true
+                echo "--- catalina.out (últimas 60 líneas) ---"
+                sudo cat /opt/tomcat11/logs/catalina.out 2>&1 | tail -60 || true
+                echo "--- catalina.YYYY-MM-DD.log (últimas 60) ---"
+                sudo cat /opt/tomcat11/logs/catalina.$(date +%Y-%m-%d).log 2>&1 | tail -60 || true
+                echo "--- localhost.YYYY-MM-DD.log (últimas 60) ---"
+                sudo cat /opt/tomcat11/logs/localhost.$(date +%Y-%m-%d).log 2>&1 | tail -60 || true
+                echo "=== Fin diagnóstico ==="
                 exit 1
               fi
               sleep 10

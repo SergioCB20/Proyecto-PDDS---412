@@ -467,13 +467,19 @@ Archivo PDF descargable con nombre `manifiesto_{codigo_vuelo}_{fecha}.pdf`
 ### `POST /sesiones`
 Crea y configura una nueva sesión de simulación. Solo ANALISTA.
 
+La simulación siempre corre **5 días virtuales**. Al iniciarse, el sistema alinea
+automáticamente las fechas de las bolsas con el `fecha_inicio_virtual` elegido.
+
 **Request:**
 ```json
 {
   "tipo": "SIMULADA",
-  "fecha_inicio_virtual": "2025-06-01",
-  "hora_inicio_virtual": "08:00:00",
+  "fecha_inicio_virtual": "2026-01-02",
+  "hora_inicio_virtual": "00:00:00",
   "prob_cancelacion": 0.15,
+  "k": 120,
+  "sa_segundos": 30,
+  "ventana_horas": 4,
   "umbrales_almacen": {
     "verde_min": 0, "verde_max": 70,
     "ambar_min": 70, "ambar_max": 90,
@@ -485,6 +491,15 @@ Crea y configura una nueva sesión de simulación. Solo ANALISTA.
     "rojo_min": 90, "rojo_max": 100
   }
 }
+```
+
+**Parámetros de planificación fija:**
+
+| Campo | Tipo | Default | Descripción |
+|---|---|---|---|
+| `k` | Double | 120 | Factor tiempo_virtual/tiempo_real. k=120 → 60 min real; k=240 → 30 min real. Rango: 120–240. |
+| `sa_segundos` | Integer | 30 | Salto del algoritmo: cada cuántos segundos reales se ejecuta el planificador ACO. |
+| `ventana_horas` | Integer | 4 | Ventana de planificación: cuántas horas virtuales adelante planifica el ACO cada vez. |
 ```
 
 **Response 201:**

@@ -1,6 +1,8 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { CircleMarker, Tooltip } from 'react-leaflet';
+import L from 'leaflet';
 import type { NodoEnMapa } from '@/lib/types';
 
 interface GeoMapaNodoProps {
@@ -9,9 +11,20 @@ interface GeoMapaNodoProps {
 
 export default function GeoMapaNodo({ nodo }: GeoMapaNodoProps) {
   const radius = Math.max(8, Math.min(18, nodo.ocupacionPorcentaje / 10 + 6));
+  const circleRef = useRef<L.CircleMarker>(null);
+
+  // react-leaflet does not reactively update `radius` or `pathOptions` on re-render
+  // for CircleMarker — we drive updates imperatively so every tick is reflected.
+  useEffect(() => {
+    const circle = circleRef.current;
+    if (!circle) return;
+    circle.setRadius(radius);
+    circle.setStyle({ color: nodo.color, fillColor: nodo.color });
+  }, [radius, nodo.color]);
 
   return (
     <CircleMarker
+      ref={circleRef}
       center={[nodo.latitud, nodo.longitud]}
       radius={radius}
       pathOptions={{
@@ -32,7 +45,7 @@ export default function GeoMapaNodo({ nodo }: GeoMapaNodoProps) {
           </div>
           <div className="w-full h-1.5 bg-slate-200 rounded-full mt-1 overflow-hidden">
             <div
-              className="h-full rounded-full transition-all duration-500"
+              className="h-full rounded-full transition-all duration-300"
               style={{
                 width: `${Math.min(nodo.ocupacionPorcentaje, 100)}%`,
                 backgroundColor: nodo.color,

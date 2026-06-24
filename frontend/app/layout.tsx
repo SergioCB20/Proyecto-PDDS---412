@@ -3,7 +3,7 @@ import './globals.css';
 import { Navbar } from '@/components/Navbar';
 
 export const metadata: Metadata = {
-  title: 'TAS FB2B - Gestion Logistica de Equipaje',
+  title: 'TASF B2B - Gestion Logistica de Equipaje',
   description: 'Sistema de enrutamiento optimo de equipaje entre aeropuertos',
 };
 

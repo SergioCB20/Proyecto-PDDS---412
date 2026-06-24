@@ -1,6 +1,7 @@
 package com.tasfb2b.backend.bc1.infrastructure;
 
 import com.tasfb2b.backend.bc1.application.NodoService;
+import com.tasfb2b.backend.bc1.application.EquipajeService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,9 +13,11 @@ import java.util.UUID;
 public class NodoController {
 
     private final NodoService nodoService;
+    private final EquipajeService equipajeService;
 
-    public NodoController(NodoService nodoService) {
+    public NodoController(NodoService nodoService, EquipajeService equipajeService) {
         this.nodoService = nodoService;
+        this.equipajeService = equipajeService;
     }
 
     @GetMapping
@@ -29,5 +32,10 @@ public class NodoController {
         } catch (NodoService.NodoNoEncontradoException e) {
             return ResponseEntity.notFound().build();
         }
+    }
+
+    @GetMapping("/{iata}/equipajes")
+    public ResponseEntity<?> obtenerEquipajes(@PathVariable String iata) {
+        return ResponseEntity.ok(equipajeService.obtenerEnviosNodo(iata));
     }
 }

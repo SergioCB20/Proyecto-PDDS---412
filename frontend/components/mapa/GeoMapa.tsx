@@ -14,6 +14,7 @@ interface GeoMapaProps {
   vuelos: VueloEnMapa[];
   mostrarAviones?: boolean;
   animacionActiva?: boolean;
+  k?: number;
   className?: string;
 }
 
@@ -25,6 +26,7 @@ export default function GeoMapa({
   vuelos,
   mostrarAviones = true,
   animacionActiva = false,
+  k = 120,
   className = '',
 }: GeoMapaProps) {
   if (typeof window === 'undefined') {
@@ -49,13 +51,14 @@ export default function GeoMapa({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         {nodos.map((nodo) => (
-          <GeoMapaNodo key={`${nodo.codigo_iata}-${nodo.color}`} nodo={nodo} />
+          <GeoMapaNodo key={nodo.codigo_iata} nodo={nodo} />
         ))}
         {mostrarAviones && vuelos.map((vuelo) => (
           <GeoMapaVuelo
             key={vuelo.id}
             vuelo={vuelo}
             animacionActiva={animacionActiva}
+            k={k}
           />
         ))}
       </MapContainer>

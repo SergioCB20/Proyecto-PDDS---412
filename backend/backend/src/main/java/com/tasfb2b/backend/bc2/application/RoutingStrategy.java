@@ -23,7 +23,7 @@ public interface RoutingStrategy {
     default List<RutaResult> optimizarLote(
             List<ParametroRuta> parametros,
             List<Vuelo> vuelosProgramados,
-            TiempoInterno tiempoSimulado
+            OffsetDateTime horaVirtual
     ) {
         List<RutaResult> resultados = new ArrayList<>();
         for (ParametroRuta p : parametros) {

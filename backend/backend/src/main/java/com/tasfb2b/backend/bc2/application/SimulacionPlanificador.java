@@ -14,68 +14,132 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PostConstruct;
+
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class SimulacionPlanificador {
 
     private static final Logger log = LoggerFactory.getLogger(SimulacionPlanificador.class);
 
+    // Fecha base de los archivos _envios_*.txt
+    private static final LocalDate FECHA_BASE_ARCHIVO = LocalDate.of(2026, 1, 2);
+
     private final SesionRepository sesionRepository;
     private final SimulacionEnrutamientoService enrutamientoService;
+    private final SesionReadinessManager readinessManager;
+    private final SesionLockManager lockManager;
     private final RedisCacheService redisCacheService;
     private final ApplicationEventPublisher eventPublisher;
-    private final long saMs;
+
+    // sa_segundos global de fallback (application.properties)
+    private final long saSegundosFallback;
+
+    // ventana_horas desde application.properties (no desde la sesión en BD)
+    private final int ventanaHorasApp;
+
+    // Rastrea el último momento en que se ejecutó la planificación para cada sesión
+    private final Map<UUID, Long> ultimaPlanificacionMs = new ConcurrentHashMap<>();
 
     public SimulacionPlanificador(SesionRepository sesionRepository,
                                   SimulacionEnrutamientoService enrutamientoService,
+                                  SesionReadinessManager readinessManager,
+                                  SesionLockManager lockManager,
                                   RedisCacheService redisCacheService,
                                   ApplicationEventPublisher eventPublisher,
-                                  @Value("${app.simulacion.sa-segundos}") long saSegundos) {
+                                  @Value("${app.simulacion.sa-segundos}") long saSegundosFallback,
+                                  @Value("${app.simulacion.ventana-horas:4}") int ventanaHorasApp) {
         this.sesionRepository = sesionRepository;
         this.enrutamientoService = enrutamientoService;
+        this.readinessManager = readinessManager;
+        this.lockManager = lockManager;
         this.redisCacheService = redisCacheService;
         this.eventPublisher = eventPublisher;
-        this.saMs = saSegundos * 1000;
+        this.saSegundosFallback = saSegundosFallback;
+        this.ventanaHorasApp = ventanaHorasApp;
     }
 
-    @Scheduled(fixedDelayString = "${app.simulacion.sa-segundos}000")
+    /** Al arrancar, marca como listas todas las sesiones EN_CURSO que sobrevivieron un reinicio. */
+    @PostConstruct
+    public void recuperarSesionesEnCurso() {
+        List<SesionEjecucion> activas = sesionRepository.findByEstado(EstadoSesion.EN_CURSO);
+        for (SesionEjecucion s : activas) {
+            if (s.getTipo() == TipoSesion.SIMULADA) {
+                readinessManager.marcarLista(s.getId());
+                log.info("Sesion {} recuperada tras reinicio, marcada lista para planificacion", s.getId());
+            }
+        }
+    }
+
+    /**
+     * Corre cada 5 segundos. Internamente decide si ejecutar el planificador ACO
+     * para cada sesión según su propio sa_segundos configurado.
+     */
+    @Scheduled(fixedDelay = 5000)
     public void planificar() {
         List<SesionEjecucion> sesiones = sesionRepository.findByEstado(EstadoSesion.EN_CURSO);
         if (sesiones.isEmpty()) return;
 
+        long ahora = System.currentTimeMillis();
+
         for (SesionEjecucion sesion : sesiones) {
             if (sesion.getTipo() != TipoSesion.SIMULADA) continue;
             if (sesion.getEstado() != EstadoSesion.EN_CURSO) continue;
+            if (!readinessManager.estaLista(sesion.getId())) continue;
 
+            long saMs = (sesion.getSaSegundos() != null ? sesion.getSaSegundos() : saSegundosFallback) * 1000L;
+            long ultimaEjecucion = ultimaPlanificacionMs.getOrDefault(sesion.getId(), 0L);
+
+            if ((ahora - ultimaEjecucion) < saMs) continue;
+
+            // Serializa con el tick (corren en hilos distintos del scheduler):
+            // ambos mutan segmentos_plan/vuelos/nodos de la MISMA sesión.
+            var lock = lockManager.obtener(sesion.getId());
+            lock.lock();
             try {
                 ejecutarPlanificacion(sesion);
+                ultimaPlanificacionMs.put(sesion.getId(), ahora);
             } catch (Exception e) {
                 log.error("Error en planificacion para sesion {}: {}", sesion.getId(), e.getMessage(), e);
+            } finally {
+                lock.unlock();
             }
         }
+
+        // Limpiar entradas de sesiones que ya no están activas
+        ultimaPlanificacionMs.keySet().removeIf(id ->
+            sesiones.stream().noneMatch(s -> s.getId().equals(id)));
     }
 
     private void ejecutarPlanificacion(SesionEjecucion sesion) {
         OffsetDateTime virtual = sesion.getDiaHoraVirtual();
         if (virtual == null) return;
 
+        long saMs = (sesion.getSaSegundos() != null ? sesion.getSaSegundos() : saSegundosFallback) * 1000L;
         OffsetDateTime inicioVentana = virtual;
-        OffsetDateTime finVentana = virtual.plusHours(sesion.getVentanaHoras());
+        OffsetDateTime finVentana = virtual.plusHours(ventanaHorasApp);
+
+        long deltaDias = ChronoUnit.DAYS.between(FECHA_BASE_ARCHIVO, sesion.getFechaInicioVirtual());
 
         long start = System.nanoTime();
 
         var resultado = enrutamientoService.enrutarVentana(
-                sesion.getId(), inicioVentana, finVentana);
+                sesion.getId(), inicioVentana, finVentana, deltaDias);
 
         long elapsedMs = (System.nanoTime() - start) / 1_000_000;
 
-        log.info("Sesion {}: planificacion ventana {}-{}: {} enrutados en {}ms (Ta)",
-                sesion.getId(), inicioVentana, finVentana, resultado.enrutados(), elapsedMs);
+        log.info("Sesion {}: planificacion ventana {}-{}: {} enrutados en {}ms (sa={}ms)",
+                sesion.getId(), inicioVentana, finVentana, resultado.enrutados(), elapsedMs, saMs);
 
         if (elapsedMs > saMs) {
-            log.warn("Sesion {}: Ta ({}ms) > Sa ({}ms), planificador podria solaparse",
+            log.warn("Sesion {}: Ta ({}ms) > sa ({}ms), planificador se solapó",
                     sesion.getId(), elapsedMs, saMs);
         }
 
@@ -83,7 +147,7 @@ public class SimulacionPlanificador {
             log.warn("COLAPSO en sesion {}: equipaje {} no pudo ser enrutado en {}",
                     sesion.getId(), resultado.equipajeColapsoId(), resultado.momentoColapso());
 
-            sesion.setEstado(com.tasfb2b.backend.bc2.domain.EstadoSesion.COLAPSADA);
+            sesion.setEstado(EstadoSesion.COLAPSADA);
             sesion.setFechaFinReal(OffsetDateTime.now());
             sesionRepository.save(sesion);
 
@@ -92,5 +156,11 @@ public class SimulacionPlanificador {
             eventPublisher.publishEvent(new SesionFinalizada(
                     sesion.getId(), "COLAPSADA", OffsetDateTime.now()));
         }
+    }
+
+    /** Limpia el estado interno al detener/finalizar una sesión. */
+    public void limpiarSesion(UUID sesionId) {
+        ultimaPlanificacionMs.remove(sesionId);
+        lockManager.eliminar(sesionId);
     }
 }

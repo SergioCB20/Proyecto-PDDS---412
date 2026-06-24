@@ -19,10 +19,19 @@ public interface PlanViajeRepository extends JpaRepository<PlanViaje, UUID> {
     @Query("SELECT pv FROM PlanViaje pv JOIN FETCH pv.equipaje WHERE pv.sesionId = :sesionId")
     List<PlanViaje> findBySesionIdWithEquipaje(@Param("sesionId") UUID sesionId);
 
+    /** Total de planes con equipaje para la sesión (denominador del SLA). */
+    @Query("SELECT COUNT(pv) FROM PlanViaje pv WHERE pv.sesionId = :sesionId AND pv.equipaje IS NOT NULL")
+    long countConEquipajeBySesionId(@Param("sesionId") UUID sesionId);
+
+    /** Planes cuya maleta ya fue ENTREGADA (numerador del SLA). */
+    @Query("SELECT COUNT(pv) FROM PlanViaje pv WHERE pv.sesionId = :sesionId "
+            + "AND pv.equipaje.estado = com.tasfb2b.backend.bc1.domain.EstadoEquipaje.ENTREGADO")
+    long countEntregadosBySesionId(@Param("sesionId") UUID sesionId);
+
     @Query("SELECT e FROM Equipaje e " +
            "JOIN PlanViaje pv ON pv.equipaje = e " +
            "JOIN SegmentoPlan sp ON sp.planViaje = pv " +
-           "JOIN Vuelo v ON v = sp.vuelo " +
+           "JOIN sp.vuelo v " +
            "WHERE pv.sesionId = :sesionId " +
            "AND e.estado = 'ENTREGADO' " +
            "AND sp.estado = 'COMPLETADO' " +

@@ -114,6 +114,8 @@ export interface MetricasSimulacion {
   vuelos_cancelados: number;
   maletas_replanificadas: number;
   fecha_inicio_real?: string | null;
+  /** virtual/real time ratio sent from backend */
+  k?: number;
 }
 
 export interface CrearUsuarioRequest {
@@ -156,25 +158,22 @@ export interface ReporteSesion {
 }
 
 export interface CrearEquipajeRequest {
-  id_equipaje: string;
   destino_iata: string;
-  vuelo_id: string;
-  sla_comprometido: string;
+  cantidad: number;
 }
 
 export interface CrearEquipajeResponse {
   id: string;
   estado: string;
   id_externo?: string;
+  origen_iata?: string;
   destino_iata?: string;
 }
 
 export interface CargaMasivaRegistro {
   fila: number;
-  id_equipaje: string;
   destino_iata: string;
-  vuelo_id: string;
-  sla_comprometido: string;
+  cantidad: number;
   estado_validacion: 'VALIDO' | 'REVISION';
   motivo: string | null;
 }
@@ -222,6 +221,8 @@ export interface VueloTelemetria {
   color: string;
   hora_salida: string;
   hora_llegada: string;
+  /** 0–1 fraction of route completed, computed server-side from virtual time */
+  progreso: number;
 }
 
 export interface EnvioItemResponse {
@@ -243,4 +244,28 @@ export interface TelemetriaMensaje {
   nodos: NodoTelemetria[];
   vuelos: VueloTelemetria[];
   metricas_sesion: MetricasSimulacion;
+}
+
+export interface MetricasOperacion {
+  total_equipajes: number;
+  equipajes_registrados: number;
+  equipajes_en_vuelo: number;
+  equipajes_en_almacen: number;
+  equipajes_entregados: number;
+  equipajes_replanificacion: number;
+  equipajes_incumplimiento_sla: number;
+  vuelos_programados: number;
+  vuelos_en_ruta: number;
+  vuelos_completados: number;
+  vuelos_cancelados: number;
+}
+
+export interface EquipajeListItem {
+  id: string;
+  id_externo: string;
+  estado: string;
+  origen_iata: string;
+  destino_iata: string;
+  fecha_ingreso: string;
+  cantidad: number;
 }
