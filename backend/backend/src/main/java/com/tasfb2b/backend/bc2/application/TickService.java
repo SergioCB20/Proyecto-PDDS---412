@@ -137,10 +137,13 @@ public class TickService {
         // Un solo save al final del tick
         sesionRepository.save(sesion);
 
-        // Cargar datos UNA SOLA VEZ para telemetria
+        // Cargar datos UNA SOLA VEZ para telemetria.
+        // Vuelos: EN_RUTA + PROGRAMADO dentro de la ventana virtual, no todos los días clonados.
         List<NodoLogistico> nodos = nodoRepository.findAllByOrderByCodigoIataAsc();
-        List<Vuelo> vuelos = vueloRepository.findByEstadoInAndEsPlantilla(
-                List.of(EstadoVuelo.PROGRAMADO, EstadoVuelo.EN_RUTA), false);
+        OffsetDateTime ventanaTelemetria = sesion.getDiaHoraVirtual() != null
+                ? sesion.getDiaHoraVirtual().plusHours(TelemetriaService.VENTANA_TELEMETRIA_HORAS)
+                : OffsetDateTime.now().plusYears(1);
+        List<Vuelo> vuelos = vueloRepository.findTelemetriaVuelos(ventanaTelemetria);
 
         boolean colapso = detectarColapso(sesion, now, nodos);
         escribirMetricas(sesion, now);
@@ -386,15 +389,13 @@ public class TickService {
     }
 
     private void actualizarSla(SesionEjecucion sesion) {
-        List<PlanViaje> planes = planViajeRepository.findBySesionIdWithEquipaje(sesion.getId());
-        if (planes.isEmpty()) return;
+        // Counts agregados en BD en lugar de materializar todos los planes+equipaje por tick.
+        long total = planViajeRepository.countConEquipajeBySesionId(sesion.getId());
+        if (total == 0) return;
 
-        long totalEntregados = planes.stream()
-                .filter(pv -> pv.getEquipaje() != null
-                        && pv.getEquipaje().getEstado() == EstadoEquipaje.ENTREGADO)
-                .count();
+        long totalEntregados = planViajeRepository.countEntregadosBySesionId(sesion.getId());
 
-        double sla = (totalEntregados * 100.0) / planes.size();
+        double sla = (totalEntregados * 100.0) / total;
         sesion.setSlaAcumuladoPct(BigDecimal.valueOf(sla));
         // Save se hace al final del tick en procesarTick
     }

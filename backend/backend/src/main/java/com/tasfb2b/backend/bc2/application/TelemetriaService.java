@@ -26,6 +26,9 @@ public class TelemetriaService {
 
     private static final Logger log = LoggerFactory.getLogger(TelemetriaService.class);
 
+    /** Horizonte virtual (horas) de vuelos PROGRAMADO incluidos en la telemetría. */
+    public static final int VENTANA_TELEMETRIA_HORAS = 6;
+
     private final NodoLogisticoRepository nodoRepository;
     private final VueloRepository vueloRepository;
     private final TelemetriaWebSocket telemetriaWebSocket;
@@ -60,8 +63,10 @@ public class TelemetriaService {
 
     private String buildTelemetryJson(SesionEjecucion sesion) {
         List<NodoLogistico> nodos = nodoRepository.findAllByOrderByCodigoIataAsc();
-        List<Vuelo> vuelos = vueloRepository.findByEstadoInAndEsPlantilla(
-                List.of(EstadoVuelo.PROGRAMADO, EstadoVuelo.EN_RUTA), false);
+        OffsetDateTime hasta = sesion.getDiaHoraVirtual() != null
+                ? sesion.getDiaHoraVirtual().plusHours(VENTANA_TELEMETRIA_HORAS)
+                : OffsetDateTime.now().plusYears(1);
+        List<Vuelo> vuelos = vueloRepository.findTelemetriaVuelos(hasta);
         return buildTelemetryJson(sesion, nodos, vuelos);
     }
 
