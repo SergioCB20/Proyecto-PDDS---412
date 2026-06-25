@@ -1,5 +1,3 @@
-import { device } from './device';
-
 export const auth = {
   getToken: () => null,
 

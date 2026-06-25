@@ -1,11 +1,9 @@
 'use client';
 
-import { useEffect, useState, useMemo, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, useMemo } from 'react';
 import { Package, RefreshCw, ChevronDown, ChevronUp, CheckCircle, XCircle, Plane, Upload, FileSpreadsheet, AlertTriangle, AlertCircle, Menu, ChevronLeft, Play, Pause, Square, Clock, Settings, Activity } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { api } from '@/lib/api';
-import { device } from '@/lib/device';
 import { nodoToEnMapa } from '@/lib/mock';
 import { useTelemetria } from '@/lib/useTelemetria';
 import { colorNodoPorOcupacion } from '@/lib/colors';
@@ -27,7 +25,7 @@ import { PanelEntregados } from '@/components/simulacion/PanelEntregados';
 import { PanelEnvios } from '@/components/simulacion/PanelEnvios';
 import type { SelectedEnvioOperacion } from '@/components/operacion/PanelEnviosOperacion';
 import type { SelectedEnvio } from '@/components/simulacion/PanelEnvios';
-import type { Nodo, Vuelo, VueloEnMapa, VueloPageResponse, NodoEnMapa, CrearEquipajeRequest, CrearEquipajeResponse, CargaMasivaPreview, CargaMasivaConfirmResponse, MetricasSimulacion, NodoTelemetria, VueloTelemetria, TelemetriaMensaje } from '@/lib/types';
+import type { Nodo, Vuelo, VueloEnMapa, VueloPageResponse, NodoEnMapa, CrearEquipajeResponse, CargaMasivaPreview, CargaMasivaConfirmResponse, MetricasSimulacion } from '@/lib/types';
 
 const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false });
 
@@ -41,14 +39,6 @@ function matchEstadoVuelo(valor: string): VueloEnMapa['estado'] {
 }
 
 type DashboardMode = 'operacion' | 'simulacion';
-
-interface EquipajeReciente {
-  id_externo: string;
-  origen: string;
-  destino: string;
-  estado: string;
-  tiempo: string;
-}
 
 interface SesionListaItem {
   id: string;
@@ -119,7 +109,6 @@ export default function DashboardPage() {
 function OperacionView() {
   const [nodos, setNodos] = useState<NodoEnMapa[]>([]);
   const [allVuelos, setAllVuelos] = useState<VueloEnMapa[]>([]);
-  const [equipajesRecientes, setEquipajesRecientes] = useState<EquipajeReciente[]>([]);
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
@@ -136,7 +125,6 @@ function OperacionView() {
   const [csvError, setCsvError] = useState<string | null>(null);
   const [csvConfirmLoading, setCsvConfirmLoading] = useState(false);
 
-  const [sseConnected, setSseConnected] = useState(false);
   const { data: telemetria, connected: wsConnected } = useTelemetria(true);
   const k = useMemo(() => telemetria?.metricas_sesion?.k ?? 120, [telemetria]);
   const animacionActiva = wsConnected && (telemetria?.vuelos?.some(v => v.estado === 'EN_RUTA') ?? false);
@@ -166,7 +154,7 @@ function OperacionView() {
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { const timer = setTimeout(fetchData, 0); return () => clearTimeout(timer); }, []);
 
   useEffect(() => {
     if (!telemetria?.nodos || telemetria.nodos.length === 0) return;
@@ -176,9 +164,11 @@ function OperacionView() {
       ocupacion_actual: n.ocupacion_actual, zona_horaria: '',
       color: colorNodoPorOcupacion(n.ocupacion_pct), ocupacionPorcentaje: n.ocupacion_pct,
     }));
-    setNodos(telemetriaNodos);
+    queueMicrotask(() => {
+      setNodos(telemetriaNodos);
+    });
     if (telemetria.vuelos && telemetria.vuelos.length > 0) {
-      setAllVuelos(telemetria.vuelos.map(v => ({
+      const vuelosMapped = telemetria.vuelos.map(v => ({
         id: v.id, codigo_vuelo: v.codigo_vuelo, estado: matchEstadoVuelo(v.estado),
         origen: { id: '', codigo_iata: v.origen_iata, nombre: v.origen_iata },
         destino: { id: '', codigo_iata: v.destino_iata, nombre: v.destino_iata },
@@ -188,7 +178,8 @@ function OperacionView() {
         capacidad_carga: v.capacidad_carga, carga_disponible: v.carga_disponible,
         es_plantilla: false, fecha_operacion: '',
         posicionActual: { lat: v.lat_actual, lon: v.lon_actual },
-      })));
+      }));
+      queueMicrotask(() => { setAllVuelos(vuelosMapped); });
     }
   }, [telemetria]);
 
@@ -356,22 +347,6 @@ function OperacionView() {
                   </div>
                 </div>
               )}
-
-              <div className="flex items-center gap-2 mb-3 mt-4">
-                <Package size={16} className="text-slate-400" />
-                <h3 className="font-medium text-sm text-slate-700 dark:text-slate-300">Equipajes Recientes</h3>
-              </div>
-              <div className="space-y-2">
-                {equipajesRecientes.map((eq, i) => (
-                  <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                    <div className="p-1.5 rounded-lg bg-slate-200 dark:bg-slate-700"><Package size={14} className="text-slate-500" /></div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{eq.id_externo}</span>
-                      <div className="text-xs text-slate-500">{eq.destino}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
             </div>
           </>
         )}
@@ -406,7 +381,6 @@ function OperacionView() {
 }
 
 function SimulacionView() {
-  const router = useRouter();
   const [sesionId, setSesionId] = useState<string | null>(null);
   const [estadoSesion, setEstadoSesion] = useState<'CONFIGURADA' | 'EN_CURSO' | 'PAUSADA' | 'FINALIZADA'>('CONFIGURADA');
   const [loading, setLoading] = useState(false);
