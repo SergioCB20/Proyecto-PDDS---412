@@ -1,7 +1,7 @@
-import { COLOR_NODO } from './colors';
-import type { Nodo, Vuelo, NodoEnMapa, MetricasSimulacion, ReporteSesion, PuntoSLA } from './types';
+import { COLOR_AEROPUERTO } from './colors';
+import type { Aeropuerto, Vuelo, AeropuertoEnMapa, MetricasSimulacion, ReporteSesion, PuntoSLA } from './types';
 
-export const MOCK_NODOS: Nodo[] = [
+export const MOCK_AEROPUERTOS: Aeropuerto[] = [
   {
     id: '00000000-0000-0000-0003-000000000001',
     codigo_iata: 'LIM',
@@ -59,8 +59,8 @@ export const MOCK_VUELOS: Vuelo[] = [
     id: 'mock-vuelo-1',
     codigo_vuelo: 'LA2401',
     estado: 'PROGRAMADO',
-    origen: { id: MOCK_NODOS[0].id, codigo_iata: 'LIM', nombre: 'Jorge Chavez' },
-    destino: { id: MOCK_NODOS[1].id, codigo_iata: 'MIA', nombre: 'Miami International' },
+    origen: { id: MOCK_AEROPUERTOS[0].id, codigo_iata: 'LIM', nombre: 'Jorge Chavez' },
+    destino: { id: MOCK_AEROPUERTOS[1].id, codigo_iata: 'MIA', nombre: 'Miami International' },
     origen_lat: -12.0219, origen_lon: -77.1143,
     destino_lat: 25.7959, destino_lon: -80.287,
     hora_salida: '2025-06-15T14:30:00Z',
@@ -72,8 +72,8 @@ export const MOCK_VUELOS: Vuelo[] = [
     id: 'mock-vuelo-2',
     codigo_vuelo: 'LA2402',
     estado: 'EN_RUTA',
-    origen: { id: MOCK_NODOS[1].id, codigo_iata: 'MIA', nombre: 'Miami International' },
-    destino: { id: MOCK_NODOS[0].id, codigo_iata: 'LIM', nombre: 'Jorge Chavez' },
+    origen: { id: MOCK_AEROPUERTOS[1].id, codigo_iata: 'MIA', nombre: 'Miami International' },
+    destino: { id: MOCK_AEROPUERTOS[0].id, codigo_iata: 'LIM', nombre: 'Jorge Chavez' },
     origen_lat: 25.7959, origen_lon: -80.287,
     destino_lat: -12.0219, destino_lon: -77.1143,
     hora_salida: '2025-06-15T18:00:00Z',
@@ -85,8 +85,8 @@ export const MOCK_VUELOS: Vuelo[] = [
     id: 'mock-vuelo-3',
     codigo_vuelo: 'LA2040',
     estado: 'PROGRAMADO',
-    origen: { id: MOCK_NODOS[0].id, codigo_iata: 'LIM', nombre: 'Jorge Chavez' },
-    destino: { id: MOCK_NODOS[2].id, codigo_iata: 'BOG', nombre: 'El Dorado' },
+    origen: { id: MOCK_AEROPUERTOS[0].id, codigo_iata: 'LIM', nombre: 'Jorge Chavez' },
+    destino: { id: MOCK_AEROPUERTOS[2].id, codigo_iata: 'BOG', nombre: 'El Dorado' },
     origen_lat: -12.0219, origen_lon: -77.1143,
     destino_lat: 4.7016, destino_lon: -74.1469,
     hora_salida: '2025-06-15T06:00:00Z',
@@ -98,8 +98,8 @@ export const MOCK_VUELOS: Vuelo[] = [
     id: 'mock-vuelo-4',
     codigo_vuelo: 'LA3501',
     estado: 'EN_RUTA',
-    origen: { id: MOCK_NODOS[0].id, codigo_iata: 'LIM', nombre: 'Jorge Chavez' },
-    destino: { id: MOCK_NODOS[3].id, codigo_iata: 'GRU', nombre: 'Sao Paulo Guarulhos' },
+    origen: { id: MOCK_AEROPUERTOS[0].id, codigo_iata: 'LIM', nombre: 'Jorge Chavez' },
+    destino: { id: MOCK_AEROPUERTOS[3].id, codigo_iata: 'GRU', nombre: 'Sao Paulo Guarulhos' },
     origen_lat: -12.0219, origen_lon: -77.1143,
     destino_lat: -23.4356, destino_lon: -46.4731,
     hora_salida: '2025-06-15T10:00:00Z',
@@ -111,8 +111,8 @@ export const MOCK_VUELOS: Vuelo[] = [
     id: 'mock-vuelo-5',
     codigo_vuelo: 'LA1020',
     estado: 'PROGRAMADO',
-    origen: { id: MOCK_NODOS[4].id, codigo_iata: 'SCL', nombre: 'Arturo Merino Benitez' },
-    destino: { id: MOCK_NODOS[0].id, codigo_iata: 'LIM', nombre: 'Jorge Chavez' },
+    origen: { id: MOCK_AEROPUERTOS[4].id, codigo_iata: 'SCL', nombre: 'Arturo Merino Benitez' },
+    destino: { id: MOCK_AEROPUERTOS[0].id, codigo_iata: 'LIM', nombre: 'Jorge Chavez' },
     origen_lat: -33.393, origen_lon: -70.7858,
     destino_lat: -12.0219, destino_lon: -77.1143,
     hora_salida: '2025-06-15T07:00:00Z',
@@ -122,12 +122,12 @@ export const MOCK_VUELOS: Vuelo[] = [
   },
 ];
 
-export function nodoToEnMapa(nodo: Nodo): NodoEnMapa {
-  const pct = nodo.capacidad_almacen > 0
-    ? (nodo.ocupacion_actual / nodo.capacidad_almacen) * 100
+export function aeropuertoToEnMapa(aeropuerto: Aeropuerto): AeropuertoEnMapa {
+  const pct = aeropuerto.capacidad_almacen > 0
+    ? (aeropuerto.ocupacion_actual / aeropuerto.capacidad_almacen) * 100
     : 0;
-  const color = pct < 70 ? COLOR_NODO.VERDE : pct < 90 ? COLOR_NODO.AMBAR : COLOR_NODO.ROJO;
-  return { ...nodo, color, ocupacionPorcentaje: pct };
+  const color = pct < 70 ? COLOR_AEROPUERTO.VERDE : pct < 90 ? COLOR_AEROPUERTO.AMBAR : COLOR_AEROPUERTO.ROJO;
+  return { ...aeropuerto, color, ocupacionPorcentaje: pct };
 }
 
 export function calcularPosicionAvion(

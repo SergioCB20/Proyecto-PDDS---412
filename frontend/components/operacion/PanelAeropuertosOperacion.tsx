@@ -3,23 +3,23 @@
 import { useState, useMemo } from 'react';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import type { NodoTelemetria, VueloTelemetria } from '@/lib/types';
+import type { AeropuertoTelemetria, VueloTelemetria } from '@/lib/types';
 
-interface PanelNodosProps {
-  nodos: NodoTelemetria[];
+interface PanelAeropuertosOperacionProps {
+  aeropuertos: AeropuertoTelemetria[];
   vuelos: VueloTelemetria[];
-  onNodoClick?: (id: string, codigo: string) => void;
+  onAeropuertoClick?: (id: string, codigo: string) => void;
 }
 
-export function PanelNodos({ nodos, vuelos, onNodoClick }: PanelNodosProps) {
+export function PanelAeropuertosOperacion({ aeropuertos, vuelos, onAeropuertoClick }: PanelAeropuertosOperacionProps) {
   const [filtroCodigo, setFiltroCodigo] = useState('');
   const [filtroContinente, setFiltroContinente] = useState('');
   const [orden, setOrden] = useState('');
 
   const opcionesContinente = useMemo(() => {
-    const set = new Set(nodos.map(n => n.continente || n.zona_horaria).filter(Boolean));
+    const set = new Set(aeropuertos.map(n => n.continente || n.zona_horaria).filter(Boolean));
     return Array.from(set).sort().map(v => ({ value: v, label: v }));
-  }, [nodos]);
+  }, [aeropuertos]);
 
   const opcionesOrden = [
     { value: '', label: 'Sin orden' },
@@ -29,7 +29,7 @@ export function PanelNodos({ nodos, vuelos, onNodoClick }: PanelNodosProps) {
     { value: 'llegada-ut', label: 'Llegada UT' },
   ];
 
-  const timingPorNodo = useMemo(() => {
+  const timingPorAeropuerto = useMemo(() => {
     const salida = new Map<string, string>();
     const llegada = new Map<string, string>();
 
@@ -47,8 +47,8 @@ export function PanelNodos({ nodos, vuelos, onNodoClick }: PanelNodosProps) {
     return { salida, llegada };
   }, [vuelos]);
 
-  const nodosFiltrados = useMemo(() => {
-    return nodos.filter(n => {
+  const aeropuertosFiltrados = useMemo(() => {
+    return aeropuertos.filter(n => {
       if (filtroCodigo && !n.codigo_iata.toLowerCase().includes(filtroCodigo.toLowerCase())) return false;
       if (filtroContinente) {
         const valor = n.continente || n.zona_horaria;
@@ -56,10 +56,10 @@ export function PanelNodos({ nodos, vuelos, onNodoClick }: PanelNodosProps) {
       }
       return true;
     });
-  }, [nodos, filtroCodigo, filtroContinente]);
+  }, [aeropuertos, filtroCodigo, filtroContinente]);
 
-  const nodosOrdenados = useMemo(() => {
-    const lista = [...nodosFiltrados];
+  const aeropuertosOrdenados = useMemo(() => {
+    const lista = [...aeropuertosFiltrados];
     switch (orden) {
       case 'ocupacion-asc':
         lista.sort((a, b) => a.ocupacion_pct - b.ocupacion_pct);
@@ -69,21 +69,21 @@ export function PanelNodos({ nodos, vuelos, onNodoClick }: PanelNodosProps) {
         break;
       case 'salida-ut':
         lista.sort((a, b) => {
-          const sa = timingPorNodo.salida.get(a.codigo_iata) || '';
-          const sb = timingPorNodo.salida.get(b.codigo_iata) || '';
+          const sa = timingPorAeropuerto.salida.get(a.codigo_iata) || '';
+          const sb = timingPorAeropuerto.salida.get(b.codigo_iata) || '';
           return sa.localeCompare(sb);
         });
         break;
       case 'llegada-ut':
         lista.sort((a, b) => {
-          const la = timingPorNodo.llegada.get(a.codigo_iata) || '';
-          const lb = timingPorNodo.llegada.get(b.codigo_iata) || '';
+          const la = timingPorAeropuerto.llegada.get(a.codigo_iata) || '';
+          const lb = timingPorAeropuerto.llegada.get(b.codigo_iata) || '';
           return la.localeCompare(lb);
         });
         break;
     }
     return lista;
-  }, [nodosFiltrados, orden, timingPorNodo]);
+  }, [aeropuertosFiltrados, orden, timingPorAeropuerto]);
 
   const hayFiltrosActivos = filtroCodigo || filtroContinente;
 
@@ -92,11 +92,11 @@ export function PanelNodos({ nodos, vuelos, onNodoClick }: PanelNodosProps) {
     setFiltroContinente('');
   };
 
-  if (nodos.length === 0) {
+  if (aeropuertos.length === 0) {
     return (
       <div className="p-4 border-t border-slate-200 dark:border-slate-700">
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Nodos</h3>
-        <p className="text-xs text-slate-400 italic text-center py-2">Sin datos de nodos</p>
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Aeropuertos</h3>
+        <p className="text-xs text-slate-400 italic text-center py-2">Sin datos de aeropuertos</p>
       </div>
     );
   }
@@ -104,9 +104,9 @@ export function PanelNodos({ nodos, vuelos, onNodoClick }: PanelNodosProps) {
   return (
     <div className="p-4 border-t border-slate-200 dark:border-slate-700">
       <div className="flex items-center justify-between mb-1">
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Nodos</h3>
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Aeropuertos</h3>
         <span className="text-xs text-slate-400">
-          Mostrando {nodosOrdenados.length} de {nodos.length} nodos
+          Mostrando {aeropuertosOrdenados.length} de {aeropuertos.length} aeropuertos
         </span>
       </div>
 
@@ -147,13 +147,13 @@ export function PanelNodos({ nodos, vuelos, onNodoClick }: PanelNodosProps) {
       )}
 
       <div className="space-y-2 max-h-56 overflow-y-auto">
-        {nodosOrdenados.map(n => {
+        {aeropuertosOrdenados.map(n => {
           const continenteLabel = n.continente && n.continente !== 'Desconocido' ? n.continente : (n.zona_horaria ? n.zona_horaria.split('/')[0] : '');
           return (
             <div
               key={n.id}
-              className={`flex items-center justify-between py-1.5 px-2 rounded bg-slate-50 dark:bg-slate-800/50 ${onNodoClick ? 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50' : ''}`}
-              onClick={() => onNodoClick?.(n.codigo_iata, n.codigo_iata)}
+              className={`flex items-center justify-between py-1.5 px-2 rounded bg-slate-50 dark:bg-slate-800/50 ${onAeropuertoClick ? 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50' : ''}`}
+              onClick={() => onAeropuertoClick?.(n.codigo_iata, n.codigo_iata)}
             >
               <div className="flex items-center gap-2 min-w-0">
                 <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: n.color }} />
@@ -173,9 +173,9 @@ export function PanelNodos({ nodos, vuelos, onNodoClick }: PanelNodosProps) {
             </div>
           );
         })}
-        {nodosOrdenados.length === 0 && (
+        {aeropuertosOrdenados.length === 0 && (
           <p className="text-xs text-slate-400 italic text-center py-2">
-            Ningún nodo coincide con los filtros
+            Ningún aeropuerto coincide con los filtros
           </p>
         )}
       </div>

@@ -1,4 +1,4 @@
-export const COLOR_NODO = {
+export const COLOR_AEROPUERTO = {
   VERDE: '#22c55e',
   AMBAR: '#eab308',
   ROJO: '#ef4444',
@@ -13,15 +13,15 @@ export const COLOR_VUELO = {
 
 const UMBRALES_DEFAULT = { verdeMax: 70, ambarMax: 90 } as const;
 
-export function colorNodoPorOcupacion(
+export function colorAeropuertoPorOcupacion(
   pct: number,
   umbrales?: { verdeMax?: number; ambarMax?: number }
 ): string {
   const vm = umbrales?.verdeMax ?? UMBRALES_DEFAULT.verdeMax;
   const am = umbrales?.ambarMax ?? UMBRALES_DEFAULT.ambarMax;
-  if (pct < vm) return COLOR_NODO.VERDE;
-  if (pct < am) return COLOR_NODO.AMBAR;
-  return COLOR_NODO.ROJO;
+  if (pct < vm) return COLOR_AEROPUERTO.VERDE;
+  if (pct < am) return COLOR_AEROPUERTO.AMBAR;
+  return COLOR_AEROPUERTO.ROJO;
 }
 
 

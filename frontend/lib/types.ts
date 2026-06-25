@@ -12,7 +12,7 @@ export interface PageResponse<T> {
   totalPages: number;
 }
 
-export interface Nodo {
+export interface Aeropuerto {
   id: string;
   codigo_iata: string;
   nombre: string;
@@ -81,7 +81,7 @@ export interface Ubicacion {
   lon: number;
 }
 
-export interface NodoEnMapa extends Nodo {
+export interface AeropuertoEnMapa extends Aeropuerto {
   color: string;
   ocupacionPorcentaje: number;
 }
@@ -160,7 +160,7 @@ export interface CargaMasivaConfirmResponse {
   fallidos: number;
 }
 
-export interface NodoTelemetria {
+export interface AeropuertoTelemetria {
   id: string;
   codigo_iata: string;
   lat: number;
@@ -211,7 +211,7 @@ export interface EnvioEntregadoResponse {
 
 export interface TelemetriaMensaje {
   timestamp: string;
-  nodos: NodoTelemetria[];
+  nodos: AeropuertoTelemetria[];
   vuelos: VueloTelemetria[];
   metricas_sesion: MetricasSimulacion;
 }
