@@ -19,8 +19,6 @@ import { PanelEntregadosOperacion } from '@/components/operacion/PanelEntregados
 import { PanelEnviosOperacion } from '@/components/operacion/PanelEnviosOperacion';
 import { MetricasOperacion } from '@/components/operacion/MetricasOperacion';
 import { ResumenVuelosOperacion } from '@/components/operacion/ResumenVuelosOperacion';
-import { PanelVuelos } from '@/components/simulacion/PanelVuelos';
-import { PanelNodos } from '@/components/simulacion/PanelNodos';
 import { PanelEntregados } from '@/components/simulacion/PanelEntregados';
 import { PanelEnvios } from '@/components/simulacion/PanelEnvios';
 import type { SelectedEnvioOperacion } from '@/components/operacion/PanelEnviosOperacion';
@@ -28,6 +26,13 @@ import type { SelectedEnvio } from '@/components/simulacion/PanelEnvios';
 import type { Nodo, Vuelo, VueloEnMapa, VueloPageResponse, NodoEnMapa, CrearEquipajeResponse, CargaMasivaPreview, CargaMasivaConfirmResponse, MetricasSimulacion } from '@/lib/types';
 
 const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false });
+
+function formatSegundos(s: number): string {
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return `${h}h ${m}m ${sec}s`;
+}
 
 const ESTADOS_VUELO_VALIDOS = ['PROGRAMADO', 'EN_RUTA', 'CANCELADO', 'COMPLETADO'] as const;
 
@@ -98,7 +103,7 @@ export default function DashboardPage() {
           </button>
           <div className="flex-1" />
         </div>
-        <div className="flex-1 relative">
+        <div className="flex-1 relative min-h-0">
           {mode === 'operacion' ? <OperacionView /> : <SimulacionView />}
         </div>
       </div>
@@ -423,16 +428,33 @@ function SimulacionView() {
   }, []);
 
   useEffect(() => {
+    if (!sesionId || estadoSesion === 'FINALIZADA') return;
+    const interval = setInterval(() => {
+      api.get<MetricasSimulacion>(`/sesiones/${sesionId}/metricas`).then(m => {
+        setMetricasPoll(m);
+      }).catch(() => {});
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [sesionId, estadoSesion]);
+
+  useEffect(() => {
     if (!sesionId) return;
-    api.get<Nodo[]>('/nodos').then(nodosData => {
-      setInitialNodos(nodosData.map(n => {
-        const pct = n.capacidad_almacen > 0 ? (n.ocupacion_actual / n.capacidad_almacen) * 100 : 0;
-        return { ...n, color: colorNodoPorOcupacion(pct, { verdeMax: config.umbral_almacen_verde, ambarMax: config.umbral_almacen_ambar }), ocupacionPorcentaje: pct };
-      }));
-    }).catch(() => {});
-    api.get<VueloPageResponse>('/vuelos?size=50').then(vuelosData => {
-      setInitialVuelos(vuelosData.content.map((v: Vuelo): VueloEnMapa => ({ ...v })));
-    }).catch(() => {});
+    const cargar = () => {
+      api.get<Nodo[]>('/nodos').then(nodosData => {
+        setInitialNodos(nodosData.map(n => {
+          const pct = n.capacidad_almacen > 0 ? (n.ocupacion_actual / n.capacidad_almacen) * 100 : 0;
+          return { ...n, color: colorNodoPorOcupacion(pct, { verdeMax: config.umbral_almacen_verde, ambarMax: config.umbral_almacen_ambar }), ocupacionPorcentaje: pct };
+        }));
+      }).catch(() => {});
+      api.get<VueloPageResponse>('/vuelos?size=200&estado=PROGRAMADO').then(r1 => {
+        api.get<VueloPageResponse>('/vuelos?size=200&estado=EN_RUTA').then(r2 => {
+          setInitialVuelos([...r1.content, ...r2.content].map((v: Vuelo): VueloEnMapa => ({ ...v })));
+        }).catch(() => {});
+      }).catch(() => {});
+    };
+    cargar();
+    const interval = setInterval(cargar, 5000);
+    return () => clearInterval(interval);
   }, [sesionId, config.umbral_almacen_verde, config.umbral_almacen_ambar]);
 
   const sesionEnCurso = sesionesActivas.find(s => s.estado === 'EN_CURSO');
@@ -464,6 +486,14 @@ function SimulacionView() {
   const handleIniciar = async () => {
     setError(''); setLoading(true);
     try {
+      const activas = await api.get<SesionListaItem[]>('/sesiones?estado=EN_CURSO');
+      for (const s of activas) {
+        try { await api.post(`/sesiones/${s.id}/detener`, {}); } catch { /* ignore */ }
+      }
+      const pausadas = await api.get<SesionListaItem[]>('/sesiones?estado=PAUSADA');
+      for (const s of pausadas) {
+        try { await api.post(`/sesiones/${s.id}/detener`, {}); } catch { /* ignore */ }
+      }
       const res = await api.post<SesionResponse>('/sesiones', {
         tipo: 'SIMULADA',
         fecha_inicio_virtual: config.fecha_inicio_virtual,
@@ -472,10 +502,11 @@ function SimulacionView() {
         umbrales_almacen: { verde_min: 0, verde_max: config.umbral_almacen_verde, ambar_min: config.umbral_almacen_verde, ambar_max: config.umbral_almacen_ambar, rojo_min: config.umbral_almacen_ambar, rojo_max: 100 },
         umbrales_vuelo: { verde_min: 0, verde_max: config.umbral_vuelo_verde, ambar_min: config.umbral_vuelo_verde, ambar_max: config.umbral_vuelo_ambar, rojo_min: config.umbral_vuelo_ambar, rojo_max: 100 },
       });
+      await api.post(`/sesiones/${res.id}/iniciar`, {});
       setSesionId(res.id);
       setEstadoSesion('EN_CURSO');
+      setSesionesActivas([]);
       setMetricasPoll(prev => ({ ...prev, sesion_id: res.id }));
-      setSesionesActivas(prev => [...prev, { id: res.id, tipo: 'SIMULADA', tipo_simulacion: 'SIMULADA', estado: 'EN_CURSO', fecha_inicio_virtual: config.fecha_inicio_virtual, created_at: new Date().toISOString() }]);
     } catch (err: unknown) {
       const e = err as { mensaje?: string; message?: string };
       setError(e.mensaje || e.message || 'Error al crear sesion');
@@ -496,7 +527,7 @@ function SimulacionView() {
     if (!sesionId) return;
     setLoading(true);
     try {
-      await api.post(`/sesiones/${sesionId}/reanudar`, {});
+      await api.post(`/sesiones/${sesionId}/iniciar`, {});
       setEstadoSesion('EN_CURSO');
     } catch { setError('Error al reanudar'); }
     finally { setLoading(false); }
@@ -537,42 +568,67 @@ function SimulacionView() {
           </div>
         ) : (
           <>
-            {sesionEnCurso && (
-              <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-blue-50 dark:bg-blue-900/20">
-                <p className="text-sm font-medium text-blue-800 dark:text-blue-200">Activa: {sesionEnCurso.fecha_inicio_virtual}</p>
-                <div className="flex gap-2 mt-2">
+            <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between mb-1">
+                <h2 className="font-semibold text-slate-900 dark:text-slate-100">Simulación</h2>
+              </div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+                <span className="text-xs text-slate-500">WS {wsConnected ? 'conectado' : 'desconectado'}</span>
+              </div>
+
+              {sesionEnCurso && (
+                <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+                  <span className="text-xs text-blue-600 font-medium">Activa: {sesionEnCurso.fecha_inicio_virtual}</span>
                   <Button variant="danger" size="sm" disabled={finalizandoId === sesionEnCurso.id} onClick={() => handleDetener(sesionEnCurso.id)}>
-                    <Square size={14} className="mr-1" />{finalizandoId === sesionEnCurso.id ? '...' : 'Detener'}
+                    <Square size={12} className="mr-1" />{finalizandoId === sesionEnCurso.id ? '...' : 'Detener'}
                   </Button>
                   <Button size="sm" onClick={() => { setSesionId(sesionEnCurso.id); setEstadoSesion('EN_CURSO'); }}>
-                    <Play size={14} className="mr-1" />Reanudar
+                    <Play size={12} className="mr-1" />Reanudar
                   </Button>
                 </div>
-              </div>
-            )}
-
-            {sesionPausada && !sesionEnCurso && (
-              <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-yellow-50 dark:bg-yellow-900/20">
-                <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">Pausada: {sesionPausada.fecha_inicio_virtual}</p>
-                <div className="flex gap-2 mt-2">
+              )}
+              {sesionPausada && !sesionEnCurso && (
+                <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+                  <span className="text-xs text-yellow-600 font-medium">Pausada: {sesionPausada.fecha_inicio_virtual}</span>
                   <Button variant="danger" size="sm" disabled={finalizandoId === sesionPausada.id} onClick={() => handleDetener(sesionPausada.id)}>
-                    <Square size={14} className="mr-1" />{finalizandoId === sesionPausada.id ? '...' : 'Detener'}
+                    <Square size={12} className="mr-1" />{finalizandoId === sesionPausada.id ? '...' : 'Detener'}
                   </Button>
-                  <Button size="sm" onClick={() => { setSesionId(sesionPausada.id); setEstadoSesion('EN_CURSO'); }}>
-                    <Play size={14} className="mr-1" />Continuar
+                  <Button size="sm" onClick={async () => { setSesionId(sesionPausada.id); setLoading(true); try { await api.post(`/sesiones/${sesionPausada.id}/iniciar`, {}); setEstadoSesion('EN_CURSO'); } catch { setError('Error al reanudar'); } finally { setLoading(false); } }}>
+                    <Play size={12} className="mr-1" />Continuar
                   </Button>
                 </div>
-              </div>
-            )}
+              )}
+              {error && (
+                <div className="flex items-center gap-2 p-2 mt-2 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
+                  <XCircle size={14} className="text-red-600 dark:text-red-400 flex-shrink-0" />
+                  <span className="text-xs text-red-700 dark:text-red-300">{error}</span>
+                </div>
+              )}
+            </div>
 
             {(estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA') && (
               <div className="p-4 border-b border-slate-200 dark:border-slate-700">
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Sesión {sesionId?.slice(0, 8)}</h3>
                 <div className="grid grid-cols-2 gap-2 mb-3">
-                  <MetricaCard label="SLA" value={`${metricas.sla_acumulado_pct.toFixed(1)}%`} icon={Activity} color="bg-blue-600" />
+                  <MetricaCard label="SLA" value={`${(metricas.sla_acumulado_pct ?? 0).toFixed(1)}%`} icon={Activity} color="bg-blue-600" />
                   <MetricaCard label="Cancelaciones" value={metricas.vuelos_cancelados} icon={XCircle} color="bg-red-600" />
                   <MetricaCard label="Replanificadas" value={metricas.maletas_replanificadas} icon={RefreshCw} color="bg-amber-600" />
                   <MetricaCard label="Tiempo Virtual" value={metricas.dia_hora_virtual?.slice(0, 16).replace('T', ' ') || '-'} icon={Clock} color="bg-slate-600" />
+                </div>
+                <div className="space-y-1 mb-3 text-xs text-slate-600 dark:text-slate-400">
+                  <div className="flex justify-between">
+                    <span>Inicio Real:</span>
+                    <span className="font-mono">{metricas.fecha_inicio_real?.slice(0, 19).replace('T', ' ') || '-'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Inicio Virtual:</span>
+                    <span className="font-mono">{config.fecha_inicio_virtual} {config.hora_inicio_virtual}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Transcurrido Real:</span>
+                    <span className="font-mono">{formatSegundos(metricas.segundos_reales_transcurridos ?? 0)}</span>
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   {estadoSesion === 'EN_CURSO' ? (
@@ -621,32 +677,36 @@ function SimulacionView() {
                     <input type="number" min={0} max={100} value={config.umbral_vuelo_ambar} onChange={e => setConfig({ ...config, umbral_vuelo_ambar: Number(e.target.value) })} className="w-full mt-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm" />
                   </div>
                 </div>
-                {error && <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-400"><AlertCircle size={16} />{error}</div>}
                 <Button size="lg" onClick={handleIniciar} disabled={loading} className="w-full">
                   <Play size={18} className="mr-2" />{loading ? 'Creando...' : 'Iniciar Simulación'}
                 </Button>
               </div>
             )}
 
+            {(sesionId || telemetria?.vuelos) && (
+              <ResumenVuelosOperacion vuelos={telemetria?.vuelos ?? []} />
+            )}
+
+            {(sesionId && estadoSesion !== 'FINALIZADA') && telemetria?.nodos && telemetria.nodos.length > 0 && (
+              <PanelNodosOperacion nodos={telemetria.nodos} vuelos={telemetria.vuelos ?? []}
+                onNodoClick={(id, codigo) => setSelectedEnvio({ tipo: 'nodo', id, codigo })}
+              />
+            )}
+
+            {(sesionId && estadoSesion !== 'FINALIZADA') && telemetria?.vuelos && telemetria.vuelos.length > 0 && (
+              <PanelVuelosOperacion vuelos={telemetria.vuelos}
+                onVueloClick={(id, codigo) => setSelectedEnvio({ tipo: 'vuelo', id, codigo })}
+                origenFilter={vueloFilterOrigen} destinoFilter={vueloFilterDestino}
+                onFilterChange={({ origen, destino }) => { setVueloFilterOrigen(origen); setVueloFilterDestino(destino); }}
+              />
+            )}
+
             {sesionId && estadoSesion !== 'FINALIZADA' && (
-              <>
-                {telemetria?.nodos && telemetria.nodos.length > 0 && (
-                  <PanelNodos nodos={telemetria.nodos} vuelos={telemetria.vuelos ?? []}
-                    onNodoClick={(id, codigo) => setSelectedEnvio({ tipo: 'nodo', id, codigo })}
-                  />
-                )}
-                {telemetria?.vuelos && telemetria.vuelos.length > 0 && (
-                  <PanelVuelos vuelos={telemetria.vuelos}
-                    onVueloClick={(id, codigo) => setSelectedEnvio({ tipo: 'vuelo', id, codigo })}
-                    origenFilter={vueloFilterOrigen} destinoFilter={vueloFilterDestino}
-                    onFilterChange={({ origen, destino }) => { setVueloFilterOrigen(origen); setVueloFilterDestino(destino); }}
-                  />
-                )}
-                <PanelEntregados sesionId={sesionId} activo={true} />
-                {selectedEnvio && sesionId && (
-                  <PanelEnvios selectedEnvio={selectedEnvio} sesionId={sesionId} onClose={() => setSelectedEnvio(null)} />
-                )}
-              </>
+              <PanelEntregados sesionId={sesionId} activo={true} />
+            )}
+
+            {selectedEnvio && sesionId && (
+              <PanelEnvios selectedEnvio={selectedEnvio} sesionId={sesionId} onClose={() => setSelectedEnvio(null)} />
             )}
           </>
         )}
