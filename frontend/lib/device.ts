@@ -9,12 +9,12 @@ export const device = {
     return id;
   },
 
-  getNodoRefId: (): string | null => {
+  getAeropuertoRefId: (): string | null => {
     if (typeof window === 'undefined') return null;
     return localStorage.getItem('nodo_ref_id');
   },
 
-  setNodoRefId: (id: string) => {
+  setAeropuertoRefId: (id: string) => {
     localStorage.setItem('nodo_ref_id', id);
   },
 };

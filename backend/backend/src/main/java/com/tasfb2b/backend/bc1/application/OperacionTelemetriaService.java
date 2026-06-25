@@ -12,6 +12,7 @@ import com.tasfb2b.backend.bc1.infrastructure.VueloRepository;
 import com.tasfb2b.backend.bc2.infrastructure.TelemetriaWebSocket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -43,6 +44,7 @@ public class OperacionTelemetriaService {
         this.telemetriaWebSocket = telemetriaWebSocket;
     }
 
+    @Async
     public void emitirTelemetria() {
         try {
             List<NodoLogistico> nodos = nodoRepository.findAllByOrderByCodigoIataAsc();

@@ -1,16 +1,16 @@
 'use client';
 
 import { MapContainer, TileLayer } from 'react-leaflet';
-import type { NodoEnMapa, VueloEnMapa } from '@/lib/types';
+import type { AeropuertoEnMapa, VueloEnMapa } from '@/lib/types';
 import 'leaflet/dist/leaflet.css';
 import dynamic from 'next/dynamic';
 
-const GeoMapaNodo = dynamic(() => import('./GeoMapaNodo'), { ssr: false });
+const GeoMapaAeropuerto = dynamic(() => import('./GeoMapaAeropuerto'), { ssr: false });
 const GeoMapaVuelo = dynamic(() => import('./GeoMapaVuelo'), { ssr: false });
 const GeoMapaLeyenda = dynamic(() => import('./GeoMapaLeyenda'), { ssr: false });
 
 interface GeoMapaProps {
-  nodos: NodoEnMapa[];
+  aeropuertos: AeropuertoEnMapa[];
   vuelos: VueloEnMapa[];
   mostrarAviones?: boolean;
   animacionActiva?: boolean;
@@ -22,7 +22,7 @@ const CENTRO: [number, number] = [-15, -60];
 const ZOOM = 4;
 
 export default function GeoMapa({
-  nodos,
+  aeropuertos,
   vuelos,
   mostrarAviones = true,
   animacionActiva = false,
@@ -50,8 +50,8 @@ export default function GeoMapa({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {nodos.map((nodo) => (
-          <GeoMapaNodo key={nodo.codigo_iata} nodo={nodo} />
+        {aeropuertos.map((aeropuerto) => (
+          <GeoMapaAeropuerto key={aeropuerto.codigo_iata} aeropuerto={aeropuerto} />
         ))}
         {mostrarAviones && vuelos.map((vuelo) => (
           <GeoMapaVuelo

@@ -11,7 +11,7 @@ export function ResumenVuelosOperacion({ vuelos }: ResumenVuelosOperacionProps) 
   const activos = vuelos.filter(v => v.estado === 'EN_RUTA').length;
   const programados = vuelos.filter(v => v.estado === 'PROGRAMADO').length;
 
-  const porNodo = useMemo(() => {
+  const porAeropuerto = useMemo(() => {
     const map = new Map<string, { activos: number; programados: number }>();
     for (const v of vuelos) {
       if (v.estado !== 'EN_RUTA' && v.estado !== 'PROGRAMADO') continue;
@@ -41,7 +41,7 @@ export function ResumenVuelosOperacion({ vuelos }: ResumenVuelosOperacionProps) 
         </div>
       </div>
       <div className="space-y-1 max-h-48 overflow-y-auto text-sm">
-        {porNodo.map(([iata, cnt]) => (
+        {porAeropuerto.map(([iata, cnt]) => (
           <div key={iata} className="flex items-center justify-between py-1.5 px-2 rounded bg-slate-50 dark:bg-slate-800/50">
             <span className="font-medium text-slate-700 dark:text-slate-300">{iata}</span>
             <div className="flex items-center gap-2 text-xs">
@@ -57,7 +57,7 @@ export function ResumenVuelosOperacion({ vuelos }: ResumenVuelosOperacionProps) 
             </div>
           </div>
         ))}
-        {porNodo.length === 0 && (
+        {porAeropuerto.length === 0 && (
           <p className="text-xs text-slate-400 italic text-center py-2">Sin datos de vuelos</p>
         )}
       </div>

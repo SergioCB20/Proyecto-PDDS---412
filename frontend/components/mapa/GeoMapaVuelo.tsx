@@ -2,7 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { Polyline, Tooltip } from 'react-leaflet';
-import { COLOR_VUELO, COLOR_NODO } from '@/lib/colors';
+import { COLOR_VUELO, COLOR_AEROPUERTO } from '@/lib/colors';
 import type { VueloEnMapa } from '@/lib/types';
 import { bezierCurvePoints } from '@/lib/bezier';
 import AvionAnimado from './AvionAnimado';
@@ -22,7 +22,7 @@ const COLORES: Record<string, string> = {
 
 function OcupacionBar({ ocupada, total }: { ocupada: number; total: number }) {
   const pct = total > 0 ? ((total - ocupada) / total) * 100 : 0;
-  const color = pct < 70 ? COLOR_NODO.VERDE : pct < 90 ? COLOR_NODO.AMBAR : COLOR_NODO.ROJO;
+  const color = pct < 70 ? COLOR_AEROPUERTO.VERDE : pct < 90 ? COLOR_AEROPUERTO.AMBAR : COLOR_AEROPUERTO.ROJO;
   return (
     <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden mt-1">
       <div

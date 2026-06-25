@@ -4,9 +4,9 @@ import { useEffect, useState, useMemo } from 'react';
 import { Package, RefreshCw, ChevronDown, ChevronUp, CheckCircle, XCircle, Plane, Upload, FileSpreadsheet, AlertTriangle, AlertCircle, Menu, ChevronLeft, Play, Pause, Square, Clock, Settings, Activity } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { api, fetchReporte } from '@/lib/api';
-import { nodoToEnMapa } from '@/lib/mock';
+import { aeropuertoToEnMapa } from '@/lib/mock';
 import { useTelemetria } from '@/lib/useTelemetria';
-import { colorNodoPorOcupacion } from '@/lib/colors';
+import { colorAeropuertoPorOcupacion } from '@/lib/colors';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -14,7 +14,7 @@ import { Select } from '@/components/ui/Select';
 import { Modal } from '@/components/ui/Modal';
 import { Card } from '@/components/ui/Card';
 import { PanelVuelosOperacion } from '@/components/operacion/PanelVuelosOperacion';
-import { PanelNodosOperacion } from '@/components/operacion/PanelNodosOperacion';
+import { PanelAeropuertosOperacion } from '@/components/operacion/PanelAeropuertosOperacion';
 import { PanelEntregadosOperacion } from '@/components/operacion/PanelEntregadosOperacion';
 import { PanelEnviosOperacion } from '@/components/operacion/PanelEnviosOperacion';
 import { MetricasOperacion } from '@/components/operacion/MetricasOperacion';
@@ -25,7 +25,7 @@ import { PanelReporte } from '@/components/simulacion/PanelReporte';
 import { ConfigUmbrales, type UmbralesConfig } from '@/components/mapa/ConfigUmbrales';
 import type { SelectedEnvioOperacion } from '@/components/operacion/PanelEnviosOperacion';
 import type { SelectedEnvio } from '@/components/simulacion/PanelEnvios';
-import type { Nodo, Vuelo, VueloEnMapa, VueloPageResponse, NodoEnMapa, CrearEquipajeResponse, CargaMasivaPreview, CargaMasivaConfirmResponse, MetricasSimulacion, ReporteSesion } from '@/lib/types';
+import type { Aeropuerto, Vuelo, VueloEnMapa, VueloPageResponse, AeropuertoEnMapa, CrearEquipajeResponse, CargaMasivaPreview, CargaMasivaConfirmResponse, MetricasSimulacion, ReporteSesion } from '@/lib/types';
 
 const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false });
 
@@ -145,13 +145,15 @@ export default function DashboardPage() {
 }
 
 function OperacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales: UmbralesConfig; onCambiarUmbrales: (c: UmbralesConfig) => void }) {
-  const [nodos, setNodos] = useState<NodoEnMapa[]>([]);
+  const [estadoOperacion, setEstadoOperacion] = useState<'INACTIVO' | 'ACTIVO' | 'PAUSADO'>('INACTIVO');
+  const [operacionLoading, setOperacionLoading] = useState(false);
+  const [aeropuertos, setAeropuertos] = useState<AeropuertoEnMapa[]>([]);
   const [allVuelos, setAllVuelos] = useState<VueloEnMapa[]>([]);
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
   const [formOpen, setFormOpen] = useState(false);
-  const [formData, setFormData] = useState({ destinoIata: '', cantidad: 1 });
+  const [formData, setFormData] = useState({ origenIata: '', destinoIata: '', cantidad: 1 });
   const [formLoading, setFormLoading] = useState(false);
   const [formSuccess, setFormSuccess] = useState<CrearEquipajeResponse | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -163,7 +165,13 @@ function OperacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales: 
   const [csvError, setCsvError] = useState<string | null>(null);
   const [csvConfirmLoading, setCsvConfirmLoading] = useState(false);
 
-  const { data: telemetria, connected: wsConnected } = useTelemetria(true);
+  const { data: telemetria, connected: wsConnected } = useTelemetria(estadoOperacion === 'ACTIVO');
+
+  useEffect(() => {
+    api.get<{ estado: string }>('/operacion/estado').then(r => {
+      if (r.estado === 'ACTIVO' || r.estado === 'PAUSADO') setEstadoOperacion(r.estado);
+    }).catch(() => {});
+  }, []);
   const k = useMemo(() => telemetria?.metricas_sesion?.k ?? 120, [telemetria]);
   const animacionActiva = wsConnected && (telemetria?.vuelos?.some(v => v.estado === 'EN_RUTA') ?? false);
 
@@ -180,11 +188,11 @@ function OperacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales: 
       const ahora = new Date();
       const wStart = `${baseDate}T${ahora.toISOString().slice(11, 19)}Z`;
       const wEnd = new Date(new Date(wStart).getTime() + 4 * 3600000).toISOString();
-      const [nodosData, vuelosData] = await Promise.all([
-        api.get<Nodo[]>('/nodos'),
+      const [aeropuertosData, vuelosData] = await Promise.all([
+        api.get<Aeropuerto[]>('/nodos'),
         api.get<VueloPageResponse>(`/vuelos?size=300&fecha_desde=${encodeURIComponent(wStart)}&fecha_hasta=${encodeURIComponent(wEnd)}`),
       ]);
-      setNodos(nodosData.map(nodoToEnMapa));
+      setAeropuertos(aeropuertosData.map(aeropuertoToEnMapa));
       setAllVuelos(vuelosData.content.map((v: Vuelo): VueloEnMapa => ({ ...v })));
     } catch (err: unknown) {
       const error = err as { mensaje?: string; message?: string };
@@ -196,14 +204,14 @@ function OperacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales: 
 
   useEffect(() => {
     if (!telemetria?.nodos || telemetria.nodos.length === 0) return;
-    const telemetriaNodos: NodoEnMapa[] = telemetria.nodos.map(n => ({
+    const telemetriaAeropuertos: AeropuertoEnMapa[] = telemetria.nodos.map(n => ({
       id: n.id, codigo_iata: n.codigo_iata, nombre: n.codigo_iata,
       latitud: n.lat, longitud: n.lon, capacidad_almacen: n.capacidad_almacen,
       ocupacion_actual: n.ocupacion_actual, zona_horaria: '',
-      color: colorNodoPorOcupacion(n.ocupacion_pct, { verdeMax: configUmbrales.almacenVerdeMax, ambarMax: configUmbrales.almacenAmbarMax }), ocupacionPorcentaje: n.ocupacion_pct,
+      color: colorAeropuertoPorOcupacion(n.ocupacion_pct, { verdeMax: configUmbrales.almacenVerdeMax, ambarMax: configUmbrales.almacenAmbarMax }), ocupacionPorcentaje: n.ocupacion_pct,
     }));
     queueMicrotask(() => {
-      setNodos(telemetriaNodos);
+      setAeropuertos(telemetriaAeropuertos);
     });
     if (telemetria.vuelos && telemetria.vuelos.length > 0) {
       const vuelosMapped = telemetria.vuelos.map(v => ({
@@ -227,11 +235,13 @@ function OperacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales: 
     setFormSuccess(null);
     setFormLoading(true);
     try {
+      const aeropuerto = aeropuertos.find(n => n.codigo_iata === formData.origenIata);
+      if (!aeropuerto) { setFormError('Seleccione un aeropuerto origen'); setFormLoading(false); return; }
       const response = await api.post<CrearEquipajeResponse>('/equipajes', {
         destino_iata: formData.destinoIata, cantidad: formData.cantidad,
-      });
+      }, { 'X-Device-Nodo-Id': aeropuerto.id });
       setFormSuccess(response);
-      setFormData({ destinoIata: '', cantidad: 1 });
+      setFormData({ origenIata: '', destinoIata: '', cantidad: 1 });
     } catch (err: unknown) {
       const error = err as { mensaje?: string; message?: string };
       setFormError(error.mensaje || error.message || 'Error al registrar equipaje');
@@ -282,7 +292,43 @@ function OperacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales: 
     });
   }, [allVuelos, vueloFilterOrigen, vueloFilterDestino]);
 
-  const destinoOptions = nodos.filter(n => n.codigo_iata).map(n => ({ value: n.codigo_iata, label: n.codigo_iata })).sort((a, b) => a.label.localeCompare(b.label));
+  const destinoOptions = aeropuertos.filter(n => n.codigo_iata).map(n => ({ value: n.codigo_iata, label: n.codigo_iata })).sort((a, b) => a.label.localeCompare(b.label));
+
+  const handleIniciar = async () => {
+    setOperacionLoading(true);
+    try {
+      await api.post('/operacion/iniciar', {});
+      setEstadoOperacion('ACTIVO');
+    } catch { setApiError('Error al iniciar operación'); }
+    finally { setOperacionLoading(false); }
+  };
+
+  const handlePausar = async () => {
+    setOperacionLoading(true);
+    try {
+      await api.post('/operacion/pausar', {});
+      setEstadoOperacion('PAUSADO');
+    } catch { setApiError('Error al pausar operación'); }
+    finally { setOperacionLoading(false); }
+  };
+
+  const handleReanudar = async () => {
+    setOperacionLoading(true);
+    try {
+      await api.post('/operacion/reanudar', {});
+      setEstadoOperacion('ACTIVO');
+    } catch { setApiError('Error al reanudar operación'); }
+    finally { setOperacionLoading(false); }
+  };
+
+  const handleDetener = async () => {
+    setOperacionLoading(true);
+    try {
+      await api.post('/operacion/detener', {});
+      setEstadoOperacion('INACTIVO');
+    } catch { setApiError('Error al detener operación'); }
+    finally { setOperacionLoading(false); }
+  };
 
   const handleCancelarVuelo = async (id: string, codigo: string) => {
     if (!confirm(`¿Cancelar vuelo ${codigo}?`)) return;
@@ -294,7 +340,7 @@ function OperacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales: 
   return (
     <div className="flex h-full">
       <div className="flex-1 p-4 relative">
-        <GeoMapa nodos={nodos} vuelos={vuelosMapaFiltrados} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" />
+        <GeoMapa aeropuertos={aeropuertos} vuelos={vuelosMapaFiltrados} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" />
       </div>
 
       <div className={`border-l border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col overflow-y-auto transition-all duration-300 ${isCollapsed ? 'w-12' : 'w-80'}`}>
@@ -312,16 +358,39 @@ function OperacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales: 
         ) : (
           <>
             <div className="p-4 border-b border-slate-200 dark:border-slate-700">
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between mb-2">
                 <h2 className="font-semibold text-slate-900 dark:text-slate-100">Operación en Vivo</h2>
                 <button onClick={fetchData} disabled={loading} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 disabled:opacity-50">
                   <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
                 </button>
               </div>
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-2">
                 <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`} />
                 <span className="text-xs text-slate-500">WS {wsConnected ? 'conectado' : 'desconectado'}</span>
               </div>
+              {estadoOperacion === 'ACTIVO' ? (
+                <div className="flex gap-2">
+                  <Button variant="secondary" size="sm" onClick={handlePausar} disabled={operacionLoading} className="flex-1">
+                    <Pause size={14} className="mr-1" />{operacionLoading ? '...' : 'Pausar'}
+                  </Button>
+                  <Button variant="danger" size="sm" onClick={handleDetener} disabled={operacionLoading} className="flex-1">
+                    <Square size={14} className="mr-1" />{operacionLoading ? '...' : 'Detener'}
+                  </Button>
+                </div>
+              ) : estadoOperacion === 'PAUSADO' ? (
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={handleReanudar} disabled={operacionLoading} className="flex-1">
+                    <Play size={14} className="mr-1" />{operacionLoading ? '...' : 'Reanudar'}
+                  </Button>
+                  <Button variant="danger" size="sm" onClick={handleDetener} disabled={operacionLoading} className="flex-1">
+                    <Square size={14} className="mr-1" />{operacionLoading ? '...' : 'Detener'}
+                  </Button>
+                </div>
+              ) : (
+                <Button size="sm" onClick={handleIniciar} disabled={operacionLoading} className="w-full">
+                  <Play size={14} className="mr-1" />{operacionLoading ? '...' : 'Iniciar Operación'}
+                </Button>
+              )}
               {apiError && (
                 <div className="flex items-center gap-2 p-2 mt-2 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
                   <XCircle size={14} className="text-red-600 dark:text-red-400 flex-shrink-0" />
@@ -334,7 +403,7 @@ function OperacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales: 
             <ResumenVuelosOperacion vuelos={telemetria?.vuelos ?? []} />
 
             {telemetria?.nodos && telemetria.nodos.length > 0 && (
-              <PanelNodosOperacion nodos={telemetria.nodos} vuelos={telemetria.vuelos ?? []} onNodoClick={(id, codigo) => setSelectedEnvio({ tipo: 'nodo', id, codigo })} />
+              <PanelAeropuertosOperacion aeropuertos={telemetria.nodos} vuelos={telemetria.vuelos ?? []} onAeropuertoClick={(id, codigo) => setSelectedEnvio({ tipo: 'nodo', id, codigo })} />
             )}
 
             {telemetria?.vuelos && telemetria.vuelos.length > 0 && (
@@ -377,7 +446,8 @@ function OperacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales: 
 
               {formOpen && (
                 <form onSubmit={handleSubmit} className="space-y-3 mb-4 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-                  <Select label="Destino IATA" placeholder={nodos.length === 0 ? 'No hay destinos' : 'Seleccionar destino'} options={destinoOptions} value={formData.destinoIata} onChange={e => setFormData(prev => ({ ...prev, destinoIata: e.target.value }))} disabled={nodos.length === 0} />
+                  <Select label="Aeropuerto Origen" placeholder={aeropuertos.length === 0 ? 'No hay aeropuertos' : 'Seleccionar aeropuerto origen'} options={destinoOptions} value={formData.origenIata} onChange={e => setFormData(prev => ({ ...prev, origenIata: e.target.value }))} disabled={aeropuertos.length === 0} />
+                  <Select label="Destino IATA" placeholder={aeropuertos.length === 0 ? 'No hay destinos' : 'Seleccionar destino'} options={destinoOptions} value={formData.destinoIata} onChange={e => setFormData(prev => ({ ...prev, destinoIata: e.target.value }))} disabled={aeropuertos.length === 0} />
                   <Input label="Número de Maletas" type="number" min="1" value={formData.cantidad} onChange={e => setFormData(prev => ({ ...prev, cantidad: Math.max(1, parseInt(e.target.value) || 1) }))} />
                   {formError && <div className="flex items-center gap-2 p-2 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800"><XCircle size={14} className="text-red-600 dark:text-red-400" /><span className="text-xs text-red-700 dark:text-red-300">{formError}</span></div>}
                   <Button type="submit" disabled={formLoading} className="w-full">{formLoading ? 'Registrando...' : 'Registrar'}</Button>
@@ -442,7 +512,7 @@ function SimulacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales:
   });
 
   const { data: telemetria, connected: wsConnected } = useTelemetria(estadoSesion === 'EN_CURSO');
-  const [initialNodos, setInitialNodos] = useState<NodoEnMapa[]>([]);
+  const [initialAeropuertos, setInitialAeropuertos] = useState<AeropuertoEnMapa[]>([]);
   const [initialVuelos, setInitialVuelos] = useState<VueloEnMapa[]>([]);
   const [selectedEnvio, setSelectedEnvio] = useState<SelectedEnvio | null>(null);
   const [vueloFilterOrigen, setVueloFilterOrigen] = useState('');
@@ -477,10 +547,10 @@ function SimulacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales:
   useEffect(() => {
     if (!sesionId) return;
     const cargar = () => {
-      api.get<Nodo[]>('/nodos').then(nodosData => {
-        setInitialNodos(nodosData.map(n => {
+      api.get<Aeropuerto[]>('/nodos').then(aeropuertosData => {
+        setInitialAeropuertos(aeropuertosData.map(n => {
           const pct = n.capacidad_almacen > 0 ? (n.ocupacion_actual / n.capacidad_almacen) * 100 : 0;
-          return { ...n, color: colorNodoPorOcupacion(pct, { verdeMax: configUmbrales.almacenVerdeMax, ambarMax: configUmbrales.almacenAmbarMax }), ocupacionPorcentaje: pct };
+          return { ...n, color: colorAeropuertoPorOcupacion(pct, { verdeMax: configUmbrales.almacenVerdeMax, ambarMax: configUmbrales.almacenAmbarMax }), ocupacionPorcentaje: pct };
         }));
       }).catch(() => {});
       api.get<VueloPageResponse>('/vuelos?size=200&estado=PROGRAMADO').then(r1 => {
@@ -497,15 +567,15 @@ function SimulacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales:
   const sesionEnCurso = sesionesActivas.find(s => s.estado === 'EN_CURSO');
   const sesionPausada = sesionesActivas.find(s => s.estado === 'PAUSADA');
 
-  const nodosMapa: NodoEnMapa[] = (telemetria?.nodos ?? []).length > 0
+  const aeropuertosMapa: AeropuertoEnMapa[] = (telemetria?.nodos ?? []).length > 0
     ? (telemetria?.nodos ?? []).map(n => ({
         id: n.id, codigo_iata: n.codigo_iata, nombre: n.codigo_iata,
         latitud: n.lat, longitud: n.lon, capacidad_almacen: n.capacidad_almacen,
         ocupacion_actual: n.ocupacion_actual, zona_horaria: '',
-        color: colorNodoPorOcupacion(n.ocupacion_pct, { verdeMax: configUmbrales.almacenVerdeMax, ambarMax: configUmbrales.almacenAmbarMax }),
+        color: colorAeropuertoPorOcupacion(n.ocupacion_pct, { verdeMax: configUmbrales.almacenVerdeMax, ambarMax: configUmbrales.almacenAmbarMax }),
         ocupacionPorcentaje: n.ocupacion_pct,
       }))
-    : initialNodos;
+    : initialAeropuertos;
 
   const vuelosMapa: VueloEnMapa[] = (telemetria?.vuelos ?? []).length > 0
     ? telemetria!.vuelos.map(v => ({
@@ -602,7 +672,7 @@ function SimulacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales:
   return (
     <div className="flex h-full">
       <div className="flex-1 p-4 relative">
-        <GeoMapa nodos={nodosMapa} vuelos={vuelosMapa} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" />
+        <GeoMapa aeropuertos={aeropuertosMapa} vuelos={vuelosMapa} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" />
       </div>
 
       <div className={`border-l border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col overflow-y-auto transition-all duration-300 ${isCollapsed ? 'w-12' : 'w-80'}`}>
@@ -722,8 +792,8 @@ function SimulacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales:
             )}
 
             {(sesionId && estadoSesion !== 'FINALIZADA') && telemetria?.nodos && telemetria.nodos.length > 0 && (
-              <PanelNodosOperacion nodos={telemetria.nodos} vuelos={telemetria.vuelos ?? []}
-                onNodoClick={(id, codigo) => setSelectedEnvio({ tipo: 'nodo', id, codigo })}
+              <PanelAeropuertosOperacion aeropuertos={telemetria.nodos} vuelos={telemetria.vuelos ?? []}
+                onAeropuertoClick={(id, codigo) => setSelectedEnvio({ tipo: 'nodo', id, codigo })}
               />
             )}
 
