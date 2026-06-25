@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Upload } from 'lucide-react';
+import { Upload, XCircle } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import type { VueloTelemetria } from '@/lib/types';
@@ -10,12 +10,13 @@ interface PanelVuelosOperacionProps {
   vuelos: VueloTelemetria[];
   onVueloClick?: (id: string, codigo: string) => void;
   onDownloadManifiesto?: (id: string, codigo: string) => void;
+  onCancelVuelo?: (id: string, codigo: string) => void;
   origenFilter?: string;
   destinoFilter?: string;
   onFilterChange?: (filters: { origen: string; destino: string }) => void;
 }
 
-export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiesto, origenFilter = '', destinoFilter = '', onFilterChange }: PanelVuelosOperacionProps) {
+export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiesto, onCancelVuelo, origenFilter = '', destinoFilter = '', onFilterChange }: PanelVuelosOperacionProps) {
   const [filtroCodigo, setFiltroCodigo] = useState('');
   const [orden, setOrden] = useState('');
 
@@ -183,6 +184,15 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
                       title="Descargar manifiesto"
                     >
                       <Upload size={12} />
+                    </button>
+                  )}
+                  {onCancelVuelo && (v.estado === 'PROGRAMADO' || v.estado === 'EN_RUTA') && (
+                    <button
+                      onClick={e => { e.stopPropagation(); onCancelVuelo(v.id, v.codigo_vuelo); }}
+                      className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500"
+                      title="Cancelar vuelo"
+                    >
+                      <XCircle size={12} />
                     </button>
                   )}
                 </div>

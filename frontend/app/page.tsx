@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Package, RefreshCw, ChevronDown, ChevronUp, CheckCircle, XCircle, Plane, Upload, FileSpreadsheet, AlertTriangle, AlertCircle, Menu, ChevronLeft, Play, Pause, Square, Clock, Settings, Activity } from 'lucide-react';
 import dynamic from 'next/dynamic';
-import { api } from '@/lib/api';
+import { api, fetchReporte } from '@/lib/api';
 import { nodoToEnMapa } from '@/lib/mock';
 import { useTelemetria } from '@/lib/useTelemetria';
 import { colorNodoPorOcupacion } from '@/lib/colors';
@@ -21,9 +21,11 @@ import { MetricasOperacion } from '@/components/operacion/MetricasOperacion';
 import { ResumenVuelosOperacion } from '@/components/operacion/ResumenVuelosOperacion';
 import { PanelEntregados } from '@/components/simulacion/PanelEntregados';
 import { PanelEnvios } from '@/components/simulacion/PanelEnvios';
+import { PanelReporte } from '@/components/simulacion/PanelReporte';
+import { ConfigUmbrales, type UmbralesConfig } from '@/components/mapa/ConfigUmbrales';
 import type { SelectedEnvioOperacion } from '@/components/operacion/PanelEnviosOperacion';
 import type { SelectedEnvio } from '@/components/simulacion/PanelEnvios';
-import type { Nodo, Vuelo, VueloEnMapa, VueloPageResponse, NodoEnMapa, CrearEquipajeResponse, CargaMasivaPreview, CargaMasivaConfirmResponse, MetricasSimulacion } from '@/lib/types';
+import type { Nodo, Vuelo, VueloEnMapa, VueloPageResponse, NodoEnMapa, CrearEquipajeResponse, CargaMasivaPreview, CargaMasivaConfirmResponse, MetricasSimulacion, ReporteSesion } from '@/lib/types';
 
 const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false });
 
@@ -74,6 +76,20 @@ function MetricaCard({ label, value, icon: Icon, color }: {
 
 export default function DashboardPage() {
   const [mode, setMode] = useState<DashboardMode>('operacion');
+  const [configUmbrales, setConfigUmbrales] = useState<UmbralesConfig>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('umbrales-config');
+        if (saved) return JSON.parse(saved);
+      } catch { /* ignore */ }
+    }
+    return { almacenVerdeMax: 70, almacenAmbarMax: 90, vueloVerdeMax: 75, vueloAmbarMax: 90 };
+  });
+  const [configOpen, setConfigOpen] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('umbrales-config', JSON.stringify(configUmbrales));
+  }, [configUmbrales]);
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)]">
@@ -104,14 +120,31 @@ export default function DashboardPage() {
           <div className="flex-1" />
         </div>
         <div className="flex-1 relative min-h-0">
-          {mode === 'operacion' ? <OperacionView /> : <SimulacionView />}
+          {mode === 'operacion'
+            ? <OperacionView configUmbrales={configUmbrales} onCambiarUmbrales={setConfigUmbrales} />
+            : <SimulacionView configUmbrales={configUmbrales} onCambiarUmbrales={setConfigUmbrales} />
+          }
+          <button
+            onClick={() => setConfigOpen(!configOpen)}
+            className="absolute bottom-4 right-4 z-40 p-2.5 rounded-xl bg-white dark:bg-slate-800 shadow-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+            title="Configurar umbrales"
+          >
+            <Settings size={18} className="text-slate-600 dark:text-slate-300" />
+          </button>
+          {configOpen && (
+            <ConfigUmbrales
+              config={configUmbrales}
+              onConfigChange={setConfigUmbrales}
+              onClose={() => setConfigOpen(false)}
+            />
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function OperacionView() {
+function OperacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales: UmbralesConfig; onCambiarUmbrales: (c: UmbralesConfig) => void }) {
   const [nodos, setNodos] = useState<NodoEnMapa[]>([]);
   const [allVuelos, setAllVuelos] = useState<VueloEnMapa[]>([]);
   const [loading, setLoading] = useState(false);
@@ -167,7 +200,7 @@ function OperacionView() {
       id: n.id, codigo_iata: n.codigo_iata, nombre: n.codigo_iata,
       latitud: n.lat, longitud: n.lon, capacidad_almacen: n.capacidad_almacen,
       ocupacion_actual: n.ocupacion_actual, zona_horaria: '',
-      color: colorNodoPorOcupacion(n.ocupacion_pct), ocupacionPorcentaje: n.ocupacion_pct,
+      color: colorNodoPorOcupacion(n.ocupacion_pct, { verdeMax: configUmbrales.almacenVerdeMax, ambarMax: configUmbrales.almacenAmbarMax }), ocupacionPorcentaje: n.ocupacion_pct,
     }));
     queueMicrotask(() => {
       setNodos(telemetriaNodos);
@@ -251,6 +284,13 @@ function OperacionView() {
 
   const destinoOptions = nodos.filter(n => n.codigo_iata).map(n => ({ value: n.codigo_iata, label: n.codigo_iata })).sort((a, b) => a.label.localeCompare(b.label));
 
+  const handleCancelarVuelo = async (id: string, codigo: string) => {
+    if (!confirm(`¿Cancelar vuelo ${codigo}?`)) return;
+    try {
+      await api.post('/simulacion/cancelacion', { vuelo_id: id, causa: 'Cancelación manual' });
+    } catch { alert('Error al cancelar vuelo'); }
+  };
+
   return (
     <div className="flex h-full">
       <div className="flex-1 p-4 relative">
@@ -310,6 +350,7 @@ function OperacionView() {
                     URL.revokeObjectURL(url);
                   } catch { alert('Error al descargar manifiesto'); }
                 }}
+                onCancelVuelo={handleCancelarVuelo}
                 origenFilter={vueloFilterOrigen} destinoFilter={vueloFilterDestino}
                 onFilterChange={({ origen, destino }) => { setVueloFilterOrigen(origen); setVueloFilterDestino(destino); }}
               />
@@ -385,7 +426,7 @@ function OperacionView() {
   );
 }
 
-function SimulacionView() {
+function SimulacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales: UmbralesConfig; onCambiarUmbrales: (c: UmbralesConfig) => void }) {
   const [sesionId, setSesionId] = useState<string | null>(null);
   const [estadoSesion, setEstadoSesion] = useState<'CONFIGURADA' | 'EN_CURSO' | 'PAUSADA' | 'FINALIZADA'>('CONFIGURADA');
   const [loading, setLoading] = useState(false);
@@ -393,15 +434,11 @@ function SimulacionView() {
   const [sesionesActivas, setSesionesActivas] = useState<SesionListaItem[]>([]);
   const [finalizandoId, setFinalizandoId] = useState<string | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [reporte, setReporte] = useState<ReporteSesion | null>(null);
 
-  const [config, setConfig] = useState({
+  const [simulacionConfig, setSimulacionConfig] = useState({
     fecha_inicio_virtual: '2025-06-01',
     hora_inicio_virtual: '08:00',
-    prob_cancelacion: 15,
-    umbral_almacen_verde: 70,
-    umbral_almacen_ambar: 90,
-    umbral_vuelo_verde: 75,
-    umbral_vuelo_ambar: 90,
   });
 
   const { data: telemetria, connected: wsConnected } = useTelemetria(estadoSesion === 'EN_CURSO');
@@ -443,7 +480,7 @@ function SimulacionView() {
       api.get<Nodo[]>('/nodos').then(nodosData => {
         setInitialNodos(nodosData.map(n => {
           const pct = n.capacidad_almacen > 0 ? (n.ocupacion_actual / n.capacidad_almacen) * 100 : 0;
-          return { ...n, color: colorNodoPorOcupacion(pct, { verdeMax: config.umbral_almacen_verde, ambarMax: config.umbral_almacen_ambar }), ocupacionPorcentaje: pct };
+          return { ...n, color: colorNodoPorOcupacion(pct, { verdeMax: configUmbrales.almacenVerdeMax, ambarMax: configUmbrales.almacenAmbarMax }), ocupacionPorcentaje: pct };
         }));
       }).catch(() => {});
       api.get<VueloPageResponse>('/vuelos?size=200&estado=PROGRAMADO').then(r1 => {
@@ -455,7 +492,7 @@ function SimulacionView() {
     cargar();
     const interval = setInterval(cargar, 5000);
     return () => clearInterval(interval);
-  }, [sesionId, config.umbral_almacen_verde, config.umbral_almacen_ambar]);
+  }, [sesionId, configUmbrales.almacenVerdeMax, configUmbrales.almacenAmbarMax]);
 
   const sesionEnCurso = sesionesActivas.find(s => s.estado === 'EN_CURSO');
   const sesionPausada = sesionesActivas.find(s => s.estado === 'PAUSADA');
@@ -465,7 +502,7 @@ function SimulacionView() {
         id: n.id, codigo_iata: n.codigo_iata, nombre: n.codigo_iata,
         latitud: n.lat, longitud: n.lon, capacidad_almacen: n.capacidad_almacen,
         ocupacion_actual: n.ocupacion_actual, zona_horaria: '',
-        color: colorNodoPorOcupacion(n.ocupacion_pct, { verdeMax: config.umbral_almacen_verde, ambarMax: config.umbral_almacen_ambar }),
+        color: colorNodoPorOcupacion(n.ocupacion_pct, { verdeMax: configUmbrales.almacenVerdeMax, ambarMax: configUmbrales.almacenAmbarMax }),
         ocupacionPorcentaje: n.ocupacion_pct,
       }))
     : initialNodos;
@@ -484,7 +521,7 @@ function SimulacionView() {
     : initialVuelos;
 
   const handleIniciar = async () => {
-    setError(''); setLoading(true);
+    setError(''); setLoading(true); setReporte(null);
     try {
       const activas = await api.get<SesionListaItem[]>('/sesiones?estado=EN_CURSO');
       for (const s of activas) {
@@ -496,11 +533,10 @@ function SimulacionView() {
       }
       const res = await api.post<SesionResponse>('/sesiones', {
         tipo: 'SIMULADA',
-        fecha_inicio_virtual: config.fecha_inicio_virtual,
-        hora_inicio_virtual: config.hora_inicio_virtual + ':00',
-        prob_cancelacion: config.prob_cancelacion / 100,
-        umbrales_almacen: { verde_min: 0, verde_max: config.umbral_almacen_verde, ambar_min: config.umbral_almacen_verde, ambar_max: config.umbral_almacen_ambar, rojo_min: config.umbral_almacen_ambar, rojo_max: 100 },
-        umbrales_vuelo: { verde_min: 0, verde_max: config.umbral_vuelo_verde, ambar_min: config.umbral_vuelo_verde, ambar_max: config.umbral_vuelo_ambar, rojo_min: config.umbral_vuelo_ambar, rojo_max: 100 },
+        fecha_inicio_virtual: simulacionConfig.fecha_inicio_virtual,
+        hora_inicio_virtual: simulacionConfig.hora_inicio_virtual + ':00',
+        umbrales_almacen: { verde_min: 0, verde_max: configUmbrales.almacenVerdeMax, ambar_min: configUmbrales.almacenVerdeMax, ambar_max: configUmbrales.almacenAmbarMax, rojo_min: configUmbrales.almacenAmbarMax, rojo_max: 100 },
+        umbrales_vuelo: { verde_min: 0, verde_max: configUmbrales.vueloVerdeMax, ambar_min: configUmbrales.vueloVerdeMax, ambar_max: configUmbrales.vueloAmbarMax, rojo_min: configUmbrales.vueloAmbarMax, rojo_max: 100 },
       });
       await api.post(`/sesiones/${res.id}/iniciar`, {});
       setSesionId(res.id);
@@ -539,10 +575,25 @@ function SimulacionView() {
       await api.post(`/sesiones/${id}/detener`, {});
       setSesionesActivas(prev => prev.filter(s => s.id !== id));
       if (id === sesionId) { setSesionId(null); setEstadoSesion('FINALIZADA'); }
+      for (let i = 0; i < 10; i++) {
+        await new Promise(r => setTimeout(r, 600));
+        try {
+          const r = await fetchReporte(id);
+          setReporte(r);
+          break;
+        } catch { /* report not ready yet */ }
+      }
     } catch (err: unknown) {
       const e = err as { mensaje?: string; message?: string };
       setError(e.mensaje || e.message || 'Error al detener');
     } finally { setFinalizandoId(null); }
+  };
+
+  const handleCancelarVuelo = async (id: string, codigo: string) => {
+    if (!confirm(`¿Cancelar vuelo ${codigo}?`)) return;
+    try {
+      await api.post('/simulacion/cancelacion', { vuelo_id: id, causa: 'Cancelación manual' });
+    } catch { alert('Error al cancelar vuelo'); }
   };
 
   const k = useMemo(() => telemetria?.metricas_sesion?.k ?? 120, [telemetria]);
@@ -623,7 +674,7 @@ function SimulacionView() {
                   </div>
                   <div className="flex justify-between">
                     <span>Inicio Virtual:</span>
-                    <span className="font-mono">{config.fecha_inicio_virtual} {config.hora_inicio_virtual}</span>
+                    <span className="font-mono">{simulacionConfig.fecha_inicio_virtual} {simulacionConfig.hora_inicio_virtual}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Transcurrido Real:</span>
@@ -648,39 +699,22 @@ function SimulacionView() {
             )}
 
             {(!sesionId || estadoSesion === 'FINALIZADA') && (
-              <div className="p-4 border-b border-slate-200 dark:border-slate-700 space-y-4">
-                <Card title="Fecha y Hora">
-                  <div className="space-y-3">
-                    <Input label="Fecha virtual" type="date" value={config.fecha_inicio_virtual} onChange={e => setConfig({ ...config, fecha_inicio_virtual: e.target.value })} />
-                    <Input label="Hora virtual" type="time" value={config.hora_inicio_virtual} onChange={e => setConfig({ ...config, hora_inicio_virtual: e.target.value })} />
-                  </div>
-                </Card>
-                <div>
-                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Prob. Cancelación {config.prob_cancelacion}%</label>
-                  <input type="range" min={0} max={100} step={5} value={config.prob_cancelacion} onChange={e => setConfig({ ...config, prob_cancelacion: Number(e.target.value) })} className="w-full accent-blue-600" />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Almacén Verde Max</label>
-                    <input type="number" min={0} max={100} value={config.umbral_almacen_verde} onChange={e => setConfig({ ...config, umbral_almacen_verde: Number(e.target.value) })} className="w-full mt-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Almacén Ámbar Max</label>
-                    <input type="number" min={0} max={100} value={config.umbral_almacen_ambar} onChange={e => setConfig({ ...config, umbral_almacen_ambar: Number(e.target.value) })} className="w-full mt-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Vuelo Verde Max</label>
-                    <input type="number" min={0} max={100} value={config.umbral_vuelo_verde} onChange={e => setConfig({ ...config, umbral_vuelo_verde: Number(e.target.value) })} className="w-full mt-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Vuelo Ámbar Max</label>
-                    <input type="number" min={0} max={100} value={config.umbral_vuelo_ambar} onChange={e => setConfig({ ...config, umbral_vuelo_ambar: Number(e.target.value) })} className="w-full mt-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm" />
-                  </div>
-                </div>
-                <Button size="lg" onClick={handleIniciar} disabled={loading} className="w-full">
+              <>
+                {estadoSesion === 'FINALIZADA' && reporte && (
+                  <PanelReporte reporte={reporte} sesionId={sesionId ?? ''} onClose={() => setReporte(null)} />
+                )}
+                <div className="p-4 border-b border-slate-200 dark:border-slate-700 space-y-4">
+                  <Card title="Fecha y Hora">
+                    <div className="space-y-3">
+                      <Input label="Fecha virtual" type="date" value={simulacionConfig.fecha_inicio_virtual} onChange={e => setSimulacionConfig({ ...simulacionConfig, fecha_inicio_virtual: e.target.value })} />
+                      <Input label="Hora virtual" type="time" value={simulacionConfig.hora_inicio_virtual} onChange={e => setSimulacionConfig({ ...simulacionConfig, hora_inicio_virtual: e.target.value })} />
+                    </div>
+                  </Card>
+                  <Button size="lg" onClick={handleIniciar} disabled={loading} className="w-full">
                   <Play size={18} className="mr-2" />{loading ? 'Creando...' : 'Iniciar Simulación'}
                 </Button>
               </div>
+            </>
             )}
 
             {(sesionId || telemetria?.vuelos) && (
@@ -696,6 +730,7 @@ function SimulacionView() {
             {(sesionId && estadoSesion !== 'FINALIZADA') && telemetria?.vuelos && telemetria.vuelos.length > 0 && (
               <PanelVuelosOperacion vuelos={telemetria.vuelos}
                 onVueloClick={(id, codigo) => setSelectedEnvio({ tipo: 'vuelo', id, codigo })}
+                onCancelVuelo={handleCancelarVuelo}
                 origenFilter={vueloFilterOrigen} destinoFilter={vueloFilterDestino}
                 onFilterChange={({ origen, destino }) => { setVueloFilterOrigen(origen); setVueloFilterDestino(destino); }}
               />
