@@ -44,8 +44,9 @@ export function useTelemetria(activo: boolean) {
 
       ws.onmessage = (event) => {
         try {
-          const msg = JSON.parse(event.data) as TelemetriaMensaje;
-          setData(msg);
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'heartbeat') return;
+          setData(msg as TelemetriaMensaje);
         } catch {
           /* ignore parse errors */
         }

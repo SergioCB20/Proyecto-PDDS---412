@@ -19,9 +19,9 @@ import java.util.*;
 public class OperacionTickService {
 
     private static final Logger log = LoggerFactory.getLogger(OperacionTickService.class);
-    private static final long TICK_INTERVAL_MS = 5000;
 
     private volatile boolean activo = true;
+    private volatile LocalDate diaProcesado = null;
 
     private final VueloRepository vueloRepository;
     private final EquipajeRepository equipajeRepository;
@@ -50,7 +50,7 @@ public class OperacionTickService {
     public boolean toggle() { this.activo = !this.activo; return this.activo; }
     public boolean estaActivo() { return this.activo; }
 
-    @Scheduled(fixedRate = TICK_INTERVAL_MS)
+    @Scheduled(fixedDelay = 1000)
     @Transactional
     public void tick() {
         try {
@@ -62,13 +62,16 @@ public class OperacionTickService {
             // Si no existen, se clonan desde las plantillas.
             if (sesionRepository.findByEstado(EstadoSesion.EN_CURSO).isEmpty()) {
                 LocalDate today = OffsetDateTime.now(ZoneOffset.UTC).toLocalDate();
-                if (vueloService.existenInstanciasParaFecha(today)) {
-                    vueloService.resetearInstanciasPorFecha(today);
-                } else {
-                    int clonadas = vueloService.clonarPlantillas(today);
-                    if (clonadas > 0) {
-                        log.info("Operacion: {} vuelos clonados para hoy {}", clonadas, today);
+                if (!today.equals(diaProcesado)) {
+                    if (vueloService.existenInstanciasParaFecha(today)) {
+                        vueloService.resetearInstanciasPorFecha(today);
+                    } else {
+                        int clonadas = vueloService.clonarPlantillas(today);
+                        if (clonadas > 0) {
+                            log.info("Operacion: {} vuelos clonados para hoy {}", clonadas, today);
+                        }
                     }
+                    diaProcesado = today;
                 }
             }
 

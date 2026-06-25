@@ -145,6 +145,8 @@ export default function DashboardPage() {
 }
 
 function OperacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales: UmbralesConfig; onCambiarUmbrales: (c: UmbralesConfig) => void }) {
+  const [operacionActiva, setOperacionActiva] = useState(false);
+  const [operacionLoading, setOperacionLoading] = useState(false);
   const [nodos, setNodos] = useState<NodoEnMapa[]>([]);
   const [allVuelos, setAllVuelos] = useState<VueloEnMapa[]>([]);
   const [loading, setLoading] = useState(false);
@@ -163,7 +165,11 @@ function OperacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales: 
   const [csvError, setCsvError] = useState<string | null>(null);
   const [csvConfirmLoading, setCsvConfirmLoading] = useState(false);
 
-  const { data: telemetria, connected: wsConnected } = useTelemetria(true);
+  const { data: telemetria, connected: wsConnected } = useTelemetria(operacionActiva);
+
+  useEffect(() => {
+    api.get<{ activo: boolean }>('/operacion/estado').then(r => setOperacionActiva(r.activo)).catch(() => {});
+  }, []);
   const k = useMemo(() => telemetria?.metricas_sesion?.k ?? 120, [telemetria]);
   const animacionActiva = wsConnected && (telemetria?.vuelos?.some(v => v.estado === 'EN_RUTA') ?? false);
 
@@ -284,6 +290,15 @@ function OperacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales: 
 
   const destinoOptions = nodos.filter(n => n.codigo_iata).map(n => ({ value: n.codigo_iata, label: n.codigo_iata })).sort((a, b) => a.label.localeCompare(b.label));
 
+  const handleToggleOperacion = async () => {
+    setOperacionLoading(true);
+    try {
+      const r = await api.post<{ activo: boolean }>('/operacion/toggle', {});
+      setOperacionActiva(r.activo);
+    } catch { setApiError('Error al cambiar estado de operación'); }
+    finally { setOperacionLoading(false); }
+  };
+
   const handleCancelarVuelo = async (id: string, codigo: string) => {
     if (!confirm(`¿Cancelar vuelo ${codigo}?`)) return;
     try {
@@ -312,16 +327,25 @@ function OperacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales: 
         ) : (
           <>
             <div className="p-4 border-b border-slate-200 dark:border-slate-700">
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between mb-2">
                 <h2 className="font-semibold text-slate-900 dark:text-slate-100">Operación en Vivo</h2>
                 <button onClick={fetchData} disabled={loading} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 disabled:opacity-50">
                   <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
                 </button>
               </div>
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-2">
                 <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`} />
                 <span className="text-xs text-slate-500">WS {wsConnected ? 'conectado' : 'desconectado'}</span>
               </div>
+              {operacionActiva ? (
+                <Button variant="danger" size="sm" onClick={handleToggleOperacion} disabled={operacionLoading} className="w-full">
+                  <Square size={14} className="mr-1" />{operacionLoading ? '...' : 'Detener Operación'}
+                </Button>
+              ) : (
+                <Button size="sm" onClick={handleToggleOperacion} disabled={operacionLoading} className="w-full">
+                  <Play size={14} className="mr-1" />{operacionLoading ? '...' : 'Iniciar Operación'}
+                </Button>
+              )}
               {apiError && (
                 <div className="flex items-center gap-2 p-2 mt-2 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
                   <XCircle size={14} className="text-red-600 dark:text-red-400 flex-shrink-0" />

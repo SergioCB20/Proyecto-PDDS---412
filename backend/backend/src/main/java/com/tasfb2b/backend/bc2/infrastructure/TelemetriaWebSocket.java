@@ -2,6 +2,7 @@ package com.tasfb2b.backend.bc2.infrastructure;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -46,6 +47,13 @@ public class TelemetriaWebSocket extends TextWebSocketHandler {
                     try { session.close(CloseStatus.SERVER_ERROR); } catch (Exception ignored) {}
                 }
             }
+        }
+    }
+
+    @Scheduled(fixedRate = 10000)
+    public void heartbeat() {
+        if (!sessions.isEmpty()) {
+            broadcast("{\"type\":\"heartbeat\"}");
         }
     }
 
