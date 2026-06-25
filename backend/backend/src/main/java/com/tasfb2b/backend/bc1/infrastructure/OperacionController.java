@@ -2,7 +2,6 @@ package com.tasfb2b.backend.bc1.infrastructure;
 
 import com.tasfb2b.backend.bc1.application.OperacionTickService;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,14 +20,12 @@ public class OperacionController {
     }
 
     @PostMapping("/toggle")
-    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Map<String, Object>> toggle() {
         boolean activo = operacionTickService.toggle();
         return ResponseEntity.ok(Map.of("activo", activo));
     }
 
     @GetMapping("/estado")
-    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Map<String, Object>> estado() {
         boolean activo = operacionTickService.estaActivo();
         return ResponseEntity.ok(Map.of("activo", activo));

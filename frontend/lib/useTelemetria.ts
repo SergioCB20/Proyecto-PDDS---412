@@ -31,10 +31,8 @@ export function useTelemetria(activo: boolean) {
     function conectar() {
       if (typeof window === 'undefined') return;
       if (!activoRef.current) return;
-      const token = localStorage.getItem('token');
-      if (!token) return;
 
-      const ws = new WebSocket(`${getWsUrl()}?token=${encodeURIComponent(token)}`);
+      const ws = new WebSocket(getWsUrl());
 
       ws.onopen = () => setConnected(true);
 

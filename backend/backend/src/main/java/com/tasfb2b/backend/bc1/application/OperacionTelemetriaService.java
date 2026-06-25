@@ -15,7 +15,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 
 @Service
@@ -44,8 +46,13 @@ public class OperacionTelemetriaService {
     public void emitirTelemetria() {
         try {
             List<NodoLogistico> nodos = nodoRepository.findAllByOrderByCodigoIataAsc();
-            List<Vuelo> vuelos = vueloRepository.findByEstadoInAndEsPlantilla(
-                    List.of(EstadoVuelo.PROGRAMADO, EstadoVuelo.EN_RUTA), false);
+            // Operacion = solo vuelos de HOY (UTC). Las instancias de otras fechas
+            // son leftovers de simulaciones: tienen carga_disponible stale (ocupacion
+            // fantasma) y sus segmentos fueron borrados al finalizar la sesion, asi que
+            // el manifiesto sale vacio. No deben aparecer en la vista de operacion.
+            LocalDate hoy = OffsetDateTime.now(ZoneOffset.UTC).toLocalDate();
+            List<Vuelo> vuelos = vueloRepository.findByEstadoInAndEsPlantillaAndFechaOperacion(
+                    List.of(EstadoVuelo.PROGRAMADO, EstadoVuelo.EN_RUTA), false, hoy);
             String json = buildTelemetryJson(nodos, vuelos);
             telemetriaWebSocket.broadcast(json);
         } catch (Exception e) {
