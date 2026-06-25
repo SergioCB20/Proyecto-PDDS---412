@@ -29,6 +29,13 @@ import type { Nodo, Vuelo, VueloEnMapa, VueloPageResponse, NodoEnMapa, CrearEqui
 
 const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false });
 
+function formatSegundos(s: number): string {
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return `${h}h ${m}m ${sec}s`;
+}
+
 const ESTADOS_VUELO_VALIDOS = ['PROGRAMADO', 'EN_RUTA', 'CANCELADO', 'COMPLETADO'] as const;
 
 function matchEstadoVuelo(valor: string): VueloEnMapa['estado'] {
@@ -423,6 +430,16 @@ function SimulacionView() {
   }, []);
 
   useEffect(() => {
+    if (!sesionId || estadoSesion === 'FINALIZADA') return;
+    const interval = setInterval(() => {
+      api.get<MetricasSimulacion>(`/sesiones/${sesionId}/metricas`).then(m => {
+        setMetricasPoll(m);
+      }).catch(() => {});
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [sesionId, estadoSesion]);
+
+  useEffect(() => {
     if (!sesionId) return;
     api.get<Nodo[]>('/nodos').then(nodosData => {
       setInitialNodos(nodosData.map(n => {
@@ -464,6 +481,14 @@ function SimulacionView() {
   const handleIniciar = async () => {
     setError(''); setLoading(true);
     try {
+      const activas = await api.get<SesionListaItem[]>('/sesiones?estado=EN_CURSO');
+      for (const s of activas) {
+        try { await api.post(`/sesiones/${s.id}/detener`, {}); } catch { /* ignore */ }
+      }
+      const pausadas = await api.get<SesionListaItem[]>('/sesiones?estado=PAUSADA');
+      for (const s of pausadas) {
+        try { await api.post(`/sesiones/${s.id}/detener`, {}); } catch { /* ignore */ }
+      }
       const res = await api.post<SesionResponse>('/sesiones', {
         tipo: 'SIMULADA',
         fecha_inicio_virtual: config.fecha_inicio_virtual,
@@ -472,10 +497,11 @@ function SimulacionView() {
         umbrales_almacen: { verde_min: 0, verde_max: config.umbral_almacen_verde, ambar_min: config.umbral_almacen_verde, ambar_max: config.umbral_almacen_ambar, rojo_min: config.umbral_almacen_ambar, rojo_max: 100 },
         umbrales_vuelo: { verde_min: 0, verde_max: config.umbral_vuelo_verde, ambar_min: config.umbral_vuelo_verde, ambar_max: config.umbral_vuelo_ambar, rojo_min: config.umbral_vuelo_ambar, rojo_max: 100 },
       });
+      await api.post(`/sesiones/${res.id}/iniciar`, {});
       setSesionId(res.id);
       setEstadoSesion('EN_CURSO');
+      setSesionesActivas([]);
       setMetricasPoll(prev => ({ ...prev, sesion_id: res.id }));
-      setSesionesActivas(prev => [...prev, { id: res.id, tipo: 'SIMULADA', tipo_simulacion: 'SIMULADA', estado: 'EN_CURSO', fecha_inicio_virtual: config.fecha_inicio_virtual, created_at: new Date().toISOString() }]);
     } catch (err: unknown) {
       const e = err as { mensaje?: string; message?: string };
       setError(e.mensaje || e.message || 'Error al crear sesion');
@@ -496,7 +522,7 @@ function SimulacionView() {
     if (!sesionId) return;
     setLoading(true);
     try {
-      await api.post(`/sesiones/${sesionId}/reanudar`, {});
+      await api.post(`/sesiones/${sesionId}/iniciar`, {});
       setEstadoSesion('EN_CURSO');
     } catch { setError('Error al reanudar'); }
     finally { setLoading(false); }
@@ -558,7 +584,7 @@ function SimulacionView() {
                   <Button variant="danger" size="sm" disabled={finalizandoId === sesionPausada.id} onClick={() => handleDetener(sesionPausada.id)}>
                     <Square size={14} className="mr-1" />{finalizandoId === sesionPausada.id ? '...' : 'Detener'}
                   </Button>
-                  <Button size="sm" onClick={() => { setSesionId(sesionPausada.id); setEstadoSesion('EN_CURSO'); }}>
+                  <Button size="sm" onClick={async () => { setSesionId(sesionPausada.id); setLoading(true); try { await api.post(`/sesiones/${sesionPausada.id}/iniciar`, {}); setEstadoSesion('EN_CURSO'); } catch { setError('Error al reanudar'); } finally { setLoading(false); } }}>
                     <Play size={14} className="mr-1" />Continuar
                   </Button>
                 </div>
@@ -569,10 +595,24 @@ function SimulacionView() {
               <div className="p-4 border-b border-slate-200 dark:border-slate-700">
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Sesión {sesionId?.slice(0, 8)}</h3>
                 <div className="grid grid-cols-2 gap-2 mb-3">
-                  <MetricaCard label="SLA" value={`${metricas.sla_acumulado_pct.toFixed(1)}%`} icon={Activity} color="bg-blue-600" />
+                  <MetricaCard label="SLA" value={`${(metricas.sla_acumulado_pct ?? 0).toFixed(1)}%`} icon={Activity} color="bg-blue-600" />
                   <MetricaCard label="Cancelaciones" value={metricas.vuelos_cancelados} icon={XCircle} color="bg-red-600" />
                   <MetricaCard label="Replanificadas" value={metricas.maletas_replanificadas} icon={RefreshCw} color="bg-amber-600" />
                   <MetricaCard label="Tiempo Virtual" value={metricas.dia_hora_virtual?.slice(0, 16).replace('T', ' ') || '-'} icon={Clock} color="bg-slate-600" />
+                </div>
+                <div className="space-y-1 mb-3 text-xs text-slate-600 dark:text-slate-400">
+                  <div className="flex justify-between">
+                    <span>Inicio Real:</span>
+                    <span className="font-mono">{metricas.fecha_inicio_real?.slice(0, 19).replace('T', ' ') || '-'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Inicio Virtual:</span>
+                    <span className="font-mono">{config.fecha_inicio_virtual} {config.hora_inicio_virtual}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Transcurrido Real:</span>
+                    <span className="font-mono">{formatSegundos(metricas.segundos_reales_transcurridos ?? 0)}</span>
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   {estadoSesion === 'EN_CURSO' ? (
@@ -630,13 +670,13 @@ function SimulacionView() {
 
             {sesionId && estadoSesion !== 'FINALIZADA' && (
               <>
-                {telemetria?.nodos && telemetria.nodos.length > 0 && (
-                  <PanelNodos nodos={telemetria.nodos} vuelos={telemetria.vuelos ?? []}
+                {((telemetria?.nodos && telemetria.nodos.length > 0) || initialNodos.length > 0) && (
+                  <PanelNodos nodos={telemetria?.nodos && telemetria.nodos.length > 0 ? telemetria.nodos : initialNodos.map(n => ({ id: n.id, codigo_iata: n.codigo_iata, lat: n.latitud, lon: n.longitud, capacidad_almacen: n.capacidad_almacen, ocupacion_actual: n.ocupacion_actual, ocupacion_pct: n.ocupacionPorcentaje ?? 0, color: n.color ?? 'verde', continente: '', zona_horaria: n.zona_horaria ?? '' }))} vuelos={telemetria?.vuelos ?? []}
                     onNodoClick={(id, codigo) => setSelectedEnvio({ tipo: 'nodo', id, codigo })}
                   />
                 )}
-                {telemetria?.vuelos && telemetria.vuelos.length > 0 && (
-                  <PanelVuelos vuelos={telemetria.vuelos}
+                {((telemetria?.vuelos && telemetria.vuelos.length > 0) || initialVuelos.length > 0) && (
+                  <PanelVuelos vuelos={telemetria?.vuelos && telemetria.vuelos.length > 0 ? telemetria.vuelos : initialVuelos.map(v => ({ id: v.id, codigo_vuelo: v.codigo_vuelo, estado: v.estado, lat_actual: v.posicionActual?.lat ?? v.origen_lat, lon_actual: v.posicionActual?.lon ?? v.origen_lon, origen_lat: v.origen_lat, origen_lon: v.origen_lon, destino_lat: v.destino_lat, destino_lon: v.destino_lon, origen_iata: v.origen?.codigo_iata ?? '', destino_iata: v.destino?.codigo_iata ?? '', capacidad_carga: v.capacidad_carga, carga_disponible: v.carga_disponible, ocupacion_pct: 0, color: 'verde', hora_salida: v.hora_salida ?? '', hora_llegada: v.hora_llegada ?? '', progreso: 0 }))}
                     onVueloClick={(id, codigo) => setSelectedEnvio({ tipo: 'vuelo', id, codigo })}
                     origenFilter={vueloFilterOrigen} destinoFilter={vueloFilterDestino}
                     onFilterChange={({ origen, destino }) => { setVueloFilterOrigen(origen); setVueloFilterDestino(destino); }}
