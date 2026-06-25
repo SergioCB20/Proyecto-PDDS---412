@@ -145,7 +145,7 @@ export default function DashboardPage() {
 }
 
 function OperacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales: UmbralesConfig; onCambiarUmbrales: (c: UmbralesConfig) => void }) {
-  const [operacionActiva, setOperacionActiva] = useState(false);
+  const [estadoOperacion, setEstadoOperacion] = useState<'INACTIVO' | 'ACTIVO' | 'PAUSADO'>('INACTIVO');
   const [operacionLoading, setOperacionLoading] = useState(false);
   const [nodos, setNodos] = useState<NodoEnMapa[]>([]);
   const [allVuelos, setAllVuelos] = useState<VueloEnMapa[]>([]);
@@ -165,10 +165,12 @@ function OperacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales: 
   const [csvError, setCsvError] = useState<string | null>(null);
   const [csvConfirmLoading, setCsvConfirmLoading] = useState(false);
 
-  const { data: telemetria, connected: wsConnected } = useTelemetria(operacionActiva);
+  const { data: telemetria, connected: wsConnected } = useTelemetria(estadoOperacion === 'ACTIVO');
 
   useEffect(() => {
-    api.get<{ activo: boolean }>('/operacion/estado').then(r => setOperacionActiva(r.activo)).catch(() => {});
+    api.get<{ estado: string }>('/operacion/estado').then(r => {
+      if (r.estado === 'ACTIVO' || r.estado === 'PAUSADO') setEstadoOperacion(r.estado);
+    }).catch(() => {});
   }, []);
   const k = useMemo(() => telemetria?.metricas_sesion?.k ?? 120, [telemetria]);
   const animacionActiva = wsConnected && (telemetria?.vuelos?.some(v => v.estado === 'EN_RUTA') ?? false);
@@ -290,12 +292,39 @@ function OperacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales: 
 
   const destinoOptions = nodos.filter(n => n.codigo_iata).map(n => ({ value: n.codigo_iata, label: n.codigo_iata })).sort((a, b) => a.label.localeCompare(b.label));
 
-  const handleToggleOperacion = async () => {
+  const handleIniciar = async () => {
     setOperacionLoading(true);
     try {
-      const r = await api.post<{ activo: boolean }>('/operacion/toggle', {});
-      setOperacionActiva(r.activo);
-    } catch { setApiError('Error al cambiar estado de operación'); }
+      await api.post('/operacion/iniciar', {});
+      setEstadoOperacion('ACTIVO');
+    } catch { setApiError('Error al iniciar operación'); }
+    finally { setOperacionLoading(false); }
+  };
+
+  const handlePausar = async () => {
+    setOperacionLoading(true);
+    try {
+      await api.post('/operacion/pausar', {});
+      setEstadoOperacion('PAUSADO');
+    } catch { setApiError('Error al pausar operación'); }
+    finally { setOperacionLoading(false); }
+  };
+
+  const handleReanudar = async () => {
+    setOperacionLoading(true);
+    try {
+      await api.post('/operacion/reanudar', {});
+      setEstadoOperacion('ACTIVO');
+    } catch { setApiError('Error al reanudar operación'); }
+    finally { setOperacionLoading(false); }
+  };
+
+  const handleDetener = async () => {
+    setOperacionLoading(true);
+    try {
+      await api.post('/operacion/detener', {});
+      setEstadoOperacion('INACTIVO');
+    } catch { setApiError('Error al detener operación'); }
     finally { setOperacionLoading(false); }
   };
 
@@ -337,12 +366,26 @@ function OperacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales: 
                 <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`} />
                 <span className="text-xs text-slate-500">WS {wsConnected ? 'conectado' : 'desconectado'}</span>
               </div>
-              {operacionActiva ? (
-                <Button variant="danger" size="sm" onClick={handleToggleOperacion} disabled={operacionLoading} className="w-full">
-                  <Square size={14} className="mr-1" />{operacionLoading ? '...' : 'Detener Operación'}
-                </Button>
+              {estadoOperacion === 'ACTIVO' ? (
+                <div className="flex gap-2">
+                  <Button variant="secondary" size="sm" onClick={handlePausar} disabled={operacionLoading} className="flex-1">
+                    <Pause size={14} className="mr-1" />{operacionLoading ? '...' : 'Pausar'}
+                  </Button>
+                  <Button variant="danger" size="sm" onClick={handleDetener} disabled={operacionLoading} className="flex-1">
+                    <Square size={14} className="mr-1" />{operacionLoading ? '...' : 'Detener'}
+                  </Button>
+                </div>
+              ) : estadoOperacion === 'PAUSADO' ? (
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={handleReanudar} disabled={operacionLoading} className="flex-1">
+                    <Play size={14} className="mr-1" />{operacionLoading ? '...' : 'Reanudar'}
+                  </Button>
+                  <Button variant="danger" size="sm" onClick={handleDetener} disabled={operacionLoading} className="flex-1">
+                    <Square size={14} className="mr-1" />{operacionLoading ? '...' : 'Detener'}
+                  </Button>
+                </div>
               ) : (
-                <Button size="sm" onClick={handleToggleOperacion} disabled={operacionLoading} className="w-full">
+                <Button size="sm" onClick={handleIniciar} disabled={operacionLoading} className="w-full">
                   <Play size={14} className="mr-1" />{operacionLoading ? '...' : 'Iniciar Operación'}
                 </Button>
               )}

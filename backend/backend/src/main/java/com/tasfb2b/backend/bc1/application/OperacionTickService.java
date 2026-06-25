@@ -6,6 +6,7 @@ import com.tasfb2b.backend.bc2.domain.EstadoSesion;
 import com.tasfb2b.backend.bc2.infrastructure.SesionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,7 +21,7 @@ public class OperacionTickService {
 
     private static final Logger log = LoggerFactory.getLogger(OperacionTickService.class);
 
-    private volatile boolean activo = true;
+    private volatile boolean activo = false;
     private volatile LocalDate diaProcesado = null;
 
     private final VueloRepository vueloRepository;
@@ -30,6 +31,7 @@ public class OperacionTickService {
     private final VueloService vueloService;
     private final OperacionTelemetriaService operacionTelemetriaService;
     private final SesionRepository sesionRepository;
+    private final JdbcTemplate jdbcTemplate;
 
     public OperacionTickService(VueloRepository vueloRepository,
                                  EquipajeRepository equipajeRepository,
@@ -37,7 +39,8 @@ public class OperacionTickService {
                                  NodoLogisticoRepository nodoRepository,
                                  VueloService vueloService,
                                  OperacionTelemetriaService operacionTelemetriaService,
-                                 SesionRepository sesionRepository) {
+                                 SesionRepository sesionRepository,
+                                 JdbcTemplate jdbcTemplate) {
         this.vueloRepository = vueloRepository;
         this.equipajeRepository = equipajeRepository;
         this.segmentoPlanRepository = segmentoPlanRepository;
@@ -45,10 +48,51 @@ public class OperacionTickService {
         this.vueloService = vueloService;
         this.operacionTelemetriaService = operacionTelemetriaService;
         this.sesionRepository = sesionRepository;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
-    public boolean toggle() { this.activo = !this.activo; return this.activo; }
-    public boolean estaActivo() { return this.activo; }
+    public String getEstado() { return activo ? "ACTIVO" : "INACTIVO"; }
+
+    @Transactional
+    public void iniciar() {
+        resetOperacion();
+        this.activo = true;
+        log.info("Operacion iniciada");
+    }
+
+    public void pausar() {
+        this.activo = false;
+        log.info("Operacion pausada");
+    }
+
+    public void reanudar() {
+        this.activo = true;
+        log.info("Operacion reanudada");
+    }
+
+    @Transactional
+    public void detener() {
+        resetOperacion();
+        this.activo = false;
+        log.info("Operacion detenida y reiniciada");
+    }
+
+    @Transactional
+    public void resetOperacion() {
+        LocalDate today = OffsetDateTime.now(ZoneOffset.UTC).toLocalDate();
+        if (vueloService.existenInstanciasParaFecha(today)) {
+            vueloService.resetearInstanciasPorFecha(today);
+        }
+        jdbcTemplate.update("DELETE FROM segmentos_plan WHERE plan_viaje_id IN (SELECT id FROM planes_viaje WHERE sesion_id IS NULL)");
+        jdbcTemplate.update("DELETE FROM planes_viaje WHERE sesion_id IS NULL");
+        jdbcTemplate.update(
+            "UPDATE equipajes SET estado = 'REGISTRADO', vuelo_actual_id = NULL " +
+            "WHERE estado IN ('EN_VUELO', 'EN_ALMACEN') " +
+            "AND id NOT IN (SELECT equipaje_id FROM planes_viaje WHERE sesion_id IS NOT NULL)"
+        );
+        jdbcTemplate.update("UPDATE nodos_logisticos SET ocupacion_actual = 0");
+        this.diaProcesado = null;
+    }
 
     @Scheduled(fixedDelay = 1000)
     @Transactional

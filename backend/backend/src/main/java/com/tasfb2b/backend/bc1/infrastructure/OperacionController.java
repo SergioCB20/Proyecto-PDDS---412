@@ -19,15 +19,32 @@ public class OperacionController {
         this.operacionTickService = operacionTickService;
     }
 
-    @PostMapping("/toggle")
-    public ResponseEntity<Map<String, Object>> toggle() {
-        boolean activo = operacionTickService.toggle();
-        return ResponseEntity.ok(Map.of("activo", activo));
+    @PostMapping("/iniciar")
+    public ResponseEntity<Map<String, Object>> iniciar() {
+        operacionTickService.iniciar();
+        return ResponseEntity.ok(Map.of("estado", "ACTIVO"));
+    }
+
+    @PostMapping("/pausar")
+    public ResponseEntity<Map<String, Object>> pausar() {
+        operacionTickService.pausar();
+        return ResponseEntity.ok(Map.of("estado", "PAUSADO"));
+    }
+
+    @PostMapping("/reanudar")
+    public ResponseEntity<Map<String, Object>> reanudar() {
+        operacionTickService.reanudar();
+        return ResponseEntity.ok(Map.of("estado", "ACTIVO"));
+    }
+
+    @PostMapping("/detener")
+    public ResponseEntity<Map<String, Object>> detener() {
+        operacionTickService.detener();
+        return ResponseEntity.ok(Map.of("estado", "INACTIVO"));
     }
 
     @GetMapping("/estado")
     public ResponseEntity<Map<String, Object>> estado() {
-        boolean activo = operacionTickService.estaActivo();
-        return ResponseEntity.ok(Map.of("activo", activo));
+        return ResponseEntity.ok(Map.of("estado", operacionTickService.getEstado()));
     }
 }
