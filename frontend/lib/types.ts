@@ -1,23 +1,9 @@
-export type Rol = 'ADMINISTRADOR' | 'OPERADOR_LOGISTICO' | 'ANALISTA';
-
 export interface Usuario {
   id: string;
   nombre: string;
   correo: string;
-  rol: Rol;
-  estado?: 'ACTIVO' | 'INACTIVO';
+  estado?: string;
   nodo_ref_id: string | null;
-  nodo_nombre?: string | null;
-}
-
-export interface LoginResponse {
-  token: string;
-  usuario: Usuario;
-}
-
-export interface LoginRequest {
-  correo: string;
-  password: string;
 }
 
 export interface PageResponse<T> {
@@ -116,22 +102,6 @@ export interface MetricasSimulacion {
   fecha_inicio_real?: string | null;
   /** virtual/real time ratio sent from backend */
   k?: number;
-}
-
-export interface CrearUsuarioRequest {
-  nombre: string;
-  correo: string;
-  password: string;
-  rol: Rol;
-  nodo_ref_id?: string;
-}
-
-export interface ActualizarUsuarioRequest {
-  nombre: string;
-}
-
-export interface CambiarEstadoRequest {
-  estado: 'ACTIVO' | 'INACTIVO';
 }
 
 export interface ApiError {

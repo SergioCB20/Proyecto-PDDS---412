@@ -71,25 +71,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.unprocessableEntity().body(error(HttpStatus.UNPROCESSABLE_ENTITY, "MANIFIESTO_VACIO", ex.getMessage()));
     }
 
-    @ExceptionHandler(com.tasfb2b.backend.bc3.application.UsuarioService.UsuarioNoEncontradoException.class)
-    public ResponseEntity<?> handleUsuarioNoEncontrado(com.tasfb2b.backend.bc3.application.UsuarioService.UsuarioNoEncontradoException ex) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error(HttpStatus.NOT_FOUND, "USUARIO_NO_ENCONTRADO", ex.getMessage()));
-    }
-
-    @ExceptionHandler(com.tasfb2b.backend.bc3.application.UsuarioService.CorreoYaExisteException.class)
-    public ResponseEntity<?> handleCorreoYaExiste(com.tasfb2b.backend.bc3.application.UsuarioService.CorreoYaExisteException ex) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(error(HttpStatus.CONFLICT, "CORREO_YA_EXISTE", ex.getMessage()));
-    }
-
-    @ExceptionHandler(com.tasfb2b.backend.bc3.application.UsuarioService.RolNoEncontradoException.class)
-    public ResponseEntity<?> handleRolNoEncontrado(com.tasfb2b.backend.bc3.application.UsuarioService.RolNoEncontradoException ex) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error(HttpStatus.BAD_REQUEST, "ROL_NO_ENCONTRADO", ex.getMessage()));
-    }
-
-    @ExceptionHandler(com.tasfb2b.backend.bc3.application.UsuarioService.ActualizacionNoPermitidaException.class)
-    public ResponseEntity<?> handleActualizacionNoPermitida(com.tasfb2b.backend.bc3.application.UsuarioService.ActualizacionNoPermitidaException ex) {
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error(HttpStatus.FORBIDDEN, "ACTUALIZACION_NO_PERMITIDA", ex.getMessage()));
-    }
 
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<?> handleIllegalState(IllegalStateException ex) {

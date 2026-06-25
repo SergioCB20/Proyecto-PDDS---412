@@ -1,4 +1,5 @@
 import type { ApiError, EnvioEntregadoResponse, EnvioItemResponse, MetricasOperacion } from './types';
+import { device } from './device';
 
 function getBaseUrl(): string {
   if (typeof window !== 'undefined') {
@@ -17,12 +18,11 @@ const REQUEST_TIMEOUT_MS = 120_000;
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort('Timeout'), REQUEST_TIMEOUT_MS);
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
   try {
     const res = await fetch(`${BASE_URL}${path}`, {
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        'X-Device-Id': device.getId(),
       },
       ...options,
       signal: options?.signal ?? controller.signal,
@@ -64,11 +64,10 @@ export const api = {
   upload: <T>(path: string, formData: FormData) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort('Timeout'), REQUEST_TIMEOUT_MS);
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     return fetch(`${BASE_URL}${path}`, {
       method: 'POST',
       headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        'X-Device-Id': device.getId(),
       },
       signal: controller.signal,
       body: formData,
@@ -97,11 +96,10 @@ export const api = {
   downloadBlob: async (path: string) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort('Timeout'), REQUEST_TIMEOUT_MS);
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     try {
       const res = await fetch(`${BASE_URL}${path}`, {
         headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          'X-Device-Id': device.getId(),
         },
         signal: controller.signal,
       });

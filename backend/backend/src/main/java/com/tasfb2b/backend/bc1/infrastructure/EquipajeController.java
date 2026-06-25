@@ -2,7 +2,6 @@ package com.tasfb2b.backend.bc1.infrastructure;
 
 import com.tasfb2b.backend.bc1.application.CargaMasivaService;
 import com.tasfb2b.backend.bc1.application.EquipajeService;
-import com.tasfb2b.backend.shared.security.JwtUtil;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -17,24 +16,21 @@ public class EquipajeController {
 
     private final EquipajeService equipajeService;
     private final CargaMasivaService cargaMasivaService;
-    private final JwtUtil jwtUtil;
 
-    public EquipajeController(EquipajeService equipajeService, CargaMasivaService cargaMasivaService,
-                              JwtUtil jwtUtil) {
+    public EquipajeController(EquipajeService equipajeService, CargaMasivaService cargaMasivaService) {
         this.equipajeService = equipajeService;
         this.cargaMasivaService = cargaMasivaService;
-        this.jwtUtil = jwtUtil;
     }
 
     @PostMapping
     public ResponseEntity<?> registrar(
-            @RequestHeader("Authorization") String authHeader,
+            @RequestHeader(value = "X-Device-Nodo-Id", required = false) String nodoIdHeader,
             @RequestBody EquipajeService.RegistrarEquipajeRequest request) {
         try {
-            UUID nodoId = extraerNodoIdDelToken(authHeader);
+            UUID nodoId = nodoIdHeader != null ? UUID.fromString(nodoIdHeader) : null;
             if (nodoId == null) {
                 throw new EquipajeService.ValidacionException(
-                    "El operador no tiene un nodo asignado. Asigne un nodo al operador antes de crear equipajes.");
+                    "Nodo de origen no especificado. Envie X-Device-Nodo-Id en el header.");
             }
             var response = equipajeService.registrar(nodoId, request);
             return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
@@ -45,13 +41,13 @@ public class EquipajeController {
 
     @PostMapping("/carga-masiva")
     public ResponseEntity<?> cargaMasiva(
-            @RequestHeader("Authorization") String authHeader,
+            @RequestHeader(value = "X-Device-Nodo-Id", required = false) String nodoIdHeader,
             @RequestParam("archivo") MultipartFile archivo) {
         try {
-            UUID nodoId = extraerNodoIdDelToken(authHeader);
+            UUID nodoId = nodoIdHeader != null ? UUID.fromString(nodoIdHeader) : null;
             if (nodoId == null) {
                 throw new EquipajeService.ValidacionException(
-                    "El operador no tiene un nodo asignado. Asigne un nodo al operador antes de crear equipajes.");
+                    "Nodo de origen no especificado. Envie X-Device-Nodo-Id en el header.");
             }
             CargaMasivaService.PreviewResponse response = cargaMasivaService.procesarCsv(archivo, nodoId);
             return ResponseEntity.ok(response);
@@ -64,13 +60,13 @@ public class EquipajeController {
 
     @PostMapping("/carga-masiva/confirmar")
     public ResponseEntity<?> confirmarCargaMasiva(
-            @RequestHeader("Authorization") String authHeader,
+            @RequestHeader(value = "X-Device-Nodo-Id", required = false) String nodoIdHeader,
             @RequestBody CargaMasivaService.ConfirmarRequest request) {
         try {
-            UUID nodoId = extraerNodoIdDelToken(authHeader);
+            UUID nodoId = nodoIdHeader != null ? UUID.fromString(nodoIdHeader) : null;
             if (nodoId == null) {
                 throw new EquipajeService.ValidacionException(
-                    "El operador no tiene un nodo asignado. Asigne un nodo al operador antes de crear equipajes.");
+                    "Nodo de origen no especificado. Envie X-Device-Nodo-Id en el header.");
             }
             CargaMasivaService.ConfirmarResponse response = cargaMasivaService.confirmar(request, nodoId);
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -131,13 +127,6 @@ public class EquipajeController {
     @GetMapping("/metricas")
     public ResponseEntity<?> metricas() {
         return ResponseEntity.ok(equipajeService.obtenerMetricasOperacion());
-    }
-
-    private UUID extraerNodoIdDelToken(String authHeader) {
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) return null;
-        String token = authHeader.substring(7);
-        if (!jwtUtil.esTokenValido(token)) return null;
-        return jwtUtil.extraerNodoRefId(token);
     }
 
     private Map<String, Object> error(int status, String error, String mensaje) {
