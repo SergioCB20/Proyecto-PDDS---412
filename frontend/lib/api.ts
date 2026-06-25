@@ -1,4 +1,4 @@
-import type { ApiError, EnvioEntregadoResponse, EnvioItemResponse, MetricasOperacion } from './types';
+import type { ApiError, EnvioEntregadoResponse, EnvioItemResponse, MetricasOperacion, ReporteSesion } from './types';
 import { device } from './device';
 
 function getBaseUrl(): string {
@@ -153,4 +153,8 @@ export async function fetchEntregadosRecientesOperacion(horas = 4): Promise<Envi
 
 export async function fetchMetricasOperacion(): Promise<MetricasOperacion> {
   return api.get<MetricasOperacion>('/equipajes/metricas');
+}
+
+export async function fetchReporte(sesionId: string): Promise<ReporteSesion> {
+  return api.get<ReporteSesion>(`/sesiones/${sesionId}/reporte`);
 }
