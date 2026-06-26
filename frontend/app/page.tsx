@@ -183,12 +183,6 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const k = useMemo(() => telemetria?.metricas_sesion?.k ?? 1, [telemetria]);
   const animacionActiva = wsConnected && (telemetria?.vuelos?.some(v => v.estado === 'EN_RUTA') ?? false);
 
-  useEffect(() => {
-    const handler = () => { if (!document.hidden) fetchData(); };
-    document.addEventListener('visibilitychange', handler);
-    return () => document.removeEventListener('visibilitychange', handler);
-  }, []);
-
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [selectedEnvio, setSelectedEnvio] = useState<SelectedEnvioOperacion | null>(null);
   const [vueloFilterOrigen, setVueloFilterOrigen] = useState('');
@@ -215,6 +209,12 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   };
 
   useEffect(() => { const timer = setTimeout(fetchData, 0); return () => clearTimeout(timer); }, []);
+
+  useEffect(() => {
+    const handler = () => { if (!document.hidden) fetchData(); };
+    document.addEventListener('visibilitychange', handler);
+    return () => document.removeEventListener('visibilitychange', handler);
+  }, []);
 
   useEffect(() => {
     if (!telemetria?.nodos || telemetria.nodos.length === 0) return;

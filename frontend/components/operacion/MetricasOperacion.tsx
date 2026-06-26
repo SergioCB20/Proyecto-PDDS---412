@@ -38,6 +38,7 @@ export function MetricasOperacion() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     cargar();
     const interval = setInterval(cargar, 10000);
     return () => clearInterval(interval);
