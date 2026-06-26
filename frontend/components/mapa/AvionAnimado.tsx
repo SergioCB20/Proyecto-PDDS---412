@@ -123,6 +123,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
     horaLlegadaMs: vuelo.hora_llegada ? new Date(vuelo.hora_llegada).getTime() : 0,
     k,
     lastBearingT: -1,                 // last t at which we updated the bearing icon
+    lastEstelaT: -1,                  // last t at which we redrew the fading trail
   });
 
   // Sync flight metadata; never move the plane backward when a server tick arrives
@@ -183,6 +184,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
         t
       );
       marker.setLatLng([lat, lng]);
+      flightRef.current.lastEstelaT = t;
       dibujarEstela(t);
       const bearing = bezierBearing(
         vuelo.origen_lat, vuelo.origen_lon,
@@ -221,7 +223,13 @@ const AvionAnimado = React.memo(function AvionAnimado({
         t
       );
       marker.setLatLng([lat, lng]);
-      dibujarEstela(t);
+
+      // Redibuja la estela solo cuando el progreso avanza ≥1% (evita un redraw
+      // SVG por frame en cada avion; el desfase de la cola es imperceptible).
+      if (Math.abs(t - ref.lastEstelaT) >= 0.01) {
+        ref.lastEstelaT = t;
+        dibujarEstela(t);
+      }
 
       // Refresh bearing icon only when progreso shifts by ≥3% (avoids per-frame setState)
       if (Math.abs(t - ref.lastBearingT) >= 0.03) {
