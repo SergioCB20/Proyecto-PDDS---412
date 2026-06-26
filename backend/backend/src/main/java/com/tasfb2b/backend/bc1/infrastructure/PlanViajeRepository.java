@@ -3,6 +3,7 @@ package com.tasfb2b.backend.bc1.infrastructure;
 import com.tasfb2b.backend.bc1.domain.Equipaje;
 import com.tasfb2b.backend.bc1.domain.PlanViaje;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -15,6 +16,10 @@ import java.util.UUID;
 public interface PlanViajeRepository extends JpaRepository<PlanViaje, UUID> {
     Optional<PlanViaje> findByEquipajeId(UUID equipajeId);
     List<PlanViaje> findBySesionId(UUID sesionId);
+
+    @Modifying
+    @Query("DELETE FROM PlanViaje pv WHERE pv.equipaje.id = :equipajeId")
+    int deleteByEquipajeId(@Param("equipajeId") UUID equipajeId);
 
     @Query("SELECT pv FROM PlanViaje pv JOIN FETCH pv.equipaje WHERE pv.sesionId = :sesionId")
     List<PlanViaje> findBySesionIdWithEquipaje(@Param("sesionId") UUID sesionId);
