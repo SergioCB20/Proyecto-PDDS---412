@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { Package, RefreshCw, ChevronDown, ChevronUp, CheckCircle, XCircle, Plane, Upload, FileSpreadsheet, AlertTriangle, AlertCircle, Menu, ChevronLeft, Play, Pause, Square, Clock, Settings, Activity } from 'lucide-react';
+import { Package, RefreshCw, ChevronDown, ChevronUp, CheckCircle, XCircle, Plane, Upload, FileSpreadsheet, AlertTriangle, Menu, ChevronLeft, Play, Pause, Square, Clock, Settings, Activity } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { api, fetchReporte } from '@/lib/api';
 import { aeropuertoToEnMapa } from '@/lib/mock';
@@ -27,7 +27,14 @@ import type { SelectedEnvioOperacion } from '@/components/operacion/PanelEnviosO
 import type { SelectedEnvio } from '@/components/simulacion/PanelEnvios';
 import type { Aeropuerto, Vuelo, VueloEnMapa, VueloPageResponse, AeropuertoEnMapa, CrearEquipajeResponse, CargaMasivaPreview, CargaMasivaConfirmResponse, MetricasSimulacion, ReporteSesion } from '@/lib/types';
 
-const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false });
+const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), {
+  ssr: false,
+  loading: () => (
+    <div className="bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center h-full">
+      <span className="text-slate-400 text-sm">Cargando mapa...</span>
+    </div>
+  ),
+});
 
 function formatSegundos(s: number): string {
   const h = Math.floor(s / 3600);
@@ -77,12 +84,10 @@ function MetricaCard({ label, value, icon: Icon, color }: {
 export default function DashboardPage() {
   const [mode, setMode] = useState<DashboardMode>('operacion');
   const [configUmbrales, setConfigUmbrales] = useState<UmbralesConfig>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('umbrales-config');
-        if (saved) return JSON.parse(saved);
-      } catch { /* ignore */ }
-    }
+    try {
+      const saved = localStorage.getItem('umbrales-config');
+      if (saved) return JSON.parse(saved);
+    } catch { /* ignore */ }
     return { almacenVerdeMax: 70, almacenAmbarMax: 90, vueloVerdeMax: 75, vueloAmbarMax: 90 };
   });
   const [configOpen, setConfigOpen] = useState(false);
@@ -144,7 +149,7 @@ export default function DashboardPage() {
   );
 }
 
-function OperacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales: UmbralesConfig; onCambiarUmbrales: (c: UmbralesConfig) => void }) {
+function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [estadoOperacion, setEstadoOperacion] = useState<'INACTIVO' | 'ACTIVO' | 'PAUSADO'>('INACTIVO');
   const [operacionLoading, setOperacionLoading] = useState(false);
   const [aeropuertos, setAeropuertos] = useState<AeropuertoEnMapa[]>([]);
@@ -227,7 +232,7 @@ function OperacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales: 
       }));
       queueMicrotask(() => { setAllVuelos(vuelosMapped); });
     }
-  }, [telemetria]);
+  }, [telemetria, configUmbrales]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -281,10 +286,10 @@ function OperacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales: 
     const nowMin = ahora.getUTCHours() * 60 + ahora.getUTCMinutes();
     const endMin = nowMin + 240;
     return allVuelos.filter(v => {
-      if (v.estado !== 'PROGRAMADO' && v.estado !== 'EN_RUTA') return false;
+      if (v.estado !== 'PROGRAMADO' && v.estado !== 'EN_RUTA' && v.estado !== 'COMPLETADO') return false;
       if (vueloFilterOrigen && v.origen.codigo_iata !== vueloFilterOrigen) return false;
       if (vueloFilterDestino && v.destino.codigo_iata !== vueloFilterDestino) return false;
-      if (v.estado === 'EN_RUTA') return true;
+      if (v.estado === 'EN_RUTA' || v.estado === 'COMPLETADO') return true;
       if (!v.hora_salida) return false;
       const hs = new Date(v.hora_salida);
       const hsMin = hs.getUTCHours() * 60 + hs.getUTCMinutes();
@@ -496,7 +501,7 @@ function OperacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales: 
   );
 }
 
-function SimulacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales: UmbralesConfig; onCambiarUmbrales: (c: UmbralesConfig) => void }) {
+function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [sesionId, setSesionId] = useState<string | null>(null);
   const [estadoSesion, setEstadoSesion] = useState<'CONFIGURADA' | 'EN_CURSO' | 'PAUSADA' | 'FINALIZADA'>('CONFIGURADA');
   const [loading, setLoading] = useState(false);

@@ -66,13 +66,14 @@ export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false
 
   return (
     <>
-      {vuelo.estado === 'EN_RUTA' && tieneRuta && (
+      {(vuelo.estado === 'EN_RUTA' || vuelo.estado === 'COMPLETADO') && tieneRuta && (
         <Polyline
           positions={puntosCurva}
           pathOptions={{
             color,
-            weight: 2,
-            opacity: opacidadRuta,
+            weight: vuelo.estado === 'EN_RUTA' ? 2 : 1.5,
+            opacity: vuelo.estado === 'EN_RUTA' ? opacidadRuta : 0.3,
+            dashArray: vuelo.estado === 'COMPLETADO' ? '6, 4' : undefined,
           }}
         >
           <Tooltip direction="center" className="vuelo-tooltip">

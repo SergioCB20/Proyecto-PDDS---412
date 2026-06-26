@@ -20,9 +20,11 @@ import java.util.*;
 public class OperacionTickService {
 
     private static final Logger log = LoggerFactory.getLogger(OperacionTickService.class);
+    private static final LocalDate FECHA_OPERACION = LocalDate.of(2026, 1, 15);
 
     private volatile boolean activo = false;
     private volatile LocalDate diaProcesado = null;
+    private volatile boolean procesarLlegadas = false;
 
     private final VueloRepository vueloRepository;
     private final EquipajeRepository equipajeRepository;
@@ -79,9 +81,8 @@ public class OperacionTickService {
 
     @Transactional
     public void resetOperacion() {
-        LocalDate today = OffsetDateTime.now(ZoneOffset.UTC).toLocalDate();
-        if (vueloService.existenInstanciasParaFecha(today)) {
-            vueloService.resetearInstanciasPorFecha(today);
+        if (vueloService.existenInstanciasParaFecha(FECHA_OPERACION)) {
+            vueloService.resetearInstanciasPorFecha(FECHA_OPERACION);
         }
         jdbcTemplate.update("DELETE FROM segmentos_plan WHERE plan_viaje_id IN (SELECT id FROM planes_viaje WHERE sesion_id IS NULL)");
         jdbcTemplate.update("DELETE FROM planes_viaje WHERE sesion_id IS NULL");
@@ -105,27 +106,30 @@ public class OperacionTickService {
             // se resetean a PROGRAMADO con capacidad completa.
             // Si no existen, se clonan desde las plantillas.
             if (sesionRepository.findByEstado(EstadoSesion.EN_CURSO).isEmpty()) {
-                LocalDate today = OffsetDateTime.now(ZoneOffset.UTC).toLocalDate();
-                if (!today.equals(diaProcesado)) {
-                    if (vueloService.existenInstanciasParaFecha(today)) {
-                        vueloService.resetearInstanciasPorFecha(today);
+                if (!FECHA_OPERACION.equals(diaProcesado)) {
+                    if (vueloService.existenInstanciasParaFecha(FECHA_OPERACION)) {
+                        vueloService.resetearInstanciasPorFecha(FECHA_OPERACION);
                     } else {
-                        int clonadas = vueloService.clonarPlantillas(today);
+                        int clonadas = vueloService.clonarPlantillas(FECHA_OPERACION);
                         if (clonadas > 0) {
-                            log.info("Operacion: {} vuelos clonados para hoy {}", clonadas, today);
+                            log.info("Operacion: {} vuelos clonados para {}", clonadas, FECHA_OPERACION);
                         }
                     }
-                    diaProcesado = today;
+                    diaProcesado = FECHA_OPERACION;
                 }
             }
 
             if (!activo) return;
             if (!sesionRepository.findByEstado(EstadoSesion.EN_CURSO).isEmpty()) return;
 
-            OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+            OffsetDateTime now = OffsetDateTime.of(
+                    FECHA_OPERACION, OffsetDateTime.now(ZoneOffset.UTC).toLocalTime(), ZoneOffset.UTC);
 
             procesarSalidas(now);
-            procesarLlegadas(now);
+            procesarLlegadas = !procesarLlegadas;
+            if (procesarLlegadas) {
+                procesarLlegadas(now);
+            }
 
             operacionTelemetriaService.emitirTelemetria();
         } catch (Exception e) {

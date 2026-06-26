@@ -29,14 +29,6 @@ export default function GeoMapa({
   k = 120,
   className = '',
 }: GeoMapaProps) {
-  if (typeof window === 'undefined') {
-    return (
-      <div className={`bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center ${className}`}>
-        <span className="text-slate-400 text-sm">Cargando mapa...</span>
-      </div>
-    );
-  }
-
   return (
     <div className={`relative ${className}`}>
       <MapContainer
