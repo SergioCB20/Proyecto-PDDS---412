@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useReducer, useRef } from 'react';
-import { fetchEnviosVueloOperacion, fetchEnviosAeropuertoOperacion } from '@/lib/api';
+import { FileDown } from 'lucide-react';
+import { fetchEnviosVueloOperacion, fetchEnviosAeropuertoOperacion, descargarPlanViajePdf } from '@/lib/api';
 import type { EnvioItemResponse } from '@/lib/types';
 
 export interface SelectedEnvioOperacion {
@@ -105,7 +106,16 @@ export function PanelEnviosOperacion({ selectedEnvio, onClose }: PanelEnviosOper
                   {item.origen_iata}→{item.destino_iata}
                 </span>
               </div>
-              <span className="text-slate-500 shrink-0">{item.cantidad} maleta{item.cantidad !== 1 ? 's' : ''}</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => descargarPlanViajePdf(item.id).catch(() => alert('Error al descargar plan de viaje'))}
+                  className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                  title="Descargar plan de viaje"
+                >
+                  <FileDown size={14} />
+                </button>
+                <span className="text-slate-500">{item.cantidad} maleta{item.cantidad !== 1 ? 's' : ''}</span>
+              </div>
             </div>
           ))}
         </div>
