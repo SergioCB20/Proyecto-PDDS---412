@@ -128,6 +128,19 @@ const AvionAnimado = React.memo(function AvionAnimado({
   // Sync flight metadata; never move the plane backward when a server tick arrives
   useEffect(() => {
     const ref = flightRef.current;
+
+    // En tierra (PROGRAMADO/COMPLETADO/CANCELADO): posición exacta del servidor
+    // (PROGRAMADO = 0). Sin extrapolar ni "no retroceso", para que un vuelo que
+    // se reinicia a PROGRAMADO no quede congelado a mitad de ruta.
+    if (vuelo.estado !== 'EN_RUTA') {
+      ref.progreso = Math.min(Math.max(vuelo.progreso ?? 0, 0), 1);
+      ref.lastTickTime = performance.now();
+      ref.horaSalidaMs = vuelo.hora_salida ? new Date(vuelo.hora_salida).getTime() : 0;
+      ref.horaLlegadaMs = vuelo.hora_llegada ? new Date(vuelo.hora_llegada).getTime() : 0;
+      ref.k = k;
+      return;
+    }
+
     const now = performance.now();
     const elapsed = now - ref.lastTickTime;
     const durVirtual = ref.horaLlegadaMs - ref.horaSalidaMs;
@@ -139,7 +152,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
     ref.horaSalidaMs = vuelo.hora_salida ? new Date(vuelo.hora_salida).getTime() : 0;
     ref.horaLlegadaMs = vuelo.hora_llegada ? new Date(vuelo.hora_llegada).getTime() : 0;
     ref.k = k;
-  }, [vuelo.progreso, vuelo.hora_salida, vuelo.hora_llegada, k]);
+  }, [vuelo.progreso, vuelo.estado, vuelo.hora_salida, vuelo.hora_llegada, k]);
 
   // Update icon color on state change
   useEffect(() => {
