@@ -55,7 +55,6 @@ function areEqual(prevProps: GeoMapaVueloProps, nextProps: GeoMapaVueloProps): b
 
 export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false, k = 120, umbralesConfig }: GeoMapaVueloProps) {
   const color = COLORES[vuelo.estado] || '#6b7280';
-  const opacidadRuta = animacionActiva ? 0.5 : 0.2;
   const verdeMax = umbralesConfig?.verdeMax ?? 70;
   const ambarMax = umbralesConfig?.ambarMax ?? 90;
 
@@ -72,14 +71,17 @@ export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false
 
   return (
     <>
-      {(vuelo.estado === 'EN_RUTA' || vuelo.estado === 'COMPLETADO') && tieneRuta && (
+      {/* La ruta de un vuelo EN_RUTA la dibuja AvionAnimado como estela que se
+          desvanece a medida que avanza. Aquí solo se traza la huella tenue de
+          los vuelos ya COMPLETADOS. */}
+      {vuelo.estado === 'COMPLETADO' && tieneRuta && (
         <Polyline
           positions={puntosCurva}
           pathOptions={{
             color,
-            weight: vuelo.estado === 'EN_RUTA' ? 2 : 1.5,
-            opacity: vuelo.estado === 'EN_RUTA' ? opacidadRuta : 0.3,
-            dashArray: vuelo.estado === 'COMPLETADO' ? '6, 4' : undefined,
+            weight: 1,
+            opacity: 0.25,
+            dashArray: '6, 4',
           }}
         >
           <Tooltip direction="center" className="vuelo-tooltip">

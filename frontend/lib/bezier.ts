@@ -42,6 +42,26 @@ export function bezierBearing(
   return (bearing + 360) % 360;
 }
 
+/**
+ * Curva pre-muestreada con su parámetro `t`, para recortar una estela en vivo:
+ * dado el progreso actual del avión se conservan solo los puntos con `t` mayor
+ * (la parte de ruta aún por recorrer), descartando la ya transcurrida.
+ */
+export function bezierSamples(
+  lat1: number, lon1: number,
+  ctrlLat: number, ctrlLon: number,
+  lat2: number, lon2: number,
+  puntos = 48
+): { t: number; lat: number; lon: number }[] {
+  const out: { t: number; lat: number; lon: number }[] = [];
+  for (let i = 0; i <= puntos; i++) {
+    const t = i / puntos;
+    const [lat, lon] = bezierPoint(lat1, lon1, ctrlLat, ctrlLon, lat2, lon2, t);
+    out.push({ t, lat, lon });
+  }
+  return out;
+}
+
 export function bezierCurvePoints(
   origen: [number, number],
   destino: [number, number],

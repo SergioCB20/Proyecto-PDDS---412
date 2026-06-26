@@ -20,8 +20,9 @@ export function PanelReporte({
   sesionId,
   onClose,
 }: PanelReporteProps) {
-  const slaOk = reporte.sla_incumplido_pct < 10;
-  const huboColapso = reporte.punto_colapso_virtual !== null;
+  const slaOk = (reporte.sla_incumplido_pct ?? 0) < 10;
+  const huboColapso = !!reporte.punto_colapso_virtual;
+  const serieSla = reporte.serie_sla ?? [];
 
   const handleDescargarCsv = async () => {
     try {
@@ -96,13 +97,13 @@ export function PanelReporte({
           </div>
         )}
 
-        {reporte.serie_sla.length > 0 && (
+        {serieSla.length > 0 && (
           <div>
             <p className="text-xs font-medium text-slate-500 mb-2">
               SLA por hora virtual
             </p>
             <div className="flex items-end gap-0.5 h-16">
-              {reporte.serie_sla.map((p, i) => (
+              {serieSla.map((p, i) => (
                 <div
                   key={i}
                   className="flex-1 flex flex-col items-center justify-end relative group"
