@@ -120,8 +120,10 @@ public class EquipajeController {
     }
 
     @GetMapping("/recientes")
-    public ResponseEntity<?> recientes(@RequestParam(defaultValue = "4") int horas) {
-        return ResponseEntity.ok(equipajeService.obtenerEntregadosRecientes(horas));
+    public ResponseEntity<?> recientes(
+            @RequestParam(defaultValue = "4") int horas,
+            @RequestParam(required = false) String desde) {
+        return ResponseEntity.ok(equipajeService.obtenerEntregadosRecientes(horas, desde));
     }
 
     @GetMapping("/metricas")

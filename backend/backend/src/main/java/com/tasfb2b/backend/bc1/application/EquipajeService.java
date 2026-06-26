@@ -397,8 +397,13 @@ public class EquipajeService {
                 .toList();
     }
 
-    public List<EntregadoRecienteResponse> obtenerEntregadosRecientes(int horas) {
-        OffsetDateTime desde = OffsetDateTime.now().minusHours(horas);
+    public List<EntregadoRecienteResponse> obtenerEntregadosRecientes(int horas, String desdeStr) {
+        OffsetDateTime desde;
+        if (desdeStr != null && !desdeStr.isBlank()) {
+            desde = OffsetDateTime.parse(desdeStr);
+        } else {
+            desde = OffsetDateTime.now().minusHours(horas);
+        }
         List<Equipaje> equipajes = equipajeRepository.findEntregadosRecientes(desde, PageRequest.of(0, 100));
         return equipajes.stream()
                 .map(e -> {

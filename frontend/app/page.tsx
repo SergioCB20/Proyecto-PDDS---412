@@ -312,6 +312,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     setOperacionLoading(true);
     try {
       await api.post('/operacion/iniciar', {});
+      localStorage.setItem('sesion_operacion_inicio', new Date().toISOString());
       setEstadoOperacion('ACTIVO');
     } catch { setApiError('Error al iniciar operación'); }
     finally { setOperacionLoading(false); }
