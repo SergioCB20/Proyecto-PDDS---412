@@ -2,11 +2,16 @@ package com.tasfb2b.backend.bc1.infrastructure;
 
 import com.tasfb2b.backend.bc1.application.CargaMasivaService;
 import com.tasfb2b.backend.bc1.application.EquipajeService;
+import com.tasfb2b.backend.bc1.application.PlanViajePdfService;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.UUID;
 
@@ -16,10 +21,13 @@ public class EquipajeController {
 
     private final EquipajeService equipajeService;
     private final CargaMasivaService cargaMasivaService;
+    private final PlanViajePdfService planViajePdfService;
 
-    public EquipajeController(EquipajeService equipajeService, CargaMasivaService cargaMasivaService) {
+    public EquipajeController(EquipajeService equipajeService, CargaMasivaService cargaMasivaService,
+                              PlanViajePdfService planViajePdfService) {
         this.equipajeService = equipajeService;
         this.cargaMasivaService = cargaMasivaService;
+        this.planViajePdfService = planViajePdfService;
     }
 
     @PostMapping
@@ -102,6 +110,24 @@ public class EquipajeController {
     public ResponseEntity<?> obtenerPlanViaje(@PathVariable UUID id) {
         try {
             return ResponseEntity.ok(equipajeService.obtenerDetallePlanViaje(id));
+        } catch (EquipajeService.EquipajeNoEncontradoException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(error(404, "NO_ENCONTRADO", e.getMessage()));
+        } catch (EquipajeService.ValidacionException e) {
+            return ResponseEntity.unprocessableEntity().body(error(422, "VALIDACION_FALLIDA", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/{id}/plan-viaje/descargar")
+    public ResponseEntity<?> descargarPlanViaje(@PathVariable UUID id) {
+        try {
+            byte[] pdf = planViajePdfService.generarPdf(id);
+            String filename = "plan-viaje-" + id.toString().substring(0, 8)
+                    + "_" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + ".pdf";
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_PDF);
+            headers.setContentDispositionFormData("attachment", filename);
+            return ResponseEntity.ok().headers(headers).body(pdf);
         } catch (EquipajeService.EquipajeNoEncontradoException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(error(404, "NO_ENCONTRADO", e.getMessage()));

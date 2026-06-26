@@ -411,6 +411,7 @@ public class SesionService {
 
         return equipajes.stream()
             .map(e -> new EnvioItemResponse(
+                e.getId(),
                 e.getOrigenIata(),
                 e.getDestinoIata(),
                 e.getIdExterno() != null ? e.getIdExterno() : e.getId().toString(),
@@ -428,6 +429,7 @@ public class SesionService {
 
         return equipajes.stream()
             .map(e -> new EnvioItemResponse(
+                e.getId(),
                 e.getOrigenIata(),
                 e.getDestinoIata(),
                 e.getIdExterno() != null ? e.getIdExterno() : e.getId().toString(),

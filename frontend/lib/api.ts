@@ -163,3 +163,10 @@ export async function fetchMetricasOperacion(desde?: string): Promise<MetricasOp
 export async function fetchReporte(sesionId: string): Promise<ReporteSesion> {
   return api.get<ReporteSesion>(`/sesiones/${sesionId}/reporte`);
 }
+
+export async function descargarPlanViajePdf(equipajeId: string): Promise<void> {
+  const blob = await api.downloadBlob(`/equipajes/${equipajeId}/plan-viaje/descargar`);
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
