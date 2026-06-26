@@ -6,14 +6,12 @@ import com.tasfb2b.backend.bc2.application.SesionService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/sesiones")
-@PreAuthorize("hasRole('ANALISTA')")
 public class MetricasController {
 
     private final SesionService sesionService;

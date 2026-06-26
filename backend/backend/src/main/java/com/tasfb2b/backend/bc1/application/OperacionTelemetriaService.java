@@ -12,16 +12,20 @@ import com.tasfb2b.backend.bc1.infrastructure.VueloRepository;
 import com.tasfb2b.backend.bc2.infrastructure.TelemetriaWebSocket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 
 @Service
 public class OperacionTelemetriaService {
 
     private static final Logger log = LoggerFactory.getLogger(OperacionTelemetriaService.class);
+    private static final LocalDate FECHA_OPERACION = LocalDate.of(2026, 1, 15);
 
     private static final double NODO_VERDE_MAX = 70.0;
     private static final double NODO_AMBAR_MAX = 90.0;
@@ -41,11 +45,13 @@ public class OperacionTelemetriaService {
         this.telemetriaWebSocket = telemetriaWebSocket;
     }
 
+    @Async
     public void emitirTelemetria() {
         try {
             List<NodoLogistico> nodos = nodoRepository.findAllByOrderByCodigoIataAsc();
-            List<Vuelo> vuelos = vueloRepository.findByEstadoInAndEsPlantilla(
-                    List.of(EstadoVuelo.PROGRAMADO, EstadoVuelo.EN_RUTA), false);
+            LocalDate hoy = FECHA_OPERACION;
+            List<Vuelo> vuelos = vueloRepository.findByEstadoInAndEsPlantillaAndFechaOperacion(
+                    List.of(EstadoVuelo.PROGRAMADO, EstadoVuelo.EN_RUTA, EstadoVuelo.COMPLETADO), false, hoy);
             String json = buildTelemetryJson(nodos, vuelos);
             telemetriaWebSocket.broadcast(json);
         } catch (Exception e) {

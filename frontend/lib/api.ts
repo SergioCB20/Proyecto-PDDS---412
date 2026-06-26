@@ -1,4 +1,5 @@
-import type { ApiError, EnvioEntregadoResponse, EnvioItemResponse, MetricasOperacion } from './types';
+import type { ApiError, EnvioEntregadoResponse, EnvioItemResponse, MetricasOperacion, ReporteSesion } from './types';
+import { device } from './device';
 
 function getBaseUrl(): string {
   if (typeof window !== 'undefined') {
@@ -17,14 +18,15 @@ const REQUEST_TIMEOUT_MS = 120_000;
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort('Timeout'), REQUEST_TIMEOUT_MS);
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
   try {
+    const { headers: extraHeaders, ...restOptions } = options || {};
     const res = await fetch(`${BASE_URL}${path}`, {
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        'X-Device-Id': device.getId(),
+        ...(extraHeaders as Record<string, string>),
       },
-      ...options,
+      ...restOptions,
       signal: options?.signal ?? controller.signal,
     });
 
@@ -54,8 +56,8 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   get: <T>(path: string) => request<T>(path),
-  post: <T>(path: string, body: unknown) =>
-    request<T>(path, { method: 'POST', body: JSON.stringify(body) }),
+  post: <T>(path: string, body: unknown, headers?: Record<string, string>) =>
+    request<T>(path, { method: 'POST', body: JSON.stringify(body), headers }),
   put: <T>(path: string, body: unknown) =>
     request<T>(path, { method: 'PUT', body: JSON.stringify(body) }),
   patch: <T>(path: string, body: unknown) =>
@@ -64,11 +66,10 @@ export const api = {
   upload: <T>(path: string, formData: FormData) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort('Timeout'), REQUEST_TIMEOUT_MS);
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     return fetch(`${BASE_URL}${path}`, {
       method: 'POST',
       headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        'X-Device-Id': device.getId(),
       },
       signal: controller.signal,
       body: formData,
@@ -97,11 +98,10 @@ export const api = {
   downloadBlob: async (path: string) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort('Timeout'), REQUEST_TIMEOUT_MS);
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     try {
       const res = await fetch(`${BASE_URL}${path}`, {
         headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          'X-Device-Id': device.getId(),
         },
         signal: controller.signal,
       });
@@ -133,8 +133,8 @@ export async function fetchEnviosVuelo(sesionId: string, vueloId: string): Promi
   return api.get<EnvioItemResponse[]>(`/sesiones/${sesionId}/envios/vuelo/${vueloId}`);
 }
 
-export async function fetchEnviosNodo(sesionId: string, nodoIata: string): Promise<EnvioItemResponse[]> {
-  return api.get<EnvioItemResponse[]>(`/sesiones/${sesionId}/envios/nodo/${nodoIata}`);
+export async function fetchEnviosAeropuerto(sesionId: string, aeropuertoIata: string): Promise<EnvioItemResponse[]> {
+  return api.get<EnvioItemResponse[]>(`/sesiones/${sesionId}/envios/nodo/${aeropuertoIata}`);
 }
 
 export async function fetchEntregadosRecientes(sesionId: string, horas = 4): Promise<EnvioEntregadoResponse[]> {
@@ -145,14 +145,21 @@ export async function fetchEnviosVueloOperacion(vueloId: string): Promise<EnvioI
   return api.get<EnvioItemResponse[]>(`/vuelos/${vueloId}/equipajes`);
 }
 
-export async function fetchEnviosNodoOperacion(nodoIata: string): Promise<EnvioItemResponse[]> {
-  return api.get<EnvioItemResponse[]>(`/nodos/${nodoIata}/equipajes`);
+export async function fetchEnviosAeropuertoOperacion(aeropuertoIata: string): Promise<EnvioItemResponse[]> {
+  return api.get<EnvioItemResponse[]>(`/nodos/${aeropuertoIata}/equipajes`);
 }
 
-export async function fetchEntregadosRecientesOperacion(horas = 4): Promise<EnvioEntregadoResponse[]> {
-  return api.get<EnvioEntregadoResponse[]>(`/equipajes/recientes?horas=${horas}`);
+export async function fetchEntregadosRecientesOperacion(horas = 4, desde?: string): Promise<EnvioEntregadoResponse[]> {
+  let url = `/equipajes/recientes?horas=${horas}`;
+  if (desde) url += `&desde=${encodeURIComponent(desde)}`;
+  return api.get<EnvioEntregadoResponse[]>(url);
 }
 
-export async function fetchMetricasOperacion(): Promise<MetricasOperacion> {
-  return api.get<MetricasOperacion>('/equipajes/metricas');
+export async function fetchMetricasOperacion(desde?: string): Promise<MetricasOperacion> {
+  const params = desde ? `?desde=${encodeURIComponent(desde)}` : '';
+  return api.get<MetricasOperacion>(`/equipajes/metricas${params}`);
+}
+
+export async function fetchReporte(sesionId: string): Promise<ReporteSesion> {
+  return api.get<ReporteSesion>(`/sesiones/${sesionId}/reporte`);
 }

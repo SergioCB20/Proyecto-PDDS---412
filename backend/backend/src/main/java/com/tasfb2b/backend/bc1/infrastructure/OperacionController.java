@@ -2,7 +2,6 @@ package com.tasfb2b.backend.bc1.infrastructure;
 
 import com.tasfb2b.backend.bc1.application.OperacionTickService;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,17 +19,32 @@ public class OperacionController {
         this.operacionTickService = operacionTickService;
     }
 
-    @PostMapping("/toggle")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Map<String, Object>> toggle() {
-        boolean activo = operacionTickService.toggle();
-        return ResponseEntity.ok(Map.of("activo", activo));
+    @PostMapping("/iniciar")
+    public ResponseEntity<Map<String, Object>> iniciar() {
+        operacionTickService.iniciar();
+        return ResponseEntity.ok(Map.of("estado", "ACTIVO"));
+    }
+
+    @PostMapping("/pausar")
+    public ResponseEntity<Map<String, Object>> pausar() {
+        operacionTickService.pausar();
+        return ResponseEntity.ok(Map.of("estado", "PAUSADO"));
+    }
+
+    @PostMapping("/reanudar")
+    public ResponseEntity<Map<String, Object>> reanudar() {
+        operacionTickService.reanudar();
+        return ResponseEntity.ok(Map.of("estado", "ACTIVO"));
+    }
+
+    @PostMapping("/detener")
+    public ResponseEntity<Map<String, Object>> detener() {
+        operacionTickService.detener();
+        return ResponseEntity.ok(Map.of("estado", "INACTIVO"));
     }
 
     @GetMapping("/estado")
-    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Map<String, Object>> estado() {
-        boolean activo = operacionTickService.estaActivo();
-        return ResponseEntity.ok(Map.of("activo", activo));
+        return ResponseEntity.ok(Map.of("estado", operacionTickService.getEstado()));
     }
 }

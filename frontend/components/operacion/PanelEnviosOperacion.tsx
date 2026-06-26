@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useReducer, useRef } from 'react';
-import { fetchEnviosVueloOperacion, fetchEnviosNodoOperacion } from '@/lib/api';
+import { fetchEnviosVueloOperacion, fetchEnviosAeropuertoOperacion } from '@/lib/api';
 import type { EnvioItemResponse } from '@/lib/types';
 
 export interface SelectedEnvioOperacion {
@@ -55,7 +55,7 @@ export function PanelEnviosOperacion({ selectedEnvio, onClose }: PanelEnviosOper
 
     const fetchFn = selectedEnvio.tipo === 'vuelo'
       ? fetchEnviosVueloOperacion(selectedEnvio.id)
-      : fetchEnviosNodoOperacion(selectedEnvio.id);
+      : fetchEnviosAeropuertoOperacion(selectedEnvio.id);
 
     fetchFn
       .then(data => dispatch({ type: 'FETCH_SUCCESS', data }))
@@ -64,7 +64,7 @@ export function PanelEnviosOperacion({ selectedEnvio, onClose }: PanelEnviosOper
 
   const titulo = selectedEnvio.tipo === 'vuelo'
     ? `Envíos del vuelo ${selectedEnvio.codigo}`
-    : `Envíos en nodo ${selectedEnvio.codigo}`;
+    : `Envíos en aeropuerto ${selectedEnvio.codigo}`;
 
   return (
     <div ref={ref} className="p-4 border-t border-slate-200 dark:border-slate-700">

@@ -28,10 +28,13 @@ import com.tasfb2b.backend.shared.infrastructure.RedisCacheService;
 import com.tasfb2b.backend.shared.infrastructure.SseService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
@@ -59,6 +62,14 @@ public class PlanificacionWorker {
     private final RedisCacheService redisCacheService;
     private final SseService sseService;
 
+    @Autowired
+    private ApplicationContext applicationContext;
+
+    /** Referencia al proxy del propio bean para que @Transactional aplique en llamadas internas. */
+    private PlanificacionWorker self() {
+        return applicationContext.getBean(PlanificacionWorker.class);
+    }
+
     public PlanificacionWorker(ColaPlanificacionRepository colaRepository,
                                 EquipajeRepository equipajeRepository,
                                 VueloRepository vueloRepository,
@@ -82,9 +93,8 @@ public class PlanificacionWorker {
     }
 
     @Scheduled(fixedDelay = 500)
-    @Transactional
     public void procesarCola() {
-        procesarTimeoutItems();
+        self().procesarTimeoutItems();
         procesarBatch();
     }
 
@@ -97,9 +107,14 @@ public class PlanificacionWorker {
         procesarItem(item);
     }
 
-    private void procesarBatch() {
-        List<ColaPlanificacion> items = colaRepository.findBatchByEstadoWithLock(
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public List<ColaPlanificacion> fetchBatch() {
+        return colaRepository.findBatchByEstadoWithLock(
                 EstadoCola.PENDIENTE.name(), BATCH_SIZE);
+    }
+
+    private void procesarBatch() {
+        List<ColaPlanificacion> items = self().fetchBatch();
         if (items.isEmpty()) {
             return;
         }
@@ -115,23 +130,19 @@ public class PlanificacionWorker {
         if (todosMismoDestino && items.size() > 1) {
             procesarBatchOptimizado(items, equipajes);
         } else {
+            // Cada item en su propia transaccion: un fallo (p.ej. duplicate key) no
+            // envenena el resto del lote ni revierte el incremento de intentos.
             for (ColaPlanificacion item : items) {
-                procesarItem(item);
+                try {
+                    self().procesarItem(item);
+                } catch (Exception e) {
+                    log.error("Error procesando item {}: {}", item.getId(), e.getMessage());
+                }
             }
         }
     }
 
     private void procesarBatchOptimizado(List<ColaPlanificacion> items, List<Equipaje> equipajes) {
-        List<RoutingStrategy.ParametroRuta> params = new ArrayList<>();
-        for (int i = 0; i < items.size(); i++) {
-            ColaPlanificacion item = items.get(i);
-            Equipaje equipaje = equipajes.get(i);
-            if (equipaje == null) continue;
-
-            item.setEstado(EstadoCola.EN_PROCESO);
-            colaRepository.save(item);
-        }
-
         List<RutaResult> resultados = motorEnrutamiento.calcularRutasLote(equipajes);
 
         for (int i = 0; i < items.size() && i < resultados.size(); i++) {
@@ -141,17 +152,32 @@ public class PlanificacionWorker {
 
             if (equipaje == null) continue;
 
-            if (ruta != null && ruta.exitoso() && !ruta.segmentos().isEmpty()) {
+            // Cada item se completa en transaccion propia (REQUIRES_NEW) para aislar fallos.
+            try {
+                self().completarOItemFallido(item, equipaje, ruta);
+            } catch (Exception e) {
+                log.error("Error completando item {} en batch: {}", item.getId(), e.getMessage());
                 try {
-                    completarItemConRuta(item, equipaje, ruta);
-                } catch (Exception e) {
-                    log.error("Error completando item {} en batch: {}", item.getId(), e.getMessage());
-                    manejarFallo(item, e.getMessage());
+                    self().manejarFalloTx(item, e.getMessage());
+                } catch (Exception ignored) {
+                    log.error("Error registrando fallo del item {}: {}", item.getId(), ignored.getMessage());
                 }
-            } else {
-                manejarFallo(item, ruta != null ? ruta.mensajeError() : "Error al calcular ruta");
             }
         }
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void completarOItemFallido(ColaPlanificacion item, Equipaje equipaje, RutaResult ruta) {
+        if (ruta != null && ruta.exitoso() && !ruta.segmentos().isEmpty()) {
+            completarItemConRuta(item, equipaje, ruta);
+        } else {
+            manejarFallo(item, ruta != null ? ruta.mensajeError() : "Error al calcular ruta");
+        }
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void manejarFalloTx(ColaPlanificacion item, String error) {
+        manejarFallo(item, error);
     }
 
     private void completarItemConRuta(ColaPlanificacion item, Equipaje equipaje, RutaResult ruta) {
@@ -172,6 +198,13 @@ public class PlanificacionWorker {
             origen = nodoRepository.findByCodigoIata(equipaje.getOrigenIata())
                     .orElseThrow(() -> new RuntimeException("Origen no encontrado: " + equipaje.getOrigenIata()));
         }
+
+        // Replanificacion: el equipaje puede tener un plan previo. La constraint
+        // planes_viaje_equipaje_id_key es UNIQUE(equipaje_id), asi que hay que borrar
+        // el plan + segmentos anteriores antes de crear el nuevo, o el insert revienta.
+        segmentoPlanRepository.deleteByEquipajeId(equipaje.getId());
+        planViajeRepository.deleteByEquipajeId(equipaje.getId());
+        planViajeRepository.flush();
 
         PlanViaje planViaje = new PlanViaje();
         planViaje.setId(UUID.randomUUID());
@@ -216,6 +249,7 @@ public class PlanificacionWorker {
         nodoRepository.actualizarOcupacion(primerNodoOrigen.getId(), cantidad);
 
         equipaje.setEstado(EstadoEquipaje.ENRUTADO);
+        equipaje.setVueloActual(primerVuelo);
         equipajeRepository.save(equipaje);
 
         int cargaActualizada = vueloRepository.findById(primerVuelo.getId())
@@ -239,7 +273,8 @@ public class PlanificacionWorker {
         notificarSse(item, equipaje, planViaje, true, null);
     }
 
-    private void procesarItem(ColaPlanificacion item) {
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void procesarItem(ColaPlanificacion item) {
         item.setEstado(EstadoCola.EN_PROCESO);
         colaRepository.save(item);
 
@@ -288,7 +323,11 @@ public class PlanificacionWorker {
             colaRepository.save(item);
 
             equipajeRepository.findById(item.getEquipajeId()).ifPresent(eq -> {
-                eq.setEstado(EstadoEquipaje.INCUMPLIMIENTO_SLA);
+                if (item.getTipo() == TipoCola.REPLANIFICACION) {
+                    eq.setEstado(EstadoEquipaje.EN_ALMACEN);
+                } else {
+                    eq.setEstado(EstadoEquipaje.INCUMPLIMIENTO_SLA);
+                }
                 equipajeRepository.save(eq);
             });
 
@@ -334,7 +373,8 @@ public class PlanificacionWorker {
         sseService.broadcast(exitoso ? "planificacion-completada" : "planificacion-fallida", data);
     }
 
-    private void procesarTimeoutItems() {
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void procesarTimeoutItems() {
         OffsetDateTime threshold = OffsetDateTime.now().minusMinutes(TIMEOUT_MINUTOS);
         List<ColaPlanificacion> colgados = colaRepository.findByEstadoAndFechaCreacionBefore(EstadoCola.EN_PROCESO, threshold);
 
@@ -346,7 +386,11 @@ public class PlanificacionWorker {
             colaRepository.save(item);
 
             equipajeRepository.findById(item.getEquipajeId()).ifPresent(eq -> {
-                eq.setEstado(EstadoEquipaje.INCUMPLIMIENTO_SLA);
+                if (item.getTipo() == TipoCola.REPLANIFICACION) {
+                    eq.setEstado(EstadoEquipaje.EN_ALMACEN);
+                } else {
+                    eq.setEstado(EstadoEquipaje.INCUMPLIMIENTO_SLA);
+                }
                 equipajeRepository.save(eq);
             });
 

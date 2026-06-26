@@ -31,11 +31,11 @@ public interface EquipajeRepository extends JpaRepository<Equipaje, UUID> {
     @Query(value = "SELECT estado::text, COUNT(*)::bigint FROM equipajes GROUP BY estado", nativeQuery = true)
     List<Object[]> countByEstadoGrouped();
 
-    @Query(value = "SELECT COUNT(*) FROM equipajes WHERE DATE(fecha_ingreso) = CURRENT_DATE", nativeQuery = true)
-    long countByFechaIngresoToday();
+    @Query(value = "SELECT COUNT(*) FROM equipajes WHERE fecha_ingreso >= :desde", nativeQuery = true)
+    long countDesde(@Param("desde") java.time.OffsetDateTime desde);
 
-    @Query(value = "SELECT estado::text, COUNT(*)::bigint FROM equipajes WHERE DATE(fecha_ingreso) = CURRENT_DATE GROUP BY estado", nativeQuery = true)
-    List<Object[]> countByEstadoGroupedToday();
+    @Query(value = "SELECT estado::text, COUNT(*)::bigint FROM equipajes WHERE fecha_ingreso >= :desde GROUP BY estado", nativeQuery = true)
+    List<Object[]> countByEstadoGroupedDesde(@Param("desde") java.time.OffsetDateTime desde);
 
     @Query("SELECT e FROM Equipaje e WHERE e.estado = 'ENTREGADO' AND e.fechaOperacion >= :desde ORDER BY e.fechaOperacion DESC")
     List<Equipaje> findEntregadosRecientes(@Param("desde") java.time.OffsetDateTime desde, org.springframework.data.domain.Pageable pageable);

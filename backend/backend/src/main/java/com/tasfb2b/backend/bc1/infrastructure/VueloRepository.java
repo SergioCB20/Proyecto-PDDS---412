@@ -30,6 +30,7 @@ public interface VueloRepository extends JpaRepository<Vuelo, UUID>, JpaSpecific
     List<Vuelo> findByEstadoAndEsPlantillaAndHoraSalidaLessThanEqual(EstadoVuelo estado, Boolean esPlantilla, OffsetDateTime hora);
     List<Vuelo> findByEstadoAndEsPlantillaAndHoraLlegadaLessThanEqual(EstadoVuelo estado, Boolean esPlantilla, OffsetDateTime hora);
     List<Vuelo> findByEstadoInAndEsPlantilla(List<EstadoVuelo> estados, Boolean esPlantilla);
+    List<Vuelo> findByEstadoInAndEsPlantillaAndFechaOperacion(List<EstadoVuelo> estados, Boolean esPlantilla, LocalDate fechaOperacion);
 
     /**
      * Vuelos relevantes para la telemetría en tiempo real: todos los EN_RUTA (visibles/

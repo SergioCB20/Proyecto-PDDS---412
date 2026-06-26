@@ -2,8 +2,9 @@
 
 import React, { useMemo } from 'react';
 import { Polyline, Tooltip } from 'react-leaflet';
-import { COLOR_VUELO, COLOR_NODO } from '@/lib/colors';
+import { COLOR_VUELO, COLOR_AEROPUERTO } from '@/lib/colors';
 import type { VueloEnMapa } from '@/lib/types';
+import type { UmbralesConfig } from './ConfigUmbrales';
 import { bezierCurvePoints } from '@/lib/bezier';
 import AvionAnimado from './AvionAnimado';
 
@@ -11,6 +12,7 @@ interface GeoMapaVueloProps {
   vuelo: VueloEnMapa;
   animacionActiva?: boolean;
   k?: number;
+  umbralesConfig?: UmbralesConfig;
 }
 
 const COLORES: Record<string, string> = {
@@ -20,9 +22,9 @@ const COLORES: Record<string, string> = {
   COMPLETADO: COLOR_VUELO.COMPLETADO,
 };
 
-function OcupacionBar({ ocupada, total }: { ocupada: number; total: number }) {
+function OcupacionBar({ ocupada, total, verdeMax, ambarMax }: { ocupada: number; total: number; verdeMax: number; ambarMax: number }) {
   const pct = total > 0 ? ((total - ocupada) / total) * 100 : 0;
-  const color = pct < 70 ? COLOR_NODO.VERDE : pct < 90 ? COLOR_NODO.AMBAR : COLOR_NODO.ROJO;
+  const color = pct < verdeMax ? COLOR_AEROPUERTO.VERDE : pct < ambarMax ? COLOR_AEROPUERTO.AMBAR : COLOR_AEROPUERTO.ROJO;
   return (
     <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden mt-1">
       <div
@@ -37,6 +39,8 @@ function OcupacionBar({ ocupada, total }: { ocupada: number; total: number }) {
 function areEqual(prevProps: GeoMapaVueloProps, nextProps: GeoMapaVueloProps): boolean {
   if (prevProps.animacionActiva !== nextProps.animacionActiva) return false;
   if (prevProps.k !== nextProps.k) return false;
+  if (prevProps.umbralesConfig?.verdeMax !== nextProps.umbralesConfig?.verdeMax) return false;
+  if (prevProps.umbralesConfig?.ambarMax !== nextProps.umbralesConfig?.ambarMax) return false;
   const a = prevProps.vuelo;
   const b = nextProps.vuelo;
   if (a.id !== b.id || a.estado !== b.estado) return false;
@@ -49,9 +53,11 @@ function areEqual(prevProps: GeoMapaVueloProps, nextProps: GeoMapaVueloProps): b
   return true;
 }
 
-export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false, k = 120 }: GeoMapaVueloProps) {
+export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false, k = 120, umbralesConfig }: GeoMapaVueloProps) {
   const color = COLORES[vuelo.estado] || '#6b7280';
   const opacidadRuta = animacionActiva ? 0.5 : 0.2;
+  const verdeMax = umbralesConfig?.verdeMax ?? 70;
+  const ambarMax = umbralesConfig?.ambarMax ?? 90;
 
   const tieneRuta = vuelo.origen_lat && vuelo.origen_lon && vuelo.destino_lat && vuelo.destino_lon;
   const ocupada = vuelo.capacidad_carga - vuelo.carga_disponible;
@@ -66,13 +72,14 @@ export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false
 
   return (
     <>
-      {vuelo.estado === 'EN_RUTA' && tieneRuta && (
+      {(vuelo.estado === 'EN_RUTA' || vuelo.estado === 'COMPLETADO') && tieneRuta && (
         <Polyline
           positions={puntosCurva}
           pathOptions={{
             color,
-            weight: 2,
-            opacity: opacidadRuta,
+            weight: vuelo.estado === 'EN_RUTA' ? 2 : 1.5,
+            opacity: vuelo.estado === 'EN_RUTA' ? opacidadRuta : 0.3,
+            dashArray: vuelo.estado === 'COMPLETADO' ? '6, 4' : undefined,
           }}
         >
           <Tooltip direction="center" className="vuelo-tooltip">
@@ -85,7 +92,7 @@ export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false
                 <span className="text-slate-500">Ocupado: </span>
                 <span className="font-semibold">{ocupada}/{vuelo.capacidad_carga}</span>
               </div>
-              <OcupacionBar ocupada={vuelo.carga_disponible} total={vuelo.capacidad_carga} />
+              <OcupacionBar ocupada={vuelo.carga_disponible} total={vuelo.capacidad_carga} verdeMax={verdeMax} ambarMax={ambarMax} />
             </div>
           </Tooltip>
         </Polyline>
@@ -95,6 +102,7 @@ export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false
           vuelo={vuelo}
           animacionActiva={animacionActiva && vuelo.estado === 'EN_RUTA'}
           k={k}
+          umbralesConfig={umbralesConfig}
         />
       )}
     </>

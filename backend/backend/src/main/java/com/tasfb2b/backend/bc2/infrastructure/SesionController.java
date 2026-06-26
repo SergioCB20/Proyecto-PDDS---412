@@ -4,7 +4,6 @@ import com.tasfb2b.backend.bc2.application.*;
 import com.tasfb2b.backend.bc2.application.SesionService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -13,7 +12,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/sesiones")
-@PreAuthorize("hasRole('ANALISTA')")
 public class SesionController {
 
     private final SesionService sesionService;
