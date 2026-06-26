@@ -417,3 +417,56 @@ attributionControl={false}
 - `bottom-4` (16px) mantiene el mismo margen que Leyenda desde el borde del mapa.
 - `attributionControl={false}` elimina la atribución de Leaflet que solapaba con el flotante de tiempos.
 - Sin cambios en backend, tipos ni otros componentes.
+
+---
+
+### Contexto completo de la cuarta actividad (para reanudar en futuros chats)
+
+**¿Qué se implementó?**
+Se movieron las métricas (SLA, Cancelaciones, Replanificadas) y la información de tiempo (Tiempo Virtual, Inicio Real, Inicio Virtual, Transcurrido Real) desde el panel lateral hacia el mapa como elementos flotantes semitransparentes, siguiendo el mismo patrón visual de `GeoMapaLeyenda`. Aplica a las tres vistas: Operación, Simulación y Colapso. Posteriormente se corrigió el recuadro visual de todos los flotantes para que coincidiera exactamente con el estilo de Leyenda (`bg-white/90`, `rounded-lg`, `border`, `shadow-lg`) y se ocultó la atribución de Leaflet que solapaba con el flotante de tiempos.
+
+**¿Dónde está el código?**
+
+- `frontend/app/page.tsx`:
+  - **OperacionView** (~línea 352): `<MetricasOperacion />` flotando en `absolute top-4 left-4` dentro de un wrapper con el mismo recuadro que Leyenda.
+  - **SimulacionView** (~líneas 689–731): Flotante top-left con 3 chips compactos (SLA, Cancel, Replan) + flotante bottom-left con Tiempo Virtual, Inicio Real, Inicio Virtual, Transcurrido. Solo visibles cuando `estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA'`.
+  - **ColapsoView** (~líneas 1052–1108): Ídem SimulacionView + barra de Ocupación máxima con semáforo (verde/ámbar/rojo) en el flotante top-left.
+- `frontend/components/operacion/MetricasOperacion.tsx` (~línea 65): Eliminado `border-t` residual del contenedor principal.
+- `frontend/components/mapa/GeoMapa.tsx` (~línea 43): Agregado `attributionControl={false}` para ocultar la atribución de Leaflet.
+
+**Diseño de los flotantes:**
+
+```
+┌──────────────────────────────────────────┐  ← top-4 left-4 (16px del borde)
+│ [SLA 85%] [Cancel 3] [Replan 12]         │  ← bg-white/90 backdrop-blur, rounded-lg, border, shadow
+│ ┌─ Ocupación máxima ──── 82% ─┐          │  ← solo ColapsoView
+│ │ ████████████████░░░░░░░░░   │          │
+│ └─────────────────────────────┘          │
+└──────────────────────────────────────────┘
+
+┌─────────────────────────────┐  ← bottom-4 left-4 (16px del borde)
+│ 🕐 2025-06-03 14:30         │  ← bg-white/90 backdrop-blur, rounded-lg, border, shadow
+│ Inicio Real: 2025-06-01     │
+│ Inicio Virtual: 08:00       │
+│ Transcurrido: 2h 30m 15s    │
+└─────────────────────────────┘
+```
+
+**Estilo de recuadro (unificado con Leyenda):**
+```
+bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm rounded-lg border border-slate-200 dark:border-slate-700 shadow-lg
+```
+
+**¿Qué NO se modificó?**
+- Backend: sin cambios.
+- `GeoMapaLeyenda.tsx`: sin cambios.
+- `PanelReporte`: sin cambios.
+- Tipos (`lib/types.ts`): sin cambios.
+- Componentes de mapa (`GeoMapaVuelo`, `GeoMapaAeropuerto`, `AvionAnimado`): sin cambios.
+- Paneles del sidebar (`PanelVuelos`, `PanelVuelosOperacion`, `PanelAeropuertos`, `PanelEnvios`, `PanelEntregados`, `ResumenVuelosOperacion`): sin cambios.
+- Funcionalidad de las vistas: sin cambios (solo se movió la presentación de métricas/tiempos al mapa).
+
+**¿Qué pendientes o mejoras futuras se identificaron?**
+- El componente `MetricasOperacion` tiene su propio layout interno (`grid grid-cols-2`, `p-4`) que difiere del estilo compacto de chips usado en Simulación y Colapso. Si se desea uniformidad total, se podría refactorizar para que use el mismo patrón de chips.
+- Los flotantes no son draggables — si en el futuro se requiere reubicación dinámica, habría que implementar arrastre.
+- La atribución de Leaflet se ocultó completamente; si se requiere por licencia, se podría agregar como texto estático en una esquina no conflictiva (ej. dentro de la Leyenda).
