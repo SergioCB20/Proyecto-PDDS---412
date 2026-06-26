@@ -27,7 +27,14 @@ import type { SelectedEnvioOperacion } from '@/components/operacion/PanelEnviosO
 import type { SelectedEnvio } from '@/components/simulacion/PanelEnvios';
 import type { Aeropuerto, Vuelo, VueloEnMapa, VueloPageResponse, AeropuertoEnMapa, CrearEquipajeResponse, CargaMasivaPreview, CargaMasivaConfirmResponse, MetricasSimulacion, ReporteSesion } from '@/lib/types';
 
-const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), { ssr: false });
+const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), {
+  ssr: false,
+  loading: () => (
+    <div className="bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center h-full">
+      <span className="text-slate-400 text-sm">Cargando mapa...</span>
+    </div>
+  ),
+});
 
 function formatSegundos(s: number): string {
   const h = Math.floor(s / 3600);
@@ -76,16 +83,15 @@ function MetricaCard({ label, value, icon: Icon, color }: {
 
 export default function DashboardPage() {
   const [mode, setMode] = useState<DashboardMode>('operacion');
-  const [configUmbrales, setConfigUmbrales] = useState<UmbralesConfig>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('umbrales-config');
-        if (saved) return JSON.parse(saved);
-      } catch { /* ignore */ }
-    }
-    return { almacenVerdeMax: 70, almacenAmbarMax: 90, vueloVerdeMax: 75, vueloAmbarMax: 90 };
-  });
+  const [configUmbrales, setConfigUmbrales] = useState<UmbralesConfig>({ almacenVerdeMax: 70, almacenAmbarMax: 90, vueloVerdeMax: 75, vueloAmbarMax: 90 });
   const [configOpen, setConfigOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('umbrales-config');
+      if (saved) setConfigUmbrales(JSON.parse(saved));
+    } catch { /* ignore */ }
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('umbrales-config', JSON.stringify(configUmbrales));
@@ -281,10 +287,10 @@ function OperacionView({ configUmbrales, onCambiarUmbrales }: { configUmbrales: 
     const nowMin = ahora.getUTCHours() * 60 + ahora.getUTCMinutes();
     const endMin = nowMin + 240;
     return allVuelos.filter(v => {
-      if (v.estado !== 'PROGRAMADO' && v.estado !== 'EN_RUTA') return false;
+      if (v.estado !== 'PROGRAMADO' && v.estado !== 'EN_RUTA' && v.estado !== 'COMPLETADO') return false;
       if (vueloFilterOrigen && v.origen.codigo_iata !== vueloFilterOrigen) return false;
       if (vueloFilterDestino && v.destino.codigo_iata !== vueloFilterDestino) return false;
-      if (v.estado === 'EN_RUTA') return true;
+      if (v.estado === 'EN_RUTA' || v.estado === 'COMPLETADO') return true;
       if (!v.hora_salida) return false;
       const hs = new Date(v.hora_salida);
       const hsMin = hs.getUTCHours() * 60 + hs.getUTCMinutes();

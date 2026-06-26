@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Plane, Monitor } from 'lucide-react';
@@ -8,7 +8,11 @@ import { device } from '@/lib/device';
 
 export function Navbar() {
   const pathname = usePathname();
-  const [deviceId] = useState(() => device.getId().slice(0, 8));
+  const [deviceId, setDeviceId] = useState('...');
+
+  useEffect(() => {
+    setDeviceId(device.getId().slice(0, 8));
+  }, []);
 
   const navLinks = [
     { href: '/', label: 'Dashboard' },
