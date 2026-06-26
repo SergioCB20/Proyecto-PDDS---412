@@ -41,8 +41,9 @@ export function PanelEntregadosOperacion({ activo }: PanelEntregadosOperacionPro
 
   const cargar = useCallback(async () => {
     dispatch({ type: 'FETCH_START' });
+    const desde = typeof window !== 'undefined' ? localStorage.getItem('sesion_operacion_inicio') : null;
     try {
-      const result = await fetchEntregadosRecientesOperacion(4);
+      const result = await fetchEntregadosRecientesOperacion(4, desde ?? undefined);
       dispatch({ type: 'FETCH_SUCCESS', data: result });
     } catch (err: unknown) {
       const e = err as { mensaje?: string; message?: string };
