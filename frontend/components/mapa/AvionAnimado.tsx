@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Marker, Tooltip, Popup, useMap } from 'react-leaflet';
+import { Marker, Polyline, Tooltip, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { COLOR_VUELO } from '@/lib/colors';
-import { bezierControlPoint, bezierPoint, bezierBearing } from '@/lib/bezier';
+import { bezierControlPoint, bezierPoint, bezierBearing, bezierSamples } from '@/lib/bezier';
 import type { VueloEnMapa } from '@/lib/types';
 import type { UmbralesConfig } from './ConfigUmbrales';
 
@@ -51,6 +51,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
   umbralesConfig,
 }: AvionAnimadoProps) {
   const markerRef = useRef<L.Marker>(null);
+  const polylineRef = useRef<L.Polyline>(null);
   const rafRef = useRef<number>(0);
   const map = useMap();
 
@@ -71,6 +72,33 @@ const AvionAnimado = React.memo(function AvionAnimado({
     () => bezierControlPoint(vuelo.origen_lat, vuelo.origen_lon, vuelo.destino_lat, vuelo.destino_lon),
     [vuelo.origen_lat, vuelo.origen_lon, vuelo.destino_lat, vuelo.destino_lon]
   );
+
+  // Curva pre-muestreada para la estela; en cada frame se conservan solo los
+  // puntos por delante del avión (la ruta transcurrida desaparece).
+  const samples = useMemo(
+    () => bezierSamples(
+      vuelo.origen_lat, vuelo.origen_lon,
+      ctrlLat, ctrlLon,
+      vuelo.destino_lat, vuelo.destino_lon
+    ),
+    [vuelo.origen_lat, vuelo.origen_lon, vuelo.destino_lat, vuelo.destino_lon, ctrlLat, ctrlLon]
+  );
+
+  // Recorta la polilínea a la porción aún no recorrida (cabeza pegada al avión).
+  const dibujarEstela = (t: number) => {
+    const poly = polylineRef.current;
+    if (!poly) return;
+    const [hLat, hLon] = bezierPoint(
+      vuelo.origen_lat, vuelo.origen_lon,
+      ctrlLat, ctrlLon,
+      vuelo.destino_lat, vuelo.destino_lon, t
+    );
+    const tail: L.LatLngTuple[] = [[hLat, hLon]];
+    for (const s of samples) {
+      if (s.t > t) tail.push([s.lat, s.lon]);
+    }
+    poly.setLatLngs(tail);
+  };
 
   const [icono, setIcono] = useState(() =>
     crearIconoAvion(COLORES[vuelo.estado] || '#6b7280', 0, iconSize)
@@ -142,6 +170,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
         t
       );
       marker.setLatLng([lat, lng]);
+      dibujarEstela(t);
       const bearing = bezierBearing(
         vuelo.origen_lat, vuelo.origen_lon,
         ctrlLat, ctrlLon,
@@ -179,6 +208,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
         t
       );
       marker.setLatLng([lat, lng]);
+      dibujarEstela(t);
 
       // Refresh bearing icon only when progreso shifts by ≥3% (avoids per-frame setState)
       if (Math.abs(t - ref.lastBearingT) >= 0.03) {
@@ -211,13 +241,36 @@ const AvionAnimado = React.memo(function AvionAnimado({
     vuelo.origen_lat, vuelo.origen_lon,
     vuelo.destino_lat, vuelo.destino_lon,
     ctrlLat, ctrlLon,
+    samples,
     // NOTE: vuelo.progreso / k intentionally excluded — handled via flightRef
   ]);
 
   const ocupada = vuelo.capacidad_carga - vuelo.carga_disponible;
 
+  // Estela inicial: ruta por delante del avión desde su progreso actual
+  // (evita un parpadeo con la ruta completa antes del primer frame).
+  const estelaInicial = useMemo<L.LatLngTuple[]>(() => {
+    const t0 = Math.min(Math.max(vuelo.progreso ?? 0, 0), 1);
+    const [hLat, hLon] = bezierPoint(
+      vuelo.origen_lat, vuelo.origen_lon,
+      ctrlLat, ctrlLon,
+      vuelo.destino_lat, vuelo.destino_lon, t0
+    );
+    const tail: L.LatLngTuple[] = [[hLat, hLon]];
+    for (const s of samples) if (s.t > t0) tail.push([s.lat, s.lon]);
+    return tail;
+  }, [samples, ctrlLat, ctrlLon, vuelo.origen_lat, vuelo.origen_lon, vuelo.destino_lat, vuelo.destino_lon, vuelo.progreso]);
+
   return (
-    <Marker ref={markerRef} position={frozenPos} icon={icono}>
+    <>
+      {vuelo.estado === 'EN_RUTA' && (
+        <Polyline
+          ref={polylineRef}
+          positions={estelaInicial}
+          pathOptions={{ color: COLORES.EN_RUTA, weight: 1, opacity: 0.6 }}
+        />
+      )}
+      <Marker ref={markerRef} position={frozenPos} icon={icono}>
       {/* Etiqueta de carga: visible solo al pasar el cursor sobre el avión */}
       <Tooltip direction="top" offset={[0, -14]} className="avion-carga-tooltip">
         <div className="text-center min-w-[90px]">
@@ -278,6 +331,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
         </div>
       </Popup>
     </Marker>
+    </>
   );
 });
 
