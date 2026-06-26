@@ -5,6 +5,7 @@ import type { AeropuertoEnMapa, VueloEnMapa } from '@/lib/types';
 import type { UmbralesConfig } from './ConfigUmbrales';
 import 'leaflet/dist/leaflet.css';
 import dynamic from 'next/dynamic';
+import ControlZoom from './ControlZoom';
 
 const GeoMapaAeropuerto = dynamic(() => import('./GeoMapaAeropuerto'), { ssr: false });
 const GeoMapaVuelo = dynamic(() => import('./GeoMapaVuelo'), { ssr: false });
@@ -33,13 +34,17 @@ export default function GeoMapa({
   umbralesConfig,
 }: GeoMapaProps) {
   return (
-    <div className={`relative ${className}`}>
+    <div className={`relative ${className}`} style={{ padding: '10px' }}>
       <MapContainer
         center={CENTRO}
         zoom={ZOOM}
         className="w-full h-full rounded-xl z-0"
-        zoomControl={true}
+        zoomControl={false}
         scrollWheelZoom={true}
+        zoomSnap={0.5}
+        zoomDelta={0.5}
+        minZoom={2}
+        maxZoom={14}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -57,8 +62,9 @@ export default function GeoMapa({
             umbralesConfig={umbralesConfig}
           />
         ))}
+        <ControlZoom />
+        <GeoMapaLeyenda umbralesConfig={umbralesConfig} />
       </MapContainer>
-      <GeoMapaLeyenda umbralesConfig={umbralesConfig} />
     </div>
   );
 }
