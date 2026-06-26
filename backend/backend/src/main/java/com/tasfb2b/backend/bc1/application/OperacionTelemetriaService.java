@@ -25,6 +25,7 @@ import java.util.List;
 public class OperacionTelemetriaService {
 
     private static final Logger log = LoggerFactory.getLogger(OperacionTelemetriaService.class);
+    private static final LocalDate FECHA_OPERACION = LocalDate.of(2026, 1, 15);
 
     private static final double NODO_VERDE_MAX = 70.0;
     private static final double NODO_AMBAR_MAX = 90.0;
@@ -48,13 +49,9 @@ public class OperacionTelemetriaService {
     public void emitirTelemetria() {
         try {
             List<NodoLogistico> nodos = nodoRepository.findAllByOrderByCodigoIataAsc();
-            // Operacion = solo vuelos de HOY (UTC). Las instancias de otras fechas
-            // son leftovers de simulaciones: tienen carga_disponible stale (ocupacion
-            // fantasma) y sus segmentos fueron borrados al finalizar la sesion, asi que
-            // el manifiesto sale vacio. No deben aparecer en la vista de operacion.
-            LocalDate hoy = OffsetDateTime.now(ZoneOffset.UTC).toLocalDate();
+            LocalDate hoy = FECHA_OPERACION;
             List<Vuelo> vuelos = vueloRepository.findByEstadoInAndEsPlantillaAndFechaOperacion(
-                    List.of(EstadoVuelo.PROGRAMADO, EstadoVuelo.EN_RUTA), false, hoy);
+                    List.of(EstadoVuelo.PROGRAMADO, EstadoVuelo.EN_RUTA, EstadoVuelo.COMPLETADO), false, hoy);
             String json = buildTelemetryJson(nodos, vuelos);
             telemetriaWebSocket.broadcast(json);
         } catch (Exception e) {
