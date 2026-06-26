@@ -180,7 +180,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
       if (r.estado === 'ACTIVO' || r.estado === 'PAUSADO') setEstadoOperacion(r.estado);
     }).catch(() => {});
   }, []);
-  const k = useMemo(() => telemetria?.metricas_sesion?.k ?? 1, [telemetria]);
+  const k = 1;
   const animacionActiva = wsConnected && (telemetria?.vuelos?.some(v => v.estado === 'EN_RUTA') ?? false);
 
   const [isCollapsed, setIsCollapsed] = useState(false);
