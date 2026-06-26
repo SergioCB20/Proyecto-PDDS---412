@@ -52,9 +52,7 @@ public class CancelacionService {
             throw new CancelacionInvalidaException("No se puede cancelar vuelo en estado: " + vuelo.getEstado());
         }
 
-        int afectados = (int) equipajeRepository.findAll().stream()
-                .filter(e -> e.getVueloActual() != null && e.getVueloActual().getId().equals(vuelo.getId()))
-                .count();
+        int afectados = (int) equipajeRepository.countByVueloActualId(vuelo.getId());
 
         vuelo.setEstado(EstadoVuelo.CANCELADO);
         vueloRepository.save(vuelo);

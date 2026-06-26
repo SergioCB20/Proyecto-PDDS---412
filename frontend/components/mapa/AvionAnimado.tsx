@@ -6,6 +6,7 @@ import L from 'leaflet';
 import { COLOR_VUELO } from '@/lib/colors';
 import { bezierControlPoint, bezierPoint, bezierBearing } from '@/lib/bezier';
 import type { VueloEnMapa } from '@/lib/types';
+import type { UmbralesConfig } from './ConfigUmbrales';
 
 const COLORES: Record<string, string> = {
   PROGRAMADO: COLOR_VUELO.PROGRAMADO,
@@ -43,12 +44,14 @@ interface AvionAnimadoProps {
   vuelo: VueloEnMapa;
   animacionActiva?: boolean;
   k?: number;
+  umbralesConfig?: UmbralesConfig;
 }
 
 const AvionAnimado = React.memo(function AvionAnimado({
   vuelo,
   animacionActiva = false,
   k = 120,
+  umbralesConfig,
 }: AvionAnimadoProps) {
   const markerRef = useRef<L.Marker>(null);
   const rafRef = useRef<number>(0);
@@ -234,10 +237,14 @@ const AvionAnimado = React.memo(function AvionAnimado({
           <div
             className="px-2 py-1 rounded text-white text-xs font-bold"
             style={{
-              backgroundColor:
-                ocupada === 0 ? '#22c55e' :
-                (ocupada / vuelo.capacidad_carga) < 0.7 ? '#22c55e' :
-                (ocupada / vuelo.capacidad_carga) < 0.9 ? '#eab308' : '#ef4444',
+              backgroundColor: (() => {
+                const pct = vuelo.capacidad_carga > 0 ? (ocupada / vuelo.capacidad_carga) * 100 : 0;
+                const vm = umbralesConfig?.verdeMax ?? 70;
+                const am = umbralesConfig?.ambarMax ?? 90;
+                if (pct < vm) return '#22c55e';
+                if (pct < am) return '#eab308';
+                return '#ef4444';
+              })(),
             }}
           >
             {vuelo.capacidad_carga > 0

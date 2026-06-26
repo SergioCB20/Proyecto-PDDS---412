@@ -149,12 +149,15 @@ export async function fetchEnviosAeropuertoOperacion(aeropuertoIata: string): Pr
   return api.get<EnvioItemResponse[]>(`/nodos/${aeropuertoIata}/equipajes`);
 }
 
-export async function fetchEntregadosRecientesOperacion(horas = 4): Promise<EnvioEntregadoResponse[]> {
-  return api.get<EnvioEntregadoResponse[]>(`/equipajes/recientes?horas=${horas}`);
+export async function fetchEntregadosRecientesOperacion(horas = 4, desde?: string): Promise<EnvioEntregadoResponse[]> {
+  let url = `/equipajes/recientes?horas=${horas}`;
+  if (desde) url += `&desde=${encodeURIComponent(desde)}`;
+  return api.get<EnvioEntregadoResponse[]>(url);
 }
 
-export async function fetchMetricasOperacion(): Promise<MetricasOperacion> {
-  return api.get<MetricasOperacion>('/equipajes/metricas');
+export async function fetchMetricasOperacion(desde?: string): Promise<MetricasOperacion> {
+  const params = desde ? `?desde=${encodeURIComponent(desde)}` : '';
+  return api.get<MetricasOperacion>(`/equipajes/metricas${params}`);
 }
 
 export async function fetchReporte(sesionId: string): Promise<ReporteSesion> {
