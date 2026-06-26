@@ -5,6 +5,7 @@ import { Upload, XCircle } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import type { VueloTelemetria } from '@/lib/types';
+import { formatearHoraLocalCorta } from '@/lib/formatearHora';
 
 interface PanelVuelosOperacionProps {
   vuelos: VueloTelemetria[];
@@ -174,9 +175,9 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
                 />
               </div>
               <div className="flex items-center justify-between text-[10px] text-slate-400 mt-0.5">
-                <span>Salida UTC: {v.hora_salida ? new Date(v.hora_salida).toISOString().slice(11, 19) : '--:--:--'}</span>
+                <span>Salida: {formatearHoraLocalCorta(v.hora_salida)}</span>
                 <div className="flex items-center gap-2">
-                  <span>Llegada UTC: {v.hora_llegada ? new Date(v.hora_llegada).toISOString().slice(11, 19) : '--:--:--'}</span>
+                  <span>Llegada: {formatearHoraLocalCorta(v.hora_llegada)}</span>
                   {onDownloadManifiesto && (
                     <button
                       onClick={e => { e.stopPropagation(); onDownloadManifiesto(v.id, v.codigo_vuelo); }}

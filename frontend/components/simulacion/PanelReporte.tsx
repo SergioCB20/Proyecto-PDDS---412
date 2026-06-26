@@ -3,6 +3,7 @@
 import { AlertCircle, Download, X } from "lucide-react";
 import type { ReporteSesion } from "@/lib/types";
 import { api } from "@/lib/api";
+import { formatearHoraLocal } from "@/lib/formatearHora";
 
 interface PanelReporteProps {
   reporte: ReporteSesion;
@@ -11,7 +12,7 @@ interface PanelReporteProps {
 }
 
 function formatMomento(s: string): string {
-  return s.slice(0, 16).replace("T", " ");
+  return formatearHoraLocal(s);
 }
 
 export function PanelReporte({

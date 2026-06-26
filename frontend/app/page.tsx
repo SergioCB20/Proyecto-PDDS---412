@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { Package, RefreshCw, ChevronDown, ChevronUp, CheckCircle, XCircle, Plane, Upload, FileSpreadsheet, AlertTriangle, Menu, ChevronLeft, Play, Pause, Square, Clock, Settings, Activity } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { api, fetchReporte } from '@/lib/api';
+import { formatearHoraLocal } from '@/lib/formatearHora';
 import { aeropuertoToEnMapa } from '@/lib/mock';
 import { useTelemetria } from '@/lib/useTelemetria';
 import { colorAeropuertoPorOcupacion } from '@/lib/colors';
@@ -750,12 +751,12 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
                   <MetricaCard label="SLA" value={`${(metricas.sla_acumulado_pct ?? 0).toFixed(1)}%`} icon={Activity} color="bg-blue-600" />
                   <MetricaCard label="Cancelaciones" value={metricas.vuelos_cancelados} icon={XCircle} color="bg-red-600" />
                   <MetricaCard label="Replanificadas" value={metricas.maletas_replanificadas} icon={RefreshCw} color="bg-amber-600" />
-                  <MetricaCard label="Tiempo Virtual" value={metricas.dia_hora_virtual?.slice(0, 16).replace('T', ' ') || '-'} icon={Clock} color="bg-slate-600" />
+                  <MetricaCard label="Tiempo Virtual" value={formatearHoraLocal(metricas.dia_hora_virtual) || '-'} icon={Clock} color="bg-slate-600" />
                 </div>
                 <div className="space-y-1 mb-3 text-xs text-slate-600 dark:text-slate-400">
                   <div className="flex justify-between">
                     <span>Inicio Real:</span>
-                    <span className="font-mono">{metricas.fecha_inicio_real?.slice(0, 19).replace('T', ' ') || '-'}</span>
+                    <span className="font-mono">{formatearHoraLocal(metricas.fecha_inicio_real) || '-'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Inicio Virtual:</span>

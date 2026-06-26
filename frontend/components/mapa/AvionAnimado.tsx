@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Marker, Tooltip, Popup } from 'react-leaflet';
+import { Marker, Tooltip, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { COLOR_VUELO } from '@/lib/colors';
 import { bezierControlPoint, bezierPoint, bezierBearing } from '@/lib/bezier';
@@ -19,24 +19,21 @@ function esCoordenadaValida(v: number): boolean {
   return Number.isFinite(v) && Math.abs(v) <= 180;
 }
 
-function crearIconoAvion(color: string, rotacion: number = 0) {
+// Scales icon size with zoom level (smaller on zoom-out to reduce saturation)
+function calcularTamaño(zoom: number): number {
+  return Math.max(10, Math.min(32, Math.round(zoom * 1.8 + 6)));
+}
+
+// SVG airplane pointing NORTH (up). rotacion = geographic bearing (0=N, 90=E …)
+function crearIconoAvion(color: string, rotacion: number = 0, size: number = 22) {
+  const half = Math.round(size / 2);
+  const border = Math.max(1, Math.round(size * 0.09));
+  const svgSize = Math.round(size * 0.62);
   return L.divIcon({
     className: 'avion-icon',
-    html: `<div style="
-      width: 24px;
-      height: 24px;
-      background: ${color};
-      border-radius: 50%;
-      border: 2px solid white;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      transform: rotate(${rotacion}deg);
-    ">✈</div>`,
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
+    html: `<div style="width:${size}px;height:${size}px;background:${color};border-radius:50%;border:${border}px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;transform:rotate(${rotacion}deg)"><svg viewBox="0 0 24 24" width="${svgSize}" height="${svgSize}" fill="white" xmlns="http://www.w3.org/2000/svg"><path d="M12 2 L8 10 L3 12 L3 13.5 L8 12 L9.5 11.5 L9.5 19 L10 19 L8.5 22 L9.5 22.5 L12 21.5 L14.5 22.5 L15.5 22 L14 19 L14.5 19 L14.5 11.5 L16 12 L21 13.5 L21 12 L16 10 Z"/></svg></div>`,
+    iconSize: [size, size],
+    iconAnchor: [half, half],
   });
 }
 
@@ -55,6 +52,20 @@ const AvionAnimado = React.memo(function AvionAnimado({
 }: AvionAnimadoProps) {
   const markerRef = useRef<L.Marker>(null);
   const rafRef = useRef<number>(0);
+  const map = useMap();
+
+  // Zoom-reactive icon size
+  const [iconSize, setIconSize] = useState(() => calcularTamaño(map.getZoom()));
+  const iconSizeRef = useRef(iconSize);
+  const bearingRef = useRef(0);
+
+  useEffect(() => { iconSizeRef.current = iconSize; }, [iconSize]);
+
+  useEffect(() => {
+    const onZoom = () => setIconSize(calcularTamaño(map.getZoom()));
+    map.on('zoomend', onZoom);
+    return () => { map.off('zoomend', onZoom); };
+  }, [map]);
 
   const { ctrlLat, ctrlLon } = useMemo(
     () => bezierControlPoint(vuelo.origen_lat, vuelo.origen_lon, vuelo.destino_lat, vuelo.destino_lon),
@@ -62,7 +73,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
   );
 
   const [icono, setIcono] = useState(() =>
-    crearIconoAvion(COLORES[vuelo.estado] || '#6b7280', 0)
+    crearIconoAvion(COLORES[vuelo.estado] || '#6b7280', 0, iconSize)
   );
 
   const [frozenPos] = useState<[number, number]>(() => {
@@ -86,11 +97,17 @@ const AvionAnimado = React.memo(function AvionAnimado({
     lastBearingT: -1,                 // last t at which we updated the bearing icon
   });
 
-  // Keep flight metadata in sync (no rAF restart needed — ref is always fresh)
+  // Sync flight metadata; never move the plane backward when a server tick arrives
   useEffect(() => {
     const ref = flightRef.current;
-    ref.progreso = vuelo.progreso ?? 0;
-    ref.lastTickTime = performance.now();
+    const now = performance.now();
+    const elapsed = now - ref.lastTickTime;
+    const durVirtual = ref.horaLlegadaMs - ref.horaSalidaMs;
+    const velocity = durVirtual > 0 && ref.k > 0 ? ref.k / durVirtual : 0;
+    const currentPos = Math.min(ref.progreso + velocity * elapsed, 1);
+    // Take the max: never allow the plane to jump backward on a new server tick
+    ref.progreso = Math.max(vuelo.progreso ?? 0, currentPos);
+    ref.lastTickTime = now;
     ref.horaSalidaMs = vuelo.hora_salida ? new Date(vuelo.hora_salida).getTime() : 0;
     ref.horaLlegadaMs = vuelo.hora_llegada ? new Date(vuelo.hora_llegada).getTime() : 0;
     ref.k = k;
@@ -98,9 +115,14 @@ const AvionAnimado = React.memo(function AvionAnimado({
 
   // Update icon color on state change
   useEffect(() => {
-    setIcono(crearIconoAvion(COLORES[vuelo.estado] || '#6b7280', 0));
-    flightRef.current.lastBearingT = -1; // force bearing refresh
+    setIcono(crearIconoAvion(COLORES[vuelo.estado] || '#6b7280', bearingRef.current, iconSizeRef.current));
+    flightRef.current.lastBearingT = -1;
   }, [vuelo.estado]);
+
+  // Recreate icon when zoom changes (keeps current bearing)
+  useEffect(() => {
+    setIcono(crearIconoAvion(COLORES[vuelo.estado] || '#6b7280', bearingRef.current, iconSize));
+  }, [iconSize, vuelo.estado]);
 
   /**
    * Continuous rAF loop.
@@ -126,7 +148,8 @@ const AvionAnimado = React.memo(function AvionAnimado({
         vuelo.destino_lat, vuelo.destino_lon,
         t
       );
-      setIcono(crearIconoAvion(COLORES[vuelo.estado] || '#6b7280', bearing));
+      bearingRef.current = bearing;
+      setIcono(crearIconoAvion(COLORES[vuelo.estado] || '#6b7280', bearing, iconSizeRef.current));
       return;
     }
 
@@ -166,7 +189,8 @@ const AvionAnimado = React.memo(function AvionAnimado({
           vuelo.destino_lat, vuelo.destino_lon,
           t
         );
-        setIcono(crearIconoAvion(COLORES[vuelo.estado] || '#6b7280', bearing));
+        bearingRef.current = bearing;
+        setIcono(crearIconoAvion(COLORES[vuelo.estado] || '#6b7280', bearing, iconSizeRef.current));
       }
 
       rafRef.current = requestAnimationFrame(frame);
