@@ -424,7 +424,43 @@ public class EquipajeService {
     private static final String CACHE_KEY_METRICAS = "metricas:operacion";
     private static final long CACHE_TTL_SECONDS = 5;
 
-    public MetricasOperacionResponse obtenerMetricasOperacion() {
+    public MetricasOperacionResponse obtenerMetricasOperacion(String desdeStr) {
+        if (desdeStr != null && !desdeStr.isBlank()) {
+            OffsetDateTime desde = OffsetDateTime.parse(desdeStr);
+            Map<String, Long> equipajePorEstado = equipajeRepository.countByEstadoGroupedDesde(desde)
+                    .stream()
+                    .collect(Collectors.toMap(
+                            row -> (String) row[0],
+                            row -> (Long) row[1]
+                    ));
+
+            long registrados = equipajePorEstado.getOrDefault("REGISTRADO", 0L);
+            long enVuelo = equipajePorEstado.getOrDefault("EN_VUELO", 0L);
+            long enAlmacen = equipajePorEstado.getOrDefault("EN_ALMACEN", 0L);
+            long entregados = equipajePorEstado.getOrDefault("ENTREGADO", 0L);
+            long replanificacion = equipajePorEstado.getOrDefault("EN_REPLANIFICACION", 0L);
+            long incumplimiento = equipajePorEstado.getOrDefault("INCUMPLIMIENTO_SLA", 0L);
+            long total = equipajeRepository.countDesde(desde);
+
+            Map<String, Long> vueloPorEstado = vueloRepository.countByEstadoNotPlantillaGrouped()
+                    .stream()
+                    .collect(Collectors.toMap(
+                            row -> (String) row[0],
+                            row -> (Long) row[1]
+                    ));
+
+            long programados = vueloPorEstado.getOrDefault("PROGRAMADO", 0L);
+            long enRuta = vueloPorEstado.getOrDefault("EN_RUTA", 0L);
+            long completados = vueloPorEstado.getOrDefault("COMPLETADO", 0L);
+            long cancelados = vueloPorEstado.getOrDefault("CANCELADO", 0L);
+
+            return new MetricasOperacionResponse(
+                    total, registrados, enVuelo, enAlmacen, entregados,
+                    replanificacion, incumplimiento,
+                    programados, enRuta, completados, cancelados
+            );
+        }
+
         try {
             String cached = redisCacheService.get(CACHE_KEY_METRICAS);
             if (cached != null) {
@@ -434,9 +470,7 @@ public class EquipajeService {
             // Redis miss or parse error — fall through to DB query
         }
 
-        long total = equipajeRepository.countByFechaIngresoToday();
-
-        Map<String, Long> equipajePorEstado = equipajeRepository.countByEstadoGroupedToday()
+        Map<String, Long> equipajePorEstado = equipajeRepository.countByEstadoGrouped()
                 .stream()
                 .collect(Collectors.toMap(
                         row -> (String) row[0],
@@ -449,6 +483,8 @@ public class EquipajeService {
         long entregados = equipajePorEstado.getOrDefault("ENTREGADO", 0L);
         long replanificacion = equipajePorEstado.getOrDefault("EN_REPLANIFICACION", 0L);
         long incumplimiento = equipajePorEstado.getOrDefault("INCUMPLIMIENTO_SLA", 0L);
+
+        long total = equipajeRepository.count();
 
         Map<String, Long> vueloPorEstado = vueloRepository.countByEstadoNotPlantillaGrouped()
                 .stream()

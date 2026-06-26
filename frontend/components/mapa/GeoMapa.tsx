@@ -2,6 +2,7 @@
 
 import { MapContainer, TileLayer } from 'react-leaflet';
 import type { AeropuertoEnMapa, VueloEnMapa } from '@/lib/types';
+import type { UmbralesConfig } from './ConfigUmbrales';
 import 'leaflet/dist/leaflet.css';
 import dynamic from 'next/dynamic';
 
@@ -16,6 +17,7 @@ interface GeoMapaProps {
   animacionActiva?: boolean;
   k?: number;
   className?: string;
+  umbralesConfig?: UmbralesConfig;
 }
 
 const CENTRO: [number, number] = [-15, -60];
@@ -28,6 +30,7 @@ export default function GeoMapa({
   animacionActiva = false,
   k = 120,
   className = '',
+  umbralesConfig,
 }: GeoMapaProps) {
   return (
     <div className={`relative ${className}`}>
@@ -51,10 +54,11 @@ export default function GeoMapa({
             vuelo={vuelo}
             animacionActiva={animacionActiva}
             k={k}
+            umbralesConfig={umbralesConfig}
           />
         ))}
       </MapContainer>
-      <GeoMapaLeyenda />
+      <GeoMapaLeyenda umbralesConfig={umbralesConfig} />
     </div>
   );
 }

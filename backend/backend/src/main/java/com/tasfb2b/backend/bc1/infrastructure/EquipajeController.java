@@ -125,8 +125,8 @@ public class EquipajeController {
     }
 
     @GetMapping("/metricas")
-    public ResponseEntity<?> metricas() {
-        return ResponseEntity.ok(equipajeService.obtenerMetricasOperacion());
+    public ResponseEntity<?> metricas(@RequestParam(required = false) String desde) {
+        return ResponseEntity.ok(equipajeService.obtenerMetricasOperacion(desde));
     }
 
     private Map<String, Object> error(int status, String error, String mensaje) {

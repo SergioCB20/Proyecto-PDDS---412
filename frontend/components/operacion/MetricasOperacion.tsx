@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Activity, AlertTriangle, Package, Plane } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Activity, AlertTriangle, Package, Plane, RefreshCw } from 'lucide-react';
 import { fetchMetricasOperacion } from '@/lib/api';
 import type { MetricasOperacion as MetricasOp } from '@/lib/types';
 
@@ -24,18 +24,30 @@ function MetricaCard({ label, value, icon: Icon, color }: {
 export function MetricasOperacion() {
   const [metricas, setMetricas] = useState<MetricasOp | null>(null);
 
+  const cargar = useCallback(async () => {
+    const key = 'sesion_operacion_inicio';
+    let saved = typeof window !== 'undefined' ? localStorage.getItem(key) : null;
+    if (!saved) {
+      saved = new Date().toISOString();
+      if (typeof window !== 'undefined') localStorage.setItem(key, saved);
+    }
+    try {
+      const data = await fetchMetricasOperacion(saved);
+      setMetricas(data);
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => {
-    let mounted = true;
-    const cargar = async () => {
-      try {
-        const data = await fetchMetricasOperacion();
-        if (mounted) setMetricas(data);
-      } catch { /* ignore */ }
-    };
     cargar();
     const interval = setInterval(cargar, 10000);
-    return () => { mounted = false; clearInterval(interval); };
-  }, []);
+    return () => clearInterval(interval);
+  }, [cargar]);
+
+  const reiniciar = () => {
+    const nuevo = new Date().toISOString();
+    if (typeof window !== 'undefined') localStorage.setItem('sesion_operacion_inicio', nuevo);
+    cargar();
+  };
 
   if (!metricas) {
     return (
@@ -50,7 +62,12 @@ export function MetricasOperacion() {
 
   return (
     <div className="p-4 border-t border-slate-200 dark:border-slate-700">
-      <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Métricas del Día</h3>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Métricas de la Sesión</h3>
+        <button onClick={reiniciar} className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800" title="Reiniciar sesión">
+          <RefreshCw size={14} className="text-slate-400" />
+        </button>
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <MetricaCard
           label="Total Equipajes"

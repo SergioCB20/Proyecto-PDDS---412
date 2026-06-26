@@ -153,8 +153,9 @@ export async function fetchEntregadosRecientesOperacion(horas = 4): Promise<Envi
   return api.get<EnvioEntregadoResponse[]>(`/equipajes/recientes?horas=${horas}`);
 }
 
-export async function fetchMetricasOperacion(): Promise<MetricasOperacion> {
-  return api.get<MetricasOperacion>('/equipajes/metricas');
+export async function fetchMetricasOperacion(desde?: string): Promise<MetricasOperacion> {
+  const params = desde ? `?desde=${encodeURIComponent(desde)}` : '';
+  return api.get<MetricasOperacion>(`/equipajes/metricas${params}`);
 }
 
 export async function fetchReporte(sesionId: string): Promise<ReporteSesion> {

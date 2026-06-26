@@ -86,9 +86,12 @@ export default function DashboardPage() {
   const [configUmbrales, setConfigUmbrales] = useState<UmbralesConfig>(() => {
     try {
       const saved = localStorage.getItem('umbrales-config');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const p = JSON.parse(saved);
+        if ('verdeMax' in p) return p;
+      }
     } catch { /* ignore */ }
-    return { almacenVerdeMax: 70, almacenAmbarMax: 90, vueloVerdeMax: 75, vueloAmbarMax: 90 };
+    return { verdeMax: 70, ambarMax: 90 };
   });
   const [configOpen, setConfigOpen] = useState(false);
 
@@ -126,8 +129,8 @@ export default function DashboardPage() {
         </div>
         <div className="flex-1 relative min-h-0">
           {mode === 'operacion'
-            ? <OperacionView configUmbrales={configUmbrales} onCambiarUmbrales={setConfigUmbrales} />
-            : <SimulacionView configUmbrales={configUmbrales} onCambiarUmbrales={setConfigUmbrales} />
+            ? <OperacionView configUmbrales={configUmbrales} />
+            : <SimulacionView configUmbrales={configUmbrales} />
           }
           <button
             onClick={() => setConfigOpen(!configOpen)}
@@ -180,6 +183,12 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const k = useMemo(() => telemetria?.metricas_sesion?.k ?? 120, [telemetria]);
   const animacionActiva = wsConnected && (telemetria?.vuelos?.some(v => v.estado === 'EN_RUTA') ?? false);
 
+  useEffect(() => {
+    const handler = () => { if (!document.hidden) fetchData(); };
+    document.addEventListener('visibilitychange', handler);
+    return () => document.removeEventListener('visibilitychange', handler);
+  }, []);
+
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [selectedEnvio, setSelectedEnvio] = useState<SelectedEnvioOperacion | null>(null);
   const [vueloFilterOrigen, setVueloFilterOrigen] = useState('');
@@ -213,7 +222,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
       id: n.id, codigo_iata: n.codigo_iata, nombre: n.codigo_iata,
       latitud: n.lat, longitud: n.lon, capacidad_almacen: n.capacidad_almacen,
       ocupacion_actual: n.ocupacion_actual, zona_horaria: '',
-      color: colorAeropuertoPorOcupacion(n.ocupacion_pct, { verdeMax: configUmbrales.almacenVerdeMax, ambarMax: configUmbrales.almacenAmbarMax }), ocupacionPorcentaje: n.ocupacion_pct,
+      color: colorAeropuertoPorOcupacion(n.ocupacion_pct, { verdeMax: configUmbrales.verdeMax, ambarMax: configUmbrales.ambarMax }), ocupacionPorcentaje: n.ocupacion_pct,
     }));
     queueMicrotask(() => {
       setAeropuertos(telemetriaAeropuertos);
@@ -345,7 +354,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   return (
     <div className="flex h-full">
       <div className="flex-1 p-4 relative">
-        <GeoMapa aeropuertos={aeropuertos} vuelos={vuelosMapaFiltrados} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" />
+        <GeoMapa aeropuertos={aeropuertos} vuelos={vuelosMapaFiltrados} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} />
       </div>
 
       <div className={`border-l border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col overflow-y-auto transition-all duration-300 ${isCollapsed ? 'w-12' : 'w-80'}`}>
@@ -555,7 +564,7 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
       api.get<Aeropuerto[]>('/nodos').then(aeropuertosData => {
         setInitialAeropuertos(aeropuertosData.map(n => {
           const pct = n.capacidad_almacen > 0 ? (n.ocupacion_actual / n.capacidad_almacen) * 100 : 0;
-          return { ...n, color: colorAeropuertoPorOcupacion(pct, { verdeMax: configUmbrales.almacenVerdeMax, ambarMax: configUmbrales.almacenAmbarMax }), ocupacionPorcentaje: pct };
+          return { ...n, color: colorAeropuertoPorOcupacion(pct, { verdeMax: configUmbrales.verdeMax, ambarMax: configUmbrales.ambarMax }), ocupacionPorcentaje: pct };
         }));
       }).catch(() => {});
       api.get<VueloPageResponse>('/vuelos?size=200&estado=PROGRAMADO').then(r1 => {
@@ -567,7 +576,7 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
     cargar();
     const interval = setInterval(cargar, 5000);
     return () => clearInterval(interval);
-  }, [sesionId, configUmbrales.almacenVerdeMax, configUmbrales.almacenAmbarMax]);
+  }, [sesionId, configUmbrales.verdeMax, configUmbrales.ambarMax]);
 
   const sesionEnCurso = sesionesActivas.find(s => s.estado === 'EN_CURSO');
   const sesionPausada = sesionesActivas.find(s => s.estado === 'PAUSADA');
@@ -577,7 +586,7 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
         id: n.id, codigo_iata: n.codigo_iata, nombre: n.codigo_iata,
         latitud: n.lat, longitud: n.lon, capacidad_almacen: n.capacidad_almacen,
         ocupacion_actual: n.ocupacion_actual, zona_horaria: '',
-        color: colorAeropuertoPorOcupacion(n.ocupacion_pct, { verdeMax: configUmbrales.almacenVerdeMax, ambarMax: configUmbrales.almacenAmbarMax }),
+        color: colorAeropuertoPorOcupacion(n.ocupacion_pct, { verdeMax: configUmbrales.verdeMax, ambarMax: configUmbrales.ambarMax }),
         ocupacionPorcentaje: n.ocupacion_pct,
       }))
     : initialAeropuertos;
@@ -610,8 +619,8 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
         tipo: 'SIMULADA',
         fecha_inicio_virtual: simulacionConfig.fecha_inicio_virtual,
         hora_inicio_virtual: simulacionConfig.hora_inicio_virtual + ':00',
-        umbrales_almacen: { verde_min: 0, verde_max: configUmbrales.almacenVerdeMax, ambar_min: configUmbrales.almacenVerdeMax, ambar_max: configUmbrales.almacenAmbarMax, rojo_min: configUmbrales.almacenAmbarMax, rojo_max: 100 },
-        umbrales_vuelo: { verde_min: 0, verde_max: configUmbrales.vueloVerdeMax, ambar_min: configUmbrales.vueloVerdeMax, ambar_max: configUmbrales.vueloAmbarMax, rojo_min: configUmbrales.vueloAmbarMax, rojo_max: 100 },
+        umbrales_almacen: { verde_min: 0, verde_max: configUmbrales.verdeMax, ambar_min: configUmbrales.verdeMax, ambar_max: configUmbrales.ambarMax, rojo_min: configUmbrales.ambarMax, rojo_max: 100 },
+        umbrales_vuelo: { verde_min: 0, verde_max: configUmbrales.verdeMax, ambar_min: configUmbrales.verdeMax, ambar_max: configUmbrales.ambarMax, rojo_min: configUmbrales.ambarMax, rojo_max: 100 },
       });
       await api.post(`/sesiones/${res.id}/iniciar`, {});
       setSesionId(res.id);
@@ -677,7 +686,7 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
   return (
     <div className="flex h-full">
       <div className="flex-1 p-4 relative">
-        <GeoMapa aeropuertos={aeropuertosMapa} vuelos={vuelosMapa} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" />
+        <GeoMapa aeropuertos={aeropuertosMapa} vuelos={vuelosMapa} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} />
       </div>
 
       <div className={`border-l border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col overflow-y-auto transition-all duration-300 ${isCollapsed ? 'w-12' : 'w-80'}`}>

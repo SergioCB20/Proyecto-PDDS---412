@@ -216,6 +216,7 @@ public class PlanificacionWorker {
         nodoRepository.actualizarOcupacion(primerNodoOrigen.getId(), cantidad);
 
         equipaje.setEstado(EstadoEquipaje.ENRUTADO);
+        equipaje.setVueloActual(primerVuelo);
         equipajeRepository.save(equipaje);
 
         int cargaActualizada = vueloRepository.findById(primerVuelo.getId())
@@ -288,7 +289,11 @@ public class PlanificacionWorker {
             colaRepository.save(item);
 
             equipajeRepository.findById(item.getEquipajeId()).ifPresent(eq -> {
-                eq.setEstado(EstadoEquipaje.INCUMPLIMIENTO_SLA);
+                if (item.getTipo() == TipoCola.REPLANIFICACION) {
+                    eq.setEstado(EstadoEquipaje.EN_ALMACEN);
+                } else {
+                    eq.setEstado(EstadoEquipaje.INCUMPLIMIENTO_SLA);
+                }
                 equipajeRepository.save(eq);
             });
 
@@ -346,7 +351,11 @@ public class PlanificacionWorker {
             colaRepository.save(item);
 
             equipajeRepository.findById(item.getEquipajeId()).ifPresent(eq -> {
-                eq.setEstado(EstadoEquipaje.INCUMPLIMIENTO_SLA);
+                if (item.getTipo() == TipoCola.REPLANIFICACION) {
+                    eq.setEstado(EstadoEquipaje.EN_ALMACEN);
+                } else {
+                    eq.setEstado(EstadoEquipaje.INCUMPLIMIENTO_SLA);
+                }
                 equipajeRepository.save(eq);
             });
 
