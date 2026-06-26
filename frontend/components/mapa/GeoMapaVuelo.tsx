@@ -2,7 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { Polyline, Tooltip } from 'react-leaflet';
-import { COLOR_VUELO, COLOR_AEROPUERTO } from '@/lib/colors';
+import { colorVueloPorEstado, COLOR_AEROPUERTO } from '@/lib/colors';
 import type { VueloEnMapa } from '@/lib/types';
 import type { UmbralesConfig } from './ConfigUmbrales';
 import { bezierCurvePoints } from '@/lib/bezier';
@@ -14,13 +14,6 @@ interface GeoMapaVueloProps {
   k?: number;
   umbralesConfig?: UmbralesConfig;
 }
-
-const COLORES: Record<string, string> = {
-  PROGRAMADO: COLOR_VUELO.PROGRAMADO,
-  EN_RUTA: COLOR_VUELO.EN_RUTA,
-  CANCELADO: COLOR_VUELO.CANCELADO,
-  COMPLETADO: COLOR_VUELO.COMPLETADO,
-};
 
 function OcupacionBar({ ocupada, total, verdeMax, ambarMax }: { ocupada: number; total: number; verdeMax: number; ambarMax: number }) {
   const pct = total > 0 ? ((total - ocupada) / total) * 100 : 0;
@@ -54,7 +47,7 @@ function areEqual(prevProps: GeoMapaVueloProps, nextProps: GeoMapaVueloProps): b
 }
 
 export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false, k = 120, umbralesConfig }: GeoMapaVueloProps) {
-  const color = COLORES[vuelo.estado] || '#6b7280';
+  const color = colorVueloPorEstado(vuelo.estado);
   const opacidadRuta = animacionActiva ? 0.5 : 0.2;
   const verdeMax = umbralesConfig?.verdeMax ?? 70;
   const ambarMax = umbralesConfig?.ambarMax ?? 90;

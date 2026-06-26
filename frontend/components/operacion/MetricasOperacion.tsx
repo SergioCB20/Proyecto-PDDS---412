@@ -52,7 +52,7 @@ export function MetricasOperacion() {
 
   if (!metricas) {
     return (
-      <div className="p-4 border-t border-slate-200 dark:border-slate-700">
+<div className="p-4">
         <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Métricas</h3>
         <p className="text-xs text-slate-400 italic text-center py-2">Cargando métricas...</p>
       </div>
@@ -62,7 +62,7 @@ export function MetricasOperacion() {
   const totalVuelos = metricas.vuelos_programados + metricas.vuelos_en_ruta + metricas.vuelos_completados + metricas.vuelos_cancelados;
 
   return (
-    <div className="p-4 border-t border-slate-200 dark:border-slate-700">
+    <div className="p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Métricas de la Sesión</h3>
         <button onClick={reiniciar} className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800" title="Reiniciar sesión">

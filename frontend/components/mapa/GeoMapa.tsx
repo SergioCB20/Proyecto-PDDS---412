@@ -40,6 +40,7 @@ export default function GeoMapa({
         className="w-full h-full rounded-xl z-0"
         zoomControl={true}
         scrollWheelZoom={true}
+        attributionControl={false}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'

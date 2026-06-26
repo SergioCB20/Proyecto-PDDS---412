@@ -3,17 +3,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Marker, Tooltip, Popup } from 'react-leaflet';
 import L from 'leaflet';
-import { COLOR_VUELO } from '@/lib/colors';
+import { colorVueloPorEstado } from '@/lib/colors';
 import { bezierControlPoint, bezierPoint, bezierBearing } from '@/lib/bezier';
 import type { VueloEnMapa } from '@/lib/types';
 import type { UmbralesConfig } from './ConfigUmbrales';
-
-const COLORES: Record<string, string> = {
-  PROGRAMADO: COLOR_VUELO.PROGRAMADO,
-  EN_RUTA: COLOR_VUELO.EN_RUTA,
-  CANCELADO: COLOR_VUELO.CANCELADO,
-  COMPLETADO: COLOR_VUELO.COMPLETADO,
-};
 
 function esCoordenadaValida(v: number): boolean {
   return Number.isFinite(v) && Math.abs(v) <= 180;
@@ -62,7 +55,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
   );
 
   const [icono, setIcono] = useState(() =>
-    crearIconoAvion(COLORES[vuelo.estado] || '#6b7280', 0)
+    crearIconoAvion(colorVueloPorEstado(vuelo.estado), 0)
   );
 
   const [frozenPos] = useState<[number, number]>(() => {
@@ -98,7 +91,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
 
   // Update icon color on state change
   useEffect(() => {
-    setIcono(crearIconoAvion(COLORES[vuelo.estado] || '#6b7280', 0));
+    setIcono(crearIconoAvion(colorVueloPorEstado(vuelo.estado), 0));
     flightRef.current.lastBearingT = -1; // force bearing refresh
   }, [vuelo.estado]);
 
@@ -126,7 +119,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
         vuelo.destino_lat, vuelo.destino_lon,
         t
       );
-      setIcono(crearIconoAvion(COLORES[vuelo.estado] || '#6b7280', bearing));
+        setIcono(crearIconoAvion(colorVueloPorEstado(vuelo.estado), bearing));
       return;
     }
 
@@ -166,7 +159,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
           vuelo.destino_lat, vuelo.destino_lon,
           t
         );
-        setIcono(crearIconoAvion(COLORES[vuelo.estado] || '#6b7280', bearing));
+      setIcono(crearIconoAvion(colorVueloPorEstado(vuelo.estado), bearing));
       }
 
       rafRef.current = requestAnimationFrame(frame);
@@ -210,7 +203,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
               className="h-full rounded-full transition-all duration-500"
               style={{
                 width: `${vuelo.capacidad_carga > 0 ? (ocupada / vuelo.capacidad_carga) * 100 : 0}%`,
-                backgroundColor: COLORES[vuelo.estado] || '#6b7280',
+                backgroundColor: colorVueloPorEstado(vuelo.estado),
               }}
             />
           </div>

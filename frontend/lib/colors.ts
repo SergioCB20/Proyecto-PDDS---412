@@ -9,9 +9,14 @@ export const COLOR_VUELO = {
   EN_RUTA: '#22c55e',
   CANCELADO: '#ef4444',
   COMPLETADO: '#6b7280',
+  VACIO: '#9ca3af',
 } as const;
 
 const UMBRALES_DEFAULT = { verdeMax: 70, ambarMax: 90 } as const;
+
+export function colorVueloPorEstado(estado: string | null | undefined): string {
+  return COLOR_VUELO[estado as keyof typeof COLOR_VUELO] ?? COLOR_VUELO.VACIO;
+}
 
 export function colorAeropuertoPorOcupacion(
   pct: number,
