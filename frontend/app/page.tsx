@@ -53,7 +53,7 @@ function matchEstadoVuelo(valor: string): VueloEnMapa['estado'] {
   return 'PROGRAMADO';
 }
 
-type DashboardMode = 'operacion' | 'simulacion';
+type DashboardMode = 'operacion' | 'simulacion' | 'colapso';
 
 interface SesionListaItem {
   id: string;
@@ -65,22 +65,6 @@ interface SesionListaItem {
 }
 
 interface SesionResponse { id: string }
-
-function MetricaCard({ label, value, icon: Icon, color }: {
-  label: string; value: string | number; icon: React.ElementType; color: string;
-}) {
-  return (
-    <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
-      <div className={`p-2 rounded-lg ${color}`}>
-        <Icon size={18} className="text-white" />
-      </div>
-      <div>
-        <div className="text-xs text-slate-500">{label}</div>
-        <div className="text-lg font-bold text-slate-900 dark:text-slate-100">{value}</div>
-      </div>
-    </div>
-  );
-}
 
 export default function DashboardPage() {
   const [mode, setMode] = useState<DashboardMode>('operacion');
@@ -126,13 +110,21 @@ export default function DashboardPage() {
             <Settings size={14} className="inline mr-1.5" />
             Simulación
           </button>
+          <button
+            onClick={() => setMode('colapso')}
+            className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+              mode === 'colapso'
+                ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-b-2 border-blue-500'
+                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+            }`}
+          >
+            <AlertTriangle size={14} className="inline mr-1.5" />
+            Colapso
+          </button>
           <div className="flex-1" />
         </div>
         <div className="flex-1 relative min-h-0">
-          {mode === 'operacion'
-            ? <OperacionView configUmbrales={configUmbrales} />
-            : <SimulacionView configUmbrales={configUmbrales} />
-          }
+          {mode === 'operacion' ? <OperacionView configUmbrales={configUmbrales} /> : mode === 'colapso' ? <ColapsoView configUmbrales={configUmbrales} /> : <SimulacionView configUmbrales={configUmbrales} />}
           <button
             onClick={() => setConfigOpen(!configOpen)}
             className="absolute bottom-4 right-4 z-40 p-2.5 rounded-xl bg-white dark:bg-slate-800 shadow-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
@@ -184,7 +176,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const k = 1;
   const animacionActiva = wsConnected && (telemetria?.vuelos?.some(v => v.estado === 'EN_RUTA') ?? false);
 
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const [selectedEnvio, setSelectedEnvio] = useState<SelectedEnvioOperacion | null>(null);
   const [vueloFilterOrigen, setVueloFilterOrigen] = useState('');
   const [vueloFilterDestino, setVueloFilterDestino] = useState('');
@@ -357,6 +349,12 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     <div className="flex h-full">
       <div className="flex-1 p-4 relative">
         <GeoMapa aeropuertos={aeropuertos} vuelos={vuelosMapaFiltrados} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} />
+
+        <div className="absolute top-4 left-4 z-[1001] pointer-events-none max-w-[320px]">
+          <div className="pointer-events-auto rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
+            <MetricasOperacion />
+          </div>
+        </div>
       </div>
 
       <div className={`border-l border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col overflow-y-auto transition-all duration-300 ${isCollapsed ? 'w-12' : 'w-80'}`}>
@@ -415,7 +413,6 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               )}
             </div>
 
-            <MetricasOperacion />
             <ResumenVuelosOperacion vuelos={telemetria?.vuelos ?? []} />
 
             {telemetria?.nodos && telemetria.nodos.length > 0 && (
@@ -519,7 +516,7 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
   const [error, setError] = useState('');
   const [sesionesActivas, setSesionesActivas] = useState<SesionListaItem[]>([]);
   const [finalizandoId, setFinalizandoId] = useState<string | null>(null);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const [reporte, setReporte] = useState<ReporteSesion | null>(null);
 
   const [simulacionConfig, setSimulacionConfig] = useState({
@@ -689,6 +686,50 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
     <div className="flex h-full">
       <div className="flex-1 p-4 relative">
         <GeoMapa aeropuertos={aeropuertosMapa} vuelos={vuelosMapa} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} />
+
+        {(estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA') && (
+          <>
+            <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
+              <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
+                  <Activity size={12} className="text-blue-600" />
+                  <span className="text-[10px] text-slate-500">SLA</span>
+                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{(metricas.sla_acumulado_pct ?? 0).toFixed(1)}%</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
+                  <XCircle size={12} className="text-red-600" />
+                  <span className="text-[10px] text-slate-500">Cancel</span>
+                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{metricas.vuelos_cancelados}</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
+                  <RefreshCw size={12} className="text-amber-600" />
+                  <span className="text-[10px] text-slate-500">Replan</span>
+                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{metricas.maletas_replanificadas}</span>
+                </div>
+              </div>
+            </div>
+            <div className="absolute bottom-4 left-4 z-[1001] pointer-events-none">
+              <div className="pointer-events-auto p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 space-y-1 text-[11px] text-slate-600 dark:text-slate-400 min-w-[170px]">
+                <div className="flex items-center gap-1.5 mb-1 pb-1 border-b border-slate-200 dark:border-slate-600">
+                  <Clock size={11} />
+                  <span className="font-semibold text-slate-900 dark:text-slate-100">{metricas.dia_hora_virtual?.slice(0, 16).replace('T', ' ') || '-'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Inicio Real:</span>
+                  <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{metricas.fecha_inicio_real?.slice(0, 19).replace('T', ' ') || '-'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Inicio Virtual:</span>
+                  <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{simulacionConfig.fecha_inicio_virtual} {simulacionConfig.hora_inicio_virtual}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Transcurrido:</span>
+                  <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{formatSegundos(metricas.segundos_reales_transcurridos ?? 0)}</span>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       <div className={`border-l border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col overflow-y-auto transition-all duration-300 ${isCollapsed ? 'w-12' : 'w-80'}`}>
@@ -747,26 +788,7 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
             {(estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA') && (
               <div className="p-4 border-b border-slate-200 dark:border-slate-700">
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Sesión {sesionId?.slice(0, 8)}</h3>
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                  <MetricaCard label="SLA" value={`${(metricas.sla_acumulado_pct ?? 0).toFixed(1)}%`} icon={Activity} color="bg-blue-600" />
-                  <MetricaCard label="Cancelaciones" value={metricas.vuelos_cancelados} icon={XCircle} color="bg-red-600" />
-                  <MetricaCard label="Replanificadas" value={metricas.maletas_replanificadas} icon={RefreshCw} color="bg-amber-600" />
-                  <MetricaCard label="Tiempo Virtual" value={formatearHoraLocal(metricas.dia_hora_virtual) || '-'} icon={Clock} color="bg-slate-600" />
-                </div>
-                <div className="space-y-1 mb-3 text-xs text-slate-600 dark:text-slate-400">
-                  <div className="flex justify-between">
-                    <span>Inicio Real:</span>
-                    <span className="font-mono">{formatearHoraLocal(metricas.fecha_inicio_real) || '-'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Inicio Virtual:</span>
-                    <span className="font-mono">{simulacionConfig.fecha_inicio_virtual} {simulacionConfig.hora_inicio_virtual}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Transcurrido Real:</span>
-                    <span className="font-mono">{formatSegundos(metricas.segundos_reales_transcurridos ?? 0)}</span>
-                  </div>
-                </div>
+
                 <div className="flex gap-2">
                   {estadoSesion === 'EN_CURSO' ? (
                     <Button variant="secondary" size="sm" onClick={handlePausar} disabled={loading} className="flex-1">
@@ -823,6 +845,408 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
             )}
 
             {sesionId && estadoSesion !== 'FINALIZADA' && (
+              <PanelEntregados sesionId={sesionId} activo={true} />
+            )}
+
+            {selectedEnvio && sesionId && (
+              <PanelEnvios selectedEnvio={selectedEnvio} sesionId={sesionId} onClose={() => setSelectedEnvio(null)} />
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
+  const [sesionId, setSesionId] = useState<string | null>(null);
+  const [estadoSesion, setEstadoSesion] = useState<'CONFIGURADA' | 'EN_CURSO' | 'PAUSADA' | 'FINALIZADA' | 'COLAPSADA'>('CONFIGURADA');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [sesionesActivas, setSesionesActivas] = useState<SesionListaItem[]>([]);
+  const [finalizandoId, setFinalizandoId] = useState<string | null>(null);
+  const [isCollapsed, setIsCollapsed] = useState(true);
+  const [reporte, setReporte] = useState<ReporteSesion | null>(null);
+
+  const [simulacionConfig, setSimulacionConfig] = useState({
+    fecha_inicio_virtual: '2025-06-01',
+    hora_inicio_virtual: '08:00',
+  });
+
+  const { data: telemetria, connected: wsConnected } = useTelemetria(estadoSesion === 'EN_CURSO');
+  const [initialAeropuertos, setInitialAeropuertos] = useState<AeropuertoEnMapa[]>([]);
+  const [initialVuelos, setInitialVuelos] = useState<VueloEnMapa[]>([]);
+  const [selectedEnvio, setSelectedEnvio] = useState<SelectedEnvio | null>(null);
+  const [vueloFilterOrigen, setVueloFilterOrigen] = useState('');
+  const [vueloFilterDestino, setVueloFilterDestino] = useState('');
+
+  const [metricasPoll, setMetricasPoll] = useState<MetricasSimulacion>({
+    sesion_id: '', estado: 'CONFIGURADA', dia_hora_virtual: '',
+    segundos_reales_transcurridos: 0, sla_acumulado_pct: 100,
+    vuelos_cancelados: 0, maletas_replanificadas: 0,
+  });
+
+  const metricas = telemetria?.metricas_sesion ?? metricasPoll;
+
+  useEffect(() => {
+    api.get<SesionListaItem[]>('/sesiones?estado=EN_CURSO').then(enCurso =>
+      api.get<SesionListaItem[]>('/sesiones?estado=PAUSADA').then(pausadas => {
+        setSesionesActivas([...enCurso, ...pausadas]);
+      })
+    ).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!sesionId || estadoSesion === 'FINALIZADA' || estadoSesion === 'COLAPSADA') return;
+    const interval = setInterval(() => {
+      api.get<MetricasSimulacion>(`/sesiones/${sesionId}/metricas`).then(m => {
+        setMetricasPoll(m);
+        if (m.estado === 'COLAPSADA') {
+          setEstadoSesion('COLAPSADA');
+          fetchReportWithRetry(sesionId);
+        }
+      }).catch(() => {});
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [sesionId, estadoSesion]);
+
+  useEffect(() => {
+    if (!sesionId) return;
+    const cargar = () => {
+      api.get<Aeropuerto[]>('/nodos').then(aeropuertosData => {
+        setInitialAeropuertos(aeropuertosData.map(n => {
+          const pct = n.capacidad_almacen > 0 ? (n.ocupacion_actual / n.capacidad_almacen) * 100 : 0;
+          return { ...n, color: colorAeropuertoPorOcupacion(pct, { verdeMax: configUmbrales.verdeMax, ambarMax: configUmbrales.ambarMax }), ocupacionPorcentaje: pct };
+        }));
+      }).catch(() => {});
+      api.get<VueloPageResponse>('/vuelos?size=200&estado=PROGRAMADO').then(r1 => {
+        api.get<VueloPageResponse>('/vuelos?size=200&estado=EN_RUTA').then(r2 => {
+          setInitialVuelos([...r1.content, ...r2.content].map((v: Vuelo): VueloEnMapa => ({ ...v })));
+        }).catch(() => {});
+      }).catch(() => {});
+    };
+    cargar();
+    const interval = setInterval(cargar, 5000);
+    return () => clearInterval(interval);
+  }, [sesionId, configUmbrales.verdeMax, configUmbrales.ambarMax]);
+
+  const sesionEnCurso = sesionesActivas.find(s => s.estado === 'EN_CURSO');
+  const sesionPausada = sesionesActivas.find(s => s.estado === 'PAUSADA');
+
+  const aeropuertosMapa: AeropuertoEnMapa[] = (telemetria?.nodos ?? []).length > 0
+    ? (telemetria?.nodos ?? []).map(n => ({
+        id: n.id, codigo_iata: n.codigo_iata, nombre: n.codigo_iata,
+        latitud: n.lat, longitud: n.lon, capacidad_almacen: n.capacidad_almacen,
+        ocupacion_actual: n.ocupacion_actual, zona_horaria: '',
+        color: colorAeropuertoPorOcupacion(n.ocupacion_pct, { verdeMax: configUmbrales.verdeMax, ambarMax: configUmbrales.ambarMax }),
+        ocupacionPorcentaje: n.ocupacion_pct,
+      }))
+    : initialAeropuertos;
+
+  const vuelosMapa: VueloEnMapa[] = (telemetria?.vuelos ?? []).length > 0
+    ? telemetria!.vuelos.map(v => ({
+        id: v.id, codigo_vuelo: v.codigo_vuelo, estado: matchEstadoVuelo(v.estado),
+        origen: { id: '', codigo_iata: v.origen_iata, nombre: v.origen_iata },
+        destino: { id: '', codigo_iata: v.destino_iata, nombre: v.destino_iata },
+        origen_lat: v.origen_lat, origen_lon: v.origen_lon, destino_lat: v.destino_lat, destino_lon: v.destino_lon,
+        hora_salida: v.hora_salida ?? '', hora_llegada: v.hora_llegada ?? '',
+        capacidad_carga: v.capacidad_carga, carga_disponible: v.carga_disponible,
+        es_plantilla: false, fecha_operacion: '',
+        posicionActual: { lat: v.lat_actual, lon: v.lon_actual },
+      }))
+    : initialVuelos;
+
+  const maxOcupacion = Math.max(
+    0,
+    ...(telemetria?.nodos ?? []).map(n => n.ocupacion_pct),
+    ...initialAeropuertos.map(n => n.ocupacionPorcentaje)
+  );
+
+  async function fetchReportWithRetry(id: string) {
+    for (let i = 0; i < 10; i++) {
+      await new Promise(r => setTimeout(r, 600));
+      try {
+        const r = await fetchReporte(id);
+        setReporte(r);
+        return;
+      } catch { /* report not ready yet */ }
+    }
+  }
+
+  const handleIniciar = async () => {
+    setError(''); setLoading(true); setReporte(null);
+    try {
+      const activas = await api.get<SesionListaItem[]>('/sesiones?estado=EN_CURSO');
+      for (const s of activas) {
+        try { await api.post(`/sesiones/${s.id}/detener`, {}); } catch { /* ignore */ }
+      }
+      const pausadas = await api.get<SesionListaItem[]>('/sesiones?estado=PAUSADA');
+      for (const s of pausadas) {
+        try { await api.post(`/sesiones/${s.id}/detener`, {}); } catch { /* ignore */ }
+      }
+      const res = await api.post<SesionResponse>('/sesiones', {
+        tipo: 'SIMULADA',
+        tipo_simulacion: 'HASTA_COLAPSO',
+        fecha_inicio_virtual: simulacionConfig.fecha_inicio_virtual,
+        hora_inicio_virtual: simulacionConfig.hora_inicio_virtual + ':00',
+        umbrales_almacen: { verde_min: 0, verde_max: configUmbrales.verdeMax, ambar_min: configUmbrales.verdeMax, ambar_max: configUmbrales.ambarMax, rojo_min: configUmbrales.ambarMax, rojo_max: 100 },
+        umbrales_vuelo: { verde_min: 0, verde_max: configUmbrales.verdeMax, ambar_min: configUmbrales.verdeMax, ambar_max: configUmbrales.ambarMax, rojo_min: configUmbrales.ambarMax, rojo_max: 100 },
+      });
+      await api.post(`/sesiones/${res.id}/iniciar`, {});
+      setSesionId(res.id);
+      setEstadoSesion('EN_CURSO');
+      setSesionesActivas([]);
+      setMetricasPoll(prev => ({ ...prev, sesion_id: res.id }));
+    } catch (err: unknown) {
+      const e = err as { mensaje?: string; message?: string };
+      setError(e.mensaje || e.message || 'Error al crear sesion');
+    } finally { setLoading(false); }
+  };
+
+  const handlePausar = async () => {
+    if (!sesionId) return;
+    setLoading(true);
+    try {
+      await api.post(`/sesiones/${sesionId}/pausar`, {});
+      setEstadoSesion('PAUSADA');
+    } catch { setError('Error al pausar'); }
+    finally { setLoading(false); }
+  };
+
+  const handleReanudar = async () => {
+    if (!sesionId) return;
+    setLoading(true);
+    try {
+      await api.post(`/sesiones/${sesionId}/iniciar`, {});
+      setEstadoSesion('EN_CURSO');
+    } catch { setError('Error al reanudar'); }
+    finally { setLoading(false); }
+  };
+
+  const handleDetener = async (id: string) => {
+    setFinalizandoId(id); setError('');
+    try {
+      await api.post(`/sesiones/${id}/detener`, {});
+      setSesionesActivas(prev => prev.filter(s => s.id !== id));
+      if (id === sesionId) { setSesionId(null); setEstadoSesion('FINALIZADA'); }
+      await fetchReportWithRetry(id);
+    } catch (err: unknown) {
+      const e = err as { mensaje?: string; message?: string };
+      setError(e.mensaje || e.message || 'Error al detener');
+    } finally { setFinalizandoId(null); }
+  };
+
+  const handleCancelarVuelo = async (id: string, codigo: string) => {
+    if (!confirm(`¿Cancelar vuelo ${codigo}?`)) return;
+    try {
+      await api.post('/simulacion/cancelacion', { vuelo_id: id, causa: 'Cancelación manual' });
+    } catch { alert('Error al cancelar vuelo'); }
+  };
+
+  const k = useMemo(() => telemetria?.metricas_sesion?.k ?? 120, [telemetria]);
+  const animacionActiva = wsConnected && (vuelosMapa.some(v => v.estado === 'EN_RUTA') ?? false);
+
+  return (
+    <div className="flex h-full">
+      <div className="flex-1 p-4 relative">
+        <GeoMapa aeropuertos={aeropuertosMapa} vuelos={vuelosMapa} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} />
+
+        {(estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA') && (
+          <>
+            <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
+              <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
+                  <Activity size={12} className="text-blue-600" />
+                  <span className="text-[10px] text-slate-500">SLA</span>
+                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{(metricas.sla_acumulado_pct ?? 0).toFixed(1)}%</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
+                  <XCircle size={12} className="text-red-600" />
+                  <span className="text-[10px] text-slate-500">Cancel</span>
+                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{metricas.vuelos_cancelados}</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
+                  <RefreshCw size={12} className="text-amber-600" />
+                  <span className="text-[10px] text-slate-500">Replan</span>
+                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{metricas.maletas_replanificadas}</span>
+                </div>
+              </div>
+              <div className="pointer-events-auto mt-1.5 p-2 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
+                <div className="flex items-center justify-between mb-0.5">
+                  <span className="text-[10px] text-slate-500">Ocupación máxima</span>
+                  <span className="text-xs font-bold" style={{
+                    color: maxOcupacion < configUmbrales.verdeMax ? '#22c55e' : maxOcupacion < configUmbrales.ambarMax ? '#eab308' : '#ef4444'
+                  }}>{maxOcupacion.toFixed(0)}%</span>
+                </div>
+                <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all duration-500" style={{
+                    width: `${Math.min(maxOcupacion, 100)}%`,
+                    backgroundColor: maxOcupacion < configUmbrales.verdeMax ? '#22c55e' : maxOcupacion < configUmbrales.ambarMax ? '#eab308' : '#ef4444'
+                  }} />
+                </div>
+              </div>
+            </div>
+            <div className="absolute bottom-4 left-4 z-[1001] pointer-events-none">
+              <div className="pointer-events-auto p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 space-y-1 text-[11px] text-slate-600 dark:text-slate-400 min-w-[170px]">
+                <div className="flex items-center gap-1.5 mb-1 pb-1 border-b border-slate-200 dark:border-slate-600">
+                  <Clock size={11} />
+                  <span className="font-semibold text-slate-900 dark:text-slate-100">{metricas.dia_hora_virtual?.slice(0, 16).replace('T', ' ') || '-'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Inicio Real:</span>
+                  <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{metricas.fecha_inicio_real?.slice(0, 19).replace('T', ' ') || '-'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Inicio Virtual:</span>
+                  <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{simulacionConfig.fecha_inicio_virtual} {simulacionConfig.hora_inicio_virtual}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Transcurrido:</span>
+                  <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{formatSegundos(metricas.segundos_reales_transcurridos ?? 0)}</span>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className={`border-l border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col overflow-y-auto transition-all duration-300 ${isCollapsed ? 'w-12' : 'w-80'}`}>
+        <div className="p-2 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+          {!isCollapsed && <h2 className="font-semibold text-slate-900 dark:text-slate-100 text-sm truncate">Colapso</h2>}
+          <button onClick={() => setIsCollapsed(!isCollapsed)} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            {isCollapsed ? <Menu size={18} /> : <ChevronLeft size={18} />}
+          </button>
+        </div>
+
+        {isCollapsed ? (
+          <div className="flex flex-col items-center gap-3 py-4 px-1">
+            <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+          </div>
+        ) : (
+          <>
+            <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between mb-1">
+                <h2 className="font-semibold text-slate-900 dark:text-slate-100">Colapso</h2>
+              </div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+                <span className="text-xs text-slate-500">WS {wsConnected ? 'conectado' : 'desconectado'}</span>
+              </div>
+
+              {sesionEnCurso && (
+                <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+                  <span className="text-xs text-blue-600 font-medium">Activa: {sesionEnCurso.fecha_inicio_virtual}</span>
+                  <Button variant="danger" size="sm" disabled={finalizandoId === sesionEnCurso.id} onClick={() => handleDetener(sesionEnCurso.id)}>
+                    <Square size={12} className="mr-1" />{finalizandoId === sesionEnCurso.id ? '...' : 'Detener'}
+                  </Button>
+                  <Button size="sm" onClick={() => { setSesionId(sesionEnCurso.id); setEstadoSesion('EN_CURSO'); }}>
+                    <Play size={12} className="mr-1" />Reanudar
+                  </Button>
+                </div>
+              )}
+              {sesionPausada && !sesionEnCurso && (
+                <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+                  <span className="text-xs text-yellow-600 font-medium">Pausada: {sesionPausada.fecha_inicio_virtual}</span>
+                  <Button variant="danger" size="sm" disabled={finalizandoId === sesionPausada.id} onClick={() => handleDetener(sesionPausada.id)}>
+                    <Square size={12} className="mr-1" />{finalizandoId === sesionPausada.id ? '...' : 'Detener'}
+                  </Button>
+                  <Button size="sm" onClick={async () => { setSesionId(sesionPausada.id); setLoading(true); try { await api.post(`/sesiones/${sesionPausada.id}/iniciar`, {}); setEstadoSesion('EN_CURSO'); } catch { setError('Error al reanudar'); } finally { setLoading(false); } }}>
+                    <Play size={12} className="mr-1" />Continuar
+                  </Button>
+                </div>
+              )}
+              {error && (
+                <div className="flex items-center gap-2 p-2 mt-2 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
+                  <XCircle size={14} className="text-red-600 dark:text-red-400 flex-shrink-0" />
+                  <span className="text-xs text-red-700 dark:text-red-300">{error}</span>
+                </div>
+              )}
+            </div>
+
+            {(estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA') && (
+              <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Sesión {sesionId?.slice(0, 8)}</h3>
+                <div className="flex gap-2">
+                  {estadoSesion === 'EN_CURSO' ? (
+                    <Button variant="secondary" size="sm" onClick={handlePausar} disabled={loading} className="flex-1">
+                      <Pause size={14} className="mr-1" />Pausar
+                    </Button>
+                  ) : (
+                    <Button size="sm" onClick={handleReanudar} disabled={loading} className="flex-1">
+                      <Play size={14} className="mr-1" />Reanudar
+                    </Button>
+                  )}
+                  <Button variant="danger" size="sm" onClick={() => sesionId && handleDetener(sesionId)} disabled={finalizandoId === sesionId} className="flex-1">
+                    <Square size={14} className="mr-1" />Detener
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {(!sesionId || estadoSesion === 'FINALIZADA' || estadoSesion === 'COLAPSADA') && (
+              <>
+                {(estadoSesion === 'FINALIZADA' || estadoSesion === 'COLAPSADA') && reporte && (
+                  <PanelReporte reporte={reporte} sesionId={sesionId ?? ''} onClose={() => setReporte(null)} />
+                )}
+                {(estadoSesion === 'COLAPSADA' && !reporte) && (
+                  <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
+                      <AlertTriangle size={14} className="text-red-600 dark:text-red-400" />
+                      <span className="text-xs text-red-700 dark:text-red-300">Generando reporte de colapso...</span>
+                    </div>
+                  </div>
+                )}
+                {(estadoSesion === 'FINALIZADA' && !reporte) && (
+                  <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+                      <CheckCircle size={14} className="text-slate-500" />
+                      <span className="text-xs text-slate-500">Generando reporte...</span>
+                    </div>
+                  </div>
+                )}
+                {(!sesionId || !reporte) && (
+                  <div className="p-4 border-b border-slate-200 dark:border-slate-700 space-y-4">
+                    <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <AlertTriangle size={14} className="text-amber-600 dark:text-amber-400" />
+                        <span className="text-xs font-medium text-amber-700 dark:text-amber-300">Modo: HASTA COLAPSO</span>
+                      </div>
+                      <p className="text-[11px] text-amber-600 dark:text-amber-400">La simulación se detendrá automáticamente cuando un almacén supere su capacidad máxima.</p>
+                    </div>
+                    <Card title="Fecha y Hora">
+                      <div className="space-y-3">
+                        <Input label="Fecha virtual" type="date" value={simulacionConfig.fecha_inicio_virtual} onChange={e => setSimulacionConfig({ ...simulacionConfig, fecha_inicio_virtual: e.target.value })} />
+                        <Input label="Hora virtual" type="time" value={simulacionConfig.hora_inicio_virtual} onChange={e => setSimulacionConfig({ ...simulacionConfig, hora_inicio_virtual: e.target.value })} />
+                      </div>
+                    </Card>
+                    <Button size="lg" onClick={handleIniciar} disabled={loading} className="w-full">
+                      <Play size={18} className="mr-2" />{loading ? 'Creando...' : 'Iniciar Simulación'}
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+
+            {(sesionId || telemetria?.vuelos) && (
+              <ResumenVuelosOperacion vuelos={telemetria?.vuelos ?? []} />
+            )}
+
+            {(sesionId && estadoSesion !== 'FINALIZADA' && estadoSesion !== 'COLAPSADA') && telemetria?.nodos && telemetria.nodos.length > 0 && (
+              <PanelAeropuertosOperacion aeropuertos={telemetria.nodos} vuelos={telemetria.vuelos ?? []}
+                onAeropuertoClick={(id, codigo) => setSelectedEnvio({ tipo: 'nodo', id, codigo })}
+              />
+            )}
+
+            {(sesionId && estadoSesion !== 'FINALIZADA' && estadoSesion !== 'COLAPSADA') && telemetria?.vuelos && telemetria.vuelos.length > 0 && (
+              <PanelVuelosOperacion vuelos={telemetria.vuelos}
+                onVueloClick={(id, codigo) => setSelectedEnvio({ tipo: 'vuelo', id, codigo })}
+                onCancelVuelo={handleCancelarVuelo}
+                origenFilter={vueloFilterOrigen} destinoFilter={vueloFilterDestino}
+                onFilterChange={({ origen, destino }) => { setVueloFilterOrigen(origen); setVueloFilterDestino(destino); }}
+              />
+            )}
+
+            {sesionId && estadoSesion !== 'FINALIZADA' && estadoSesion !== 'COLAPSADA' && (
               <PanelEntregados sesionId={sesionId} activo={true} />
             )}
 

@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
+import { colorVueloPorEstado } from '@/lib/colors';
 import type { VueloTelemetria } from '@/lib/types';
 
 interface PanelVuelosProps {
@@ -160,7 +161,7 @@ export function PanelVuelos({ vuelos, onVueloClick, origenFilter = '', destinoFi
         {vuelosVisibles.map(v => {
           const ocupada = v.capacidad_carga - v.carga_disponible;
           const pct = v.capacidad_carga > 0 ? (ocupada / v.capacidad_carga) * 100 : 0;
-          const colorHex = v.estado === 'EN_RUTA' ? '#22c55e' : v.estado === 'PROGRAMADO' ? '#3b82f6' : '#6b7280';
+          const colorHex = colorVueloPorEstado(v.estado);
           return (
             <div
               key={v.id}

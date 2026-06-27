@@ -93,7 +93,7 @@ export interface VueloEnMapa extends Vuelo {
 
 export interface MetricasSimulacion {
   sesion_id: string;
-  estado: 'CONFIGURADA' | 'EN_CURSO' | 'PAUSADA' | 'FINALIZADA';
+  estado: 'CONFIGURADA' | 'EN_CURSO' | 'PAUSADA' | 'FINALIZADA' | 'COLAPSADA';
   dia_hora_virtual: string;
   segundos_reales_transcurridos: number;
   sla_acumulado_pct: number;

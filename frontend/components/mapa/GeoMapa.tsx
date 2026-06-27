@@ -41,10 +41,7 @@ export default function GeoMapa({
         className="w-full h-full rounded-xl z-0"
         zoomControl={false}
         scrollWheelZoom={true}
-        zoomSnap={0.5}
-        zoomDelta={0.5}
-        minZoom={2}
-        maxZoom={14}
+        attributionControl={false}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
