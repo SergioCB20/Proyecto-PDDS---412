@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Marker, Tooltip, Popup } from 'react-leaflet';
+import { Marker, Polyline, Tooltip, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { colorVueloPorEstado } from '@/lib/colors';
-import { bezierControlPoint, bezierPoint, bezierBearing } from '@/lib/bezier';
+import { bezierControlPoint, bezierPoint, bezierBearing, bezierSamples } from '@/lib/bezier';
 import type { VueloEnMapa } from '@/lib/types';
 import type { UmbralesConfig } from './ConfigUmbrales';
 
@@ -12,24 +12,21 @@ function esCoordenadaValida(v: number): boolean {
   return Number.isFinite(v) && Math.abs(v) <= 180;
 }
 
-function crearIconoAvion(color: string, rotacion: number = 0) {
+// Scales icon size with zoom level (smaller on zoom-out to reduce saturation)
+function calcularTamaño(zoom: number): number {
+  return Math.max(10, Math.min(32, Math.round(zoom * 1.8 + 6)));
+}
+
+// SVG airplane pointing NORTH (up). rotacion = geographic bearing (0=N, 90=E …)
+function crearIconoAvion(color: string, rotacion: number = 0, size: number = 22) {
+  const half = Math.round(size / 2);
+  const border = Math.max(1, Math.round(size * 0.09));
+  const svgSize = Math.round(size * 0.62);
   return L.divIcon({
     className: 'avion-icon',
-    html: `<div style="
-      width: 24px;
-      height: 24px;
-      background: ${color};
-      border-radius: 50%;
-      border: 2px solid white;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      transform: rotate(${rotacion}deg);
-    ">✈</div>`,
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
+    html: `<div style="width:${size}px;height:${size}px;background:${color};border-radius:50%;border:${border}px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;transform:rotate(${rotacion}deg)"><svg viewBox="0 0 24 24" width="${svgSize}" height="${svgSize}" fill="white" xmlns="http://www.w3.org/2000/svg"><path d="M12 2 L8 10 L3 12 L3 13.5 L8 12 L9.5 11.5 L9.5 19 L10 19 L8.5 22 L9.5 22.5 L12 21.5 L14.5 22.5 L15.5 22 L14 19 L14.5 19 L14.5 11.5 L16 12 L21 13.5 L21 12 L16 10 Z"/></svg></div>`,
+    iconSize: [size, size],
+    iconAnchor: [half, half],
   });
 }
 
@@ -47,12 +44,54 @@ const AvionAnimado = React.memo(function AvionAnimado({
   umbralesConfig,
 }: AvionAnimadoProps) {
   const markerRef = useRef<L.Marker>(null);
+  const polylineRef = useRef<L.Polyline>(null);
   const rafRef = useRef<number>(0);
+  const map = useMap();
+
+  // Zoom-reactive icon size
+  const [iconSize, setIconSize] = useState(() => calcularTamaño(map.getZoom()));
+  const iconSizeRef = useRef(iconSize);
+  const bearingRef = useRef(0);
+
+  useEffect(() => { iconSizeRef.current = iconSize; }, [iconSize]);
+
+  useEffect(() => {
+    const onZoom = () => setIconSize(calcularTamaño(map.getZoom()));
+    map.on('zoomend', onZoom);
+    return () => { map.off('zoomend', onZoom); };
+  }, [map]);
 
   const { ctrlLat, ctrlLon } = useMemo(
     () => bezierControlPoint(vuelo.origen_lat, vuelo.origen_lon, vuelo.destino_lat, vuelo.destino_lon),
     [vuelo.origen_lat, vuelo.origen_lon, vuelo.destino_lat, vuelo.destino_lon]
   );
+
+  // Curva pre-muestreada para la estela; en cada frame se conservan solo los
+  // puntos por delante del avión (la ruta transcurrida desaparece).
+  const samples = useMemo(
+    () => bezierSamples(
+      vuelo.origen_lat, vuelo.origen_lon,
+      ctrlLat, ctrlLon,
+      vuelo.destino_lat, vuelo.destino_lon
+    ),
+    [vuelo.origen_lat, vuelo.origen_lon, vuelo.destino_lat, vuelo.destino_lon, ctrlLat, ctrlLon]
+  );
+
+  // Recorta la polilínea a la porción aún no recorrida (cabeza pegada al avión).
+  const dibujarEstela = (t: number) => {
+    const poly = polylineRef.current;
+    if (!poly) return;
+    const [hLat, hLon] = bezierPoint(
+      vuelo.origen_lat, vuelo.origen_lon,
+      ctrlLat, ctrlLon,
+      vuelo.destino_lat, vuelo.destino_lon, t
+    );
+    const tail: L.LatLngTuple[] = [[hLat, hLon]];
+    for (const s of samples) {
+      if (s.t > t) tail.push([s.lat, s.lon]);
+    }
+    poly.setLatLngs(tail);
+  };
 
   const [icono, setIcono] = useState(() =>
     crearIconoAvion(colorVueloPorEstado(vuelo.estado), 0)
@@ -79,21 +118,45 @@ const AvionAnimado = React.memo(function AvionAnimado({
     lastBearingT: -1,                 // last t at which we updated the bearing icon
   });
 
-  // Keep flight metadata in sync (no rAF restart needed — ref is always fresh)
+  // Sync flight metadata; never move the plane backward when a server tick arrives
   useEffect(() => {
     const ref = flightRef.current;
-    ref.progreso = vuelo.progreso ?? 0;
-    ref.lastTickTime = performance.now();
+
+    // En tierra (PROGRAMADO/COMPLETADO/CANCELADO): posición exacta del servidor
+    // (PROGRAMADO = 0). Sin extrapolar ni "no retroceso", para que un vuelo que
+    // se reinicia a PROGRAMADO no quede congelado a mitad de ruta.
+    if (vuelo.estado !== 'EN_RUTA') {
+      ref.progreso = Math.min(Math.max(vuelo.progreso ?? 0, 0), 1);
+      ref.lastTickTime = performance.now();
+      ref.horaSalidaMs = vuelo.hora_salida ? new Date(vuelo.hora_salida).getTime() : 0;
+      ref.horaLlegadaMs = vuelo.hora_llegada ? new Date(vuelo.hora_llegada).getTime() : 0;
+      ref.k = k;
+      return;
+    }
+
+    const now = performance.now();
+    const elapsed = now - ref.lastTickTime;
+    const durVirtual = ref.horaLlegadaMs - ref.horaSalidaMs;
+    const velocity = durVirtual > 0 && ref.k > 0 ? ref.k / durVirtual : 0;
+    const currentPos = Math.min(ref.progreso + velocity * elapsed, 1);
+    // Take the max: never allow the plane to jump backward on a new server tick
+    ref.progreso = Math.max(vuelo.progreso ?? 0, currentPos);
+    ref.lastTickTime = now;
     ref.horaSalidaMs = vuelo.hora_salida ? new Date(vuelo.hora_salida).getTime() : 0;
     ref.horaLlegadaMs = vuelo.hora_llegada ? new Date(vuelo.hora_llegada).getTime() : 0;
     ref.k = k;
-  }, [vuelo.progreso, vuelo.hora_salida, vuelo.hora_llegada, k]);
+  }, [vuelo.progreso, vuelo.estado, vuelo.hora_salida, vuelo.hora_llegada, k]);
 
   // Update icon color on state change
   useEffect(() => {
     setIcono(crearIconoAvion(colorVueloPorEstado(vuelo.estado), 0));
     flightRef.current.lastBearingT = -1; // force bearing refresh
   }, [vuelo.estado]);
+
+  // Recreate icon when zoom changes (keeps current bearing)
+  useEffect(() => {
+    setIcono(crearIconoAvion(colorVueloPorEstado(vuelo.estado), bearingRef.current, iconSize));
+  }, [iconSize, vuelo.estado]);
 
   /**
    * Continuous rAF loop.
@@ -113,6 +176,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
         t
       );
       marker.setLatLng([lat, lng]);
+      dibujarEstela(t);
       const bearing = bezierBearing(
         vuelo.origen_lat, vuelo.origen_lon,
         ctrlLat, ctrlLon,
@@ -149,6 +213,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
         t
       );
       marker.setLatLng([lat, lng]);
+      dibujarEstela(t);
 
       // Refresh bearing icon only when progreso shifts by ≥3% (avoids per-frame setState)
       if (Math.abs(t - ref.lastBearingT) >= 0.03) {
@@ -180,13 +245,36 @@ const AvionAnimado = React.memo(function AvionAnimado({
     vuelo.origen_lat, vuelo.origen_lon,
     vuelo.destino_lat, vuelo.destino_lon,
     ctrlLat, ctrlLon,
+    samples,
     // NOTE: vuelo.progreso / k intentionally excluded — handled via flightRef
   ]);
 
   const ocupada = vuelo.capacidad_carga - vuelo.carga_disponible;
 
+  // Estela inicial: ruta por delante del avión desde su progreso actual
+  // (evita un parpadeo con la ruta completa antes del primer frame).
+  const estelaInicial = useMemo<L.LatLngTuple[]>(() => {
+    const t0 = Math.min(Math.max(vuelo.progreso ?? 0, 0), 1);
+    const [hLat, hLon] = bezierPoint(
+      vuelo.origen_lat, vuelo.origen_lon,
+      ctrlLat, ctrlLon,
+      vuelo.destino_lat, vuelo.destino_lon, t0
+    );
+    const tail: L.LatLngTuple[] = [[hLat, hLon]];
+    for (const s of samples) if (s.t > t0) tail.push([s.lat, s.lon]);
+    return tail;
+  }, [samples, ctrlLat, ctrlLon, vuelo.origen_lat, vuelo.origen_lon, vuelo.destino_lat, vuelo.destino_lon, vuelo.progreso]);
+
   return (
-    <Marker ref={markerRef} position={frozenPos} icon={icono}>
+    <>
+      {vuelo.estado === 'EN_RUTA' && (
+        <Polyline
+          ref={polylineRef}
+          positions={estelaInicial}
+          pathOptions={{ color: colorVueloPorEstado('EN_RUTA'), weight: 1, opacity: 0.6 }}
+        />
+      )}
+      <Marker ref={markerRef} position={frozenPos} icon={icono}>
       {/* Etiqueta de carga: visible solo al pasar el cursor sobre el avión */}
       <Tooltip direction="top" offset={[0, -14]} className="avion-carga-tooltip">
         <div className="text-center min-w-[90px]">
@@ -247,6 +335,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
         </div>
       </Popup>
     </Marker>
+    </>
   );
 });
 

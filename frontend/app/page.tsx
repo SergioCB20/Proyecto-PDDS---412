@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { Package, RefreshCw, ChevronDown, ChevronUp, CheckCircle, XCircle, Plane, Upload, FileSpreadsheet, AlertTriangle, Menu, ChevronLeft, Play, Pause, Square, Clock, Settings, Activity } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { api, fetchReporte } from '@/lib/api';
+import { formatearHoraLocal } from '@/lib/formatearHora';
 import { aeropuertoToEnMapa } from '@/lib/mock';
 import { useTelemetria } from '@/lib/useTelemetria';
 import { colorAeropuertoPorOcupacion } from '@/lib/colors';
@@ -787,6 +788,7 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
             {(estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA') && (
               <div className="p-4 border-b border-slate-200 dark:border-slate-700">
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Sesión {sesionId?.slice(0, 8)}</h3>
+
                 <div className="flex gap-2">
                   {estadoSesion === 'EN_CURSO' ? (
                     <Button variant="secondary" size="sm" onClick={handlePausar} disabled={loading} className="flex-1">

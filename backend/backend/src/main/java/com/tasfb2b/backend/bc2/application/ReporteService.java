@@ -180,20 +180,22 @@ public class ReporteService {
                 serieSla);
     }
 
+    // Componentes en snake_case para que Jackson emita las claves que espera el
+    // frontend (serie_sla, sla_pct, …), igual que el resto de DTOs del proyecto.
     public record PuntoSLAResponse(
-            OffsetDateTime momentoVirtual,
-            BigDecimal slaPct,
-            Boolean huboCancelacion,
-            UUID vueloCanceladoRefId
+            OffsetDateTime momento_virtual,
+            BigDecimal sla_pct,
+            Boolean hubo_cancelacion,
+            UUID vuelo_cancelado_ref_id
     ) {}
 
     public record ReporteSesionResponse(
-            UUID sesionId,
-            BigDecimal slaIncumplidoPct,
-            Integer totalReplanificadas,
-            OffsetDateTime puntoColapsoVirtual,
-            UUID nodoColapsoRefId,
-            String causaColapso,
-            List<PuntoSLAResponse> serieSla
+            UUID sesion_id,
+            BigDecimal sla_incumplido_pct,
+            Integer total_replanificadas,
+            OffsetDateTime punto_colapso_virtual,
+            UUID nodo_colapso_ref_id,
+            String causa_colapso,
+            List<PuntoSLAResponse> serie_sla
     ) {}
 }

@@ -305,6 +305,7 @@ public class EquipajeService {
     ) {}
 
     public record EnvioItemOperacionResponse(
+            UUID id,
             String origen_iata,
             String destino_iata,
             String codigo_equipaje,
@@ -366,6 +367,7 @@ public class EquipajeService {
         List<Equipaje> equipajes = equipajeRepository.findByVueloActualId(vueloId);
         return equipajes.stream()
                 .map(e -> new EnvioItemOperacionResponse(
+                        e.getId(),
                         e.getOrigenIata(),
                         e.getDestinoIata(),
                         e.getIdExterno() != null ? e.getIdExterno() : e.getId().toString(),
@@ -389,6 +391,7 @@ public class EquipajeService {
 
         return result.stream()
                 .map(e -> new EnvioItemOperacionResponse(
+                        e.getId(),
                         e.getOrigenIata(),
                         e.getDestinoIata(),
                         e.getIdExterno() != null ? e.getIdExterno() : e.getId().toString(),

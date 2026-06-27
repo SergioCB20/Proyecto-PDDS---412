@@ -196,6 +196,7 @@ export interface VueloTelemetria {
 }
 
 export interface EnvioItemResponse {
+  id: string;
   origen_iata: string;
   destino_iata: string;
   codigo_equipaje: string;
