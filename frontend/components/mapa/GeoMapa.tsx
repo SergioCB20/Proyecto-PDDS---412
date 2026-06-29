@@ -68,6 +68,9 @@ export default function GeoMapa({
         zoomControl={false}
         scrollWheelZoom={true}
         attributionControl={false}
+        zoomSnap={0}
+        zoomDelta={0.5}
+        wheelPxPerZoomLevel={120}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
