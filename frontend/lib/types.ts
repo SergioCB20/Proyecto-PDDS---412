@@ -231,6 +231,15 @@ export interface MetricasOperacion {
   vuelos_cancelados: number;
 }
 
+export interface EnvioPanelResponse {
+  equipaje_id: string;
+  origen_iata: string;
+  destino_iata: string;
+  codigo_vuelo: string;
+  estado: string;
+  cantidad: number;
+}
+
 export interface EquipajeListItem {
   id: string;
   id_externo: string;

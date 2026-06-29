@@ -319,6 +319,55 @@ public class EquipajeService {
             Integer cantidad
     ) {}
 
+    public record EnvioPanelResponse(
+            UUID equipaje_id,
+            String origen_iata,
+            String destino_iata,
+            String codigo_vuelo,
+            String estado,
+            Integer cantidad
+    ) {}
+
+    public List<EnvioPanelResponse> obtenerEnviosPanel(String tipo, String origenIata, String destinoIata) {
+        List<EstadoEquipaje> estados = switch (tipo) {
+            case "planificados" -> List.of(EstadoEquipaje.REGISTRADO, EstadoEquipaje.ENRUTADO, EstadoEquipaje.EN_ALMACEN);
+            case "en_vuelo" -> List.of(EstadoEquipaje.EN_VUELO);
+            case "entregados" -> List.of(EstadoEquipaje.ENTREGADO);
+            default -> throw new IllegalArgumentException("tipo inválido: " + tipo);
+        };
+        String o = (origenIata != null && !origenIata.isBlank()) ? origenIata : null;
+        String d = (destinoIata != null && !destinoIata.isBlank()) ? destinoIata : null;
+        List<Equipaje> equipajes = equipajeRepository.findEnviosPanel(estados, o, d, PageRequest.of(0, 100));
+        return equipajes.stream()
+                .map(e -> {
+                    String codigoVuelo = "";
+                    if (e.getEstado() == EstadoEquipaje.EN_VUELO && e.getVueloActual() != null) {
+                        codigoVuelo = e.getVueloActual().getCodigoVuelo();
+                    } else if (e.getEstado() == EstadoEquipaje.ENTREGADO && e.getPlanViaje() != null) {
+                        codigoVuelo = e.getPlanViaje().getSegmentos().stream()
+                                .filter(sp -> sp.getEstado() == EstadoSegmento.COMPLETADO)
+                                .max(java.util.Comparator.comparingInt(sp -> sp.getOrden() != null ? sp.getOrden() : 0))
+                                .map(sp -> sp.getVuelo() != null ? sp.getVuelo().getCodigoVuelo() : "")
+                                .orElse("");
+                    } else if (e.getPlanViaje() != null && e.getPlanViaje().getSegmentos() != null
+                            && !e.getPlanViaje().getSegmentos().isEmpty()) {
+                        var first = e.getPlanViaje().getSegmentos().iterator().next();
+                        if (first.getVuelo() != null) {
+                            codigoVuelo = first.getVuelo().getCodigoVuelo();
+                        }
+                    }
+                    return new EnvioPanelResponse(
+                            e.getId(),
+                            e.getOrigenIata(),
+                            e.getDestinoIata(),
+                            codigoVuelo,
+                            e.getEstado().name(),
+                            e.getCantidad() != null ? e.getCantidad() : 1
+                    );
+                })
+                .toList();
+    }
+
     public record MetricasOperacionResponse(
             long total_equipajes,
             long equipajes_registrados,
