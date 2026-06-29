@@ -349,7 +349,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   return (
     <div className="flex h-full">
       <div className="flex-1 p-4 relative">
-        <GeoMapa aeropuertos={aeropuertos} vuelos={vuelosMapaFiltrados} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} />
+        <GeoMapa aeropuertos={aeropuertos} vuelos={vuelosMapaFiltrados} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} cargando={aeropuertos.length === 0} />
 
         <div className="absolute top-4 left-4 z-[1001] pointer-events-none max-w-[320px]">
           <div className="pointer-events-auto rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
@@ -687,7 +687,7 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
   return (
     <div className="flex h-full">
       <div className="flex-1 p-4 relative">
-        <GeoMapa aeropuertos={aeropuertosMapa} vuelos={vuelosMapa} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} />
+        <GeoMapa aeropuertos={aeropuertosMapa} vuelos={vuelosMapa} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} cargando={(!!sesionId || estadoSesion === 'EN_CURSO') && aeropuertosMapa.length === 0} />
 
         {(estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA') && (
           <>
@@ -1052,7 +1052,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   return (
     <div className="flex h-full">
       <div className="flex-1 p-4 relative">
-        <GeoMapa aeropuertos={aeropuertosMapa} vuelos={vuelosMapa} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} />
+        <GeoMapa aeropuertos={aeropuertosMapa} vuelos={vuelosMapa} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} cargando={(!!sesionId || estadoSesion === 'EN_CURSO') && aeropuertosMapa.length === 0} />
 
         {(estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA') && (
           <>
