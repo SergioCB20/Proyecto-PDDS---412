@@ -481,8 +481,19 @@ public class TickService {
         BigDecimal prob = sesion.getProbCancelacion();
         if (prob == null || prob.compareTo(BigDecimal.ZERO) <= 0) return 0;
 
-        List<Vuelo> programados = vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaLessThanEqual(
-                EstadoVuelo.PROGRAMADO, false, sesion.getDiaHoraVirtual());
+        OffsetDateTime virtual = sesion.getDiaHoraVirtual();
+        if (virtual == null) return 0;
+
+        // Solo vuelos que AUN NO SALEN: PROGRAMADO con salida en la proxima ventana virtual
+        // (despues de la hora actual, antes del proximo tick). procesarVuelosSalida ya movio
+        // a EN_RUTA los de salida <= virtual, asi que estos no han despegado todavia. Cada
+        // vuelo se evalua una sola vez, el tick justo antes de su despegue.
+        double kEfectivo = sesion.getK() != null ? sesion.getK() : k;
+        long pasoVirtualMin = Math.max(1, (long) ((TICK_INTERVAL_MS / 1000.0) * kEfectivo / 60));
+        OffsetDateTime hasta = virtual.plusMinutes(pasoVirtualMin);
+
+        List<Vuelo> programados = vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaBetween(
+                EstadoVuelo.PROGRAMADO, false, virtual.plusSeconds(1), hasta);
 
         int canceladosTick = 0;
         for (Vuelo vuelo : programados) {

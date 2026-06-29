@@ -8,6 +8,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 @RestController
@@ -38,11 +39,14 @@ public class MetricasController {
     }
 
     @GetMapping("/{id}/rutas/csv")
-    public ResponseEntity<String> descargarRutasCsv(@PathVariable UUID id) {
+    public ResponseEntity<byte[]> descargarRutasCsv(@PathVariable UUID id) {
         String csv = reporteService.generarCsvRutas(id);
+        // BOM UTF-8 para que Excel respete acentos; bytes explicitos evitan que el
+        // StringHttpMessageConverter use ISO-8859-1 por defecto en text/*.
+        byte[] cuerpo = ("﻿" + csv).getBytes(StandardCharsets.UTF_8);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=rutas_sesion_" + id + ".csv")
-                .contentType(MediaType.parseMediaType("text/csv"))
-                .body(csv);
+                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+                .body(cuerpo);
     }
 }
