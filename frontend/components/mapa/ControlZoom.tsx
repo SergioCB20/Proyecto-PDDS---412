@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMap } from 'react-leaflet';
 import { Minus, Plus } from 'lucide-react';
 
@@ -18,36 +18,27 @@ const toSlider = (leafletZoom: number) =>
 
 export default function ControlZoom() {
   const map = useMap();
-  const sliderRef = useRef(toSlider(map.getZoom()));
   const [display, setDisplay] = useState(() => toSlider(map.getZoom()));
 
   useEffect(() => {
-    const onZoom = () => {
-      sliderRef.current = toSlider(map.getZoom());
-      setDisplay(sliderRef.current);
-    };
+    const onZoom = () => setDisplay(toSlider(map.getZoom()));
     map.on('zoomend', onZoom);
     return () => { map.off('zoomend', onZoom); };
   }, [map]);
 
   const handleSlider = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = Number(e.target.value);
-    sliderRef.current = val;
-    setDisplay(val);
-    map.setZoom(toLeaflet(val));
+    map.setZoom(toLeaflet(Number(e.target.value)));
   };
 
   const handleZoomIn = () => {
-    const next = Math.min(sliderRef.current + 1, SLIDER_MAX);
-    sliderRef.current = next;
-    setDisplay(next);
+    const current = toSlider(map.getZoom());
+    const next = Math.min(current + 1, SLIDER_MAX);
     map.setZoom(toLeaflet(next));
   };
 
   const handleZoomOut = () => {
-    const next = Math.max(sliderRef.current - 1, SLIDER_MIN);
-    sliderRef.current = next;
-    setDisplay(next);
+    const current = toSlider(map.getZoom());
+    const next = Math.max(current - 1, SLIDER_MIN);
     map.setZoom(toLeaflet(next));
   };
 

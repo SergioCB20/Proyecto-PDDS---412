@@ -3,13 +3,13 @@
 - [x] 1.1 Agregar constantes `SLIDER_MIN = 0`, `SLIDER_MAX = 200`, `SLIDER_STEP = 1`
 - [x] 1.2 Agregar función `toLeaflet(slider)` que convierta valor del slider (0–200) a zoom de Leaflet (2–14)
 - [x] 1.3 Agregar función `toSlider(leafletZoom)` que convierta zoom de Leaflet (2–14) a valor del slider (0–200)
-- [x] 1.4 Cambiar estado para que use `useRef` (sliderRef) + `useState` (display) en lugar de `useState` directo
-- [x] 1.5 Actualizar el listener `zoomend` para convertir el zoom de Leaflet a valor del slider
-- [x] 1.6 Actualizar `handleSlider` para convertir el valor del slider a zoom de Leaflet antes de llamar `map.setZoom()`
-- [x] 1.7 Cambiar `handleZoomIn`/`handleZoomOut` para que lean de `sliderRef.current` e incrementen/decrementen en 1
-- [x] 1.8 Cambiar la etiqueta para que muestre `display` (0–200) en lugar del porcentaje (0–100%)
-- [x] 1.9 Actualizar props del `<input type="range">`: `min`, `max`, `step`, `value`
-- [x] 1.10 Actualizar condiciones `disabled` de los botones `+`/`−` para usar `SLIDER_MIN`/`SLIDER_MAX`
+- [x] 1.4 `useState` solo para render (display); handlers leen `map.getZoom()` directamente
+- [x] 1.5 Listener `zoomend` actualiza `display` desde `map.getZoom()`
+- [x] 1.6 `handleSlider` llama `map.setZoom(toLeaflet(val))` sin estado intermedio
+- [x] 1.7 `handleZoomIn`/`handleZoomOut`: leen `toSlider(map.getZoom())` → +1/‑1 → `map.setZoom(toLeaflet(next))`
+- [x] 1.8 Etiqueta muestra `display` (0–200) en lugar del porcentaje (0–100%)
+- [x] 1.9 Slider `min={0}`, `max={200}`, `step={1}`, `value={display}`
+- [x] 1.10 Botones `disabled` con `SLIDER_MIN`/`SLIDER_MAX`
 
 ## 2. Verificar compilación
 
