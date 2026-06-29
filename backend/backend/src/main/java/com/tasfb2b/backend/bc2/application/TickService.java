@@ -240,6 +240,9 @@ public class TickService {
     }
 
     private boolean debeFinalizarPorTiempo(SesionEjecucion sesion) {
+        // HASTA_COLAPSO no tiene tope de tiempo: corre hasta que un nodo colapse.
+        // Solo VENTANA_FIJA finaliza al completar los 5 dias virtuales.
+        if (sesion.getTipoSimulacion() == TipoSimulacion.HASTA_COLAPSO) return false;
         if (sesion.getDiaHoraVirtual() == null || sesion.getFechaInicioVirtual() == null) return false;
         LocalDate fechaFin = sesion.getFechaInicioVirtual().plusDays(5);
         return !sesion.getDiaHoraVirtual().toLocalDate().isBefore(fechaFin);

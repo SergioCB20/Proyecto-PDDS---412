@@ -56,7 +56,7 @@ public class ReplanificacionService {
         this.segmentoPlanRepository = segmentoPlanRepository;
     }
 
-    public void replanificarEnSesion(UUID sesionId, UUID vueloId, String causa, OffsetDateTime momentoVirtual) {
+    public int replanificarEnSesion(UUID sesionId, UUID vueloId, String causa, OffsetDateTime momentoVirtual) {
         Vuelo vuelo = vueloRepository.findById(vueloId)
                 .orElseThrow(() -> new IllegalArgumentException("Vuelo no encontrado: " + vueloId));
 
@@ -115,6 +115,8 @@ public class ReplanificacionService {
 
         log.info("Replanificacion iniciada: lote={}, sesion={}, vuelo={}, equipajes={}",
                 lote.getId(), sesionId, vueloId, afectados.size());
+
+        return afectados.size();
     }
 
     @EventListener

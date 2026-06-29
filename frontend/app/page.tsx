@@ -339,6 +339,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     finally { setOperacionLoading(false); }
   };
 
+  // Operacion real (sin sesion de simulacion): camino legacy, sin sesion_id.
   const handleCancelarVuelo = async (id: string, codigo: string) => {
     if (!confirm(`¿Cancelar vuelo ${codigo}?`)) return;
     try {
@@ -687,7 +688,7 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
   const handleCancelarVuelo = async (id: string, codigo: string) => {
     if (!confirm(`¿Cancelar vuelo ${codigo}?`)) return;
     try {
-      await api.post('/simulacion/cancelacion', { vuelo_id: id, causa: 'Cancelación manual' });
+      await api.post('/simulacion/cancelacion', { vuelo_id: id, causa: 'Cancelación manual', sesion_id: sesionId });
     } catch { alert('Error al cancelar vuelo'); }
   };
 
@@ -1062,7 +1063,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const handleCancelarVuelo = async (id: string, codigo: string) => {
     if (!confirm(`¿Cancelar vuelo ${codigo}?`)) return;
     try {
-      await api.post('/simulacion/cancelacion', { vuelo_id: id, causa: 'Cancelación manual' });
+      await api.post('/simulacion/cancelacion', { vuelo_id: id, causa: 'Cancelación manual', sesion_id: sesionId });
     } catch { alert('Error al cancelar vuelo'); }
   };
 
