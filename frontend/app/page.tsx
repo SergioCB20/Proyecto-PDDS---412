@@ -18,7 +18,6 @@ import { PanelVuelosOperacion } from '@/components/operacion/PanelVuelosOperacio
 import { PanelAeropuertosOperacion } from '@/components/operacion/PanelAeropuertosOperacion';
 import { PanelEntregadosOperacion } from '@/components/operacion/PanelEntregadosOperacion';
 import { PanelEnviosOperacion } from '@/components/operacion/PanelEnviosOperacion';
-import { MetricasOperacion } from '@/components/operacion/MetricasOperacion';
 import { ResumenVuelosOperacion } from '@/components/operacion/ResumenVuelosOperacion';
 import { PanelEntregados } from '@/components/simulacion/PanelEntregados';
 import { PanelEnvios } from '@/components/simulacion/PanelEnvios';
@@ -180,6 +179,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [selectedEnvio, setSelectedEnvio] = useState<SelectedEnvioOperacion | null>(null);
   const [vueloFilterOrigen, setVueloFilterOrigen] = useState('');
   const [vueloFilterDestino, setVueloFilterDestino] = useState('');
+  const [seguidoVueloId, setSeguidoVueloId] = useState<string | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -358,7 +358,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   return (
     <div className="flex h-full">
       <div className="flex-1 p-4 relative">
-        <GeoMapa aeropuertos={aeropuertos} vuelos={vuelosMapaFiltrados} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} cargando={aeropuertos.length === 0}>
+        <GeoMapa aeropuertos={aeropuertos} vuelos={vuelosMapaFiltrados} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} cargando={aeropuertos.length === 0} seguidoVueloId={seguidoVueloId ?? undefined} onSalirSeguimiento={() => setSeguidoVueloId(null)}>
           <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
             <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
               <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
@@ -393,10 +393,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
             </div>
           </div>
           <div className="absolute top-4 right-4 z-[1001] pointer-events-none max-w-[320px]">
-            <div className="pointer-events-auto rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
-              <MetricasOperacion />
-            </div>
-            <div className="pointer-events-auto mt-1.5 p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 space-y-1 text-[11px] text-slate-600 dark:text-slate-400 min-w-[170px]">
+            <div className="pointer-events-auto p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 space-y-1 text-[11px] text-slate-600 dark:text-slate-400 min-w-[170px]">
               <div className="flex items-center gap-1.5 mb-1 pb-1 border-b border-slate-200 dark:border-slate-600">
                 <Clock size={11} />
                 <span className="font-semibold text-slate-900 dark:text-slate-100">{new Date().toLocaleString()}</span>
@@ -483,6 +480,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
             {telemetria?.vuelos && telemetria.vuelos.length > 0 && (
               <PanelVuelosOperacion
                 vuelos={telemetria.vuelos} onVueloClick={(id, codigo) => setSelectedEnvio({ tipo: 'vuelo', id, codigo })}
+                onVerEnMapa={id => setSeguidoVueloId(id)}
                 onDownloadManifiesto={async (id, codigo) => {
                   try {
                     const blob = await api.downloadBlob(`/manifiestos/${id}`);
@@ -591,6 +589,7 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
   const [selectedEnvio, setSelectedEnvio] = useState<SelectedEnvio | null>(null);
   const [vueloFilterOrigen, setVueloFilterOrigen] = useState('');
   const [vueloFilterDestino, setVueloFilterDestino] = useState('');
+  const [seguidoVueloId, setSeguidoVueloId] = useState<string | null>(null);
 
   const [metricasPoll, setMetricasPoll] = useState<MetricasSimulacion>({
     sesion_id: '', estado: 'CONFIGURADA', dia_hora_virtual: '',
@@ -763,7 +762,7 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
   return (
     <div className="flex h-full">
       <div className="flex-1 p-4 relative">
-        <GeoMapa aeropuertos={aeropuertosMapa} vuelos={(estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA') ? vuelosMapa.filter(v => v.estado === 'EN_RUTA') : []} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} cargando={(!!sesionId || estadoSesion === 'EN_CURSO') && aeropuertosMapa.length === 0}>
+        <GeoMapa aeropuertos={aeropuertosMapa} vuelos={(estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA') ? vuelosMapa.filter(v => v.estado === 'EN_RUTA' && (!vueloFilterOrigen || v.origen.codigo_iata === vueloFilterOrigen) && (!vueloFilterDestino || v.destino.codigo_iata === vueloFilterDestino)) : []} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} cargando={(!!sesionId || estadoSesion === 'EN_CURSO') && aeropuertosMapa.length === 0} seguidoVueloId={seguidoVueloId ?? undefined} onSalirSeguimiento={() => setSeguidoVueloId(null)}>
           <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
             <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
               <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
@@ -798,10 +797,7 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
             </div>
           </div>
           <div className="absolute top-4 right-4 z-[1001] pointer-events-none max-w-[320px]">
-            <div className="pointer-events-auto rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
-              <MetricasOperacion />
-            </div>
-            <div className="pointer-events-auto mt-1.5 p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 space-y-1 text-[11px] text-slate-600 dark:text-slate-400 min-w-[170px]">
+            <div className="pointer-events-auto p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 space-y-1 text-[11px] text-slate-600 dark:text-slate-400 min-w-[170px]">
               <div className="flex items-center gap-1.5 mb-1 pb-1 border-b border-slate-200 dark:border-slate-600">
                 <Clock size={11} />
                 <span className="font-semibold text-slate-900 dark:text-slate-100">{metricas.dia_hora_virtual?.slice(0, 16).replace('T', ' ') || '-'}</span>
@@ -929,6 +925,7 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
             {(sesionId && estadoSesion !== 'FINALIZADA') && telemetria?.vuelos && telemetria.vuelos.length > 0 && (
               <PanelVuelosOperacion vuelos={telemetria.vuelos}
                 onVueloClick={(id, codigo) => setSelectedEnvio({ tipo: 'vuelo', id, codigo })}
+                onVerEnMapa={id => setSeguidoVueloId(id)}
                 onCancelVuelo={handleCancelarVuelo}
                 origenFilter={vueloFilterOrigen} destinoFilter={vueloFilterDestino}
                 onFilterChange={({ origen, destino }) => { setVueloFilterOrigen(origen); setVueloFilterDestino(destino); }}
@@ -970,6 +967,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [selectedEnvio, setSelectedEnvio] = useState<SelectedEnvio | null>(null);
   const [vueloFilterOrigen, setVueloFilterOrigen] = useState('');
   const [vueloFilterDestino, setVueloFilterDestino] = useState('');
+  const [seguidoVueloId, setSeguidoVueloId] = useState<string | null>(null);
 
   const [metricasPoll, setMetricasPoll] = useState<MetricasSimulacion>({
     sesion_id: '', estado: 'CONFIGURADA', dia_hora_virtual: '',
@@ -1151,7 +1149,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   return (
     <div className="flex h-full">
       <div className="flex-1 p-4 relative">
-        <GeoMapa aeropuertos={aeropuertosMapa} vuelos={(estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA') ? vuelosMapa.filter(v => v.estado === 'EN_RUTA') : []} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} cargando={(!!sesionId || estadoSesion === 'EN_CURSO') && aeropuertosMapa.length === 0}>
+        <GeoMapa aeropuertos={aeropuertosMapa} vuelos={(estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA') ? vuelosMapa.filter(v => v.estado === 'EN_RUTA' && (!vueloFilterOrigen || v.origen.codigo_iata === vueloFilterOrigen) && (!vueloFilterDestino || v.destino.codigo_iata === vueloFilterDestino)) : []} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} cargando={(!!sesionId || estadoSesion === 'EN_CURSO') && aeropuertosMapa.length === 0} seguidoVueloId={seguidoVueloId ?? undefined} onSalirSeguimiento={() => setSeguidoVueloId(null)}>
           <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
             <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
               <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
@@ -1186,10 +1184,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
             </div>
           </div>
           <div className="absolute top-4 right-4 z-[1001] pointer-events-none max-w-[320px]">
-            <div className="pointer-events-auto rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
-              <MetricasOperacion />
-            </div>
-            <div className="pointer-events-auto mt-1.5 p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 space-y-1 text-[11px] text-slate-600 dark:text-slate-400 min-w-[170px]">
+            <div className="pointer-events-auto p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 space-y-1 text-[11px] text-slate-600 dark:text-slate-400 min-w-[170px]">
               <div className="flex items-center gap-1.5 mb-1 pb-1 border-b border-slate-200 dark:border-slate-600">
                 <Clock size={11} />
                 <span className="font-semibold text-slate-900 dark:text-slate-100">{metricas.dia_hora_virtual?.slice(0, 16).replace('T', ' ') || '-'}</span>
@@ -1341,6 +1336,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
             {(sesionId && estadoSesion !== 'FINALIZADA' && estadoSesion !== 'COLAPSADA') && telemetria?.vuelos && telemetria.vuelos.length > 0 && (
               <PanelVuelosOperacion vuelos={telemetria.vuelos}
                 onVueloClick={(id, codigo) => setSelectedEnvio({ tipo: 'vuelo', id, codigo })}
+                onVerEnMapa={id => setSeguidoVueloId(id)}
                 onCancelVuelo={handleCancelarVuelo}
                 origenFilter={vueloFilterOrigen} destinoFilter={vueloFilterDestino}
                 onFilterChange={({ origen, destino }) => { setVueloFilterOrigen(origen); setVueloFilterDestino(destino); }}

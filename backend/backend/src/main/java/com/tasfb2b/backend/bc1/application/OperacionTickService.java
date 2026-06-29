@@ -25,6 +25,8 @@ public class OperacionTickService {
     private volatile boolean activo = false;
     private volatile LocalDate diaProcesado = null;
     private volatile boolean procesarLlegadas = false;
+    private volatile String dispositivoId;
+    private volatile long inicioTimestamp; // System.currentTimeMillis() al iniciar
 
     private final VueloRepository vueloRepository;
     private final EquipajeRepository equipajeRepository;
@@ -55,11 +57,20 @@ public class OperacionTickService {
 
     public String getEstado() { return activo ? "ACTIVO" : "INACTIVO"; }
 
+    public String getDispositivoId() { return dispositivoId; }
+
+    public boolean esPropietario(String deviceId) {
+        if (dispositivoId == null) return true; // backward compat
+        return deviceId != null && deviceId.equals(dispositivoId);
+    }
+
     @Transactional
-    public void iniciar() {
+    public void iniciar(String deviceId) {
         resetOperacion();
+        this.dispositivoId = deviceId;
+        this.inicioTimestamp = System.currentTimeMillis();
         this.activo = true;
-        log.info("Operacion iniciada");
+        log.info("Operacion iniciada por dispositivo {}", deviceId);
     }
 
     public void pausar() {
@@ -75,6 +86,8 @@ public class OperacionTickService {
     @Transactional
     public void detener() {
         resetOperacion();
+        this.dispositivoId = null;
+        this.inicioTimestamp = 0;
         this.activo = false;
         log.info("Operacion detenida y reiniciada");
     }
@@ -121,6 +134,13 @@ public class OperacionTickService {
 
             if (!activo) return;
             if (!sesionRepository.findByEstado(EstadoSesion.EN_CURSO).isEmpty()) return;
+
+            // Auto-detener tras 4 horas de actividad si nadie lo detiene
+            if (inicioTimestamp > 0 && System.currentTimeMillis() - inicioTimestamp >= 4 * 3600 * 1000L) {
+                log.info("Operacion alcanzó 4 horas de actividad. Deteniendo automaticamente.");
+                detener();
+                return;
+            }
 
             OffsetDateTime now = OffsetDateTime.of(
                     FECHA_OPERACION, OffsetDateTime.now(ZoneOffset.UTC).toLocalTime(), ZoneOffset.UTC);

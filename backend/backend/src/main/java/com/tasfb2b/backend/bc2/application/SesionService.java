@@ -88,6 +88,10 @@ public class SesionService {
     }
 
     public SesionResponse crearSesion(CrearSesionRequest request) {
+        return crearSesion(request, null);
+    }
+
+    public SesionResponse crearSesion(CrearSesionRequest request, String dispositivoId) {
         LocalDate fecha = (request.fecha_inicio_virtual() != null)
             ? LocalDate.parse(request.fecha_inicio_virtual())
             : FECHA_BASE_ARCHIVO;
@@ -144,6 +148,9 @@ public class SesionService {
             sesion.setVueloAmbarMax(u.ambar_max() != null ? u.ambar_max() : new BigDecimal("90"));
         }
 
+        if (dispositivoId != null && !dispositivoId.isBlank()) {
+            sesion.setDispositivoId(dispositivoId);
+        }
         sesionRepository.save(sesion);
 
         try {
@@ -157,11 +164,26 @@ public class SesionService {
 
     @Transactional(isolation = Isolation.SERIALIZABLE)
     public SesionIniciarResponse iniciarSesion(UUID id) {
+        return iniciarSesion(id, null);
+    }
+
+    @Transactional(isolation = Isolation.SERIALIZABLE)
+    public SesionIniciarResponse iniciarSesion(UUID id, String dispositivoId) {
         SesionEjecucion sesion = sesionRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Sesion no encontrada"));
 
         if (sesion.getEstado() != EstadoSesion.CONFIGURADA && sesion.getEstado() != EstadoSesion.PAUSADA) {
             throw new IllegalStateException("No se puede iniciar la sesion en estado: " + sesion.getEstado());
+        }
+
+        if (sesion.getDispositivoId() != null && dispositivoId != null && !dispositivoId.isBlank() &&
+            !sesion.getDispositivoId().equals(dispositivoId)) {
+            throw new AccesoDenegadoException(
+                "Solo el dispositivo que creo la sesion puede iniciarla");
+        }
+
+        if (sesion.getDispositivoId() == null && dispositivoId != null && !dispositivoId.isBlank()) {
+            sesion.setDispositivoId(dispositivoId);
         }
 
         long enCursoCount = sesionRepository.findByEstadoWithLock(EstadoSesion.EN_CURSO).stream()
@@ -262,11 +284,21 @@ public class SesionService {
     }
 
     public SesionEstadoResponse pausarSesion(UUID id) {
+        return pausarSesion(id, null);
+    }
+
+    public SesionEstadoResponse pausarSesion(UUID id, String dispositivoId) {
         SesionEjecucion sesion = sesionRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Sesion no encontrada"));
 
         if (sesion.getEstado() != EstadoSesion.EN_CURSO) {
             throw new IllegalStateException("Solo se puede pausar una sesion EN_CURSO");
+        }
+
+        if (dispositivoId == null || dispositivoId.isBlank() ||
+            (sesion.getDispositivoId() != null && !sesion.getDispositivoId().equals(dispositivoId))) {
+            throw new AccesoDenegadoException(
+                "Solo el dispositivo que inicio la sesion puede pausarla");
         }
 
         sesion.setEstado(EstadoSesion.PAUSADA);
@@ -286,8 +318,18 @@ public class SesionService {
     // espera el lock JVM) y los schedulers dejan de tomar la sesión en su próximo
     // ciclo. Evita el deadlock lock-JVM + lock-de-fila.
     public SesionEstadoResponse detenerSesion(UUID id) {
+        return detenerSesion(id, null);
+    }
+
+    public SesionEstadoResponse detenerSesion(UUID id, String dispositivoId) {
         SesionEjecucion sesion = sesionRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Sesion no encontrada"));
+
+        if (dispositivoId == null || dispositivoId.isBlank() ||
+            (sesion.getDispositivoId() != null && !sesion.getDispositivoId().equals(dispositivoId))) {
+            throw new AccesoDenegadoException(
+                "Solo el dispositivo que inicio la sesion puede detenerla");
+        }
 
         // 1. Marca FINALIZADA + quita readiness — commit inmediato. tick/planificador
         //    releen el estado cada ciclo, así no inician nuevos ciclos para esta sesión.
