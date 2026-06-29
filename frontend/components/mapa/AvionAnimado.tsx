@@ -58,13 +58,24 @@ const AvionAnimado = React.memo(function AvionAnimado({
   const [iconSize, setIconSize] = useState(() => calcularTamaño(map.getZoom()));
   const iconSizeRef = useRef(iconSize);
   const bearingRef = useRef(0);
+  // Durante la animación de zoom, Leaflet reproyecta el pane; mover el marcador o
+  // redibujar la estela en esos frames lo descuadra y aparenta cambiar de rumbo.
+  const zoomingRef = useRef(false);
 
   useEffect(() => { iconSizeRef.current = iconSize; }, [iconSize]);
 
   useEffect(() => {
-    const onZoom = () => setIconSize(calcularTamaño(map.getZoom()));
-    map.on('zoomend', onZoom);
-    return () => { map.off('zoomend', onZoom); };
+    const onZoomStart = () => { zoomingRef.current = true; };
+    const onZoomEnd = () => {
+      zoomingRef.current = false;
+      setIconSize(calcularTamaño(map.getZoom()));
+    };
+    map.on('zoomstart', onZoomStart);
+    map.on('zoomend', onZoomEnd);
+    return () => {
+      map.off('zoomstart', onZoomStart);
+      map.off('zoomend', onZoomEnd);
+    };
   }, [map]);
 
   const { ctrlLat, ctrlLon } = useMemo(
@@ -206,6 +217,15 @@ const AvionAnimado = React.memo(function AvionAnimado({
 
       const ref = flightRef.current;
       const now = performance.now();
+
+      // Mientras Leaflet anima el zoom, no tocar el marcador/estela: dejar que el
+      // propio zoom reproyecte. Se reanuda en zoomend sin saltos (lastFrameTime al día).
+      if (zoomingRef.current) {
+        ref.lastFrameTime = now;
+        rafRef.current = requestAnimationFrame(frame);
+        return;
+      }
+
       const elapsed = now - ref.lastTickTime;  // ms since last server confirmation
       const frameDt = Math.max(0, now - ref.lastFrameTime); // ms since last frame
       ref.lastFrameTime = now;

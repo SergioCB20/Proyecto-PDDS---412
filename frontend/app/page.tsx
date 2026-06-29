@@ -558,6 +558,16 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
     return () => clearInterval(interval);
   }, [sesionId, estadoSesion]);
 
+  // Aeropuertos visibles aun antes de iniciar la simulacion (solo nodos, sin vuelos).
+  useEffect(() => {
+    api.get<Aeropuerto[]>('/nodos').then(aeropuertosData => {
+      setInitialAeropuertos(aeropuertosData.map(n => {
+        const pct = n.capacidad_almacen > 0 ? (n.ocupacion_actual / n.capacidad_almacen) * 100 : 0;
+        return { ...n, color: colorAeropuertoPorOcupacion(pct, { verdeMax: configUmbrales.verdeMax, ambarMax: configUmbrales.ambarMax }), ocupacionPorcentaje: pct };
+      }));
+    }).catch(() => {});
+  }, [configUmbrales.verdeMax, configUmbrales.ambarMax]);
+
   useEffect(() => {
     if (!sesionId) return;
     const cargar = () => {
@@ -687,7 +697,7 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
   return (
     <div className="flex h-full">
       <div className="flex-1 p-4 relative">
-        <GeoMapa aeropuertos={aeropuertosMapa} vuelos={vuelosMapa} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} cargando={(!!sesionId || estadoSesion === 'EN_CURSO') && aeropuertosMapa.length === 0} />
+        <GeoMapa aeropuertos={aeropuertosMapa} vuelos={(estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA') ? vuelosMapa.filter(v => v.estado === 'EN_RUTA') : []} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} cargando={(!!sesionId || estadoSesion === 'EN_CURSO') && aeropuertosMapa.length === 0} />
 
         {(estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA') && (
           <>
@@ -912,6 +922,16 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     return () => clearInterval(interval);
   }, [sesionId, estadoSesion]);
 
+  // Aeropuertos visibles aun antes de iniciar la simulacion (solo nodos, sin vuelos).
+  useEffect(() => {
+    api.get<Aeropuerto[]>('/nodos').then(aeropuertosData => {
+      setInitialAeropuertos(aeropuertosData.map(n => {
+        const pct = n.capacidad_almacen > 0 ? (n.ocupacion_actual / n.capacidad_almacen) * 100 : 0;
+        return { ...n, color: colorAeropuertoPorOcupacion(pct, { verdeMax: configUmbrales.verdeMax, ambarMax: configUmbrales.ambarMax }), ocupacionPorcentaje: pct };
+      }));
+    }).catch(() => {});
+  }, [configUmbrales.verdeMax, configUmbrales.ambarMax]);
+
   useEffect(() => {
     if (!sesionId) return;
     const cargar = () => {
@@ -1052,7 +1072,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   return (
     <div className="flex h-full">
       <div className="flex-1 p-4 relative">
-        <GeoMapa aeropuertos={aeropuertosMapa} vuelos={vuelosMapa} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} cargando={(!!sesionId || estadoSesion === 'EN_CURSO') && aeropuertosMapa.length === 0} />
+        <GeoMapa aeropuertos={aeropuertosMapa} vuelos={(estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA') ? vuelosMapa.filter(v => v.estado === 'EN_RUTA') : []} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} cargando={(!!sesionId || estadoSesion === 'EN_CURSO') && aeropuertosMapa.length === 0} />
 
         {(estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA') && (
           <>
