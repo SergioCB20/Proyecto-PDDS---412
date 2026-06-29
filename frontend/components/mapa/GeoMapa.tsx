@@ -1,7 +1,7 @@
 'use client';
 
 import { MapContainer, TileLayer } from 'react-leaflet';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AeropuertoEnMapa, VueloEnMapa } from '@/lib/types';
 import type { UmbralesConfig } from './ConfigUmbrales';
 import 'leaflet/dist/leaflet.css';
@@ -41,15 +41,23 @@ export default function GeoMapa({
   cargando = false,
 }: GeoMapaProps) {
   // Mantiene el overlay un poco más tras cargar para que la flota se pinte completa.
-  const [overlayVisible, setOverlayVisible] = useState(cargando);
+  // `settling` solo cubre la ventana de gracia posterior a la carga; el estado durante
+  // la carga se deriva de `cargando` en el render (sin setState síncrono en el efecto).
+  const fueCargando = useRef(false);
+  const [settling, setSettling] = useState(false);
   useEffect(() => {
     if (cargando) {
-      setOverlayVisible(true);
-      return;
+      fueCargando.current = true;
+      return; // mientras carga, el overlay ya se muestra por `cargando`
     }
-    const t = setTimeout(() => setOverlayVisible(false), SETTLE_MS);
+    if (!fueCargando.current) return; // nunca estuvo cargando: evita un flash en el montaje
+    fueCargando.current = false;
+    setSettling(true);
+    const t = setTimeout(() => setSettling(false), SETTLE_MS);
     return () => clearTimeout(t);
   }, [cargando]);
+
+  const showOverlay = cargando || settling;
 
   return (
     <div className={`relative ${className}`} style={{ padding: '10px' }}>
@@ -81,7 +89,7 @@ export default function GeoMapa({
         <GeoMapaLeyenda umbralesConfig={umbralesConfig} />
       </MapContainer>
 
-      {overlayVisible && (
+      {showOverlay && (
         <div
           className="absolute inset-0 z-[1200] flex flex-col items-center justify-center gap-3 rounded-xl bg-white/85 dark:bg-slate-900/85 backdrop-blur-sm transition-opacity"
           role="status"
