@@ -17,6 +17,12 @@ function calcularTamaño(zoom: number): number {
   return Math.max(10, Math.min(32, Math.round(zoom * 1.8 + 6)));
 }
 
+// Tope de velocidad visual: un avión nunca recorre su ruta completa en menos de
+// este tiempo real (ms). Evita los "meteoros" cuando un vuelo tiene una duración
+// programada minúscula (datos cruzando medianoche) o cuando k es muy alto.
+const MIN_TRAVESIA_MS = 8000;
+const MAX_VEL = 1 / MIN_TRAVESIA_MS; // progreso por ms real
+
 // SVG airplane pointing NORTH (up). rotacion = geographic bearing (0=N, 90=E …)
 function crearIconoAvion(color: string, rotacion: number = 0, size: number = 22) {
   const half = Math.round(size / 2);
@@ -94,7 +100,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
   };
 
   const [icono, setIcono] = useState(() =>
-    crearIconoAvion(colorVueloPorEstado(vuelo.estado), 0)
+    crearIconoAvion(colorVueloPorEstado(vuelo.estado), 0, iconSize)
   );
 
   const [frozenPos] = useState<[number, number]>(() => {
@@ -111,7 +117,9 @@ const AvionAnimado = React.memo(function AvionAnimado({
    */
   const flightRef = useRef({
     progreso: vuelo.progreso ?? 0,    // server-confirmed progreso at lastTickTime
+    displayed: vuelo.progreso ?? 0,   // progreso realmente pintado (velocidad acotada)
     lastTickTime: performance.now(),  // real time of last server confirmation
+    lastFrameTime: performance.now(), // real time of last rendered frame (for dt)
     horaSalidaMs: vuelo.hora_salida ? new Date(vuelo.hora_salida).getTime() : 0,
     horaLlegadaMs: vuelo.hora_llegada ? new Date(vuelo.hora_llegada).getTime() : 0,
     k,
@@ -148,9 +156,9 @@ const AvionAnimado = React.memo(function AvionAnimado({
     ref.k = k;
   }, [vuelo.progreso, vuelo.estado, vuelo.hora_salida, vuelo.hora_llegada, k]);
 
-  // Update icon color on state change
+  // Update icon color on state change (preserve current bearing & size)
   useEffect(() => {
-    setIcono(crearIconoAvion(colorVueloPorEstado(vuelo.estado), 0));
+    setIcono(crearIconoAvion(colorVueloPorEstado(vuelo.estado), bearingRef.current, iconSizeRef.current));
     flightRef.current.lastBearingT = -1; // force bearing refresh
   }, [vuelo.estado]);
 
@@ -170,6 +178,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
 
     if (!animacionActiva || vuelo.estado !== 'EN_RUTA') {
       const t = Math.min(Math.max(flightRef.current.progreso, 0), 1);
+      flightRef.current.displayed = t; // posición estática: sincroniza con la verdad
       const [lat, lng] = bezierPoint(
         vuelo.origen_lat, vuelo.origen_lon,
         ctrlLat, ctrlLon,
@@ -185,7 +194,8 @@ const AvionAnimado = React.memo(function AvionAnimado({
         vuelo.destino_lat, vuelo.destino_lon,
         t
       );
-        setIcono(crearIconoAvion(colorVueloPorEstado(vuelo.estado), bearing));
+      bearingRef.current = bearing;
+      setIcono(crearIconoAvion(colorVueloPorEstado(vuelo.estado), bearing, iconSizeRef.current));
       return;
     }
 
@@ -196,7 +206,9 @@ const AvionAnimado = React.memo(function AvionAnimado({
 
       const ref = flightRef.current;
       const now = performance.now();
-      const elapsed = now - ref.lastTickTime; // ms since last server confirmation
+      const elapsed = now - ref.lastTickTime;  // ms since last server confirmation
+      const frameDt = Math.max(0, now - ref.lastFrameTime); // ms since last frame
+      ref.lastFrameTime = now;
 
       // Theoretical velocity: progreso/ms in real time
       // progreso spans [0,1] over the virtual flight duration.
@@ -204,9 +216,20 @@ const AvionAnimado = React.memo(function AvionAnimado({
       const durVirtual = ref.horaLlegadaMs - ref.horaSalidaMs;
       const velocity = durVirtual > 0 && ref.k > 0 ? ref.k / durVirtual : 0;
 
-      // Extrapolate from last server position at constant velocity
-      const extrapolated = ref.progreso + velocity * elapsed;
-      const t = Math.min(Math.max(extrapolated, 0), 1);
+      // Posición "verdad": progreso del servidor extrapolado a tiempo real.
+      const target = Math.min(Math.max(ref.progreso + velocity * elapsed, 0), 1);
+
+      // El avión avanza hacia la verdad pero con paso acotado por MAX_VEL, de modo
+      // que ningún vuelo cruce más rápido que MIN_TRAVESIA_MS. Para vuelos normales
+      // target≈displayed y el tope no tiene efecto; para datos degenerados (duración
+      // minúscula → "meteoro") el avance se suaviza en vez de teletransportarse.
+      const maxStep = MAX_VEL * frameDt;
+      let displayed = ref.displayed;
+      const delta = target - displayed;
+      displayed = delta > 0 ? displayed + Math.min(delta, maxStep) : target;
+      displayed = Math.min(Math.max(displayed, 0), 1);
+      ref.displayed = displayed;
+      const t = displayed;
 
       const [lat, lng] = bezierPoint(
         vuelo.origen_lat, vuelo.origen_lon,
@@ -232,13 +255,15 @@ const AvionAnimado = React.memo(function AvionAnimado({
           vuelo.destino_lat, vuelo.destino_lon,
           t
         );
-      setIcono(crearIconoAvion(colorVueloPorEstado(vuelo.estado), bearing));
+        bearingRef.current = bearing;
+        setIcono(crearIconoAvion(colorVueloPorEstado(vuelo.estado), bearing, iconSizeRef.current));
       }
 
       rafRef.current = requestAnimationFrame(frame);
     }
 
     cancelAnimationFrame(rafRef.current);
+    flightRef.current.lastFrameTime = performance.now(); // evita un dt enorme en el primer frame
     rafRef.current = requestAnimationFrame(frame);
 
     return () => {
