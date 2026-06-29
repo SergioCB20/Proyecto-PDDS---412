@@ -71,15 +71,23 @@ public class ReporteService {
     }
 
     public ReporteSesionResponse generarReporte(UUID sesionId, String estadoFinal) {
-        ReporteSesion reporte = reporteRepository.findBySesionId(sesionId)
-                .orElseGet(() -> new ReporteSesion(UUID.randomUUID(), sesionId));
+        java.util.Optional<ReporteSesion> existente = reporteRepository.findBySesionId(sesionId);
+
+        long totalEquipajes = planViajeRepository.countConEquipajeBySesionId(sesionId);
+
+        // No recomputar con ceros cuando ya no quedan planes: detenerSesion genera el reporte
+        // SINCRONICAMENTE antes de borrar los planes, y luego el evento async vuelve a entrar
+        // con los planes ya borrados. Sin esta guarda, esa segunda pasada dejaba el reporte en 0
+        // (era la causa de "el reporte sale todo vacío").
+        if (totalEquipajes == 0 && existente.isPresent()) {
+            log.info("Reporte de sesion {} ya generado; se preserva (no hay planes que recomputar)", sesionId);
+            return toResponse(existente.get());
+        }
+
+        ReporteSesion reporte = existente.orElseGet(() -> new ReporteSesion(UUID.randomUUID(), sesionId));
 
         // SLA incumplido = maletas NO entregadas al cerrar la simulacion, sobre el total
-        // con equipaje. Mismo origen de datos que TickService.actualizarSla (entregados/total),
-        // que es lo unico que la simulacion realmente actualiza por tick. El estado
-        // INCUMPLIMIENTO_SLA solo lo marca la operacion real, nunca la simulacion, por eso
-        // contar ese estado daba siempre 0%.
-        long totalEquipajes = planViajeRepository.countConEquipajeBySesionId(sesionId);
+        // con equipaje. Mismo origen de datos que TickService.actualizarSla (entregados/total).
         long entregados = planViajeRepository.countEntregadosBySesionId(sesionId);
         long incumplidos = Math.max(0, totalEquipajes - entregados);
 
@@ -98,8 +106,12 @@ public class ReporteService {
         reporte.setTotalReplanificadas((int) replanificados);
 
         if ("COLAPSADA".equals(estadoFinal)) {
-            reporte.setPuntoColapsoVirtual(OffsetDateTime.now());
-            reporte.setCausaColapso("Colapso por ocupacion de almacen");
+            OffsetDateTime puntoColapso = sesionRepository.findById(sesionId)
+                    .map(SesionEjecucion::getDiaHoraVirtual)
+                    .orElse(null);
+            reporte.setPuntoColapsoVirtual(puntoColapso != null ? puntoColapso : OffsetDateTime.now());
+            reporte.setCausaColapso(
+                    "Incumplimiento de SLA: una maleta superó su deadline (24h/48h) sin ser entregada");
         }
 
         reporteRepository.save(reporte);
@@ -172,6 +184,12 @@ public class ReporteService {
 
     public void exportarCsvRutas(UUID sesionId) {
         String csv = generarCsvRutas(sesionId);
+        // No sobrescribir un CSV ya generado (con datos) con uno vacío: detenerSesion lo exporta
+        // antes de borrar los planes, y el evento async vuelve a entrar ya sin planes.
+        if (csv == null || csv.isBlank()) {
+            log.info("CSV de rutas vacío para sesion {} (sin planes); no se sobrescribe", sesionId);
+            return;
+        }
         try {
             Path dir = Paths.get(rutaReportesDir);
             Files.createDirectories(dir);

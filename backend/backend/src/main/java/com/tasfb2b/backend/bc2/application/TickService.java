@@ -22,6 +22,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -31,6 +32,9 @@ public class TickService {
     private static final Logger log = LoggerFactory.getLogger(TickService.class);
     private static final long TICK_INTERVAL_MS = 5000;
     private static final Random RANDOM = new Random();
+
+    // Fecha base de la línea temporal de los archivos _envios_*.txt (sla_comprometido / fecha_operacion).
+    private static final LocalDate FECHA_BASE_ARCHIVO = LocalDate.of(2026, 1, 2);
 
     private final SesionRepository sesionRepository;
     private final VueloRepository vueloRepository;
@@ -156,7 +160,7 @@ public class TickService {
                 : OffsetDateTime.now().plusYears(1);
         List<Vuelo> vuelos = vueloRepository.findTelemetriaVuelos(ventanaTelemetria);
 
-        boolean colapso = detectarColapso(sesion, now, nodos);
+        boolean colapso = detectarIncumplimientoSla(sesion, now);
         escribirMetricas(sesion, now);
         telemetriaService.emitirTelemetria(sesion, nodos, vuelos);
 
@@ -241,6 +245,9 @@ public class TickService {
 
     private boolean debeFinalizarPorTiempo(SesionEjecucion sesion) {
         if (sesion.getDiaHoraVirtual() == null || sesion.getFechaInicioVirtual() == null) return false;
+        // HASTA_COLAPSO no tiene fin determinado: corre hasta el primer incumplimiento de SLA,
+        // no se autofinaliza por tiempo.
+        if (sesion.getTipoSimulacion() == TipoSimulacion.HASTA_COLAPSO) return false;
         LocalDate fechaFin = sesion.getFechaInicioVirtual().plusDays(5);
         return !sesion.getDiaHoraVirtual().toLocalDate().isBefore(fechaFin);
     }
@@ -496,18 +503,30 @@ public class TickService {
                 EstadoVuelo.PROGRAMADO, false, virtual.plusSeconds(1), hasta);
 
         int canceladosTick = 0;
+        int replanificadasTick = 0;
         for (Vuelo vuelo : programados) {
             if (RANDOM.nextDouble() < prob.doubleValue()) {
                 log.info("[SIM {}] CANCELA {} {}->{} (prob={}) -> replanificando",
                         idCorto(sesion.getId()), vuelo.getCodigoVuelo(),
                         vuelo.getOrigen().getCodigoIata(), vuelo.getDestino().getCodigoIata(), prob);
 
-                replanificacionService.replanificarEnSesion(
+                int afectados = replanificacionService.replanificarEnSesion(
                         sesion.getId(), vuelo.getId(),
                         "Cancelacion probabilistica en tick",
                         sesion.getDiaHoraVirtual());
                 canceladosTick++;
+                replanificadasTick += afectados;
             }
+        }
+
+        // Acumular en la MISMA instancia de sesion del tick: el save() final del tick los
+        // persiste. Antes el incremento se hacia en otra instancia dentro de
+        // replanificarEnSesion y el save del tick lo sobrescribia (lost update).
+        if (canceladosTick > 0) {
+            sesion.setVuelosCancelados(
+                    (sesion.getVuelosCancelados() != null ? sesion.getVuelosCancelados() : 0) + canceladosTick);
+            sesion.setMaletasReplanificadas(
+                    (sesion.getMaletasReplanificadas() != null ? sesion.getMaletasReplanificadas() : 0) + replanificadasTick);
         }
         return canceladosTick;
     }
@@ -524,32 +543,45 @@ public class TickService {
         // Save se hace al final del tick en procesarTick
     }
 
-    private boolean detectarColapso(SesionEjecucion sesion, OffsetDateTime now, List<NodoLogistico> nodos) {
-        BigDecimal rojoMax = sesion.getAlmacenRojoMax();
-        if (rojoMax == null) return false;
+    /**
+     * Colapso por incumplimiento del PRIMER SLA: una sesión HASTA_COLAPSO se detiene en cuanto
+     * una maleta que ya entró al sistema supera su deadline (24h mismo continente / 48h distinto)
+     * sin haber sido entregada — sin importar la causa (vuelos saturados que retrasan llegadas,
+     * almacenes saturados, cancelaciones, falta de ruta dentro del SLA, etc.).
+     */
+    private boolean detectarIncumplimientoSla(SesionEjecucion sesion, OffsetDateTime now) {
+        if (sesion.getTipoSimulacion() != TipoSimulacion.HASTA_COLAPSO) return false;
+        OffsetDateTime virtual = sesion.getDiaHoraVirtual();
+        if (virtual == null || sesion.getFechaInicioVirtual() == null) return false;
 
-        for (NodoLogistico nodo : nodos) {
-            double pct = nodo.getOcupacionPorcentaje();
-            if (pct > rojoMax.doubleValue()) {
-                log.warn("COLAPSO en sesion {}: nodo {} ocupacion {}% supera umbral rojo {}%",
-                        sesion.getId(), nodo.getCodigoIata(), pct, rojoMax);
+        // sla_comprometido / fecha_operacion viven en la línea temporal base de los archivos
+        // (FECHA_BASE_ARCHIVO); el reloj virtual corre desde fechaInicioVirtual. Se compara en
+        // la base restando el delta de días.
+        long delta = ChronoUnit.DAYS.between(FECHA_BASE_ARCHIVO, sesion.getFechaInicioVirtual());
+        OffsetDateTime limite = virtual.minusDays(delta);
 
-                sesion.setEstado(EstadoSesion.COLAPSADA);
-                sesion.setFechaFinReal(now);
-                sesionRepository.save(sesion);
+        if (!equipajeRepository.existsIncumplimientoSla(limite)) return false;
 
-                readinessManager.eliminar(sesion.getId());
-                redisCacheService.setEstadoSesion(sesion.getId(), "COLAPSADA");
-                redisCacheService.setMetricasSesion(sesion.getId(), buildMetricasJson(sesion, now, true));
+        log.warn("COLAPSO por SLA en sesion {}: primer equipaje superó su deadline en virtual {}",
+                sesion.getId(), virtual);
 
-                eventPublisher.publishEvent(new SesionFinalizada(
-                        sesion.getId(), "COLAPSADA", now));
+        sesion.setEstado(EstadoSesion.COLAPSADA);
+        sesion.setFechaFinReal(now);
+        sesionRepository.save(sesion);
 
-                telemetriaService.emitirTelemetria(sesion);
-                return true;
-            }
+        readinessManager.eliminar(sesion.getId());
+        try {
+            redisCacheService.setEstadoSesion(sesion.getId(), "COLAPSADA");
+            redisCacheService.setMetricasSesion(sesion.getId(), buildMetricasJson(sesion, now, true));
+        } catch (Exception e) {
+            log.warn("Redis no disponible al colapsar sesion {}: {}", sesion.getId(), e.getMessage());
         }
-        return false;
+
+        eventPublisher.publishEvent(new SesionFinalizada(
+                sesion.getId(), "COLAPSADA", now));
+
+        telemetriaService.emitirTelemetria(sesion);
+        return true;
     }
 
     private void detenerSesionPorColapso(SesionEjecucion sesion, OffsetDateTime now) {

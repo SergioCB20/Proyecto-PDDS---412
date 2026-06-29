@@ -521,7 +521,7 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
   const [reporte, setReporte] = useState<ReporteSesion | null>(null);
 
   const [simulacionConfig, setSimulacionConfig] = useState({
-    fecha_inicio_virtual: '2025-06-01',
+    fecha_inicio_virtual: '2026-01-02',
     hora_inicio_virtual: '08:00',
   });
 
@@ -881,7 +881,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [reporte, setReporte] = useState<ReporteSesion | null>(null);
 
   const [simulacionConfig, setSimulacionConfig] = useState({
-    fecha_inicio_virtual: '2025-06-01',
+    fecha_inicio_virtual: '2026-01-02',
     hora_inicio_virtual: '08:00',
   });
 

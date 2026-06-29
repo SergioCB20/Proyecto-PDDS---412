@@ -238,6 +238,14 @@ public class SimulacionEnrutamientoService {
                         sinRutaLote, inicioVentana, finVentana, primerSinRutaLote);
             }
 
+            // Defensa anti duplicate-key: borra cualquier plan/segmento PREVIO de las maletas
+            // que vamos a enrutar. planes_viaje tiene UNIQUE(equipaje_id); el deshacer de arriba
+            // solo limpia planes con el sesion_id de esta sesion, asi que un plan huerfano
+            // (p.ej. sesion_id=NULL dejado por el worker dia a dia, o de una corrida previa)
+            // haria reventar el insert. Mismo patron que PlanificacionWorker.
+            eliminarPlanesPrevios(planesBatch.stream()
+                    .map(p -> p.getEquipaje().getId()).toList());
+
             // Guardar todo en lote
             planViajeRepository.saveAll(planesBatch);
             segmentoPlanRepository.saveAll(segmentosBatch);
@@ -258,6 +266,17 @@ public class SimulacionEnrutamientoService {
         }
         return new ResultadoVentana(enrutados, colapso, colapso ? inicioVentana : null,
                 colapso ? primerSinRutaGlobal : null);
+    }
+
+    /** Borra plan_viaje + segmentos_plan preexistentes de las maletas dadas (anti duplicate-key). */
+    private void eliminarPlanesPrevios(List<UUID> equipajeIds) {
+        if (equipajeIds == null || equipajeIds.isEmpty()) return;
+        UUID[] idArray = equipajeIds.toArray(new UUID[0]);
+        jdbcTemplate.update(
+                "DELETE FROM segmentos_plan WHERE plan_viaje_id IN " +
+                "(SELECT id FROM planes_viaje WHERE equipaje_id = ANY(?))", (Object) idArray);
+        jdbcTemplate.update(
+                "DELETE FROM planes_viaje WHERE equipaje_id = ANY(?)", (Object) idArray);
     }
 
     private void batchActualizarVuelos(Map<UUID, Integer> vuelosMap) {
