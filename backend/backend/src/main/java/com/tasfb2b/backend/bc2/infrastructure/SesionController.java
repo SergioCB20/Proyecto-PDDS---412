@@ -27,8 +27,10 @@ public class SesionController {
     }
 
     @PostMapping
-    public ResponseEntity<SesionResponse> crearSesion(@RequestBody CrearSesionRequest request) {
-        SesionResponse response = sesionService.crearSesion(request);
+    public ResponseEntity<SesionResponse> crearSesion(
+            @RequestBody CrearSesionRequest request,
+            @RequestHeader("X-Device-Id") String dispositivoId) {
+        SesionResponse response = sesionService.crearSesion(request, dispositivoId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -39,20 +41,26 @@ public class SesionController {
     }
 
     @PostMapping("/{id}/iniciar")
-    public ResponseEntity<SesionIniciarResponse> iniciarSesion(@PathVariable UUID id) {
-        SesionIniciarResponse response = sesionService.iniciarSesion(id);
+    public ResponseEntity<SesionIniciarResponse> iniciarSesion(
+            @PathVariable UUID id,
+            @RequestHeader("X-Device-Id") String dispositivoId) {
+        SesionIniciarResponse response = sesionService.iniciarSesion(id, dispositivoId);
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/{id}/pausar")
-    public ResponseEntity<SesionEstadoResponse> pausarSesion(@PathVariable UUID id) {
-        SesionEstadoResponse response = sesionService.pausarSesion(id);
+    public ResponseEntity<SesionEstadoResponse> pausarSesion(
+            @PathVariable UUID id,
+            @RequestHeader("X-Device-Id") String dispositivoId) {
+        SesionEstadoResponse response = sesionService.pausarSesion(id, dispositivoId);
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/{id}/detener")
-    public ResponseEntity<SesionEstadoResponse> detenerSesion(@PathVariable UUID id) {
-        SesionEstadoResponse response = sesionService.detenerSesion(id);
+    public ResponseEntity<SesionEstadoResponse> detenerSesion(
+            @PathVariable UUID id,
+            @RequestHeader("X-Device-Id") String dispositivoId) {
+        SesionEstadoResponse response = sesionService.detenerSesion(id, dispositivoId);
         return ResponseEntity.ok(response);
     }
 

@@ -23,6 +23,8 @@ interface GeoMapaProps {
   /** Muestra una pantalla de carga sobre el mapa hasta que los datos estén listos. */
   cargando?: boolean;
   children?: ReactNode;
+  seguidoVueloId?: string;
+  onSalirSeguimiento?: () => void;
 }
 
 const CENTRO: [number, number] = [-15, -60];
@@ -41,6 +43,8 @@ export default function GeoMapa({
   umbralesConfig,
   cargando = false,
   children,
+  seguidoVueloId,
+  onSalirSeguimiento,
 }: GeoMapaProps) {
   // Mantiene el overlay un poco más tras cargar para que la flota se pinte completa.
   // `settling` solo cubre la ventana de gracia posterior a la carga; el estado durante
@@ -88,6 +92,8 @@ export default function GeoMapa({
             animacionActiva={animacionActiva}
             k={k}
             umbralesConfig={umbralesConfig}
+            seguido={vuelo.id === seguidoVueloId}
+            onSalirSeguimiento={onSalirSeguimiento}
           />
         ))}
         <ControlZoom />

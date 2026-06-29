@@ -107,6 +107,9 @@ public class SesionEjecucion {
     @Column(name = "fecha_alineada_a")
     private LocalDate fechaAlineadaA;
 
+    @Column(name = "dispositivo_id", length = 36)
+    private String dispositivoId;
+
     @Column(name = "created_at")
     private OffsetDateTime createdAt;
 
@@ -196,6 +199,9 @@ public class SesionEjecucion {
 
     public BigDecimal getProbCancelacion() { return probCancelacion; }
     public void setProbCancelacion(BigDecimal probCancelacion) { this.probCancelacion = probCancelacion; }
+
+    public String getDispositivoId() { return dispositivoId; }
+    public void setDispositivoId(String dispositivoId) { this.dispositivoId = dispositivoId; }
 
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }

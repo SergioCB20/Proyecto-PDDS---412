@@ -24,23 +24,32 @@ const MIN_TRAVESIA_MS = 8000;
 const MAX_VEL = 1 / MIN_TRAVESIA_MS; // progreso por ms real
 
 // SVG airplane pointing NORTH (up). rotacion = geographic bearing (0=N, 90=E …)
-function crearIconoAvion(color: string, rotacion: number = 0, size: number = 22) {
+// `seguido`: vuelo en modo "seguir" -> borde dorado brillante para ubicarlo facil.
+function crearIconoAvion(color: string, rotacion: number = 0, size: number = 22, seguido: boolean = false) {
   const half = Math.round(size / 2);
   const border = Math.max(1, Math.round(size * 0.09));
   const svgSize = Math.round(size * 0.62);
+  const borde = seguido
+    ? `border:${Math.max(2, border)}px solid #f5c518;box-shadow:0 0 0 3px rgba(245,197,24,0.55),0 0 14px 5px rgba(245,197,24,0.85)`
+    : `border:${border}px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.35)`;
   return L.divIcon({
     className: 'avion-icon',
-    html: `<div style="width:${size}px;height:${size}px;background:${color};border-radius:50%;border:${border}px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;transform:rotate(${rotacion}deg)"><svg viewBox="0 0 24 24" width="${svgSize}" height="${svgSize}" fill="white" xmlns="http://www.w3.org/2000/svg"><path d="M12 2 L8 10 L3 12 L3 13.5 L8 12 L9.5 11.5 L9.5 19 L10 19 L8.5 22 L9.5 22.5 L12 21.5 L14.5 22.5 L15.5 22 L14 19 L14.5 19 L14.5 11.5 L16 12 L21 13.5 L21 12 L16 10 Z"/></svg></div>`,
+    html: `<div style="width:${size}px;height:${size}px;background:${color};border-radius:50%;${borde};display:flex;align-items:center;justify-content:center;transform:rotate(${rotacion}deg)"><svg viewBox="0 0 24 24" width="${svgSize}" height="${svgSize}" fill="white" xmlns="http://www.w3.org/2000/svg"><path d="M12 2 L8 10 L3 12 L3 13.5 L8 12 L9.5 11.5 L9.5 19 L10 19 L8.5 22 L9.5 22.5 L12 21.5 L14.5 22.5 L15.5 22 L14 19 L14.5 19 L14.5 11.5 L16 12 L21 13.5 L21 12 L16 10 Z"/></svg></div>`,
     iconSize: [size, size],
     iconAnchor: [half, half],
   });
 }
+
+// Zoom al que se acerca la camara al entrar en modo "seguir vuelo".
+const FOLLOW_ZOOM = 7;
 
 interface AvionAnimadoProps {
   vuelo: VueloEnMapa;
   animacionActiva?: boolean;
   k?: number;
   umbralesConfig?: UmbralesConfig;
+  seguido?: boolean;
+  onSalir?: () => void;
 }
 
 const AvionAnimado = React.memo(function AvionAnimado({
@@ -48,6 +57,8 @@ const AvionAnimado = React.memo(function AvionAnimado({
   animacionActiva = false,
   k = 120,
   umbralesConfig,
+  seguido = false,
+  onSalir,
 }: AvionAnimadoProps) {
   const markerRef = useRef<L.Marker>(null);
   const polylineRef = useRef<L.Polyline>(null);
@@ -58,9 +69,21 @@ const AvionAnimado = React.memo(function AvionAnimado({
   const [iconSize, setIconSize] = useState(() => calcularTamaño(map.getZoom()));
   const iconSizeRef = useRef(iconSize);
   const bearingRef = useRef(0);
+  const seguidoRef = useRef(seguido);
+  useEffect(() => { seguidoRef.current = seguido; }, [seguido]);
+  const lastFollowPosRef = useRef<L.LatLng | null>(null);
   // Durante la animación de zoom, Leaflet reproyecta el pane; mover el marcador o
   // redibujar la estela en esos frames lo descuadra y aparenta cambiar de rumbo.
   const zoomingRef = useRef(false);
+
+  // Cuando se activa el modo seguir, vuela la cámara al vuelo y aplica zoom.
+  useEffect(() => {
+    if (seguido && markerRef.current) {
+      const pos = markerRef.current.getLatLng();
+      map.flyTo(pos, FOLLOW_ZOOM, { duration: 0.8 });
+      lastFollowPosRef.current = pos;
+    }
+  }, [seguido, map]);
 
   useEffect(() => { iconSizeRef.current = iconSize; }, [iconSize]);
 
@@ -136,6 +159,9 @@ const AvionAnimado = React.memo(function AvionAnimado({
     k,
     lastBearingT: -1,                 // last t at which we updated the bearing icon
     lastEstelaT: -1,                  // last t at which we redrew the fading trail
+    /** Tiempo real de sincronización para modo tiempo-real (k≤1). */
+    syncProgreso: vuelo.progreso ?? 0,
+    syncTime: 0, // 0 = no sync yet; set on first EN_RUTA server tick
   });
 
   // Sync flight metadata; never move the plane backward when a server tick arrives
@@ -148,6 +174,8 @@ const AvionAnimado = React.memo(function AvionAnimado({
     if (vuelo.estado !== 'EN_RUTA') {
       ref.progreso = Math.min(Math.max(vuelo.progreso ?? 0, 0), 1);
       ref.lastTickTime = performance.now();
+      ref.syncProgreso = ref.progreso;
+      ref.syncTime = performance.now();
       ref.horaSalidaMs = vuelo.hora_salida ? new Date(vuelo.hora_salida).getTime() : 0;
       ref.horaLlegadaMs = vuelo.hora_llegada ? new Date(vuelo.hora_llegada).getTime() : 0;
       ref.k = k;
@@ -155,12 +183,20 @@ const AvionAnimado = React.memo(function AvionAnimado({
     }
 
     const now = performance.now();
-    const elapsed = now - ref.lastTickTime;
     const durVirtual = ref.horaLlegadaMs - ref.horaSalidaMs;
-    const velocity = durVirtual > 0 && ref.k > 0 ? ref.k / durVirtual : 0;
-    const currentPos = Math.min(ref.progreso + velocity * elapsed, 1);
-    // Take the max: never allow the plane to jump backward on a new server tick
-    ref.progreso = Math.max(vuelo.progreso ?? 0, currentPos);
+
+    if (ref.k <= 1) {
+      // Tiempo real: sincronizar referencia para interpolación fluida por reloj de pared.
+      ref.syncProgreso = Math.max(vuelo.progreso ?? 0, ref.syncProgreso);
+      ref.syncTime = now;
+      ref.progreso = ref.syncProgreso;
+    } else {
+      const elapsed = now - ref.lastTickTime;
+      const velocity = durVirtual > 0 && ref.k > 0 ? ref.k / durVirtual : 0;
+      const currentPos = Math.min(ref.progreso + velocity * elapsed, 1);
+      // Take the max: never allow the plane to jump backward on a new server tick
+      ref.progreso = Math.max(vuelo.progreso ?? 0, currentPos);
+    }
     ref.lastTickTime = now;
     ref.horaSalidaMs = vuelo.hora_salida ? new Date(vuelo.hora_salida).getTime() : 0;
     ref.horaLlegadaMs = vuelo.hora_llegada ? new Date(vuelo.hora_llegada).getTime() : 0;
@@ -197,6 +233,13 @@ const AvionAnimado = React.memo(function AvionAnimado({
         t
       );
       marker.setLatLng([lat, lng]);
+      if (seguidoRef.current) {
+        const np = L.latLng(lat, lng);
+        if (!lastFollowPosRef.current || np.distanceTo(lastFollowPosRef.current) > 500) {
+          lastFollowPosRef.current = np;
+          map.panTo(np, { animate: false });
+        }
+      }
       flightRef.current.lastEstelaT = t;
       dibujarEstela(t);
       const bearing = bezierBearing(
@@ -226,18 +269,30 @@ const AvionAnimado = React.memo(function AvionAnimado({
         return;
       }
 
-      const elapsed = now - ref.lastTickTime;  // ms since last server confirmation
       const frameDt = Math.max(0, now - ref.lastFrameTime); // ms since last frame
       ref.lastFrameTime = now;
 
-      // Theoretical velocity: progreso/ms in real time
-      // progreso spans [0,1] over the virtual flight duration.
-      // In real time that same span takes durVirtual/k ms.
       const durVirtual = ref.horaLlegadaMs - ref.horaSalidaMs;
-      const velocity = durVirtual > 0 && ref.k > 0 ? ref.k / durVirtual : 0;
 
       // Posición "verdad": progreso del servidor extrapolado a tiempo real.
-      const target = Math.min(Math.max(ref.progreso + velocity * elapsed, 0), 1);
+      let target: number;
+      if (ref.k > 1) {
+        // Modo acelerado (simulación): extrapolación clásica con k.
+        const elapsed = now - ref.lastTickTime;
+        const velocity = durVirtual > 0 && ref.k > 0 ? ref.k / durVirtual : 0;
+        target = Math.min(Math.max(ref.progreso + velocity * elapsed, 0), 1);
+      } else if (ref.syncTime === 0) {
+        // Sin sincronización aún: usar progreso estático (esperar primer tick).
+        target = Math.min(Math.max(ref.progreso, 0), 1);
+      } else {
+        // Modo tiempo real (operación): interpolación por reloj de pared.
+        // Entre ticks del servidor, se avanza suavemente usando el tiempo
+        // real transcurrido desde la última confirmación.
+        const realElapsed = Math.max(0, now - ref.syncTime);
+        target = Math.min(
+          Math.max(ref.syncProgreso + (durVirtual > 0 ? realElapsed / durVirtual : 0), 0), 1
+        );
+      }
 
       // El avión avanza hacia la verdad pero con paso acotado por MAX_VEL, de modo
       // que ningún vuelo cruce más rápido que MIN_TRAVESIA_MS. Para vuelos normales
@@ -258,6 +313,13 @@ const AvionAnimado = React.memo(function AvionAnimado({
         t
       );
       marker.setLatLng([lat, lng]);
+      if (seguidoRef.current) {
+        const np = L.latLng(lat, lng);
+        if (!lastFollowPosRef.current || np.distanceTo(lastFollowPosRef.current) > 500) {
+          lastFollowPosRef.current = np;
+          map.panTo(np, { animate: false });
+        }
+      }
 
       // Redibuja la estela solo cuando el progreso avanza ≥1% (evita un redraw
       // SVG por frame en cada avion; el desfase de la cola es imperceptible).
@@ -328,6 +390,16 @@ const AvionAnimado = React.memo(function AvionAnimado({
         />
       )}
       <Marker ref={markerRef} position={frozenPos} icon={icono}>
+      {seguido && onSalir && (
+        <Tooltip permanent direction="bottom" offset={[0, 10]} className="salir-vuelo-tooltip">
+          <button
+            onClick={e => { e.stopPropagation(); onSalir(); }}
+            className="px-2 py-0.5 text-[10px] font-medium bg-amber-400 text-amber-900 rounded-full shadow-md whitespace-nowrap hover:bg-amber-500 transition-colors"
+          >
+            Salir del vuelo
+          </button>
+        </Tooltip>
+      )}
       {/* Etiqueta de carga: visible solo al pasar el cursor sobre el avión */}
       <Tooltip direction="top" offset={[0, -14]} className="avion-carga-tooltip">
         <div className="text-center min-w-[90px]">

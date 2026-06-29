@@ -140,6 +140,8 @@ public class TelemetriaService {
         metrics.put("maletas_replanificadas",
                 sesion.getMaletasReplanificadas() != null ? sesion.getMaletasReplanificadas() : 0);
         metrics.put("k", sesion.getK() != null ? sesion.getK() : 120.0);
+        metrics.put("fecha_inicio_real", sesion.getFechaInicioReal() != null
+                ? sesion.getFechaInicioReal().toString() : null);
 
         try {
             return objectMapper.writeValueAsString(root);

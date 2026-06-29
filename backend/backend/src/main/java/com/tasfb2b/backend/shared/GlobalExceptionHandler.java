@@ -9,6 +9,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import com.tasfb2b.backend.bc2.application.AccesoDenegadoException;
 import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -86,6 +87,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<?> handleDataAccess(org.springframework.dao.DataAccessException ex) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(error(HttpStatus.INTERNAL_SERVER_ERROR, "ERROR_BD", "Error en la base de datos: " + ex.getMessage()));
+    }
+
+    @ExceptionHandler(AccesoDenegadoException.class)
+    public ResponseEntity<?> handleAccesoDenegado(AccesoDenegadoException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(error(HttpStatus.FORBIDDEN, "ACCESO_DENEGADO", ex.getMessage()));
     }
 
     @ExceptionHandler(NullPointerException.class)

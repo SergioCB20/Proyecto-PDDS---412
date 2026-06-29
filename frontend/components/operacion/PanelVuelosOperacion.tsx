@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Upload, XCircle } from 'lucide-react';
+import { Upload, XCircle, Map as MapIcon } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { colorVueloPorEstado } from '@/lib/colors';
@@ -13,6 +13,7 @@ interface PanelVuelosOperacionProps {
   onVueloClick?: (id: string, codigo: string) => void;
   onDownloadManifiesto?: (id: string, codigo: string) => void;
   onCancelVuelo?: (id: string, codigo: string) => void;
+  onVerEnMapa?: (id: string) => void;
   origenFilter?: string;
   destinoFilter?: string;
   onFilterChange?: (filters: { origen: string; destino: string }) => void;
@@ -23,7 +24,7 @@ interface PanelVuelosOperacionProps {
 // pestaña cuando la telemetría trae muchos vuelos.
 const MAX_RENDER = 100;
 
-export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiesto, onCancelVuelo, origenFilter = '', destinoFilter = '', onFilterChange }: PanelVuelosOperacionProps) {
+export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiesto, onCancelVuelo, onVerEnMapa, origenFilter = '', destinoFilter = '', onFilterChange }: PanelVuelosOperacionProps) {
   const [filtroCodigo, setFiltroCodigo] = useState('');
   const [orden, setOrden] = useState('');
 
@@ -191,11 +192,20 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
                   style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: colorHex }}
                 />
               </div>
-              <div className="flex items-center justify-between text-[10px] text-slate-400 mt-0.5">
-                <span>Salida: {formatearHoraLocalCorta(v.hora_salida)}</span>
-                <div className="flex items-center gap-2">
-                  <span>Llegada: {formatearHoraLocalCorta(v.hora_llegada)}</span>
-                  {onDownloadManifiesto && (
+                  <div className="flex items-center justify-between text-[10px] text-slate-400 mt-0.5">
+                    <span>Salida: {formatearHoraLocalCorta(v.hora_salida)}</span>
+                    <div className="flex items-center gap-2">
+                      <span>Llegada: {formatearHoraLocalCorta(v.hora_llegada)}</span>
+                      {onVerEnMapa && v.estado === 'EN_RUTA' && (
+                        <button
+                          onClick={e => { e.stopPropagation(); onVerEnMapa(v.id); }}
+                          className="p-1 rounded hover:bg-amber-100 dark:hover:bg-amber-900/30 text-amber-600"
+                          title="Ver en mapa"
+                        >
+                          <MapIcon size={12} />
+                        </button>
+                      )}
+                      {onDownloadManifiesto && (
                     <button
                       onClick={e => { e.stopPropagation(); onDownloadManifiesto(v.id, v.codigo_vuelo); }}
                       className="p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/30 text-green-500"

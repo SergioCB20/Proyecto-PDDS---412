@@ -142,6 +142,15 @@ public class TickService {
             return;
         }
 
+        // Auto-finalizar tras 4 horas reales de actividad si nadie lo detiene
+        Integer secs = sesion.getSegundosRealesTranscurridos();
+        if (secs != null && secs >= 4 * 3600) {
+            log.info("Sesion {} alcanzó 4 horas reales de actividad. Finalizando automaticamente.",
+                    sesion.getId());
+            finalizarSesionPorTiempo(sesion, now);
+            return;
+        }
+
         clonarParaNuevoDia(sesion);
         registrarPuntoSla(sesion);
         int salidas = procesarVuelosSalida(sesion);

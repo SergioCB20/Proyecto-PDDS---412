@@ -13,6 +13,8 @@ interface GeoMapaVueloProps {
   animacionActiva?: boolean;
   k?: number;
   umbralesConfig?: UmbralesConfig;
+  seguido?: boolean;
+  onSalirSeguimiento?: () => void;
 }
 
 function OcupacionBar({ ocupada, total, verdeMax, ambarMax }: { ocupada: number; total: number; verdeMax: number; ambarMax: number }) {
@@ -32,6 +34,7 @@ function OcupacionBar({ ocupada, total, verdeMax, ambarMax }: { ocupada: number;
 function areEqual(prevProps: GeoMapaVueloProps, nextProps: GeoMapaVueloProps): boolean {
   if (prevProps.animacionActiva !== nextProps.animacionActiva) return false;
   if (prevProps.k !== nextProps.k) return false;
+  if (prevProps.seguido !== nextProps.seguido) return false;
   if (prevProps.umbralesConfig?.verdeMax !== nextProps.umbralesConfig?.verdeMax) return false;
   if (prevProps.umbralesConfig?.ambarMax !== nextProps.umbralesConfig?.ambarMax) return false;
   const a = prevProps.vuelo;
@@ -46,7 +49,7 @@ function areEqual(prevProps: GeoMapaVueloProps, nextProps: GeoMapaVueloProps): b
   return true;
 }
 
-export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false, k = 120, umbralesConfig }: GeoMapaVueloProps) {
+export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false, k = 120, umbralesConfig, seguido = false, onSalirSeguimiento }: GeoMapaVueloProps) {
   const color = colorVueloPorEstado(vuelo.estado);
   const opacidadRuta = animacionActiva ? 0.5 : 0.2;
   const verdeMax = umbralesConfig?.verdeMax ?? 70;
@@ -99,6 +102,8 @@ export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false
           animacionActiva={animacionActiva && vuelo.estado === 'EN_RUTA'}
           k={k}
           umbralesConfig={umbralesConfig}
+          seguido={seguido}
+          onSalir={onSalirSeguimiento}
         />
       )}
     </>
