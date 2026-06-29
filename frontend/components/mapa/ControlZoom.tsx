@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMap } from 'react-leaflet';
 import { Minus, Plus } from 'lucide-react';
 
@@ -18,37 +18,49 @@ const toSlider = (leafletZoom: number) =>
 
 export default function ControlZoom() {
   const map = useMap();
-  const [zoom, setZoom] = useState(() => toSlider(map.getZoom()));
+  const sliderRef = useRef(toSlider(map.getZoom()));
+  const [display, setDisplay] = useState(() => toSlider(map.getZoom()));
 
   useEffect(() => {
-    const onZoom = () => setZoom(toSlider(map.getZoom()));
+    const onZoom = () => {
+      sliderRef.current = toSlider(map.getZoom());
+      setDisplay(sliderRef.current);
+    };
     map.on('zoomend', onZoom);
     return () => { map.off('zoomend', onZoom); };
   }, [map]);
 
   const handleSlider = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = Number(e.target.value);
+    sliderRef.current = val;
+    setDisplay(val);
     map.setZoom(toLeaflet(val));
   };
 
   const handleZoomIn = () => {
-    map.setZoom(toLeaflet(Math.min(zoom + 1, SLIDER_MAX)));
+    const next = Math.min(sliderRef.current + 1, SLIDER_MAX);
+    sliderRef.current = next;
+    setDisplay(next);
+    map.setZoom(toLeaflet(next));
   };
 
   const handleZoomOut = () => {
-    map.setZoom(toLeaflet(Math.max(zoom - 1, SLIDER_MIN)));
+    const next = Math.max(sliderRef.current - 1, SLIDER_MIN);
+    sliderRef.current = next;
+    setDisplay(next);
+    map.setZoom(toLeaflet(next));
   };
 
   return (
     <div className="absolute bottom-4 left-4 z-[1000] bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm rounded-lg border border-slate-200 dark:border-slate-700 shadow-lg p-3 min-w-[180px]">
       <div className="flex items-center gap-2 mb-1.5">
         <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Zoom</span>
-        <span className="text-xs font-bold text-slate-900 dark:text-slate-100 ml-auto">{zoom}</span>
+        <span className="text-xs font-bold text-slate-900 dark:text-slate-100 ml-auto">{display}</span>
       </div>
       <div className="flex items-center gap-2">
         <button
           onClick={handleZoomOut}
-          disabled={zoom <= SLIDER_MIN}
+          disabled={display <= SLIDER_MIN}
           className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-600 dark:text-slate-400"
         >
           <Minus size={14} />
@@ -58,13 +70,13 @@ export default function ControlZoom() {
           min={SLIDER_MIN}
           max={SLIDER_MAX}
           step={SLIDER_STEP}
-          value={zoom}
+          value={display}
           onChange={handleSlider}
           className="flex-1 h-1.5 accent-blue-600 cursor-pointer"
         />
         <button
           onClick={handleZoomIn}
-          disabled={zoom >= SLIDER_MAX}
+          disabled={display >= SLIDER_MAX}
           className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-600 dark:text-slate-400"
         >
           <Plus size={14} />
