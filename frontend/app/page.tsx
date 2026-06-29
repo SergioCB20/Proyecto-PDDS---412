@@ -346,16 +346,75 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     } catch { alert('Error al cancelar vuelo'); }
   };
 
+  const maxOcupacion = Math.max(
+    0,
+    ...(telemetria?.nodos ?? []).map(n => n.ocupacion_pct),
+    ...aeropuertos.map(n => n.ocupacionPorcentaje)
+  );
+
+  const metricasOpSim = telemetria?.metricas_sesion;
+
   return (
     <div className="flex h-full">
       <div className="flex-1 p-4 relative">
-        <GeoMapa aeropuertos={aeropuertos} vuelos={vuelosMapaFiltrados} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} cargando={aeropuertos.length === 0} />
-
-        <div className="absolute top-4 left-4 z-[1001] pointer-events-none max-w-[320px]">
-          <div className="pointer-events-auto rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
-            <MetricasOperacion />
+        <GeoMapa aeropuertos={aeropuertos} vuelos={vuelosMapaFiltrados} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} cargando={aeropuertos.length === 0}>
+          <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
+            <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
+                <Activity size={12} className="text-blue-600" />
+                <span className="text-[10px] text-slate-500">SLA</span>
+                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{(metricasOpSim?.sla_acumulado_pct ?? 0).toFixed(1)}%</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
+                <XCircle size={12} className="text-red-600" />
+                <span className="text-[10px] text-slate-500">Cancel</span>
+                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{metricasOpSim?.vuelos_cancelados ?? 0}</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
+                <RefreshCw size={12} className="text-amber-600" />
+                <span className="text-[10px] text-slate-500">Replan</span>
+                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{metricasOpSim?.maletas_replanificadas ?? 0}</span>
+              </div>
+            </div>
+            <div className="pointer-events-auto mt-1.5 p-2 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between mb-0.5">
+                <span className="text-[10px] text-slate-500">Ocupación máxima</span>
+                <span className="text-xs font-bold" style={{
+                  color: maxOcupacion < configUmbrales.verdeMax ? '#22c55e' : maxOcupacion < configUmbrales.ambarMax ? '#eab308' : '#ef4444'
+                }}>{maxOcupacion.toFixed(0)}%</span>
+              </div>
+              <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-500" style={{
+                  width: `${Math.min(maxOcupacion, 100)}%`,
+                  backgroundColor: maxOcupacion < configUmbrales.verdeMax ? '#22c55e' : maxOcupacion < configUmbrales.ambarMax ? '#eab308' : '#ef4444'
+                }} />
+              </div>
+            </div>
           </div>
-        </div>
+          <div className="absolute top-4 right-4 z-[1001] pointer-events-none max-w-[320px]">
+            <div className="pointer-events-auto rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
+              <MetricasOperacion />
+            </div>
+            <div className="pointer-events-auto mt-1.5 p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 space-y-1 text-[11px] text-slate-600 dark:text-slate-400 min-w-[170px]">
+              <div className="flex items-center gap-1.5 mb-1 pb-1 border-b border-slate-200 dark:border-slate-600">
+                <Clock size={11} />
+                <span className="font-semibold text-slate-900 dark:text-slate-100">{new Date().toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Estado:</span>
+                <span className={`font-mono font-medium ${estadoOperacion === 'ACTIVO' ? 'text-green-600' : estadoOperacion === 'PAUSADO' ? 'text-amber-600' : 'text-slate-400'}`}>{estadoOperacion}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>WS:</span>
+                <span className={`font-mono font-medium ${wsConnected ? 'text-green-600' : 'text-red-500'}`}>{wsConnected ? 'Conectado' : 'Desconectado'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Vuelos:</span>
+                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{vuelosMapaFiltrados.length}</span>
+              </div>
+            </div>
+          </div>
+        </GeoMapa>
       </div>
 
       <div className={`border-l border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col overflow-y-auto transition-all duration-300 ${isCollapsed ? 'w-12' : 'w-80'}`}>
@@ -694,54 +753,73 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
   const k = useMemo(() => telemetria?.metricas_sesion?.k ?? 120, [telemetria]);
   const animacionActiva = wsConnected && (vuelosMapa.some(v => v.estado === 'EN_RUTA') ?? false);
 
+  const maxOcupacion = Math.max(
+    0,
+    ...(telemetria?.nodos ?? []).map(n => n.ocupacion_pct),
+    ...initialAeropuertos.map(n => n.ocupacionPorcentaje)
+  );
+
   return (
     <div className="flex h-full">
       <div className="flex-1 p-4 relative">
-        <GeoMapa aeropuertos={aeropuertosMapa} vuelos={(estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA') ? vuelosMapa.filter(v => v.estado === 'EN_RUTA') : []} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} cargando={(!!sesionId || estadoSesion === 'EN_CURSO') && aeropuertosMapa.length === 0} />
-
-        {(estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA') && (
-          <>
-            <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
-              <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
-                <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
-                  <Activity size={12} className="text-blue-600" />
-                  <span className="text-[10px] text-slate-500">SLA</span>
-                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{(metricas.sla_acumulado_pct ?? 0).toFixed(1)}%</span>
-                </div>
-                <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
-                  <XCircle size={12} className="text-red-600" />
-                  <span className="text-[10px] text-slate-500">Cancel</span>
-                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{metricas.vuelos_cancelados}</span>
-                </div>
-                <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
-                  <RefreshCw size={12} className="text-amber-600" />
-                  <span className="text-[10px] text-slate-500">Replan</span>
-                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{metricas.maletas_replanificadas}</span>
-                </div>
+        <GeoMapa aeropuertos={aeropuertosMapa} vuelos={(estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA') ? vuelosMapa.filter(v => v.estado === 'EN_RUTA') : []} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} cargando={(!!sesionId || estadoSesion === 'EN_CURSO') && aeropuertosMapa.length === 0}>
+          <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
+            <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
+                <Activity size={12} className="text-blue-600" />
+                <span className="text-[10px] text-slate-500">SLA</span>
+                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{(metricas.sla_acumulado_pct ?? 0).toFixed(1)}%</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
+                <XCircle size={12} className="text-red-600" />
+                <span className="text-[10px] text-slate-500">Cancel</span>
+                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{metricas.vuelos_cancelados}</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
+                <RefreshCw size={12} className="text-amber-600" />
+                <span className="text-[10px] text-slate-500">Replan</span>
+                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{metricas.maletas_replanificadas}</span>
               </div>
             </div>
-            <div className="absolute bottom-4 left-4 z-[1001] pointer-events-none">
-              <div className="pointer-events-auto p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 space-y-1 text-[11px] text-slate-600 dark:text-slate-400 min-w-[170px]">
-                <div className="flex items-center gap-1.5 mb-1 pb-1 border-b border-slate-200 dark:border-slate-600">
-                  <Clock size={11} />
-                  <span className="font-semibold text-slate-900 dark:text-slate-100">{metricas.dia_hora_virtual?.slice(0, 16).replace('T', ' ') || '-'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Inicio Real:</span>
-                  <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{metricas.fecha_inicio_real?.slice(0, 19).replace('T', ' ') || '-'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Inicio Virtual:</span>
-                  <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{simulacionConfig.fecha_inicio_virtual} {simulacionConfig.hora_inicio_virtual}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Transcurrido:</span>
-                  <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{formatSegundos(metricas.segundos_reales_transcurridos ?? 0)}</span>
-                </div>
+            <div className="pointer-events-auto mt-1.5 p-2 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between mb-0.5">
+                <span className="text-[10px] text-slate-500">Ocupación máxima</span>
+                <span className="text-xs font-bold" style={{
+                  color: maxOcupacion < configUmbrales.verdeMax ? '#22c55e' : maxOcupacion < configUmbrales.ambarMax ? '#eab308' : '#ef4444'
+                }}>{maxOcupacion.toFixed(0)}%</span>
+              </div>
+              <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-500" style={{
+                  width: `${Math.min(maxOcupacion, 100)}%`,
+                  backgroundColor: maxOcupacion < configUmbrales.verdeMax ? '#22c55e' : maxOcupacion < configUmbrales.ambarMax ? '#eab308' : '#ef4444'
+                }} />
               </div>
             </div>
-          </>
-        )}
+          </div>
+          <div className="absolute top-4 right-4 z-[1001] pointer-events-none max-w-[320px]">
+            <div className="pointer-events-auto rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
+              <MetricasOperacion />
+            </div>
+            <div className="pointer-events-auto mt-1.5 p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 space-y-1 text-[11px] text-slate-600 dark:text-slate-400 min-w-[170px]">
+              <div className="flex items-center gap-1.5 mb-1 pb-1 border-b border-slate-200 dark:border-slate-600">
+                <Clock size={11} />
+                <span className="font-semibold text-slate-900 dark:text-slate-100">{metricas.dia_hora_virtual?.slice(0, 16).replace('T', ' ') || '-'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Inicio Real:</span>
+                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{metricas.fecha_inicio_real?.slice(0, 19).replace('T', ' ') || '-'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Inicio Virtual:</span>
+                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{simulacionConfig.fecha_inicio_virtual} {simulacionConfig.hora_inicio_virtual}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Transcurrido:</span>
+                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{formatSegundos(metricas.segundos_reales_transcurridos ?? 0)}</span>
+              </div>
+            </div>
+          </div>
+        </GeoMapa>
       </div>
 
       <div className={`border-l border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col overflow-y-auto transition-all duration-300 ${isCollapsed ? 'w-12' : 'w-80'}`}>
@@ -1072,65 +1150,64 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   return (
     <div className="flex h-full">
       <div className="flex-1 p-4 relative">
-        <GeoMapa aeropuertos={aeropuertosMapa} vuelos={(estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA') ? vuelosMapa.filter(v => v.estado === 'EN_RUTA') : []} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} cargando={(!!sesionId || estadoSesion === 'EN_CURSO') && aeropuertosMapa.length === 0} />
-
-        {(estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA') && (
-          <>
-            <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
-              <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
-                <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
-                  <Activity size={12} className="text-blue-600" />
-                  <span className="text-[10px] text-slate-500">SLA</span>
-                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{(metricas.sla_acumulado_pct ?? 0).toFixed(1)}%</span>
-                </div>
-                <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
-                  <XCircle size={12} className="text-red-600" />
-                  <span className="text-[10px] text-slate-500">Cancel</span>
-                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{metricas.vuelos_cancelados}</span>
-                </div>
-                <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
-                  <RefreshCw size={12} className="text-amber-600" />
-                  <span className="text-[10px] text-slate-500">Replan</span>
-                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{metricas.maletas_replanificadas}</span>
-                </div>
+        <GeoMapa aeropuertos={aeropuertosMapa} vuelos={(estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA') ? vuelosMapa.filter(v => v.estado === 'EN_RUTA') : []} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} cargando={(!!sesionId || estadoSesion === 'EN_CURSO') && aeropuertosMapa.length === 0}>
+          <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
+            <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
+                <Activity size={12} className="text-blue-600" />
+                <span className="text-[10px] text-slate-500">SLA</span>
+                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{(metricas.sla_acumulado_pct ?? 0).toFixed(1)}%</span>
               </div>
-              <div className="pointer-events-auto mt-1.5 p-2 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
-                <div className="flex items-center justify-between mb-0.5">
-                  <span className="text-[10px] text-slate-500">Ocupación máxima</span>
-                  <span className="text-xs font-bold" style={{
-                    color: maxOcupacion < configUmbrales.verdeMax ? '#22c55e' : maxOcupacion < configUmbrales.ambarMax ? '#eab308' : '#ef4444'
-                  }}>{maxOcupacion.toFixed(0)}%</span>
-                </div>
-                <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full transition-all duration-500" style={{
-                    width: `${Math.min(maxOcupacion, 100)}%`,
-                    backgroundColor: maxOcupacion < configUmbrales.verdeMax ? '#22c55e' : maxOcupacion < configUmbrales.ambarMax ? '#eab308' : '#ef4444'
-                  }} />
-                </div>
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
+                <XCircle size={12} className="text-red-600" />
+                <span className="text-[10px] text-slate-500">Cancel</span>
+                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{metricas.vuelos_cancelados}</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
+                <RefreshCw size={12} className="text-amber-600" />
+                <span className="text-[10px] text-slate-500">Replan</span>
+                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{metricas.maletas_replanificadas}</span>
               </div>
             </div>
-            <div className="absolute bottom-4 left-4 z-[1001] pointer-events-none">
-              <div className="pointer-events-auto p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 space-y-1 text-[11px] text-slate-600 dark:text-slate-400 min-w-[170px]">
-                <div className="flex items-center gap-1.5 mb-1 pb-1 border-b border-slate-200 dark:border-slate-600">
-                  <Clock size={11} />
-                  <span className="font-semibold text-slate-900 dark:text-slate-100">{metricas.dia_hora_virtual?.slice(0, 16).replace('T', ' ') || '-'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Inicio Real:</span>
-                  <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{metricas.fecha_inicio_real?.slice(0, 19).replace('T', ' ') || '-'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Inicio Virtual:</span>
-                  <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{simulacionConfig.fecha_inicio_virtual} {simulacionConfig.hora_inicio_virtual}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Transcurrido:</span>
-                  <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{formatSegundos(metricas.segundos_reales_transcurridos ?? 0)}</span>
-                </div>
+            <div className="pointer-events-auto mt-1.5 p-2 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between mb-0.5">
+                <span className="text-[10px] text-slate-500">Ocupación máxima</span>
+                <span className="text-xs font-bold" style={{
+                  color: maxOcupacion < configUmbrales.verdeMax ? '#22c55e' : maxOcupacion < configUmbrales.ambarMax ? '#eab308' : '#ef4444'
+                }}>{maxOcupacion.toFixed(0)}%</span>
+              </div>
+              <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-500" style={{
+                  width: `${Math.min(maxOcupacion, 100)}%`,
+                  backgroundColor: maxOcupacion < configUmbrales.verdeMax ? '#22c55e' : maxOcupacion < configUmbrales.ambarMax ? '#eab308' : '#ef4444'
+                }} />
               </div>
             </div>
-          </>
-        )}
+          </div>
+          <div className="absolute top-4 right-4 z-[1001] pointer-events-none max-w-[320px]">
+            <div className="pointer-events-auto rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
+              <MetricasOperacion />
+            </div>
+            <div className="pointer-events-auto mt-1.5 p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 space-y-1 text-[11px] text-slate-600 dark:text-slate-400 min-w-[170px]">
+              <div className="flex items-center gap-1.5 mb-1 pb-1 border-b border-slate-200 dark:border-slate-600">
+                <Clock size={11} />
+                <span className="font-semibold text-slate-900 dark:text-slate-100">{metricas.dia_hora_virtual?.slice(0, 16).replace('T', ' ') || '-'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Inicio Real:</span>
+                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{metricas.fecha_inicio_real?.slice(0, 19).replace('T', ' ') || '-'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Inicio Virtual:</span>
+                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{simulacionConfig.fecha_inicio_virtual} {simulacionConfig.hora_inicio_virtual}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Transcurrido:</span>
+                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{formatSegundos(metricas.segundos_reales_transcurridos ?? 0)}</span>
+              </div>
+            </div>
+          </div>
+        </GeoMapa>
       </div>
 
       <div className={`border-l border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col overflow-y-auto transition-all duration-300 ${isCollapsed ? 'w-12' : 'w-80'}`}>
