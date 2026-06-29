@@ -111,7 +111,7 @@ public class ReporteService {
                     .orElse(null);
             reporte.setPuntoColapsoVirtual(puntoColapso != null ? puntoColapso : OffsetDateTime.now());
             reporte.setCausaColapso(
-                    "Incumplimiento de SLA: una maleta superó su deadline (24h/48h) sin ser entregada");
+                    "Colapso: incumplimiento de SLA (deadline 24h/48h superado) o saturación de almacén");
         }
 
         reporteRepository.save(reporte);

@@ -160,7 +160,10 @@ public class TickService {
                 : OffsetDateTime.now().plusYears(1);
         List<Vuelo> vuelos = vueloRepository.findTelemetriaVuelos(ventanaTelemetria);
 
-        boolean colapso = detectarIncumplimientoSla(sesion, now);
+        // Colapso por saturación de almacén (umbral rojo de nodo, cualquier tipo de sesión) o
+        // por incumplimiento del primer SLA (solo HASTA_COLAPSO). Ambas son causas que impiden
+        // cumplir el SLA; cualquiera detiene la sesión. OR con corto-circuito evita doble disparo.
+        boolean colapso = detectarColapso(sesion, now, nodos) || detectarIncumplimientoSla(sesion, now);
         escribirMetricas(sesion, now);
         telemetriaService.emitirTelemetria(sesion, nodos, vuelos);
 
@@ -541,6 +544,43 @@ public class TickService {
         double sla = (totalEntregados * 100.0) / total;
         sesion.setSlaAcumuladoPct(BigDecimal.valueOf(sla));
         // Save se hace al final del tick en procesarTick
+    }
+
+    /**
+     * Colapso por saturación de almacén: si la ocupación de algún nodo supera el umbral rojo
+     * configurado, la sesión colapsa. Es una de las causas (aeropuerto saturado) que impiden
+     * cumplir el SLA. Aplica a cualquier tipo de simulación.
+     */
+    private boolean detectarColapso(SesionEjecucion sesion, OffsetDateTime now, List<NodoLogistico> nodos) {
+        BigDecimal rojoMax = sesion.getAlmacenRojoMax();
+        if (rojoMax == null) return false;
+
+        for (NodoLogistico nodo : nodos) {
+            double pct = nodo.getOcupacionPorcentaje();
+            if (pct > rojoMax.doubleValue()) {
+                log.warn("COLAPSO en sesion {}: nodo {} ocupacion {}% supera umbral rojo {}%",
+                        sesion.getId(), nodo.getCodigoIata(), pct, rojoMax);
+
+                sesion.setEstado(EstadoSesion.COLAPSADA);
+                sesion.setFechaFinReal(now);
+                sesionRepository.save(sesion);
+
+                readinessManager.eliminar(sesion.getId());
+                try {
+                    redisCacheService.setEstadoSesion(sesion.getId(), "COLAPSADA");
+                    redisCacheService.setMetricasSesion(sesion.getId(), buildMetricasJson(sesion, now, true));
+                } catch (Exception e) {
+                    log.warn("Redis no disponible al colapsar sesion {}: {}", sesion.getId(), e.getMessage());
+                }
+
+                eventPublisher.publishEvent(new SesionFinalizada(
+                        sesion.getId(), "COLAPSADA", now));
+
+                telemetriaService.emitirTelemetria(sesion);
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
