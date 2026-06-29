@@ -249,11 +249,16 @@ class TickServiceTest {
 
         when(sesionRepository.findByEstado(EstadoSesion.EN_CURSO))
                 .thenReturn(List.of(sesion));
+        // Salidas y llegadas vacias: el vuelo aun no despega, solo es candidato a cancelacion.
         when(vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaLessThanEqual(
                 any(EstadoVuelo.class), eq(false), any(OffsetDateTime.class)))
-                .thenReturn(List.of(vuelo));
+                .thenReturn(List.of());
         when(vueloRepository.findByEstadoAndEsPlantillaAndHoraLlegadaLessThanEqual(any(), anyBoolean(), any()))
                 .thenReturn(List.of());
+        // Cancelacion solo evalua vuelos PROGRAMADO que aun no salen (proxima ventana virtual).
+        when(vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaBetween(
+                any(EstadoVuelo.class), eq(false), any(OffsetDateTime.class), any(OffsetDateTime.class)))
+                .thenReturn(List.of(vuelo));
         when(nodoRepository.findAllByOrderByCodigoIataAsc())
                 .thenReturn(List.of(nodoOrigen, nodoDestino));
 

@@ -8,8 +8,10 @@ import com.tasfb2b.backend.bc1.infrastructure.EquipajeRepository;
 import com.tasfb2b.backend.bc1.infrastructure.PlanViajeRepository;
 import com.tasfb2b.backend.bc1.infrastructure.SegmentoPlanRepository;
 import com.tasfb2b.backend.bc2.domain.*;
+import com.tasfb2b.backend.bc2.domain.SesionEjecucion;
 import com.tasfb2b.backend.bc2.infrastructure.PuntoSLARepository;
 import com.tasfb2b.backend.bc2.infrastructure.ReporteSesionRepository;
+import com.tasfb2b.backend.bc2.infrastructure.SesionRepository;
 import com.tasfb2b.backend.shared.events.SesionFinalizada;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,6 +43,7 @@ public class ReporteService {
     private final PuntoSLARepository puntoSLARepository;
     private final PlanViajeRepository planViajeRepository;
     private final SegmentoPlanRepository segmentoPlanRepository;
+    private final SesionRepository sesionRepository;
     private final String rutaReportesDir;
 
     public ReporteService(EquipajeRepository equipajeRepository,
@@ -48,12 +51,14 @@ public class ReporteService {
                           PuntoSLARepository puntoSLARepository,
                           PlanViajeRepository planViajeRepository,
                           SegmentoPlanRepository segmentoPlanRepository,
+                          SesionRepository sesionRepository,
                           @Value("${app.reportes.ruta-archivos:data/reportes}") String rutaReportesDir) {
         this.equipajeRepository = equipajeRepository;
         this.reporteRepository = reporteRepository;
         this.puntoSLARepository = puntoSLARepository;
         this.planViajeRepository = planViajeRepository;
         this.segmentoPlanRepository = segmentoPlanRepository;
+        this.sesionRepository = sesionRepository;
         this.rutaReportesDir = rutaReportesDir;
     }
 
@@ -69,9 +74,20 @@ public class ReporteService {
         ReporteSesion reporte = reporteRepository.findBySesionId(sesionId)
                 .orElseGet(() -> new ReporteSesion(UUID.randomUUID(), sesionId));
 
-        long totalEquipajes = equipajeRepository.count();
-        long incumplidos = equipajeRepository.findByEstado(EstadoEquipaje.INCUMPLIMIENTO_SLA,
-                org.springframework.data.domain.Pageable.unpaged()).getTotalElements();
+        // SLA incumplido = maletas NO entregadas al cerrar la simulacion, sobre el total
+        // con equipaje. Mismo origen de datos que TickService.actualizarSla (entregados/total),
+        // que es lo unico que la simulacion realmente actualiza por tick. El estado
+        // INCUMPLIMIENTO_SLA solo lo marca la operacion real, nunca la simulacion, por eso
+        // contar ese estado daba siempre 0%.
+        long totalEquipajes = planViajeRepository.countConEquipajeBySesionId(sesionId);
+        long entregados = planViajeRepository.countEntregadosBySesionId(sesionId);
+        long incumplidos = Math.max(0, totalEquipajes - entregados);
+
+        // Replanificadas = contador acumulado en la sesion (lo incrementa ReplanificacionService).
+        long replanificados = sesionRepository.findById(sesionId)
+                .map(SesionEjecucion::getMaletasReplanificadas)
+                .map(Integer::longValue)
+                .orElse(0L);
 
         BigDecimal slaIncumplidoPct = totalEquipajes > 0
                 ? BigDecimal.valueOf(incumplidos * 100.0 / totalEquipajes)
@@ -79,7 +95,7 @@ public class ReporteService {
                 : BigDecimal.ZERO;
 
         reporte.setSlaIncumplidoPct(slaIncumplidoPct);
-        reporte.setTotalReplanificadas((int) incumplidos);
+        reporte.setTotalReplanificadas((int) replanificados);
 
         if ("COLAPSADA".equals(estadoFinal)) {
             reporte.setPuntoColapsoVirtual(OffsetDateTime.now());
@@ -125,20 +141,28 @@ public class ReporteService {
 
             List<SegmentoPlan> segs = segmentosPorPlan.getOrDefault(plan.getId(), List.of());
             if (segs.isEmpty()) {
+                // 6 campos de segmento vacios para cuadrar con la cabecera (10 columnas).
                 csv.append(eqId).append(",").append(origen).append(",").append(destino).append(",").append(sla)
-                   .append(",,,,\n");
+                   .append(",,,,,,\n");
             } else {
                 for (SegmentoPlan seg : segs) {
+                    String vueloCodigo = seg.getVuelo() != null ? nullSafe(seg.getVuelo().getCodigoVuelo()) : "";
+                    String horaLlegada = seg.getVuelo() != null && seg.getVuelo().getHoraLlegada() != null
+                            ? seg.getVuelo().getHoraLlegada().toString() : "";
+                    String nodoOri = seg.getNodoOrigen() != null ? nullSafe(seg.getNodoOrigen().getCodigoIata()) : "";
+                    String nodoDes = seg.getNodoDestino() != null ? nullSafe(seg.getNodoDestino().getCodigoIata()) : "";
+                    String horaSal = seg.getHoraSalidaProg() != null ? seg.getHoraSalidaProg().toString() : "";
+
                     csv.append(eqId).append(",")
                        .append(origen).append(",")
                        .append(destino).append(",")
                        .append(sla).append(",")
                        .append(seg.getOrden()).append(",")
-                       .append(seg.getVuelo().getCodigoVuelo()).append(",")
-                       .append(seg.getNodoOrigen().getCodigoIata()).append(",")
-                       .append(seg.getNodoDestino().getCodigoIata()).append(",")
-                       .append(seg.getHoraSalidaProg()).append(",")
-                       .append(seg.getVuelo().getHoraLlegada())
+                       .append(vueloCodigo).append(",")
+                       .append(nodoOri).append(",")
+                       .append(nodoDes).append(",")
+                       .append(horaSal).append(",")
+                       .append(horaLlegada)
                        .append("\n");
                 }
             }
@@ -157,6 +181,10 @@ public class ReporteService {
         } catch (Exception e) {
             log.error("Error exportando CSV de rutas para sesion {}: {}", sesionId, e.getMessage());
         }
+    }
+
+    private static String nullSafe(String s) {
+        return s != null ? s : "";
     }
 
     private ReporteSesionResponse toResponse(ReporteSesion reporte) {
