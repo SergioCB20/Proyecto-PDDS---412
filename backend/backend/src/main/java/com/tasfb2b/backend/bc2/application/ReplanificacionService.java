@@ -33,6 +33,7 @@ public class ReplanificacionService {
     private final SesionRepository sesionRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final SegmentoPlanRepository segmentoPlanRepository;
+    private final PlanViajeRepository planViajeRepository;
 
     public ReplanificacionService(EquipajeRepository equipajeRepository,
                                   VueloRepository vueloRepository,
@@ -43,7 +44,8 @@ public class ReplanificacionService {
                                   ItemLoteRepository itemLoteRepository,
                                   SesionRepository sesionRepository,
                                   ApplicationEventPublisher eventPublisher,
-                                  SegmentoPlanRepository segmentoPlanRepository) {
+                                  SegmentoPlanRepository segmentoPlanRepository,
+                                  PlanViajeRepository planViajeRepository) {
         this.equipajeRepository = equipajeRepository;
         this.vueloRepository = vueloRepository;
         this.nodoRepository = nodoRepository;
@@ -54,9 +56,11 @@ public class ReplanificacionService {
         this.sesionRepository = sesionRepository;
         this.eventPublisher = eventPublisher;
         this.segmentoPlanRepository = segmentoPlanRepository;
+        this.planViajeRepository = planViajeRepository;
     }
 
-    public void replanificarEnSesion(UUID sesionId, UUID vueloId, String causa, OffsetDateTime momentoVirtual) {
+    @Transactional
+    public int replanificarEnSesion(UUID sesionId, UUID vueloId, String causa, OffsetDateTime momentoVirtual) {
         Vuelo vuelo = vueloRepository.findById(vueloId)
                 .orElseThrow(() -> new IllegalArgumentException("Vuelo no encontrado: " + vueloId));
 
@@ -83,31 +87,21 @@ public class ReplanificacionService {
         loteRepository.save(lote);
 
         for (Equipaje eq : afectados) {
-            eq.setEstado(EstadoEquipaje.EN_REPLANIFICACION);
+            // La ruta quedó rota por la cancelación. Hay que borrar el plan + segmentos
+            // anteriores: UNIQUE(equipaje_id) en planes_viaje obliga a limpiar antes de que
+            // la próxima ventana del planificador ACO re-enrute la maleta. Se deja en
+            // REGISTRADO y NO se encola en cola_planificacion: así la replanificación ocurre
+            // dentro de la sesión (plan con sesion_id) y no la "roba" el PlanificacionWorker
+            // día a día, que crearía un plan con sesion_id = NULL invisible para el reporte.
+            segmentoPlanRepository.deleteByEquipajeId(eq.getId());
+            planViajeRepository.deleteByEquipajeId(eq.getId());
+
+            eq.setEstado(EstadoEquipaje.REGISTRADO);
             eq.setVueloActual(null);
             equipajeRepository.save(eq);
 
             ItemLote item = new ItemLote(UUID.randomUUID(), lote.getId(), eq.getId());
             itemLoteRepository.save(item);
-
-            ColaPlanificacion colaItem = new ColaPlanificacion();
-            colaItem.setId(UUID.randomUUID());
-            colaItem.setEquipajeId(eq.getId());
-            colaItem.setTipo(TipoCola.REPLANIFICACION);
-            colaItem.setEstado(EstadoCola.PENDIENTE);
-            colaItem.setIntentos(0);
-            colaItem.setFechaCreacion(OffsetDateTime.now());
-            colaRepository.save(colaItem);
-        }
-
-        SesionEjecucion sesion = sesionRepository.findById(sesionId).orElse(null);
-        if (sesion != null) {
-            sesion.setVuelosCancelados(
-                    (sesion.getVuelosCancelados() != null ? sesion.getVuelosCancelados() : 0) + 1);
-            sesion.setMaletasReplanificadas(
-                    (sesion.getMaletasReplanificadas() != null ? sesion.getMaletasReplanificadas() : 0)
-                            + afectados.size());
-            sesionRepository.save(sesion);
         }
 
         eventPublisher.publishEvent(new ReplanificacionIniciada(
@@ -115,6 +109,7 @@ public class ReplanificacionService {
 
         log.info("Replanificacion iniciada: lote={}, sesion={}, vuelo={}, equipajes={}",
                 lote.getId(), sesionId, vueloId, afectados.size());
+        return afectados.size();
     }
 
     @EventListener
