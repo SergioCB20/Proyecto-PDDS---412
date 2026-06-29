@@ -152,6 +152,19 @@ public class EquipajeController {
         return ResponseEntity.ok(equipajeService.obtenerEntregadosRecientes(horas, desde));
     }
 
+    @GetMapping("/envios-panel")
+    public ResponseEntity<?> enviosPanel(
+            @RequestParam String tipo,
+            @RequestParam(required = false) String origen_iata,
+            @RequestParam(required = false) String destino_iata) {
+        try {
+            return ResponseEntity.ok(equipajeService.obtenerEnviosPanel(tipo, origen_iata, destino_iata));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("status", 400, "error", "PARAMETRO_INVALIDO", "mensaje", e.getMessage()));
+        }
+    }
+
     @GetMapping("/metricas")
     public ResponseEntity<?> metricas(@RequestParam(required = false) String desde) {
         return ResponseEntity.ok(equipajeService.obtenerMetricasOperacion(desde));

@@ -4,7 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tasfb2b.backend.bc1.application.VueloService;
 import com.tasfb2b.backend.bc1.domain.Equipaje;
 import com.tasfb2b.backend.bc1.domain.EstadoEquipaje;
+import com.tasfb2b.backend.bc1.domain.EstadoSegmento;
 import com.tasfb2b.backend.bc1.infrastructure.EquipajeRepository;
+import org.springframework.data.domain.PageRequest;
 import com.tasfb2b.backend.bc1.infrastructure.PlanViajeRepository;
 import com.tasfb2b.backend.bc2.domain.*;
 import com.tasfb2b.backend.bc2.infrastructure.PuntoSLARepository;
@@ -523,6 +525,50 @@ public class SesionService {
                 );
             })
             .toList();
+    }
+
+    public List<EnvioPanelResponse> obtenerEnviosPanelSesion(UUID sesionId, String tipo, String origenIata, String destinoIata) {
+        sesionRepository.findById(sesionId)
+            .orElseThrow(() -> new IllegalArgumentException("Sesion no encontrada: " + sesionId));
+
+        List<EstadoEquipaje> estados = switch (tipo) {
+            case "planificados" -> List.of(EstadoEquipaje.REGISTRADO, EstadoEquipaje.ENRUTADO, EstadoEquipaje.EN_ALMACEN);
+            case "en_vuelo" -> List.of(EstadoEquipaje.EN_VUELO);
+            case "entregados" -> List.of(EstadoEquipaje.ENTREGADO);
+            default -> throw new IllegalArgumentException("tipo inválido: " + tipo);
+        };
+        String o = (origenIata != null && !origenIata.isBlank()) ? origenIata : null;
+        String d = (destinoIata != null && !destinoIata.isBlank()) ? destinoIata : null;
+        List<Equipaje> equipajes = equipajeRepository.findEnviosPanel(estados, o, d, PageRequest.of(0, 100));
+        return equipajes.stream()
+                .filter(e -> e.getPlanViaje() != null && sesionId.equals(e.getPlanViaje().getSesionId()))
+                .map(e -> {
+                    String codigoVuelo = "";
+                    if (e.getEstado() == EstadoEquipaje.EN_VUELO && e.getVueloActual() != null) {
+                        codigoVuelo = e.getVueloActual().getCodigoVuelo();
+                    } else if (e.getEstado() == EstadoEquipaje.ENTREGADO && e.getPlanViaje() != null) {
+                        codigoVuelo = e.getPlanViaje().getSegmentos().stream()
+                                .filter(sp -> sp.getEstado() == EstadoSegmento.COMPLETADO)
+                                .max(java.util.Comparator.comparingInt(sp -> sp.getOrden() != null ? sp.getOrden() : 0))
+                                .map(sp -> sp.getVuelo() != null ? sp.getVuelo().getCodigoVuelo() : "")
+                                .orElse("");
+                    } else if (e.getPlanViaje() != null && e.getPlanViaje().getSegmentos() != null
+                            && !e.getPlanViaje().getSegmentos().isEmpty()) {
+                        var first = e.getPlanViaje().getSegmentos().iterator().next();
+                        if (first.getVuelo() != null) {
+                            codigoVuelo = first.getVuelo().getCodigoVuelo();
+                        }
+                    }
+                    return new EnvioPanelResponse(
+                            e.getId(),
+                            e.getOrigenIata(),
+                            e.getDestinoIata(),
+                            codigoVuelo,
+                            e.getEstado().name(),
+                            e.getCantidad() != null ? e.getCantidad() : 1
+                    );
+                })
+                .toList();
     }
 
     public SesionEjecucion obtenerSesion(UUID id) {

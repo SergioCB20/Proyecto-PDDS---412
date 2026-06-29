@@ -1,4 +1,4 @@
-import type { ApiError, EnvioEntregadoResponse, EnvioItemResponse, MetricasOperacion, ReporteSesion } from './types';
+import type { ApiError, EnvioEntregadoResponse, EnvioItemResponse, EnvioPanelResponse, MetricasOperacion, ReporteSesion } from './types';
 import { device } from './device';
 
 function getBaseUrl(): string {
@@ -169,4 +169,18 @@ export async function descargarPlanViajePdf(equipajeId: string): Promise<void> {
   const url = URL.createObjectURL(blob);
   window.open(url, '_blank');
   setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+export async function fetchEnviosPanel(tipo: string, origen?: string, destino?: string): Promise<EnvioPanelResponse[]> {
+  let url = `/equipajes/envios-panel?tipo=${encodeURIComponent(tipo)}`;
+  if (origen) url += `&origen_iata=${encodeURIComponent(origen)}`;
+  if (destino) url += `&destino_iata=${encodeURIComponent(destino)}`;
+  return api.get<EnvioPanelResponse[]>(url);
+}
+
+export async function fetchEnviosPanelSesion(sesionId: string, tipo: string, origen?: string, destino?: string): Promise<EnvioPanelResponse[]> {
+  let url = `/sesiones/${sesionId}/envios/envios-panel?tipo=${encodeURIComponent(tipo)}`;
+  if (origen) url += `&origen_iata=${encodeURIComponent(origen)}`;
+  if (destino) url += `&destino_iata=${encodeURIComponent(destino)}`;
+  return api.get<EnvioPanelResponse[]>(url);
 }

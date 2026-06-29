@@ -22,6 +22,7 @@ import { ResumenVuelosOperacion } from '@/components/operacion/ResumenVuelosOper
 import { PanelEntregados } from '@/components/simulacion/PanelEntregados';
 import { PanelEnvios } from '@/components/simulacion/PanelEnvios';
 import { PanelReporte } from '@/components/simulacion/PanelReporte';
+import { PanelEnviosMaletas } from '@/components/shared/PanelEnviosMaletas';
 import { ConfigUmbrales, type UmbralesConfig } from '@/components/mapa/ConfigUmbrales';
 import type { SelectedEnvioOperacion } from '@/components/operacion/PanelEnviosOperacion';
 import type { SelectedEnvio } from '@/components/simulacion/PanelEnvios';
@@ -499,6 +500,11 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
 
             <PanelEntregadosOperacion activo={true} />
 
+            <PanelEnviosMaletas
+              activo={estadoOperacion === 'ACTIVO'}
+              nodos={aeropuertos.map(n => ({ codigo_iata: n.codigo_iata, nombre: n.nombre }))}
+            />
+
             {selectedEnvio && <PanelEnviosOperacion selectedEnvio={selectedEnvio} onClose={() => setSelectedEnvio(null)} />}
 
             <div className="p-4 border-t border-slate-200 dark:border-slate-700">
@@ -936,6 +942,14 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
               <PanelEntregados sesionId={sesionId} activo={true} />
             )}
 
+            {sesionId && (
+              <PanelEnviosMaletas
+                sesionId={sesionId}
+                activo={estadoSesion === 'EN_CURSO'}
+                nodos={aeropuertosMapa.map(n => ({ codigo_iata: n.codigo_iata, nombre: n.nombre }))}
+              />
+            )}
+
             {selectedEnvio && sesionId && (
               <PanelEnvios selectedEnvio={selectedEnvio} sesionId={sesionId} onClose={() => setSelectedEnvio(null)} />
             )}
@@ -1345,6 +1359,14 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
 
             {sesionId && estadoSesion !== 'FINALIZADA' && estadoSesion !== 'COLAPSADA' && (
               <PanelEntregados sesionId={sesionId} activo={true} />
+            )}
+
+            {sesionId && (
+              <PanelEnviosMaletas
+                sesionId={sesionId}
+                activo={estadoSesion === 'EN_CURSO'}
+                nodos={aeropuertosMapa.map(n => ({ codigo_iata: n.codigo_iata, nombre: n.nombre }))}
+              />
             )}
 
             {selectedEnvio && sesionId && (

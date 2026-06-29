@@ -88,6 +88,20 @@ public class SesionController {
         }
     }
 
+    @GetMapping("/{id}/envios/envios-panel")
+    public ResponseEntity<?> obtenerEnviosPanel(
+            @PathVariable UUID id,
+            @RequestParam String tipo,
+            @RequestParam(required = false) String origen_iata,
+            @RequestParam(required = false) String destino_iata) {
+        try {
+            return ResponseEntity.ok(sesionService.obtenerEnviosPanelSesion(id, tipo, origen_iata, destino_iata));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("status", 400, "error", "PARAMETRO_INVALIDO", "mensaje", e.getMessage()));
+        }
+    }
+
     @GetMapping("/{id}/envios/entregados-recientes")
     public ResponseEntity<?> obtenerEntregadosRecientes(
             @PathVariable UUID id,

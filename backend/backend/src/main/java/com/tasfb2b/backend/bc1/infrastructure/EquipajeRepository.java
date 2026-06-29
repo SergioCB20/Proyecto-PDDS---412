@@ -83,4 +83,13 @@ public interface EquipajeRepository extends JpaRepository<Equipaje, UUID> {
             "WHERE estado <> 'ENTREGADO' AND sla_comprometido < :limite AND fecha_operacion < :limite)",
             nativeQuery = true)
     boolean existsIncumplimientoSla(@Param("limite") java.time.OffsetDateTime limite);
+
+    @Query("SELECT e FROM Equipaje e WHERE e.estado IN :estados " +
+           "AND (:origenIata IS NULL OR e.origenIata = :origenIata) " +
+           "AND (:destinoIata IS NULL OR e.destinoIata = :destinoIata) " +
+           "ORDER BY e.fechaIngreso DESC")
+    List<Equipaje> findEnviosPanel(@Param("estados") List<EstadoEquipaje> estados,
+                                   @Param("origenIata") String origenIata,
+                                   @Param("destinoIata") String destinoIata,
+                                   Pageable pageable);
 }
