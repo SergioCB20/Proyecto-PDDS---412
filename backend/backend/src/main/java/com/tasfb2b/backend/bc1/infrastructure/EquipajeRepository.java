@@ -71,4 +71,16 @@ public interface EquipajeRepository extends JpaRepository<Equipaje, UUID> {
             @Param("sesionId") UUID sesionId,
             @Param("estado") EstadoEquipaje estado,
             @Param("nodoIata") String nodoIata);
+
+    /**
+     * ¿Existe alguna maleta que ya entró al sistema (fecha_operacion &lt; limite) y cuyo deadline
+     * de SLA ya pasó (sla_comprometido &lt; limite) sin haber sido entregada? Señal del primer
+     * incumplimiento de SLA para el colapso de la simulación. Eficiente con índice en
+     * sla_comprometido. El filtro por fecha_operacion descarta las maletas de la operación día
+     * a día (fechadas más adelante) que comparten físicamente la tabla equipajes.
+     */
+    @Query(value = "SELECT EXISTS(SELECT 1 FROM equipajes " +
+            "WHERE estado <> 'ENTREGADO' AND sla_comprometido < :limite AND fecha_operacion < :limite)",
+            nativeQuery = true)
+    boolean existsIncumplimientoSla(@Param("limite") java.time.OffsetDateTime limite);
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { MapContainer, TileLayer } from 'react-leaflet';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { AeropuertoEnMapa, VueloEnMapa } from '@/lib/types';
 import type { UmbralesConfig } from './ConfigUmbrales';
 import 'leaflet/dist/leaflet.css';
@@ -22,6 +22,7 @@ interface GeoMapaProps {
   umbralesConfig?: UmbralesConfig;
   /** Muestra una pantalla de carga sobre el mapa hasta que los datos estén listos. */
   cargando?: boolean;
+  children?: ReactNode;
 }
 
 const CENTRO: [number, number] = [-15, -60];
@@ -39,6 +40,7 @@ export default function GeoMapa({
   className = '',
   umbralesConfig,
   cargando = false,
+  children,
 }: GeoMapaProps) {
   // Mantiene el overlay un poco más tras cargar para que la flota se pinte completa.
   // `settling` solo cubre la ventana de gracia posterior a la carga; el estado durante
@@ -90,6 +92,7 @@ export default function GeoMapa({
         ))}
         <ControlZoom />
         <GeoMapaLeyenda umbralesConfig={umbralesConfig} />
+        {children}
       </MapContainer>
 
       {showOverlay && (

@@ -50,6 +50,7 @@ public class SesionService {
     private final JdbcTemplate jdbcTemplate;
     private final SimulacionPlanificador simulacionPlanificador;
     private final SesionLockManager lockManager;
+    private final ReporteService reporteService;
 
     // Fecha del primer día de datos en los archivos _envios_*.txt
     private static final LocalDate FECHA_BASE_ARCHIVO = LocalDate.of(2026, 1, 2);
@@ -67,7 +68,8 @@ public class SesionService {
                          TaskExecutor taskExecutor,
                          JdbcTemplate jdbcTemplate,
                          SimulacionPlanificador simulacionPlanificador,
-                         SesionLockManager lockManager) {
+                         SesionLockManager lockManager,
+                         ReporteService reporteService) {
         this.sesionRepository = sesionRepository;
         this.vueloService = vueloService;
         this.redisCacheService = redisCacheService;
@@ -82,6 +84,7 @@ public class SesionService {
         this.jdbcTemplate = jdbcTemplate;
         this.simulacionPlanificador = simulacionPlanificador;
         this.lockManager = lockManager;
+        this.reporteService = reporteService;
     }
 
     public SesionResponse crearSesion(CrearSesionRequest request) {
@@ -302,6 +305,15 @@ public class SesionService {
             if (!locked) {
                 log.warn("detenerSesion {}: lock no obtenido en 60s; limpieza best-effort", id);
             }
+
+        // Generar reporte + CSV ANTES de borrar planes/segmentos/instancias. Si se hace después
+        // (o solo vía el evento async, que corre tras la limpieza) el reporte sale vacío.
+        try {
+            reporteService.generarReporte(id, "FINALIZADA");
+            reporteService.exportarCsvRutas(id);
+        } catch (Exception e) {
+            log.warn("Error generando reporte al detener sesion {}: {}", id, e.getMessage());
+        }
 
         if (sesion.getTipo() == TipoSesion.SIMULADA) {
             LocalDate desde = sesion.getFechaInicioVirtual();
