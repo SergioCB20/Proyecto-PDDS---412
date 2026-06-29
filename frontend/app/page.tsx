@@ -231,6 +231,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
         capacidad_carga: v.capacidad_carga, carga_disponible: v.carga_disponible,
         es_plantilla: false, fecha_operacion: '',
         posicionActual: { lat: v.lat_actual, lon: v.lon_actual },
+        progreso: v.progreso,
       }));
       queueMicrotask(() => { setAllVuelos(vuelosMapped); });
     }
@@ -600,6 +601,7 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
         capacidad_carga: v.capacidad_carga, carga_disponible: v.carga_disponible,
         es_plantilla: false, fecha_operacion: '',
         posicionActual: { lat: v.lat_actual, lon: v.lon_actual },
+        progreso: v.progreso,
       }))
     : initialVuelos;
 
@@ -953,6 +955,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
         capacidad_carga: v.capacidad_carga, carga_disponible: v.carga_disponible,
         es_plantilla: false, fecha_operacion: '',
         posicionActual: { lat: v.lat_actual, lon: v.lon_actual },
+        progreso: v.progreso,
       }))
     : initialVuelos;
 

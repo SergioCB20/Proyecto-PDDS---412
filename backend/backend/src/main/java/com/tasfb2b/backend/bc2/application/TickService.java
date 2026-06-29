@@ -117,9 +117,20 @@ public class TickService {
     }
 
     private void ejecutarTick(SesionEjecucion sesion) {
+        long inicioNanos = System.nanoTime();
         OffsetDateTime now = OffsetDateTime.now();
 
+        OffsetDateTime virtualAntes = sesion.getDiaHoraVirtual();
         avanzarRelojVirtual(sesion);
+
+        if (virtualAntes == null) {
+            double kEfectivo = sesion.getK() != null ? sesion.getK() : k;
+            log.info("[SIM {}] ARRANQUE sesion tipo={} | inicio virtual={} | k={} (1s real = {} virtual) | tick cada {}s",
+                    idCorto(sesion.getId()), sesion.getTipo(), sesion.getDiaHoraVirtual(),
+                    fmt(kEfectivo), formatDuracion(sesion.getDiaHoraVirtual(),
+                            sesion.getDiaHoraVirtual().plusSeconds((long) kEfectivo)),
+                    TICK_INTERVAL_MS / 1000);
+        }
 
         // Auto-finalizar al completar 5 días virtuales
         if (debeFinalizarPorTiempo(sesion)) {
@@ -129,9 +140,9 @@ public class TickService {
 
         clonarParaNuevoDia(sesion);
         registrarPuntoSla(sesion);
-        procesarVuelosSalida(sesion);
-        procesarVuelosLlegada(sesion);
-        evaluarCancelaciones(sesion, now);
+        int salidas = procesarVuelosSalida(sesion);
+        int llegadas = procesarVuelosLlegada(sesion);
+        int cancelados = evaluarCancelaciones(sesion, now);
         actualizarSla(sesion);
 
         // Un solo save al final del tick
@@ -149,9 +160,83 @@ public class TickService {
         escribirMetricas(sesion, now);
         telemetriaService.emitirTelemetria(sesion, nodos, vuelos);
 
+        long duracionMs = (System.nanoTime() - inicioNanos) / 1_000_000;
+        logResumenTick(sesion, virtualAntes, salidas, llegadas, cancelados, nodos, duracionMs);
+
         if (colapso) {
             detenerSesionPorColapso(sesion, now);
         }
+    }
+
+    /**
+     * Resumen por tick: una sola línea por sesión con el estado del proceso de
+     * simulación para seguirlo desde la terminal del server. Incluye el avance del
+     * reloj virtual, el ritmo (k), el conteo de la flota por estado, el SLA, los
+     * eventos del tick y el nodo más cargado.
+     */
+    private void logResumenTick(SesionEjecucion sesion, OffsetDateTime virtualAntes,
+                                int salidas, int llegadas, int cancelados,
+                                List<NodoLogistico> nodos, long duracionMs) {
+        if (!log.isInfoEnabled()) return;
+
+        // Conteo de la flota por estado en una sola consulta agregada.
+        long prog = 0, ruta = 0, comp = 0, canc = 0;
+        for (Object[] fila : vueloRepository.countByEstadoNotPlantillaGrouped()) {
+            String estado = String.valueOf(fila[0]);
+            long n = ((Number) fila[1]).longValue();
+            switch (estado) {
+                case "PROGRAMADO" -> prog = n;
+                case "EN_RUTA" -> ruta = n;
+                case "COMPLETADO" -> comp = n;
+                case "CANCELADO" -> canc = n;
+                default -> { }
+            }
+        }
+
+        // Nodo más cargado (early signal de saturación / colapso).
+        String nodoTop = "-";
+        double pctTop = 0;
+        for (NodoLogistico nodo : nodos) {
+            double pct = nodo.getOcupacionPorcentaje();
+            if (pct > pctTop) { pctTop = pct; nodoTop = nodo.getCodigoIata(); }
+        }
+
+        double kEfectivo = sesion.getK() != null ? sesion.getK() : k;
+        int segReales = sesion.getSegundosRealesTranscurridos() != null
+                ? sesion.getSegundosRealesTranscurridos() : 0;
+        double sla = sesion.getSlaAcumuladoPct() != null ? sesion.getSlaAcumuladoPct().doubleValue() : 100.0;
+
+        log.info("[SIM {}] tick virt={} (+{}) real={}s k={} | flota PROG={} RUTA={} COMP={} CANC={} | "
+                        + "SLA={}% | evento salidas={} llegadas={} cancel={} | nodoMax={} {}% | proc={}ms",
+                idCorto(sesion.getId()),
+                sesion.getDiaHoraVirtual(),
+                formatDuracion(virtualAntes, sesion.getDiaHoraVirtual()),
+                segReales, fmt(kEfectivo),
+                prog, ruta, comp, canc,
+                fmt(sla),
+                salidas, llegadas, cancelados,
+                nodoTop, fmt(pctTop),
+                duracionMs);
+    }
+
+    private static String idCorto(UUID id) {
+        String s = id.toString();
+        return s.substring(0, 8);
+    }
+
+    private static String fmt(double v) {
+        return String.format(Locale.US, "%.1f", v);
+    }
+
+    /** Duración legible (HhMm / Mm) entre dos instantes; "-" si falta alguno. */
+    private static String formatDuracion(OffsetDateTime desde, OffsetDateTime hasta) {
+        if (desde == null || hasta == null) return "-";
+        long min = java.time.Duration.between(desde, hasta).toMinutes();
+        String signo = min < 0 ? "-" : "";
+        min = Math.abs(min);
+        long h = min / 60;
+        long m = min % 60;
+        return h > 0 ? String.format("%s%dh%02dm", signo, h, m) : String.format("%s%dm", signo, m);
     }
 
     private boolean debeFinalizarPorTiempo(SesionEjecucion sesion) {
@@ -254,12 +339,12 @@ public class TickService {
                 sesionId, horaVirtual, punto.getSlaPct());
     }
 
-    private void procesarVuelosSalida(SesionEjecucion sesion) {
+    private int procesarVuelosSalida(SesionEjecucion sesion) {
         OffsetDateTime virtual = sesion.getDiaHoraVirtual();
         List<Vuelo> saliendo = vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaLessThanEqual(
                 EstadoVuelo.PROGRAMADO, false, virtual);
 
-        if (saliendo.isEmpty()) return;
+        if (saliendo.isEmpty()) return 0;
 
         List<Vuelo> vuelosActualizar = new ArrayList<>();
         List<SegmentoPlan> segmentosActualizar = new ArrayList<>();
@@ -309,14 +394,28 @@ public class TickService {
                 nodoRepository.save(nodo);
             });
         }
+
+        if (log.isInfoEnabled()) {
+            for (Vuelo v : saliendo) {
+                int cap = v.getCapacidadCarga() != null ? v.getCapacidadCarga() : 0;
+                int ocupado = cap - (v.getCargaDisponible() != null ? v.getCargaDisponible() : 0);
+                log.info("[SIM {}] DESPEGA {} {}->{} | salida={} llegada={} dur={} | carga={}/{}",
+                        idCorto(sesion.getId()), v.getCodigoVuelo(),
+                        v.getOrigen().getCodigoIata(), v.getDestino().getCodigoIata(),
+                        v.getHoraSalida(), v.getHoraLlegada(),
+                        formatDuracion(v.getHoraSalida(), v.getHoraLlegada()),
+                        ocupado, cap);
+            }
+        }
+        return saliendo.size();
     }
 
-    private void procesarVuelosLlegada(SesionEjecucion sesion) {
+    private int procesarVuelosLlegada(SesionEjecucion sesion) {
         OffsetDateTime virtual = sesion.getDiaHoraVirtual();
         List<Vuelo> llegando = vueloRepository.findByEstadoAndEsPlantillaAndHoraLlegadaLessThanEqual(
                 EstadoVuelo.EN_RUTA, false, virtual);
 
-        if (llegando.isEmpty()) return;
+        if (llegando.isEmpty()) return 0;
 
         List<Vuelo> vuelosActualizar = new ArrayList<>();
         List<SegmentoPlan> segmentosActualizar = new ArrayList<>();
@@ -366,26 +465,40 @@ public class TickService {
                 nodoRepository.save(nodo);
             });
         }
+
+        if (log.isInfoEnabled()) {
+            for (Vuelo v : llegando) {
+                log.info("[SIM {}] ATERRIZA {} {}->{} | llegada={}",
+                        idCorto(sesion.getId()), v.getCodigoVuelo(),
+                        v.getOrigen().getCodigoIata(), v.getDestino().getCodigoIata(),
+                        v.getHoraLlegada());
+            }
+        }
+        return llegando.size();
     }
 
-    private void evaluarCancelaciones(SesionEjecucion sesion, OffsetDateTime now) {
+    private int evaluarCancelaciones(SesionEjecucion sesion, OffsetDateTime now) {
         BigDecimal prob = sesion.getProbCancelacion();
-        if (prob == null || prob.compareTo(BigDecimal.ZERO) <= 0) return;
+        if (prob == null || prob.compareTo(BigDecimal.ZERO) <= 0) return 0;
 
         List<Vuelo> programados = vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaLessThanEqual(
                 EstadoVuelo.PROGRAMADO, false, sesion.getDiaHoraVirtual());
 
+        int canceladosTick = 0;
         for (Vuelo vuelo : programados) {
             if (RANDOM.nextDouble() < prob.doubleValue()) {
-                log.info("Tick cancelacion: vuelo {} cancelado probabilisticamente en sesion {}",
-                        vuelo.getCodigoVuelo(), sesion.getId());
+                log.info("[SIM {}] CANCELA {} {}->{} (prob={}) -> replanificando",
+                        idCorto(sesion.getId()), vuelo.getCodigoVuelo(),
+                        vuelo.getOrigen().getCodigoIata(), vuelo.getDestino().getCodigoIata(), prob);
 
                 replanificacionService.replanificarEnSesion(
                         sesion.getId(), vuelo.getId(),
                         "Cancelacion probabilistica en tick",
                         sesion.getDiaHoraVirtual());
+                canceladosTick++;
             }
         }
+        return canceladosTick;
     }
 
     private void actualizarSla(SesionEjecucion sesion) {

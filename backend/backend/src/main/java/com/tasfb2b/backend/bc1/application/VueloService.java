@@ -267,14 +267,21 @@ public class VueloService {
             instancia.setDestinoLon(plantilla.getDestinoLon());
             instancia.setCapacidadCarga(plantilla.getCapacidadCarga());
             instancia.setCargaDisponible(plantilla.getCapacidadCarga());
-            instancia.setHoraSalida(OffsetDateTime.of(
+            // Reanclar la salida a la fecha de operación conservando hora/offset, y
+            // derivar la llegada sumando la DURACIÓN REAL de la plantilla. Tomar solo
+            // toLocalTime() colapsaba los vuelos nocturnos (llegada al día siguiente)
+            // al mismo día, produciendo duraciones negativas o minúsculas: aviones
+            // congelados o "meteoros" en la simulación.
+            OffsetDateTime nuevaSalida = OffsetDateTime.of(
                     fechaOperacion,
                     plantilla.getHoraSalida().toLocalTime(),
-                    plantilla.getHoraSalida().getOffset()));
-            instancia.setHoraLlegada(OffsetDateTime.of(
-                    fechaOperacion,
-                    plantilla.getHoraLlegada().toLocalTime(),
-                    plantilla.getHoraLlegada().getOffset()));
+                    plantilla.getHoraSalida().getOffset());
+            java.time.Duration duracion = java.time.Duration.between(
+                    plantilla.getHoraSalida(), plantilla.getHoraLlegada());
+            OffsetDateTime nuevaLlegada = nuevaSalida.plus(duracion)
+                    .withOffsetSameInstant(plantilla.getHoraLlegada().getOffset());
+            instancia.setHoraSalida(nuevaSalida);
+            instancia.setHoraLlegada(nuevaLlegada);
             instancia.setEstado(EstadoVuelo.PROGRAMADO);
             instancia.setEsPlantilla(false);
             instancia.setFechaOperacion(fechaOperacion);
