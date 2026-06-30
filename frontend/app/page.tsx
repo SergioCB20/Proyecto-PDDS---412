@@ -44,6 +44,29 @@ function formatSegundos(s: number): string {
   return `${h}h ${m}m ${sec}s`;
 }
 
+function formatoHms(h: number, m: number, s: number): string {
+  return `${h.toString().padStart(2, '0')}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
+}
+
+function formatoFechaHoraLocal(d: Date): string {
+  const y = d.getFullYear();
+  const M = String(d.getMonth() + 1).padStart(2, '0');
+  const D = String(d.getDate()).padStart(2, '0');
+  const h = String(d.getHours()).padStart(2, '0');
+  const m = String(d.getMinutes()).padStart(2, '0');
+  const s = String(d.getSeconds()).padStart(2, '0');
+  return `${y}-${M}-${D} ${h}:${m}:${s}`;
+}
+
+function useReloj() {
+  const [hora, setHora] = useState(new Date());
+  useEffect(() => {
+    const id = setInterval(() => setHora(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return hora;
+}
+
 const ESTADOS_VUELO_VALIDOS = ['PROGRAMADO', 'EN_RUTA', 'CANCELADO', 'COMPLETADO'] as const;
 
 function matchEstadoVuelo(valor: string): VueloEnMapa['estado'] {
@@ -167,6 +190,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [csvConfirmLoading, setCsvConfirmLoading] = useState(false);
 
   const { data: telemetria, connected: wsConnected } = useTelemetria(estadoOperacion === 'ACTIVO');
+  const hora = useReloj();
 
   useEffect(() => {
     api.get<{ estado: string }>('/operacion/estado').then(r => {
@@ -394,10 +418,10 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
             </div>
           </div>
           <div className="absolute top-4 right-4 z-[1001] pointer-events-none max-w-[320px]">
-            <div className="pointer-events-auto p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 space-y-1 text-[11px] text-slate-600 dark:text-slate-400 min-w-[170px]">
+            <div className="pointer-events-auto p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 space-y-1 text-[11px] text-slate-600 dark:text-slate-400 min-w-[190px]">
               <div className="flex items-center gap-1.5 mb-1 pb-1 border-b border-slate-200 dark:border-slate-600">
                 <Clock size={11} />
-                <span className="font-semibold text-slate-900 dark:text-slate-100">{new Date().toLocaleString()}</span>
+                <span className="font-semibold text-slate-900 dark:text-slate-100">{formatoFechaHoraLocal(hora)}</span>
               </div>
               <div className="flex justify-between">
                 <span>Estado:</span>
@@ -576,6 +600,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
 
 function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [sesionId, setSesionId] = useState<string | null>(null);
+  const [inicioRealMs, setInicioRealMs] = useState(0);
   const [estadoSesion, setEstadoSesion] = useState<'CONFIGURADA' | 'EN_CURSO' | 'PAUSADA' | 'FINALIZADA'>('CONFIGURADA');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -604,6 +629,7 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
   });
 
   const metricas = telemetria?.metricas_sesion ?? metricasPoll;
+  const hora = useReloj();
 
   useEffect(() => {
     api.get<SesionListaItem[]>('/sesiones?estado=EN_CURSO').then(enCurso =>
@@ -700,6 +726,7 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
       });
       await api.post(`/sesiones/${res.id}/iniciar`, {});
       setSesionId(res.id);
+      setInicioRealMs(Date.now());
       setEstadoSesion('EN_CURSO');
       setSesionesActivas([]);
       setMetricasPoll(prev => ({ ...prev, sesion_id: res.id }));
@@ -724,6 +751,7 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
     setLoading(true);
     try {
       await api.post(`/sesiones/${sesionId}/iniciar`, {});
+      setInicioRealMs(Date.now());
       setEstadoSesion('EN_CURSO');
     } catch { setError('Error al reanudar'); }
     finally { setLoading(false); }
@@ -734,7 +762,7 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
     try {
       await api.post(`/sesiones/${id}/detener`, {});
       setSesionesActivas(prev => prev.filter(s => s.id !== id));
-      if (id === sesionId) { setSesionId(null); setEstadoSesion('FINALIZADA'); }
+      if (id === sesionId) { setSesionId(null); setEstadoSesion('FINALIZADA'); setInicioRealMs(0); }
       for (let i = 0; i < 10; i++) {
         await new Promise(r => setTimeout(r, 600));
         try {
@@ -803,18 +831,23 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
             </div>
           </div>
           <div className="absolute top-4 right-4 z-[1001] pointer-events-none max-w-[320px]">
-            <div className="pointer-events-auto p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 space-y-1 text-[11px] text-slate-600 dark:text-slate-400 min-w-[170px]">
-              <div className="flex items-center gap-1.5 mb-1 pb-1 border-b border-slate-200 dark:border-slate-600">
-                <Clock size={11} />
-                <span className="font-semibold text-slate-900 dark:text-slate-100">{metricas.dia_hora_virtual?.slice(0, 16).replace('T', ' ') || '-'}</span>
-              </div>
+            <div className="pointer-events-auto p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 space-y-1 text-[11px] text-slate-600 dark:text-slate-400 min-w-[220px]">
               <div className="flex justify-between">
                 <span>Inicio Real:</span>
-                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{metricas.fecha_inicio_real?.slice(0, 19).replace('T', ' ') || '-'}</span>
+                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{formatoFechaHoraLocal(new Date(inicioRealMs || Date.now()))}</span>
               </div>
               <div className="flex justify-between">
                 <span>Inicio Virtual:</span>
-                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{simulacionConfig.fecha_inicio_virtual} {simulacionConfig.hora_inicio_virtual}</span>
+                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{simulacionConfig.fecha_inicio_virtual} {simulacionConfig.hora_inicio_virtual}:00</span>
+              </div>
+              <div className="border-t border-slate-200 dark:border-slate-600 my-1" />
+              <div className="flex justify-between">
+                <span>Actual Real:</span>
+                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{sesionId ? formatoFechaHoraLocal(new Date(inicioRealMs)) : formatoFechaHoraLocal(hora)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Actual Virtual:</span>
+                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{metricas.dia_hora_virtual?.slice(0, 19).replace('T', ' ') || (`${simulacionConfig.fecha_inicio_virtual} ${simulacionConfig.hora_inicio_virtual}:00`)}</span>
               </div>
               <div className="flex justify-between">
                 <span>Transcurrido:</span>
@@ -865,7 +898,7 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
                   <Button variant="danger" size="sm" disabled={finalizandoId === sesionPausada.id} onClick={() => handleDetener(sesionPausada.id)}>
                     <Square size={12} className="mr-1" />{finalizandoId === sesionPausada.id ? '...' : 'Detener'}
                   </Button>
-                  <Button size="sm" onClick={async () => { setSesionId(sesionPausada.id); setLoading(true); try { await api.post(`/sesiones/${sesionPausada.id}/iniciar`, {}); setEstadoSesion('EN_CURSO'); } catch { setError('Error al reanudar'); } finally { setLoading(false); } }}>
+                  <Button size="sm" onClick={async () => { setSesionId(sesionPausada.id); setLoading(true); try { await api.post(`/sesiones/${sesionPausada.id}/iniciar`, {}); setInicioRealMs(Date.now()); setEstadoSesion('EN_CURSO'); } catch { setError('Error al reanudar'); } finally { setLoading(false); } }}>
                     <Play size={12} className="mr-1" />Continuar
                   </Button>
                 </div>
@@ -962,6 +995,7 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
 
 function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [sesionId, setSesionId] = useState<string | null>(null);
+  const [inicioRealMs, setInicioRealMs] = useState(0);
   const [estadoSesion, setEstadoSesion] = useState<'CONFIGURADA' | 'EN_CURSO' | 'PAUSADA' | 'FINALIZADA' | 'COLAPSADA'>('CONFIGURADA');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -990,6 +1024,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   });
 
   const metricas = telemetria?.metricas_sesion ?? metricasPoll;
+  const hora = useReloj();
 
   useEffect(() => {
     api.get<SesionListaItem[]>('/sesiones?estado=EN_CURSO').then(enCurso =>
@@ -1108,6 +1143,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
       });
       await api.post(`/sesiones/${res.id}/iniciar`, {});
       setSesionId(res.id);
+      setInicioRealMs(Date.now());
       setEstadoSesion('EN_CURSO');
       setSesionesActivas([]);
       setMetricasPoll(prev => ({ ...prev, sesion_id: res.id }));
@@ -1132,6 +1168,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     setLoading(true);
     try {
       await api.post(`/sesiones/${sesionId}/iniciar`, {});
+      setInicioRealMs(Date.now());
       setEstadoSesion('EN_CURSO');
     } catch { setError('Error al reanudar'); }
     finally { setLoading(false); }
@@ -1142,7 +1179,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     try {
       await api.post(`/sesiones/${id}/detener`, {});
       setSesionesActivas(prev => prev.filter(s => s.id !== id));
-      if (id === sesionId) { setSesionId(null); setEstadoSesion('FINALIZADA'); }
+      if (id === sesionId) { setSesionId(null); setEstadoSesion('FINALIZADA'); setInicioRealMs(0); }
       await fetchReportWithRetry(id);
     } catch (err: unknown) {
       const e = err as { mensaje?: string; message?: string };
@@ -1198,18 +1235,23 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
             </div>
           </div>
           <div className="absolute top-4 right-4 z-[1001] pointer-events-none max-w-[320px]">
-            <div className="pointer-events-auto p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 space-y-1 text-[11px] text-slate-600 dark:text-slate-400 min-w-[170px]">
-              <div className="flex items-center gap-1.5 mb-1 pb-1 border-b border-slate-200 dark:border-slate-600">
-                <Clock size={11} />
-                <span className="font-semibold text-slate-900 dark:text-slate-100">{metricas.dia_hora_virtual?.slice(0, 16).replace('T', ' ') || '-'}</span>
-              </div>
+            <div className="pointer-events-auto p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 space-y-1 text-[11px] text-slate-600 dark:text-slate-400 min-w-[220px]">
               <div className="flex justify-between">
                 <span>Inicio Real:</span>
-                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{metricas.fecha_inicio_real?.slice(0, 19).replace('T', ' ') || '-'}</span>
+                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{formatoFechaHoraLocal(new Date(inicioRealMs || Date.now()))}</span>
               </div>
               <div className="flex justify-between">
                 <span>Inicio Virtual:</span>
-                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{simulacionConfig.fecha_inicio_virtual} {simulacionConfig.hora_inicio_virtual}</span>
+                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{simulacionConfig.fecha_inicio_virtual} {simulacionConfig.hora_inicio_virtual}:00</span>
+              </div>
+              <div className="border-t border-slate-200 dark:border-slate-600 my-1" />
+              <div className="flex justify-between">
+                <span>Actual Real:</span>
+                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{sesionId ? formatoFechaHoraLocal(new Date(inicioRealMs)) : formatoFechaHoraLocal(hora)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Actual Virtual:</span>
+                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{metricas.dia_hora_virtual?.slice(0, 19).replace('T', ' ') || (`${simulacionConfig.fecha_inicio_virtual} ${simulacionConfig.hora_inicio_virtual}:00`)}</span>
               </div>
               <div className="flex justify-between">
                 <span>Transcurrido:</span>
@@ -1260,7 +1302,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                   <Button variant="danger" size="sm" disabled={finalizandoId === sesionPausada.id} onClick={() => handleDetener(sesionPausada.id)}>
                     <Square size={12} className="mr-1" />{finalizandoId === sesionPausada.id ? '...' : 'Detener'}
                   </Button>
-                  <Button size="sm" onClick={async () => { setSesionId(sesionPausada.id); setLoading(true); try { await api.post(`/sesiones/${sesionPausada.id}/iniciar`, {}); setEstadoSesion('EN_CURSO'); } catch { setError('Error al reanudar'); } finally { setLoading(false); } }}>
+                  <Button size="sm" onClick={async () => { setSesionId(sesionPausada.id); setLoading(true); try { await api.post(`/sesiones/${sesionPausada.id}/iniciar`, {}); setInicioRealMs(Date.now()); setEstadoSesion('EN_CURSO'); } catch { setError('Error al reanudar'); } finally { setLoading(false); } }}>
                     <Play size={12} className="mr-1" />Continuar
                   </Button>
                 </div>

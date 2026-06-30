@@ -14,7 +14,7 @@ Agregar un color visual distinguible para el estado "vacío" (desconocido, nulo 
 
 ### 1. `frontend/lib/colors.ts`
 
-- Agregada clave `VACIO: '#9ca3af'` al objeto `COLOR_VUELO`.
+- Agregada clave `VACIO: '#adbed3'` al objeto `COLOR_VUELO`.
 - Agregada función `colorVueloPorEstado(estado: string | null | undefined): string` que devuelve el color correspondiente al estado o `COLOR_VUELO.VACIO` si el estado es desconocido/nulo.
 
 ### 2. `frontend/components/simulacion/PanelVuelos.tsx`
@@ -44,7 +44,7 @@ Agregar un color visual distinguible para el estado "vacío" (desconocido, nulo 
 
 ```typescript
 // lib/colors.ts
-COLOR_VUELO.VACIO = '#9ca3af'  // Tailwind gray-400
+COLOR_VUELO.VACIO = '#adbed3'
 
 function colorVueloPorEstado(estado: string | null | undefined): string
   // Busca el estado en COLOR_VUELO; si no existe, retorna COLOR_VUELO.VACIO
@@ -534,6 +534,197 @@ bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm rounded-lg border border-slate
 - `PanelReporte`, `PanelVuelos`, `PanelVuelosOperacion`, `PanelAeropuertos`, `PanelEnvios`, `PanelEntregados`, `ResumenVuelosOperacion`: sin cambios.
 - Tipos (`lib/types.ts`): sin cambios.
 - Funcionalidad de las vistas: sin cambios (solo se movió la presentación de métricas/tiempos al mapa y dentro del mapa).
+
+### Actualización posterior 4 (29 jun 2026) — Formato de panel de tiempos + tiles CartoDB
+
+**Problema:**
+- El panel de tiempos en SimulacionView y ColapsoView tenía formato antiguo: header con reloj + Tiempo Virtual, seguido de 3 líneas (Inicio Real, Inicio Virtual, Transcurrido). Faltaban Actual Real y Actual Virtual.
+- Los tiles de OpenStreetMap estaban en inglés/español mixto; se requería CartoDB Positron con etiquetas exclusivamente en inglés sin API key.
+- El helper `formatSegundos` daba formato simple (`h m s`) sin zero-padding; se necesitaba un helper `formatoHms` con padding.
+
+**Cambios realizados:**
+
+| Archivo | Cambio |
+|---|---|
+| `page.tsx` — helpers | Agregado `formatoHms(h,m,s)` que retorna `00h 00m 00s` con zero-padding. |
+| `page.tsx` — SimulacionView | Panel de tiempos reemplazado: `min-w-[170px]` → `min-w-[220px]`; nuevo formato con Inicio Real, Inicio Virtual, separador `border-t`, Actual Real (hora del sistema), Actual Virtual (extraído de `metricas.dia_hora_virtual`), Transcurrido. |
+| `page.tsx` — ColapsoView | Ídem SimulacionView. |
+| `GeoMapa.tsx` | TileLayer actualizado de OSM estándar a CartoDB Positron (`light_all` / English): `url="https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"`. |
+
+**Nuevo formato del panel de tiempos:**
+```
+┌──────────────────────────────────┐
+│ Inicio Real: 2025-06-01 08:00:00 │
+│ Inicio Virtual: 2025-06-01 08:00 │
+│──────────────────────────────────│
+│ Actual Real: 14h 30m 25s        │  ← hora del sistema en vivo
+│ Actual Virtual: 03d 14h 30m 25s │  ← extraído de dia_hora_virtual
+│ Transcurrido: 2h 30m 15s        │  ← formato original
+└──────────────────────────────────┘
+```
+
+**Detalle técnico:**
+```typescript
+// Helper agregado en page.tsx (~línea 50)
+function formatoHms(h: number, m: number, s: number): string {
+  return `${h.toString().padStart(2, '0')}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
+}
+
+// Actual Real se computa con new Date() en cada render
+{(() => { const d = new Date(); return formatoHms(d.getHours(), d.getMinutes(), d.getSeconds()); })()}
+
+// Actual Virtual se extrae de metricas.dia_hora_virtual (formato "2025-06-03T14:30:00")
+{metricas.dia_hora_virtual ? (() => { const p = metricas.dia_hora_virtual.split('T')[1]?.split(':') ?? []; return formatoHms(...) })() : '-'}
+```
+
+**Verificación:** TypeScript compila sin errores. Los paneles de ambas vistas tienen el mismo formato exacto. Los tiles ahora muestran etiquetas en inglés de CartoDB Positron sin necesidad de API key.
+
+---
+
+### Actualización posterior 5 (29 jun 2026) — Reloj en vivo para Actual Real + revertir tiles a OSM + revertir VACIO a #9ca3af
+
+**Problema:**
+- `Actual Real` se computaba con `new Date()` solo al renderizar (cada ~3s por el polling de métricas), no tickeaba en tiempo real.
+- Los tiles CartoDB Positron tenían paleta muy clara/gris que eliminaba los colores vivos del mapa (parques verdes, agua azul) que sí tiene OSM estándar.
+- El color `VACIO: '#adbed3'` añadía un tinte azul-gris que aplanaba la paleta del mapa; se revierte a `#9ca3af` (gris neutro original).
+
+**Cambios realizados:**
+
+| Archivo | Cambio |
+|---|---|
+| `page.tsx` — helpers | Agregado hook `useReloj()`: estado `hora` actualizado cada 1s con `setInterval`. |
+| `page.tsx` — SimulacionView | Agregado `const hora = useReloj()`. `Actual Real` ahora usa `formatoHms(hora.getHours(), hora.getMinutes(), hora.getSeconds())`. |
+| `page.tsx` — ColapsoView | Ídem SimulacionView. |
+| `GeoMapa.tsx` | TileLayer **revertido** de CartoDB Positron a OSM estándar: `url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"`. |
+| `lib/colors.ts` | `VACIO` revertido de `#adbed3` → `#9ca3af`. |
+
+**Detalle técnico:**
+```typescript
+// Hook agregado en page.tsx
+function useReloj() {
+  const [hora, setHora] = useState(new Date());
+  useEffect(() => {
+    const id = setInterval(() => setHora(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return hora;
+}
+
+// En SimulacionView y ColapsoView
+const hora = useReloj();
+// Actual Real en JSX:
+{formatoHms(hora.getHours(), hora.getMinutes(), hora.getSeconds())}
+```
+
+**Verificación:** TypeScript compila sin errores. El `Actual Real` ahora se actualiza cada 1 segundo independientemente del polling de métricas.
+
+---
+
+### Actualización posterior 6 (final, 29 jun 2026) — Display fecha+hora con hora local del navegador + sincronización de campos
+
+**Problemas resueltos:**
+- `Inicio Real` mostraba `metricas.fecha_inicio_real` (hora del servidor, no del navegador del usuario).
+- `Actual Real` / `Actual Virtual` mostraban solo la hora (`14h 30m 25s`), no la fecha completa.
+- `Inicio Virtual` había perdido la hora (solo fecha).
+- Sin sesión activa, `Inicio Real` y `Actual Virtual` mostraban `-` en vez de la hora actual.
+- `Actual Real` no se congelaba al iniciar simulación.
+
+**Cambios realizados (solo visual, lógica interna intacta):**
+
+| Archivo | Cambio |
+|---|---|
+| `page.tsx` — helpers | Agregado `formatoFechaHoraLocal(d: Date)` (retorna `YYYY-MM-DD HH:mm:ss` en zona local) y `useReloj()` (live clock cada 1s). |
+| `page.tsx` — SimulacionView | Agregado estado `inicioRealMs` capturado con `Date.now()` al iniciar/reanudar sesión. Reseteado a `0` al detener. Agregado `useReloj()` → `hora`. |
+| `page.tsx` — ColapsoView | Ídem SimulacionView. |
+| `page.tsx` — OperacionView | Agregado `useReloj()` → `hora`. Time panel ahora usa `formatoFechaHoraLocal(hora)` live en vez de `new Date().toLocaleString()` estático. |
+| `page.tsx` — time panels | Display actualizado con reemplazos `replaceAll` en ambas vistas de simulación. Se agregó `:00` a `hora_inicio_virtual` para uniformidad con los segundos del resto de campos. `Actual Virtual` sin datos ahora arranca con la misma fecha+hora que `Inicio Virtual` (del config) en vez del live clock. |
+
+**Nuevo display completo:**
+```
+┌──────────────────────────────────────────────┐
+│ Inicio Real:    2026-06-29 10:30:45          │  ← congelado si hay sesión;
+│                                              │    si no, hora al cargar página
+│ Inicio Virtual: 2026-01-02 08:00             │  ← fecha+hora del config
+│ ──────────────────────────────────────────── │
+│ Actual Real:    2026-06-29 10:30:45          │  ← congelado = Inicio Real
+│                                              │    (si hay sesión);
+│                                              │    live clock si no
+│ Actual Virtual: 2026-06-03 14:30:00          │  ← del backend si hay datos;
+│                                              │    live clock si no
+│ Transcurrido:   2h 30m 15s                   │  ← sin cambios
+└──────────────────────────────────────────────┘
+```
+
+**Comportamiento por campo (display, no lógica):**
+
+| Campo | Sin sesión | Con sesión activa |
+|---|---|---|
+| **Inicio Real** | Fecha+hora actual (al cargar página, estático) | Fecha+hora capturada al iniciar (congelado) |
+| **Inicio Virtual** | Según config (`fecha + hora`) | Según config |
+| **Actual Real** | Live clock tickeando (cada 1s) | Congelado = Inicio Real |
+| **Actual Virtual** | Live clock tickeando | Fecha+hora virtual del backend |
+| **Transcurrido** | `0h 0m 0s` | Según backend |
+
+**Detalle técnico:**
+```typescript
+// Helper de fecha+hora local del navegador
+function formatoFechaHoraLocal(d: Date): string {
+  const y = d.getFullYear();
+  const M = String(d.getMonth() + 1).padStart(2, '0');
+  const D = String(d.getDate()).padStart(2, '0');
+  const h = String(d.getHours()).padStart(2, '0');
+  const m = String(d.getMinutes()).padStart(2, '0');
+  const s = String(d.getSeconds()).padStart(2, '0');
+  return `${y}-${M}-${D} ${h}:${m}:${s}`;
+}
+
+// Hook live clock
+function useReloj() {
+  const [hora, setHora] = useState(new Date());
+  useEffect(() => {
+    const id = setInterval(() => setHora(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return hora;
+}
+
+// Captura al iniciar sesión (en handleIniciar / handleReanudar)
+setInicioRealMs(Date.now());
+
+// JSX de los time panels (SimulacionView + ColapsoView)
+<span>{formatoFechaHoraLocal(new Date(inicioRealMs || Date.now()))}</span>        // Inicio Real
+<span>{simulacionConfig.fecha_inicio_virtual} {simulacionConfig.hora_inicio_virtual}</span>  // Inicio Virtual
+<span>{sesionId ? formatoFechaHoraLocal(new Date(inicioRealMs)) : formatoFechaHoraLocal(hora)}</span>  // Actual Real
+<span>{metricas.dia_hora_virtual?.slice(0, 19).replace('T', ' ') || formatoFechaHoraLocal(hora)}</span>  // Actual Virtual
+<span>{formatSegundos(metricas.segundos_reales_transcurridos ?? 0)}</span>        // Transcurrido
+
+// OperacionView (panel informativo)
+<span>{formatoFechaHoraLocal(hora)}</span>  // header con Clock icon
+```
+
+**Verificación:** TypeScript compila sin errores. `Date.now()` es UTC; `useReloj()` usa `Date` estándar (UTC internamente); `dia_hora_virtual` sigue siendo ISO string del backend. Cero modificaciones a lógica de negocio, backend, tipos o componentes de mapa.
+
+**Verificación:** TypeScript compila sin errores. Lógica interna intacta — `Date.now()` es UTC, `hora` de `useReloj()` es un objeto `Date` estándar, `dia_hora_virtual` sigue siendo ISO string del backend. Solo cambia cómo se muestran los valores en pantalla.
+
+---
+
+### Historial cronológico de versiones de tiles del mapa
+
+| Orden | Fecha | Tile URL | Proveedor | Paleta | Etiquetas |
+|---|---|---|---|---|---|
+| 1 (original) | 26 jun 2026 | `{s}.tile.openstreetmap.org/{z}/{x}/{y}.png` | OpenStreetMap | Viva — verde, azul, grises | Inglés (default) |
+| 2 | 29 jun 2026 | `a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png` | CartoDB Positron | Muy clara — blanco/gris, sin vegetación | Inglés |
+| 3 | 29 jun 2026 | `{s}.tile.openstreetmap.org/{z}/{x}/{y}.png` | OpenStreetMap (revertido) | Viva — verde, azul, grises | Mixto (idioma local) |
+| 4 (actual) | 29 jun 2026 | `{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png` | CartoDB Voyager | Viva — verde, azul, relieve sutil | Inglés homogéneo |
+
+**Nota:** Si en el futuro se requiere cambiar los tiles:
+- **OpenStreetMap estándar**: `{s}.tile.openstreetmap.org/{z}/{x}/{y}.png` — attribution `'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'`
+- **CartoDB Voyager** (actual): `{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png`
+- **CartoDB Positron**: `{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png`
+- Voyager y Positron requieren: `attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'`
+- Siempre usar `https://` (sin API key) y subdominio `a.`, `b.`, `c.` indistintamente.
+
+---
 
 **¿Qué pendientes o mejoras futuras se identificaron?**
 - El componente `MetricasOperacion` tiene su propio layout interno (`grid grid-cols-2`, `p-4`) que difiere del estilo compacto de chips usado en Simulación y Colapso. Si se desea uniformidad total, se podría refactorizar para que use el mismo patrón de chips en las cards.
