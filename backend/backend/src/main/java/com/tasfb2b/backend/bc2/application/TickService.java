@@ -25,6 +25,7 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class TickService {
@@ -112,7 +113,23 @@ public class TickService {
         // Serializa con el planificador (corren en hilos distintos del scheduler):
         // ambos mutan segmentos_plan/vuelos/nodos de la MISMA sesión.
         var lock = lockManager.obtener(sesion.getId());
-        lock.lock();
+        boolean adquirido;
+        try {
+            adquirido = lock.tryLock(TICK_INTERVAL_MS - 1000, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return;
+        }
+        if (!adquirido) {
+            // Planificador ocupado — avanzar reloj para que el timer del frontend
+            // no se congele. El trabajo pesado (vuelos, SLA, telemetría) se salta
+            // para no interferir con el planificador; el próximo tick que adquiera
+            // el lock ejecutará normal.
+            log.debug("[SIM {}] Planificador ocupado, tick salteado (solo reloj)", idCorto(sesion.getId()));
+            avanzarRelojVirtual(sesion);
+            sesionRepository.save(sesion);
+            return;
+        }
         try {
             ejecutarTick(sesion);
         } finally {

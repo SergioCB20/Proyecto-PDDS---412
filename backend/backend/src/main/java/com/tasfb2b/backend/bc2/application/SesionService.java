@@ -340,8 +340,28 @@ public class SesionService {
         sesionRepository.save(sesion);
         readinessManager.eliminar(id);
 
-        // 2. Espera ACOTADA a que termine cualquier ciclo de tick/planificador en vuelo
-        //    antes de borrar planes/segmentos — evita StaleObjectStateException.
+        // 2. La limpieza pesada (esperar el lock hasta 60s, generar reporte/CSV y borrar
+        //    instancias/planes de hasta 30 dias) corre en BACKGROUND. Antes corria dentro
+        //    del request HTTP y podia exceder el timeout del cliente (120s) -> el front
+        //    mostraba "Error al detener" aunque la sesion YA quedaba FINALIZADA en el paso 1.
+        //    Ahora respondemos de inmediato y la limpieza se completa aparte.
+        taskExecutor.execute(() -> limpiezaPostDetencion(id));
+
+        return new SesionEstadoResponse(EstadoSesion.FINALIZADA.name());
+    }
+
+    /**
+     * Fase 2 (background) de la detencion: espera ACOTADA al lock para no chocar con un
+     * ciclo de tick/planificador en vuelo, genera el reporte ANTES de borrar y limpia el
+     * estado de la sesion. Best-effort: cada paso atrapa sus errores.
+     */
+    public void limpiezaPostDetencion(UUID id) {
+        SesionEjecucion sesion = sesionRepository.findById(id).orElse(null);
+        if (sesion == null) {
+            log.warn("limpiezaPostDetencion: sesion {} no encontrada", id);
+            return;
+        }
+
         var lock = lockManager.obtener(id);
         boolean locked = false;
         try {
@@ -400,21 +420,20 @@ public class SesionService {
         }
 
         try {
-            redisCacheService.setEstadoSesion(sesion.getId(), "FINALIZADA");
-            redisCacheService.eliminarMetricasSesion(sesion.getId());
+            redisCacheService.setEstadoSesion(id, "FINALIZADA");
+            redisCacheService.eliminarMetricasSesion(id);
         } catch (Exception e) {
-            log.warn("Redis no disponible al detener sesion {}: {}", sesion.getId(), e.getMessage());
+            log.warn("Redis no disponible al detener sesion {}: {}", id, e.getMessage());
         }
 
-        simulacionPlanificador.limpiarSesion(sesion.getId());
+        simulacionPlanificador.limpiarSesion(id);
 
         eventPublisher.publishEvent(new SesionFinalizada(
-                sesion.getId(), "FINALIZADA", OffsetDateTime.now()));
+                id, "FINALIZADA", OffsetDateTime.now()));
 
-        return new SesionEstadoResponse(sesion.getEstado().name());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("Interrumpido al detener sesion " + id, e);
+            log.warn("limpiezaPostDetencion {} interrumpida", id);
         } finally {
             if (locked) lock.unlock();
         }

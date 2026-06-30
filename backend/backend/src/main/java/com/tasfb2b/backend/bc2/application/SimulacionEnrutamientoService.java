@@ -46,59 +46,10 @@ public class SimulacionEnrutamientoService {
         this.segmentoPlanRepository = segmentoPlanRepository;
     }
 
-    private void deshacerEnrutadosEnRango(UUID sesionId, OffsetDateTime finAjustado) {
-        List<UUID> ids = jdbcTemplate.query(
-            "SELECT id FROM equipajes WHERE estado = 'ENRUTADO' AND fecha_operacion < ?",
-            (rs, i) -> UUID.fromString(rs.getString(1)), finAjustado);
-        if (ids.isEmpty()) return;
-
-        Object[] idArray = ids.toArray(new UUID[0]);
-
-        jdbcTemplate.update(
-            "UPDATE vuelos v SET carga_disponible = carga_disponible + sub.total " +
-            "FROM (" +
-            "  SELECT sp.vuelo_id, SUM(e.cantidad) AS total " +
-            "  FROM segmentos_plan sp " +
-            "  JOIN planes_viaje pv ON sp.plan_viaje_id = pv.id " +
-            "  JOIN equipajes e ON pv.equipaje_id = e.id " +
-            "  WHERE pv.sesion_id = ? AND pv.equipaje_id = ANY(?) AND sp.orden = 1 " +
-            "  GROUP BY sp.vuelo_id" +
-            ") sub WHERE v.id = sub.vuelo_id", sesionId, idArray);
-
-        jdbcTemplate.update(
-            "UPDATE nodos_logisticos n SET ocupacion_actual = GREATEST(0, ocupacion_actual - sub.total) " +
-            "FROM (" +
-            "  SELECT sp.nodo_origen_id, SUM(e.cantidad) AS total " +
-            "  FROM segmentos_plan sp " +
-            "  JOIN planes_viaje pv ON sp.plan_viaje_id = pv.id " +
-            "  JOIN equipajes e ON pv.equipaje_id = e.id " +
-            "  WHERE pv.sesion_id = ? AND pv.equipaje_id = ANY(?) AND sp.orden = 1 " +
-            "  GROUP BY sp.nodo_origen_id" +
-            ") sub WHERE n.id = sub.nodo_origen_id", sesionId, idArray);
-
-        jdbcTemplate.update(
-            "DELETE FROM segmentos_plan WHERE plan_viaje_id IN " +
-            "(SELECT id FROM planes_viaje WHERE sesion_id = ? AND equipaje_id = ANY(?))",
-            sesionId, idArray);
-
-        jdbcTemplate.update(
-            "DELETE FROM planes_viaje WHERE sesion_id = ? AND equipaje_id = ANY(?)",
-            sesionId, idArray);
-
-        jdbcTemplate.update(
-            "UPDATE equipajes SET estado = 'REGISTRADO' WHERE id = ANY(?)",
-            (Object) idArray);
-
-        log.info("Deshecho plan previo de {} equipajes ENRUTADO para re-planificacion en sesion {}",
-            ids.size(), sesionId);
-    }
-
     @Transactional
     public ResultadoVentana enrutarVentana(UUID sesionId, OffsetDateTime inicioVentana, OffsetDateTime finVentana, long deltaDias) {
         OffsetDateTime inicioAjustado = inicioVentana.minusDays(deltaDias);
         OffsetDateTime finAjustado = finVentana.minusDays(deltaDias);
-
-        deshacerEnrutadosEnRango(sesionId, finAjustado);
 
         List<Equipaje> backlog = jdbcTemplate.query(
                 "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad, fecha_ingreso " +
