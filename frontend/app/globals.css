@@ -42,3 +42,14 @@ body {
 .leaflet-tooltip.aeropuerto-label::before {
   display: none; /* oculta la flecha del tooltip */
 }
+
+/* Tooltip de "Salir del vuelo": Leaflet desactiva pointer-events por defecto */
+.salir-vuelo-tooltip {
+  background: none;
+  border: none;
+  box-shadow: none;
+  pointer-events: auto !important;
+}
+.salir-vuelo-tooltip::before {
+  display: none;
+}
