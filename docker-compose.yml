@@ -59,13 +59,10 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
     container_name: tasfb2b-frontend
     ports:
       - "5000:5000"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8080/back/api
       PORT: "5000"
