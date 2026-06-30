@@ -15,13 +15,11 @@ import { Modal } from '@/components/ui/Modal';
 import { Card } from '@/components/ui/Card';
 import { PanelVuelosOperacion } from '@/components/operacion/PanelVuelosOperacion';
 import { PanelAeropuertosOperacion } from '@/components/operacion/PanelAeropuertosOperacion';
-import { PanelEntregadosOperacion } from '@/components/operacion/PanelEntregadosOperacion';
 import { PanelEnviosOperacion } from '@/components/operacion/PanelEnviosOperacion';
-import { ResumenVuelosOperacion } from '@/components/operacion/ResumenVuelosOperacion';
-import { PanelEntregados } from '@/components/simulacion/PanelEntregados';
 import { PanelEnvios } from '@/components/simulacion/PanelEnvios';
 import { PanelReporte } from '@/components/simulacion/PanelReporte';
 import { PanelEnviosMaletas } from '@/components/shared/PanelEnviosMaletas';
+import { SimulacionLoadingOverlay } from '@/components/simulacion/SimulacionLoadingOverlay';
 import { ConfigUmbrales, type UmbralesConfig } from '@/components/mapa/ConfigUmbrales';
 import type { SelectedEnvioOperacion } from '@/components/operacion/PanelEnviosOperacion';
 import type { SelectedEnvio } from '@/components/simulacion/PanelEnvios';
@@ -375,6 +373,10 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
 
   const metricasOpSim = telemetria?.metricas_sesion;
 
+  const vuelosActivosOp = allVuelos.filter(v => v.estado === 'EN_RUTA').length;
+  const vuelosProgramadosOp = allVuelos.filter(v => v.estado === 'PROGRAMADO').length;
+  const vuelosEntregadosOp = allVuelos.filter(v => v.estado === 'COMPLETADO').length;
+
   return (
     <div className="flex h-full">
       <div className="flex-1 p-4 relative">
@@ -409,6 +411,20 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                   width: `${Math.min(maxOcupacion, 100)}%`,
                   backgroundColor: maxOcupacion < configUmbrales.verdeMax ? '#22c55e' : maxOcupacion < configUmbrales.ambarMax ? '#eab308' : '#ef4444'
                 }} />
+              </div>
+            </div>
+            <div className="pointer-events-auto mt-1.5 p-2 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-slate-500">Vuelos activos</span>
+                <span className="text-xs font-bold text-green-600">{vuelosActivosOp}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-slate-500">Vuelos programados</span>
+                <span className="text-xs font-bold text-blue-600">{vuelosProgramadosOp}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-slate-500">Últimos Vuelos Entregados</span>
+                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{vuelosEntregadosOp}</span>
               </div>
             </div>
           </div>
@@ -491,8 +507,6 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               )}
             </div>
 
-            <ResumenVuelosOperacion vuelos={telemetria?.vuelos ?? []} />
-
             {telemetria?.nodos && telemetria.nodos.length > 0 && (
               <PanelAeropuertosOperacion aeropuertos={telemetria.nodos} vuelos={telemetria.vuelos ?? []} onAeropuertoClick={(id, codigo) => setSelectedEnvio({ tipo: 'nodo', id, codigo })} />
             )}
@@ -516,8 +530,6 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                 onFilterChange={({ origen, destino }) => { setVueloFilterOrigen(origen); setVueloFilterDestino(destino); }}
               />
             )}
-
-            <PanelEntregadosOperacion activo={true} />
 
             <PanelEnviosMaletas
               activo={estadoOperacion === 'ACTIVO'}
@@ -701,6 +713,10 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
       }))
     : initialVuelos;
 
+  const vuelosSimActivos = vuelosMapa.filter(v => v.estado === 'EN_RUTA').length;
+  const vuelosSimProgramados = vuelosMapa.filter(v => v.estado === 'PROGRAMADO').length;
+  const vuelosSimEntregados = vuelosMapa.filter(v => v.estado === 'COMPLETADO').length;
+
   const handleIniciar = async () => {
     setError(''); setLoading(true); setReporte(null);
     try {
@@ -824,6 +840,20 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
                 }} />
               </div>
             </div>
+            <div className="pointer-events-auto mt-1.5 p-2 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-slate-500">Vuelos activos</span>
+                <span className="text-xs font-bold text-green-600">{vuelosSimActivos}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-slate-500">Vuelos programados</span>
+                <span className="text-xs font-bold text-blue-600">{vuelosSimProgramados}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-slate-500">Últimos Vuelos Entregados</span>
+                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{vuelosSimEntregados}</span>
+              </div>
+            </div>
           </div>
           <div className="absolute top-4 right-4 z-[1001] pointer-events-none max-w-[320px]">
             <div className="pointer-events-auto p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 space-y-1 text-[11px] text-slate-600 dark:text-slate-400 min-w-[220px]">
@@ -851,6 +881,9 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
             </div>
           </div>
         </GeoMapa>
+        {sesionId && estadoSesion !== 'FINALIZADA' && (metricas.segundos_reales_transcurridos ?? 0) === 0 && (
+          <SimulacionLoadingOverlay visible={true} />
+        )}
       </div>
 
       <div className={`border-l border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col overflow-y-auto transition-all duration-300 ${isCollapsed ? 'w-12' : 'w-80'}`}>
@@ -946,10 +979,6 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
             </>
             )}
 
-            {(sesionId || telemetria?.vuelos) && (
-              <ResumenVuelosOperacion vuelos={telemetria?.vuelos ?? []} />
-            )}
-
             {(sesionId && estadoSesion !== 'FINALIZADA') && telemetria?.nodos && telemetria.nodos.length > 0 && (
               <PanelAeropuertosOperacion aeropuertos={telemetria.nodos} vuelos={telemetria.vuelos ?? []}
                 onAeropuertoClick={(id, codigo) => setSelectedEnvio({ tipo: 'nodo', id, codigo })}
@@ -964,10 +993,6 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
                 origenFilter={vueloFilterOrigen} destinoFilter={vueloFilterDestino}
                 onFilterChange={({ origen, destino }) => { setVueloFilterOrigen(origen); setVueloFilterDestino(destino); }}
               />
-            )}
-
-            {sesionId && estadoSesion !== 'FINALIZADA' && (
-              <PanelEntregados sesionId={sesionId} activo={true} />
             )}
 
             {sesionId && (
@@ -1100,6 +1125,10 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
       }))
     : initialVuelos;
 
+  const vuelosColActivos = vuelosMapa.filter(v => v.estado === 'EN_RUTA').length;
+  const vuelosColProgramados = vuelosMapa.filter(v => v.estado === 'PROGRAMADO').length;
+  const vuelosColEntregados = vuelosMapa.filter(v => v.estado === 'COMPLETADO').length;
+
   const maxOcupacion = Math.max(
     0,
     ...(telemetria?.nodos ?? []).map(n => n.ocupacion_pct),
@@ -1226,6 +1255,20 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                   width: `${Math.min(maxOcupacion, 100)}%`,
                   backgroundColor: maxOcupacion < configUmbrales.verdeMax ? '#22c55e' : maxOcupacion < configUmbrales.ambarMax ? '#eab308' : '#ef4444'
                 }} />
+              </div>
+            </div>
+            <div className="pointer-events-auto mt-1.5 p-2 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-slate-500">Vuelos activos</span>
+                <span className="text-xs font-bold text-green-600">{vuelosColActivos}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-slate-500">Vuelos programados</span>
+                <span className="text-xs font-bold text-blue-600">{vuelosColProgramados}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-slate-500">Últimos Vuelos Entregados</span>
+                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{vuelosColEntregados}</span>
               </div>
             </div>
           </div>
@@ -1374,10 +1417,6 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               </>
             )}
 
-            {(sesionId || telemetria?.vuelos) && (
-              <ResumenVuelosOperacion vuelos={telemetria?.vuelos ?? []} />
-            )}
-
             {(sesionId && estadoSesion !== 'FINALIZADA' && estadoSesion !== 'COLAPSADA') && telemetria?.nodos && telemetria.nodos.length > 0 && (
               <PanelAeropuertosOperacion aeropuertos={telemetria.nodos} vuelos={telemetria.vuelos ?? []}
                 onAeropuertoClick={(id, codigo) => setSelectedEnvio({ tipo: 'nodo', id, codigo })}
@@ -1392,10 +1431,6 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                 origenFilter={vueloFilterOrigen} destinoFilter={vueloFilterDestino}
                 onFilterChange={({ origen, destino }) => { setVueloFilterOrigen(origen); setVueloFilterDestino(destino); }}
               />
-            )}
-
-            {sesionId && estadoSesion !== 'FINALIZADA' && estadoSesion !== 'COLAPSADA' && (
-              <PanelEntregados sesionId={sesionId} activo={true} />
             )}
 
             {sesionId && (

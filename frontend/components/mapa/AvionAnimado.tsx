@@ -85,6 +85,16 @@ const AvionAnimado = React.memo(function AvionAnimado({
     }
   }, [seguido, map]);
 
+  // ESC sale del modo seguir
+  useEffect(() => {
+    if (!seguido || !onSalir) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onSalir();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [seguido, onSalir]);
+
   useEffect(() => { iconSizeRef.current = iconSize; }, [iconSize]);
 
   useEffect(() => {

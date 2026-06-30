@@ -532,7 +532,7 @@ public class SesionService {
             .orElseThrow(() -> new IllegalArgumentException("Sesion no encontrada: " + sesionId));
 
         List<EstadoEquipaje> estados = switch (tipo) {
-            case "planificados" -> List.of(EstadoEquipaje.REGISTRADO, EstadoEquipaje.ENRUTADO, EstadoEquipaje.EN_ALMACEN);
+            case "planificados" -> List.of(EstadoEquipaje.ENRUTADO, EstadoEquipaje.EN_ALMACEN);
             case "en_vuelo" -> List.of(EstadoEquipaje.EN_VUELO);
             case "entregados" -> List.of(EstadoEquipaje.ENTREGADO);
             default -> throw new IllegalArgumentException("tipo inválido: " + tipo);
