@@ -13,13 +13,11 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Modal } from '@/components/ui/Modal';
 import { Card } from '@/components/ui/Card';
-import { PanelVuelosOperacion } from '@/components/operacion/PanelVuelosOperacion';
-import { PanelAeropuertosOperacion } from '@/components/operacion/PanelAeropuertosOperacion';
 import { PanelEnviosOperacion } from '@/components/operacion/PanelEnviosOperacion';
 import { PanelEnvios } from '@/components/simulacion/PanelEnvios';
 import { PanelReporte } from '@/components/simulacion/PanelReporte';
-import { PanelEnviosMaletas } from '@/components/shared/PanelEnviosMaletas';
 import { SimulacionLoadingOverlay } from '@/components/simulacion/SimulacionLoadingOverlay';
+import { PanelTabs } from '@/components/shared/PanelTabs';
 import { ConfigUmbrales, type UmbralesConfig } from '@/components/mapa/ConfigUmbrales';
 import type { SelectedEnvioOperacion } from '@/components/operacion/PanelEnviosOperacion';
 import type { SelectedEnvio } from '@/components/simulacion/PanelEnvios';
@@ -507,32 +505,28 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               )}
             </div>
 
-            {telemetria?.nodos && telemetria.nodos.length > 0 && (
-              <PanelAeropuertosOperacion aeropuertos={telemetria.nodos} vuelos={telemetria.vuelos ?? []} onAeropuertoClick={(id, codigo) => setSelectedEnvio({ tipo: 'nodo', id, codigo })} />
-            )}
-
-            {telemetria?.vuelos && telemetria.vuelos.length > 0 && (
-              <PanelVuelosOperacion
-                vuelos={telemetria.vuelos} onVueloClick={(id, codigo) => setSelectedEnvio({ tipo: 'vuelo', id, codigo })}
-                onVerEnMapa={id => setSeguidoVueloId(id)}
-                onDownloadManifiesto={async (id, codigo) => {
-                  try {
-                    const blob = await api.downloadBlob(`/manifiestos/${id}`);
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a'); a.href = url;
-                    a.download = `manifiesto_${codigo}_${new Date().toISOString().split('T')[0]}.pdf`;
-                    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                  } catch { alert('Error al descargar manifiesto'); }
-                }}
-                onCancelVuelo={handleCancelarVuelo}
-                origenFilter={vueloFilterOrigen} destinoFilter={vueloFilterDestino}
-                onFilterChange={({ origen, destino }) => { setVueloFilterOrigen(origen); setVueloFilterDestino(destino); }}
-              />
-            )}
-
-            <PanelEnviosMaletas
-              activo={estadoOperacion === 'ACTIVO'}
+            <PanelTabs
+              aeropuertos={telemetria?.nodos ?? []}
+              vuelosAeropuerto={telemetria?.vuelos ?? []}
+              onAeropuertoClick={(id, codigo) => setSelectedEnvio({ tipo: 'nodo', id, codigo })}
+              vuelos={telemetria?.vuelos ?? []}
+              onVueloClick={(id, codigo) => setSelectedEnvio({ tipo: 'vuelo', id, codigo })}
+              onVerEnMapa={id => setSeguidoVueloId(id)}
+              onDownloadManifiesto={async (id, codigo) => {
+                try {
+                  const blob = await api.downloadBlob(`/manifiestos/${id}`);
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a'); a.href = url;
+                  a.download = `manifiesto_${codigo}_${new Date().toISOString().split('T')[0]}.pdf`;
+                  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                } catch { alert('Error al descargar manifiesto'); }
+              }}
+              onCancelVuelo={handleCancelarVuelo}
+              vueloFilterOrigen={vueloFilterOrigen}
+              vueloFilterDestino={vueloFilterDestino}
+              onVueloFilterChange={({ origen, destino }) => { setVueloFilterOrigen(origen); setVueloFilterDestino(destino); }}
+              enviosActivo={estadoOperacion === 'ACTIVO'}
               nodos={aeropuertos.map(n => ({ codigo_iata: n.codigo_iata, nombre: n.nombre }))}
             />
 
@@ -979,26 +973,20 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
             </>
             )}
 
-            {(sesionId && estadoSesion !== 'FINALIZADA') && telemetria?.nodos && telemetria.nodos.length > 0 && (
-              <PanelAeropuertosOperacion aeropuertos={telemetria.nodos} vuelos={telemetria.vuelos ?? []}
+            {sesionId && estadoSesion !== 'FINALIZADA' && (
+              <PanelTabs
+                aeropuertos={telemetria?.nodos ?? []}
+                vuelosAeropuerto={telemetria?.vuelos ?? []}
                 onAeropuertoClick={(id, codigo) => setSelectedEnvio({ tipo: 'nodo', id, codigo })}
-              />
-            )}
-
-            {(sesionId && estadoSesion !== 'FINALIZADA') && telemetria?.vuelos && telemetria.vuelos.length > 0 && (
-              <PanelVuelosOperacion vuelos={telemetria.vuelos}
+                vuelos={telemetria?.vuelos ?? []}
                 onVueloClick={(id, codigo) => setSelectedEnvio({ tipo: 'vuelo', id, codigo })}
                 onVerEnMapa={id => setSeguidoVueloId(id)}
                 onCancelVuelo={handleCancelarVuelo}
-                origenFilter={vueloFilterOrigen} destinoFilter={vueloFilterDestino}
-                onFilterChange={({ origen, destino }) => { setVueloFilterOrigen(origen); setVueloFilterDestino(destino); }}
-              />
-            )}
-
-            {sesionId && (
-              <PanelEnviosMaletas
+                vueloFilterOrigen={vueloFilterOrigen}
+                vueloFilterDestino={vueloFilterDestino}
+                onVueloFilterChange={({ origen, destino }) => { setVueloFilterOrigen(origen); setVueloFilterDestino(destino); }}
                 sesionId={sesionId}
-                activo={estadoSesion === 'EN_CURSO'}
+                enviosActivo={estadoSesion === 'EN_CURSO'}
                 nodos={aeropuertosMapa.map(n => ({ codigo_iata: n.codigo_iata, nombre: n.nombre }))}
               />
             )}
@@ -1417,26 +1405,20 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               </>
             )}
 
-            {(sesionId && estadoSesion !== 'FINALIZADA' && estadoSesion !== 'COLAPSADA') && telemetria?.nodos && telemetria.nodos.length > 0 && (
-              <PanelAeropuertosOperacion aeropuertos={telemetria.nodos} vuelos={telemetria.vuelos ?? []}
+            {sesionId && estadoSesion !== 'FINALIZADA' && estadoSesion !== 'COLAPSADA' && (
+              <PanelTabs
+                aeropuertos={telemetria?.nodos ?? []}
+                vuelosAeropuerto={telemetria?.vuelos ?? []}
                 onAeropuertoClick={(id, codigo) => setSelectedEnvio({ tipo: 'nodo', id, codigo })}
-              />
-            )}
-
-            {(sesionId && estadoSesion !== 'FINALIZADA' && estadoSesion !== 'COLAPSADA') && telemetria?.vuelos && telemetria.vuelos.length > 0 && (
-              <PanelVuelosOperacion vuelos={telemetria.vuelos}
+                vuelos={telemetria?.vuelos ?? []}
                 onVueloClick={(id, codigo) => setSelectedEnvio({ tipo: 'vuelo', id, codigo })}
                 onVerEnMapa={id => setSeguidoVueloId(id)}
                 onCancelVuelo={handleCancelarVuelo}
-                origenFilter={vueloFilterOrigen} destinoFilter={vueloFilterDestino}
-                onFilterChange={({ origen, destino }) => { setVueloFilterOrigen(origen); setVueloFilterDestino(destino); }}
-              />
-            )}
-
-            {sesionId && (
-              <PanelEnviosMaletas
+                vueloFilterOrigen={vueloFilterOrigen}
+                vueloFilterDestino={vueloFilterDestino}
+                onVueloFilterChange={({ origen, destino }) => { setVueloFilterOrigen(origen); setVueloFilterDestino(destino); }}
                 sesionId={sesionId}
-                activo={estadoSesion === 'EN_CURSO'}
+                enviosActivo={estadoSesion === 'EN_CURSO'}
                 nodos={aeropuertosMapa.map(n => ({ codigo_iata: n.codigo_iata, nombre: n.nombre }))}
               />
             )}

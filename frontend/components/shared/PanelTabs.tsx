@@ -1,0 +1,100 @@
+'use client';
+
+import { useReducer } from 'react';
+import { PanelAeropuertosOperacion } from '@/components/operacion/PanelAeropuertosOperacion';
+import { PanelVuelosOperacion } from '@/components/operacion/PanelVuelosOperacion';
+import { PanelEnviosMaletas } from '@/components/shared/PanelEnviosMaletas';
+import type { AeropuertoTelemetria, VueloTelemetria } from '@/lib/types';
+
+type TabName = 'aeropuertos' | 'vuelos' | 'envios';
+
+interface PanelTabsProps {
+  aeropuertos: AeropuertoTelemetria[];
+  vuelosAeropuerto: VueloTelemetria[];
+  onAeropuertoClick?: (id: string, codigo: string) => void;
+  vuelos: VueloTelemetria[];
+  onVueloClick?: (id: string, codigo: string) => void;
+  onDownloadManifiesto?: (id: string, codigo: string) => void;
+  onCancelVuelo?: (id: string, codigo: string) => void;
+  onVerEnMapa?: (id: string) => void;
+  vueloFilterOrigen: string;
+  vueloFilterDestino: string;
+  onVueloFilterChange: (filters: { origen: string; destino: string }) => void;
+  sesionId?: string;
+  enviosActivo: boolean;
+  nodos: { codigo_iata: string; nombre: string }[];
+}
+
+const TAB_LABELS: Record<TabName, string> = {
+  aeropuertos: 'Aeropuertos',
+  vuelos: 'Vuelos',
+  envios: 'Envíos de Maletas',
+};
+
+export function PanelTabs({
+  aeropuertos,
+  vuelosAeropuerto,
+  onAeropuertoClick,
+  vuelos,
+  onVueloClick,
+  onDownloadManifiesto,
+  onCancelVuelo,
+  onVerEnMapa,
+  vueloFilterOrigen,
+  vueloFilterDestino,
+  onVueloFilterChange,
+  sesionId,
+  enviosActivo,
+  nodos,
+}: PanelTabsProps) {
+  const [tab, setTab] = useReducer((_: TabName, next: TabName) => next, 'aeropuertos' as TabName);
+
+  return (
+    <div className="border-t border-slate-200 dark:border-slate-700">
+      <div className="flex gap-1 p-4 pb-0">
+        {(Object.entries(TAB_LABELS) as [TabName, string][]).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`flex-1 text-[11px] font-medium py-1.5 px-1 rounded-md transition-colors ${
+              tab === key
+                ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'aeropuertos' && (
+        <PanelAeropuertosOperacion
+          aeropuertos={aeropuertos}
+          vuelos={vuelosAeropuerto}
+          onAeropuertoClick={onAeropuertoClick}
+        />
+      )}
+
+      {tab === 'vuelos' && (
+        <PanelVuelosOperacion
+          vuelos={vuelos}
+          onVueloClick={onVueloClick}
+          onDownloadManifiesto={onDownloadManifiesto}
+          onCancelVuelo={onCancelVuelo}
+          onVerEnMapa={onVerEnMapa}
+          origenFilter={vueloFilterOrigen}
+          destinoFilter={vueloFilterDestino}
+          onFilterChange={onVueloFilterChange}
+        />
+      )}
+
+      {tab === 'envios' && (
+        <PanelEnviosMaletas
+          sesionId={sesionId}
+          activo={enviosActivo}
+          nodos={nodos}
+        />
+      )}
+    </div>
+  );
+}
