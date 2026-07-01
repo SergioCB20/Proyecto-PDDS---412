@@ -2,12 +2,62 @@
 
 import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 import { useEffect, useRef, useState, useMemo, type ReactNode } from 'react';
-import { Luggage, Eye, EyeOff, Search } from 'lucide-react';
+import { Luggage, EyeOff, Search } from 'lucide-react';
 import type { AeropuertoEnMapa, VueloEnMapa } from '@/lib/types';
 import type { UmbralesConfig } from './ConfigUmbrales';
 import 'leaflet/dist/leaflet.css';
 import dynamic from 'next/dynamic';
 import ControlZoom from './ControlZoom';
+
+interface MapControllerProps {
+  aeropuertos: AeropuertoEnMapa[];
+  vuelos: VueloEnMapa[];
+  seguidoVueloId?: string;
+  seguidoAeropuertoId?: string;
+  onSalirSeguimiento?: () => void;
+  onSalirSeguimientoAeropuerto?: () => void;
+}
+
+function MapController({ aeropuertos, vuelos, seguidoVueloId, seguidoAeropuertoId, onSalirSeguimiento, onSalirSeguimientoAeropuerto }: MapControllerProps) {
+  const map = useMap();
+  const siguiendo = !!(seguidoVueloId || seguidoAeropuertoId);
+  const previous = useRef<{ tipo: 'vuelo' | 'aero' | null; id: string | null }>({ tipo: null, id: null });
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && siguiendo) {
+        if (seguidoAeropuertoId) onSalirSeguimientoAeropuerto?.();
+        if (seguidoVueloId) onSalirSeguimiento?.();
+        map.flyTo(CENTRO, ZOOM, { duration: 0.8 });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [map, siguiendo, seguidoVueloId, seguidoAeropuertoId, onSalirSeguimiento, onSalirSeguimientoAeropuerto]);
+
+  useEffect(() => {
+    if (seguidoVueloId && seguidoVueloId !== previous.current.id && previous.current.tipo !== 'vuelo') {
+      const v = vuelos.find(v => v.id === seguidoVueloId);
+      if (v) {
+        const mid: [number, number] = [(v.origen_lat + v.destino_lat) / 2, (v.origen_lon + v.destino_lon) / 2];
+        map.flyTo(mid, 7, { duration: 1 });
+      }
+      previous.current = { tipo: 'vuelo', id: seguidoVueloId };
+    }
+  }, [seguidoVueloId, vuelos, map]);
+
+  useEffect(() => {
+    if (seguidoAeropuertoId && seguidoAeropuertoId !== previous.current.id && previous.current.tipo !== 'aero') {
+      const a = aeropuertos.find(a => a.codigo_iata === seguidoAeropuertoId);
+      if (a) {
+        map.flyTo([a.latitud, a.longitud], 7, { duration: 1 });
+      }
+      previous.current = { tipo: 'aero', id: seguidoAeropuertoId };
+    }
+  }, [seguidoAeropuertoId, aeropuertos, map]);
+
+  return null;
+}
 
 const GeoMapaAeropuerto = dynamic(() => import('./GeoMapaAeropuerto'), { ssr: false });
 const GeoMapaVuelo = dynamic(() => import('./GeoMapaVuelo'), { ssr: false });
@@ -29,7 +79,6 @@ interface GeoMapaProps {
   onSeguirVuelo?: (id: string) => void;
   seguidoAeropuertoId?: string;
   onSalirSeguimientoAeropuerto?: () => void;
-  onSeguirAeropuerto?: (id: string) => void;
 }
 
 const CENTRO: [number, number] = [-15, -60];
@@ -61,7 +110,6 @@ export default function GeoMapa({
   onSeguirVuelo,
   seguidoAeropuertoId,
   onSalirSeguimientoAeropuerto,
-  onSeguirAeropuerto,
 }: GeoMapaProps) {
   const [equipajeFilter, setEquipajeFilter] = useState<EquipajeFilter>('todos');
   const [aeroFilter, setAeroFilter] = useState('');
@@ -123,46 +171,6 @@ export default function GeoMapa({
 
   const siguiendo = !!(seguidoVueloId || seguidoAeropuertoId);
 
-  function MapController() {
-    const map = useMap();
-    const previous = useRef<{ tipo: 'vuelo' | 'aero' | null; id: string | null }>({ tipo: null, id: null });
-
-    useEffect(() => {
-      const onKey = (e: KeyboardEvent) => {
-        if (e.key === 'Escape' && siguiendo) {
-          if (seguidoAeropuertoId) onSalirSeguimientoAeropuerto?.();
-          if (seguidoVueloId) onSalirSeguimiento?.();
-          map.flyTo(CENTRO, ZOOM, { duration: 0.8 });
-        }
-      };
-      window.addEventListener('keydown', onKey);
-      return () => window.removeEventListener('keydown', onKey);
-    }, [map, siguiendo, seguidoVueloId, seguidoAeropuertoId, onSalirSeguimiento, onSalirSeguimientoAeropuerto]);
-
-    useEffect(() => {
-      if (seguidoVueloId && seguidoVueloId !== previous.current.id && previous.current.tipo !== 'vuelo') {
-        const v = vuelos.find(v => v.id === seguidoVueloId);
-        if (v) {
-          const mid: [number, number] = [(v.origen_lat + v.destino_lat) / 2, (v.origen_lon + v.destino_lon) / 2];
-          map.flyTo(mid, 7, { duration: 1 });
-        }
-        previous.current = { tipo: 'vuelo', id: seguidoVueloId };
-      }
-    }, [seguidoVueloId, vuelos, map]);
-
-    useEffect(() => {
-      if (seguidoAeropuertoId && seguidoAeropuertoId !== previous.current.id && previous.current.tipo !== 'aero') {
-        const a = aeropuertos.find(a => a.codigo_iata === seguidoAeropuertoId);
-        if (a) {
-          map.flyTo([a.latitud, a.longitud], 7, { duration: 1 });
-        }
-        previous.current = { tipo: 'aero', id: seguidoAeropuertoId };
-      }
-    }, [seguidoAeropuertoId, aeropuertos, map]);
-
-    return null;
-  }
-
   return (
     <div className={`relative ${className}`} style={{ padding: '10px' }}>
       <MapContainer
@@ -196,7 +204,14 @@ export default function GeoMapa({
           />
         ))}
         <ControlZoom />
-        <MapController />
+        <MapController
+          aeropuertos={aeropuertos}
+          vuelos={vuelos}
+          seguidoVueloId={seguidoVueloId}
+          seguidoAeropuertoId={seguidoAeropuertoId}
+          onSalirSeguimiento={onSalirSeguimiento}
+          onSalirSeguimientoAeropuerto={onSalirSeguimientoAeropuerto}
+        />
         {legendaVisible && <GeoMapaLeyenda umbralesConfig={umbralesConfig} onClose={() => setLegendaVisible(false)} />}
         {children}
       </MapContainer>
