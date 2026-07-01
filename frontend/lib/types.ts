@@ -86,7 +86,13 @@ export interface Maleta {
   codigo_maleta: string;
   equipaje_id: string;
   equipaje_id_externo?: string;
-  created_at: string;
+  created_at?: string;
+  /* true cuando el backend no tiene fila fisica en `maletas` para este equipaje
+   * (equipajes importados desde archivos de simulación no llaman a
+   * generarMaletasPara), y sintetiza N entradas segun equipaje.cantidad con
+   * codigo MAL-{id_externo}-NN. Sirve para que el panel muestre coherencia
+   * con la "Carga X/Y" del vuelo. */
+  virtual?: boolean;
 }
 
 export interface Ubicacion {

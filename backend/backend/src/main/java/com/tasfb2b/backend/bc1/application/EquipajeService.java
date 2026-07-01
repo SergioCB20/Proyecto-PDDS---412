@@ -87,11 +87,12 @@ public class EquipajeService {
     ) {}
 
     public record MaletaResponse(
-            UUID id,
+            String id,
             String codigo_maleta,
             UUID equipaje_id,
             String equipaje_id_externo,
-            OffsetDateTime created_at
+            OffsetDateTime created_at,
+            boolean virtual
     ) {}
 
     @Transactional
@@ -260,24 +261,71 @@ public class EquipajeService {
         return maletaRepository.findByEquipajeId(equipajeId);
     }
 
-    public List<Maleta> listarMaletasVuelo(UUID vueloId) {
+    public List<MaletaResponse> listarMaletasVuelo(UUID vueloId) {
         // Un vuelo lleva maletas por dos vias que hay que unir:
         //  A) equipaje.vuelo_actual_id == vueloId (equipajes actualmente embarcados;
         //     se setea al despegar y se limpia al aterrizar/completarse, asi que
         //     PROGRAMADO/ATERRIZADO/COMPLETADO recientes pueden aparecer vacios por aqui).
         //  B) segmentos_plan.vuelo_id == vueloId (equipajes cuyo plan de viaje pasa
         //     por este vuelo en cualquier estado: PENDIENTE/EN_CURSO/COMPLETADO).
-        // Solo unir (A)∪(B) garantiza que el modal del panel muestre las maletas
+        // Solo unir (A) U (B) garantiza que el modal del panel muestre las maletas
         // incluso de vuelos ya aterrizados o de planes no emitidos todavia.
-        java.util.Set<UUID> equipajeIds = new java.util.LinkedHashSet<>();
+        //
+        // Ademas, si un equipaje carece de filas fisicas en `maletas` (caso real: los
+        // equipajes importados de los archivos de la simulacion nunca pasaron por
+        // EquipajeService.generarMaletasPara), respondemos con N entradas virtuales
+        // segun `equipaje.cantidad`, manteniendo el mismo codigo "MAL-{id_externo}-NN"
+        // que ese metodo genera, para que el panel "Carga 2/360" cuadre visualmente
+        // con "2 maletas MAL-...-01 / MAL-...-02".
+        java.util.Set<Equipaje> equipajes = new java.util.LinkedHashSet<>();
         for (Equipaje eq : equipajeRepository.findByVueloActualId(vueloId)) {
-            equipajeIds.add(eq.getId());
+            equipajes.add(eq);
         }
         for (Equipaje eq : segmentoPlanRepository.findEquipajesByVueloId(vueloId)) {
-            equipajeIds.add(eq.getId());
+            equipajes.add(eq);
         }
-        if (equipajeIds.isEmpty()) return List.of();
-        return maletaRepository.findByEquipajeIdIn(new java.util.ArrayList<>(equipajeIds));
+        if (equipajes.isEmpty()) return List.of();
+
+        List<UUID> equipajeIds = equipajes.stream().map(Equipaje::getId).toList();
+        java.util.Map<UUID, List<Maleta>> maletasPorEquipaje = new java.util.HashMap<>();
+        for (Maleta m : maletaRepository.findByEquipajeIdIn(equipajeIds)) {
+            maletasPorEquipaje.computeIfAbsent(m.getEquipaje().getId(), k -> new ArrayList<>()).add(m);
+        }
+
+        List<MaletaResponse> out = new ArrayList<>();
+        for (Equipaje eq : equipajes) {
+            List<Maleta> fisicas = maletasPorEquipaje.getOrDefault(eq.getId(), List.of());
+            if (!fisicas.isEmpty()) {
+                for (Maleta m : fisicas) out.add(toMaletaResponse(m));
+            } else {
+                int cantidad = Math.max(1, eq.getCantidad() != null ? eq.getCantidad() : 1);
+                String prefijo = eq.getIdExterno() != null && !eq.getIdExterno().isBlank()
+                        ? (eq.getIdExterno().length() > 20 ? eq.getIdExterno().substring(0, 20) : eq.getIdExterno())
+                        : eq.getId().toString().substring(0, 8);
+                int ancho = Math.max(2, String.valueOf(cantidad).length());
+                for (int i = 1; i <= cantidad; i++) {
+                    String codigo = String.format("MAL-%s-%0" + ancho + "d", prefijo, i);
+                    out.add(new MaletaResponse(
+                            "VIRT-" + codigo,
+                            codigo,
+                            eq.getId(),
+                            eq.getIdExterno(),
+                            null,
+                            true));
+                }
+            }
+        }
+        return out;
+    }
+
+    private MaletaResponse toMaletaResponse(Maleta m) {
+        return new MaletaResponse(
+                m.getId().toString(),
+                m.getCodigoMaleta(),
+                m.getEquipaje() != null ? m.getEquipaje().getId() : null,
+                m.getEquipaje() != null ? m.getEquipaje().getIdExterno() : null,
+                m.getCreatedAt(),
+                false);
     }
 
     public Equipaje buscarPorIdExterno(String idExterno) {

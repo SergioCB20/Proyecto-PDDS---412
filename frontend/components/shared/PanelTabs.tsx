@@ -76,7 +76,6 @@ export function PanelTabs({
       {tab === 'aeropuertos' && (
         <PanelAeropuertosOperacion
           aeropuertos={aeropuertos}
-          vuelos={vuelosAeropuerto}
           onAeropuertoClick={onAeropuertoClick}
           onVerEnMapa={onAeropuertoVerEnMapa}
           seguidoId={seguidoAeropuertoId}

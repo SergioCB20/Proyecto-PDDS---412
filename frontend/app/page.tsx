@@ -21,7 +21,6 @@ import {
   Settings,
   Activity,
   Luggage,
-  Search,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { api, fetchReporte } from "@/lib/api";
@@ -299,8 +298,6 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [seguidoAeropuertoId, setSeguidoAeropuertoId] = useState<string | null>(
     null,
   );
-  const [aeroFiltroCodigo, setAeroFiltroCodigo] = useState("");
-  const [aeroFiltroContinente, setAeroFiltroContinente] = useState("");
 
   const fetchData = async () => {
     setLoading(true);
@@ -582,33 +579,8 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     (v) => v.estado === "COMPLETADO",
   ).length;
 
-  const aeropuertosFiltradosMapa = useMemo(() => {
-    return aeropuertos.filter((a) => {
-      if (
-        aeroFiltroCodigo &&
-        !a.codigo_iata.toLowerCase().includes(aeroFiltroCodigo.toLowerCase())
-      )
-        return false;
-      if (aeroFiltroContinente && a.continente !== aeroFiltroContinente)
-        return false;
-      return true;
-    });
-  }, [aeropuertos, aeroFiltroCodigo, aeroFiltroContinente]);
-
-  const iatasFiltrados = useMemo(() => {
-    return new Set(aeropuertosFiltradosMapa.map((a) => a.codigo_iata));
-  }, [aeropuertosFiltradosMapa]);
-
   const vuelosFiltradosMapa = useMemo(() => {
     let lista = vuelosMapaFiltrados;
-    // filtra vuelos solo de aeropuertos visibles
-    if (aeroFiltroCodigo || aeroFiltroContinente) {
-      lista = lista.filter(
-        (v) =>
-          iatasFiltrados.has(v.origen.codigo_iata) &&
-          iatasFiltrados.has(v.destino.codigo_iata),
-      );
-    }
     // filtro equipaje
     if (equipajeFilter !== "todos") {
       lista = lista.filter((v) => {
@@ -619,26 +591,13 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
       });
     }
     return lista;
-  }, [
-    vuelosMapaFiltrados,
-    aeroFiltroCodigo,
-    aeroFiltroContinente,
-    iatasFiltrados,
-    equipajeFilter,
-  ]);
-
-  const opcionesContinente = useMemo(() => {
-    const set = new Set(aeropuertos.map((a) => a.continente).filter(Boolean));
-    return Array.from(set)
-      .sort()
-      .map((v) => ({ value: v as string, label: v as string }));
-  }, [aeropuertos]);
+  }, [vuelosMapaFiltrados, equipajeFilter]);
 
   return (
     <div className="flex h-full">
       <div className="flex-1 p-4 relative">
         <GeoMapa
-          aeropuertos={aeropuertosFiltradosMapa}
+          aeropuertos={aeropuertos}
           vuelos={vuelosFiltradosMapa}
           mostrarAviones={true}
           animacionActiva={animacionActiva}
@@ -768,35 +727,6 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                   ),
                 )}
               </div>
-            </div>
-          </div>
-          <div className="absolute top-4 left-48 z-[1001] pointer-events-none">
-            <div className="pointer-events-auto p-2 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 min-w-[160px]">
-              <div className="flex items-center gap-1 mb-1.5">
-                <Search size={12} className="text-slate-400" />
-                <span className="text-[10px] font-medium text-slate-500">
-                  Filtrar aeropuertos
-                </span>
-              </div>
-              <input
-                type="text"
-                placeholder="Código IATA..."
-                value={aeroFiltroCodigo}
-                onChange={(e) => setAeroFiltroCodigo(e.target.value)}
-                className="w-full mb-1.5 px-2 py-1 text-[11px] rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 placeholder:text-slate-400 outline-none"
-              />
-              <select
-                value={aeroFiltroContinente}
-                onChange={(e) => setAeroFiltroContinente(e.target.value)}
-                className="w-full px-2 py-1 text-[11px] rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 outline-none"
-              >
-                <option value="">Todos los continentes</option>
-                {opcionesContinente.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
             </div>
           </div>
           <div className="absolute top-4 right-4 z-[1001] pointer-events-none max-w-[320px]">
