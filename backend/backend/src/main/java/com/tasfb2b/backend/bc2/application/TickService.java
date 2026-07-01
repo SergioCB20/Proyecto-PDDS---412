@@ -542,12 +542,12 @@ public class TickService {
                         idCorto(sesion.getId()), vuelo.getCodigoVuelo(),
                         vuelo.getOrigen().getCodigoIata(), vuelo.getDestino().getCodigoIata(), prob);
 
-                int afectados = replanificacionService.replanificarEnSesion(
+                ReplanificacionResult r = replanificacionService.replanificarEnSesion(
                         sesion.getId(), vuelo.getId(),
                         "Cancelacion probabilistica en tick",
                         sesion.getDiaHoraVirtual());
                 canceladosTick++;
-                replanificadasTick += afectados;
+                replanificadasTick += r.afectados();
             }
         }
 

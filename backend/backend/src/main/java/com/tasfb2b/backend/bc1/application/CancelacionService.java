@@ -6,6 +6,9 @@ import com.tasfb2b.backend.bc1.domain.Vuelo;
 import com.tasfb2b.backend.bc1.infrastructure.EquipajeRepository;
 import com.tasfb2b.backend.bc1.infrastructure.NodoLogisticoRepository;
 import com.tasfb2b.backend.bc1.infrastructure.VueloRepository;
+import com.tasfb2b.backend.bc1.domain.Equipaje;
+import com.tasfb2b.backend.bc1.infrastructure.EquipajeRepository;
+import com.tasfb2b.backend.bc2.application.ReplanificacionResult;
 import com.tasfb2b.backend.bc2.application.ReplanificacionService;
 import com.tasfb2b.backend.bc2.application.SesionLockManager;
 import com.tasfb2b.backend.bc2.domain.SesionEjecucion;
@@ -17,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -48,13 +52,16 @@ public class CancelacionService {
         this.lockManager = lockManager;
     }
 
+    public record EquipajeAfectado(UUID id, String codigo, String origen_iata, String destino_iata) {}
+
     public record CancelacionRequest(UUID vuelo_id, String causa, UUID sesion_id) {}
 
     public record CancelacionResponse(
             UUID vuelo_id,
             String estado_nuevo,
             int equipajes_afectados,
-            UUID lote_replanificacion_id
+            UUID lote_replanificacion_id,
+            List<EquipajeAfectado> equipajes
     ) {}
 
     @Transactional
@@ -93,7 +100,8 @@ public class CancelacionService {
                 vuelo.getId(),
                 "CANCELADO",
                 afectados,
-                UUID.randomUUID()
+                UUID.randomUUID(),
+                List.of()
         );
     }
 
@@ -105,14 +113,27 @@ public class CancelacionService {
                 ? sesion.getDiaHoraVirtual() : OffsetDateTime.now();
         String causaFinal = causa != null ? causa : "Cancelacion manual";
 
-        // Serializa con el tick y el planificador de la misma sesion para no mutar a la vez
-        // segmentos_plan/vuelos/nodos (evita StaleObjectStateException).
         ReentrantLock lock = lockManager.obtener(sesionId);
         lock.lock();
         try {
-            int afectados = replanificacionService.replanificarEnSesion(
+            ReplanificacionResult result = replanificacionService.replanificarEnSesion(
                     sesionId, vuelo.getId(), causaFinal, virtual);
-            return new CancelacionResponse(vuelo.getId(), "CANCELADO", afectados, UUID.randomUUID());
+
+            sesion.setVuelosCancelados(
+                    (sesion.getVuelosCancelados() != null ? sesion.getVuelosCancelados() : 0) + 1);
+            sesion.setMaletasReplanificadas(
+                    (sesion.getMaletasReplanificadas() != null ? sesion.getMaletasReplanificadas() : 0) + result.afectados());
+            sesionRepository.save(sesion);
+
+            List<Equipaje> eqs = equipajeRepository.findAllById(result.equipajeIds());
+            List<EquipajeAfectado> equipajes = eqs.stream()
+                    .map(e -> new EquipajeAfectado(e.getId(),
+                            e.getIdExterno() != null ? e.getIdExterno() : e.getId().toString(),
+                            e.getOrigenIata(), e.getDestinoIata()))
+                    .toList();
+
+            return new CancelacionResponse(vuelo.getId(), "CANCELADO",
+                    result.afectados(), result.loteId(), equipajes);
         } finally {
             lock.unlock();
         }

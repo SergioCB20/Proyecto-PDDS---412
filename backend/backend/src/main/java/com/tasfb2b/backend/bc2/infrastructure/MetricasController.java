@@ -3,12 +3,14 @@ package com.tasfb2b.backend.bc2.infrastructure;
 import com.tasfb2b.backend.bc2.application.MetricasSesionResponse;
 import com.tasfb2b.backend.bc2.application.ReporteService;
 import com.tasfb2b.backend.bc2.application.SesionService;
+import com.tasfb2b.backend.bc2.application.SimulacionPlanificador;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -17,10 +19,13 @@ public class MetricasController {
 
     private final SesionService sesionService;
     private final ReporteService reporteService;
+    private final SimulacionPlanificador simulacionPlanificador;
 
-    public MetricasController(SesionService sesionService, ReporteService reporteService) {
+    public MetricasController(SesionService sesionService, ReporteService reporteService,
+                              SimulacionPlanificador simulacionPlanificador) {
         this.sesionService = sesionService;
         this.reporteService = reporteService;
+        this.simulacionPlanificador = simulacionPlanificador;
     }
 
     @GetMapping("/{id}/metricas")
@@ -36,6 +41,19 @@ public class MetricasController {
             return ResponseEntity.noContent().build();
         }
         return ResponseEntity.ok(reporte);
+    }
+
+    @GetMapping("/{id}/ultima-planificacion")
+    public ResponseEntity<?> obtenerUltimaPlanificacion(@PathVariable UUID id) {
+        var plan = simulacionPlanificador.obtenerUltimaPlanificacion(id);
+        if (plan == null) {
+            return ResponseEntity.noContent().build();
+        }
+        var planificados = sesionService.obtenerDatosUltimosPlanificados(plan.equipajesEnrutados());
+        return ResponseEntity.ok(Map.of(
+            "tiempo_ms", plan.tiempoMs(),
+            "planificados", planificados
+        ));
     }
 
     @GetMapping("/{id}/rutas/csv")

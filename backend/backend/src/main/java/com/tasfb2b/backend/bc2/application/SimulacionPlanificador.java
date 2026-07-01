@@ -48,6 +48,11 @@ public class SimulacionPlanificador {
     // Rastrea el último momento en que se ejecutó la planificación para cada sesión
     private final Map<UUID, Long> ultimaPlanificacionMs = new ConcurrentHashMap<>();
 
+    /** Último resultado de planificación (tiempo + lista de equipajes) por sesión. */
+    private final Map<UUID, PlanificacionReciente> ultimasPlanificaciones = new ConcurrentHashMap<>();
+
+    public record PlanificacionReciente(long tiempoMs, List<UUID> equipajesEnrutados) {}
+
     public SimulacionPlanificador(SesionRepository sesionRepository,
                                   SimulacionEnrutamientoService enrutamientoService,
                                   SesionReadinessManager readinessManager,
@@ -135,6 +140,10 @@ public class SimulacionPlanificador {
 
         long elapsedMs = (System.nanoTime() - start) / 1_000_000;
 
+        // Cache del último resultado para el endpoint ultima-planificacion
+        ultimasPlanificaciones.put(sesion.getId(),
+                new PlanificacionReciente(elapsedMs, resultado.equipajesEnrutados()));
+
         log.info("Sesion {}: planificacion ventana {}-{}: {} enrutados en {}ms (sa={}ms)",
                 sesion.getId(), inicioVentana, finVentana, resultado.enrutados(), elapsedMs, saMs);
 
@@ -158,9 +167,21 @@ public class SimulacionPlanificador {
         }
     }
 
+    /** Devuelve la última planificación cacheada para una sesión, o null. */
+    public PlanificacionReciente obtenerUltimaPlanificacion(UUID sesionId) {
+        return ultimasPlanificaciones.get(sesionId);
+    }
+
+    /** Devuelve el último tiempo de planificación en ms, o null si nunca planificó. */
+    public Long obtenerUltimoTiempoPlanificacionMs(UUID sesionId) {
+        var p = ultimasPlanificaciones.get(sesionId);
+        return p != null ? p.tiempoMs() : null;
+    }
+
     /** Limpia el estado interno al detener/finalizar una sesión. */
     public void limpiarSesion(UUID sesionId) {
         ultimaPlanificacionMs.remove(sesionId);
+        ultimasPlanificaciones.remove(sesionId);
         lockManager.eliminar(sesionId);
     }
 }

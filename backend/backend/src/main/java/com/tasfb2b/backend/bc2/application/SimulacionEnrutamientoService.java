@@ -84,7 +84,7 @@ public class SimulacionEnrutamientoService {
         equipajes.addAll(window);
 
         if (equipajes.isEmpty()) {
-            return new ResultadoVentana(0, false, null, null);
+            return new ResultadoVentana(0, false, null, null, List.of());
         }
 
         // Cargar vuelos programados UNA SOLA VEZ para todos los sub-lotes
@@ -101,6 +101,7 @@ public class SimulacionEnrutamientoService {
                 .collect(Collectors.toMap(NodoLogistico::getId, n -> n));
 
         List<UUID> equipajesEnrutados = new ArrayList<>();
+        List<UUID> todosEnrutados = new ArrayList<>();
         int enrutados = 0;
         int sinRutaTotal = 0;
         UUID primerSinRutaGlobal = null;
@@ -174,6 +175,7 @@ public class SimulacionEnrutamientoService {
 
                 planesBatch.add(planViaje);
                 equipajesEnrutados.add(eq.getId());
+                todosEnrutados.add(eq.getId());
                 enrutados++;
 
                 if (primerVuelo != null) {
@@ -216,7 +218,7 @@ public class SimulacionEnrutamientoService {
                     inicioVentana, finVentana, sinRutaTotal);
         }
         return new ResultadoVentana(enrutados, colapso, colapso ? inicioVentana : null,
-                colapso ? primerSinRutaGlobal : null);
+                colapso ? primerSinRutaGlobal : null, todosEnrutados);
     }
 
     /** Borra plan_viaje + segmentos_plan preexistentes de las maletas dadas (anti duplicate-key). */
@@ -293,6 +295,7 @@ public class SimulacionEnrutamientoService {
             int enrutados,
             boolean colapso,
             OffsetDateTime momentoColapso,
-            UUID equipajeColapsoId
+            UUID equipajeColapsoId,
+            List<UUID> equipajesEnrutados
     ) {}
 }
