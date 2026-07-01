@@ -171,58 +171,76 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
           return (
             <div
               key={v.id}
-              className={`py-1.5 px-2 rounded bg-slate-50 dark:bg-slate-800/50 ${onVueloClick ? 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50' : ''}`}
-              onClick={() => onVueloClick?.(v.id, v.codigo_vuelo)}
+              className="py-2.5 px-3 rounded-lg bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800/50 hover:border-slate-200 dark:hover:border-slate-700/50 transition-all duration-200 shadow-sm"
             >
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: colorHex }} />
-                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{v.codigo_vuelo}</span>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full shadow-sm animate-pulse" style={{ backgroundColor: colorHex }} />
+                  <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">{v.codigo_vuelo}</span>
+                  <span
+                    className="text-[9px] px-1.5 py-0.5 rounded-full font-medium"
+                    style={{ backgroundColor: `${colorHex}15`, color: colorHex }}
+                  >
+                    {v.estado === 'EN_RUTA' ? 'En Ruta' : v.estado === 'PROGRAMADO' ? 'Programado' : v.estado === 'CANCELADO' ? 'Cancelado' : 'Completado'}
+                  </span>
                 </div>
-                <span className="text-xs text-slate-500">
-                  {v.origen_iata}→{v.destino_iata}
+                <span className="text-[11px] font-mono font-medium text-slate-500 dark:text-slate-400">
+                  {v.origen_iata} &rarr; {v.destino_iata}
                 </span>
               </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-500">{ocupada}/{v.capacidad_carga}</span>
+              <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 mb-1">
+                <span>Carga: {ocupada} / {v.capacidad_carga}</span>
                 <span className="font-semibold" style={{ color: colorHex }}>{pct.toFixed(0)}%</span>
               </div>
-              <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden mt-1">
+              <div className="w-full h-1 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden mb-2">
                 <div
                   className="h-full rounded-full transition-all duration-500"
                   style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: colorHex }}
                 />
               </div>
-                  <div className="flex items-center justify-between text-[10px] text-slate-400 mt-0.5">
-                    <span>Salida: {formatearHoraLocalCorta(v.hora_salida)}</span>
-                    <div className="flex items-center gap-2">
-                      <span>Llegada: {formatearHoraLocalCorta(v.hora_llegada)}</span>
-                      {seguidoId === v.id ? (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-medium whitespace-nowrap">
-                          Salir del mapa [ESC]
-                        </span>
-                      ) : onVerEnMapa && v.estado === 'EN_RUTA' && (
-                        <button
-                          onClick={e => { e.stopPropagation(); onVerEnMapa(v.id); }}
-                          className="p-1 rounded hover:bg-amber-100 dark:hover:bg-amber-900/30 text-amber-600"
-                          title="Ver en mapa"
-                        >
-                          <MapIcon size={12} />
-                        </button>
-                      )}
-                      {onDownloadManifiesto && (
+              <div className="flex justify-between text-[10px] text-slate-400 dark:text-slate-500 mb-2">
+                <span>Salida: <strong className="font-medium text-slate-600 dark:text-slate-400">{formatearHoraLocalCorta(v.hora_salida)}</strong></span>
+                <span>Llegada: <strong className="font-medium text-slate-600 dark:text-slate-400">{formatearHoraLocalCorta(v.hora_llegada)}</strong></span>
+              </div>
+              
+              <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800/80 pt-2 mt-1.5 gap-2">
+                <div className="flex gap-1.5">
+                  {onVueloClick && (
                     <button
-                      onClick={e => { e.stopPropagation(); onDownloadManifiesto(v.id, v.codigo_vuelo); }}
-                      className="p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/30 text-green-500"
-                      title="Descargar manifiesto"
+                      onClick={(e) => { e.stopPropagation(); onVueloClick(v.id, v.codigo_vuelo); }}
+                      className="px-2.5 py-0.5 rounded bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-[10px] font-medium transition-colors cursor-pointer border border-transparent dark:border-blue-900/30"
                     >
-                      <Upload size={12} />
+                      Ver Envíos
+                    </button>
+                  )}
+                  {onDownloadManifiesto && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onDownloadManifiesto(v.id, v.codigo_vuelo); }}
+                      className="px-2.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 text-[10px] font-medium transition-colors cursor-pointer border border-transparent dark:border-emerald-900/30"
+                    >
+                      Ver Maletas
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  {seguidoId === v.id ? (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-medium whitespace-nowrap">
+                      En Mapa [ESC]
+                    </span>
+                  ) : onVerEnMapa && v.estado === 'EN_RUTA' && (
+                    <button
+                      onClick={e => { e.stopPropagation(); onVerEnMapa(v.id); }}
+                      className="p-1 rounded hover:bg-amber-100 dark:hover:bg-amber-900/30 text-amber-600 transition-colors cursor-pointer"
+                      title="Ver en mapa"
+                    >
+                      <MapIcon size={12} />
                     </button>
                   )}
                   {onCancelVuelo && (v.estado === 'PROGRAMADO' || v.estado === 'EN_RUTA') && (
                     <button
                       onClick={e => { e.stopPropagation(); onCancelVuelo(v.id, v.codigo_vuelo); }}
-                      className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500"
+                      className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 transition-colors cursor-pointer"
                       title="Cancelar vuelo"
                     >
                       <XCircle size={12} />

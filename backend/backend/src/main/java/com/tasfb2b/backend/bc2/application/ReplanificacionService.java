@@ -11,12 +11,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class ReplanificacionService {
@@ -34,6 +35,7 @@ public class ReplanificacionService {
     private final ApplicationEventPublisher eventPublisher;
     private final SegmentoPlanRepository segmentoPlanRepository;
     private final PlanViajeRepository planViajeRepository;
+    private final MotorEnrutamiento motorEnrutamiento;
 
     public ReplanificacionService(EquipajeRepository equipajeRepository,
                                   VueloRepository vueloRepository,
@@ -45,7 +47,8 @@ public class ReplanificacionService {
                                   SesionRepository sesionRepository,
                                   ApplicationEventPublisher eventPublisher,
                                   SegmentoPlanRepository segmentoPlanRepository,
-                                  PlanViajeRepository planViajeRepository) {
+                                  PlanViajeRepository planViajeRepository,
+                                  MotorEnrutamiento motorEnrutamiento) {
         this.equipajeRepository = equipajeRepository;
         this.vueloRepository = vueloRepository;
         this.nodoRepository = nodoRepository;
@@ -57,6 +60,7 @@ public class ReplanificacionService {
         this.eventPublisher = eventPublisher;
         this.segmentoPlanRepository = segmentoPlanRepository;
         this.planViajeRepository = planViajeRepository;
+        this.motorEnrutamiento = motorEnrutamiento;
     }
 
     @Transactional
@@ -87,30 +91,119 @@ public class ReplanificacionService {
         loteRepository.save(lote);
 
         for (Equipaje eq : afectados) {
-            // La ruta quedó rota por la cancelación. Hay que borrar el plan + segmentos
-            // anteriores: UNIQUE(equipaje_id) en planes_viaje obliga a limpiar antes de que
-            // la próxima ventana del planificador ACO re-enrute la maleta. Se deja en
-            // REGISTRADO y NO se encola en cola_planificacion: así la replanificación ocurre
-            // dentro de la sesión (plan con sesion_id) y no la "roba" el PlanificacionWorker
-            // día a día, que crearía un plan con sesion_id = NULL invisible para el reporte.
             segmentoPlanRepository.deleteByEquipajeId(eq.getId());
             planViajeRepository.deleteByEquipajeId(eq.getId());
-
             eq.setEstado(EstadoEquipaje.REGISTRADO);
             eq.setVueloActual(null);
             equipajeRepository.save(eq);
-
             ItemLote item = new ItemLote(UUID.randomUUID(), lote.getId(), eq.getId());
             itemLoteRepository.save(item);
+        }
+
+        // Re-enrutar inmediatamente los equipajes afectados
+        List<Vuelo> programados = vueloRepository.findByEstadoAndEsPlantilla(EstadoVuelo.PROGRAMADO, false, Pageable.unpaged()).getContent();
+        Map<UUID, Vuelo> vuelosMap = programados.stream().collect(Collectors.toMap(Vuelo::getId, v -> v));
+        Map<String, NodoLogistico> nodosPorIata = nodoRepository.findAll().stream().collect(Collectors.toMap(NodoLogistico::getCodigoIata, n -> n));
+        List<RutaResult> resultados = motorEnrutamiento.calcularRutasLote(afectados, programados, momentoVirtual, nodosPorIata);
+
+        List<PlanViaje> planesNuevos = new ArrayList<>();
+        List<SegmentoPlan> segmentosNuevos = new ArrayList<>();
+        List<EquipajeEnRuta> enRutaBatch = new ArrayList<>();
+        List<EquipajeReplanInfo> replanInfos = new ArrayList<>();
+
+        for (int i = 0; i < afectados.size(); i++) {
+            Equipaje eq = afectados.get(i);
+            RutaResult ruta = (i < resultados.size()) ? resultados.get(i) : null;
+            if (ruta == null || !ruta.exitoso() || ruta.segmentos().isEmpty()) {
+                replanInfos.add(new EquipajeReplanInfo(eq.getId(),
+                        eq.getIdExterno() != null ? eq.getIdExterno() : eq.getId().toString(),
+                        null, null, List.of()));
+                continue;
+            }
+
+            PlanViaje plan = new PlanViaje();
+            plan.setId(UUID.randomUUID());
+            plan.setEquipaje(eq);
+            plan.setEstadoSla(EstadoSla.EN_TIEMPO);
+            plan.setSesionId(sesionId);
+            plan.setTiempoEntregaEst(ruta.segmentos().get(ruta.segmentos().size() - 1).horaLlegada());
+            plan.setSegmentos(new ArrayList<>());
+
+            SegmentoInfo primerSeg = ruta.segmentos().get(0);
+            Vuelo primerVuelo = vuelosMap.get(primerSeg.vueloId());
+            if (primerVuelo != null) {
+                plan.setUbicacionTipo(UbicacionTipo.VUELO);
+                plan.setUbicacionId(primerVuelo.getId());
+                plan.setUbicacionLat(primerVuelo.getOrigenLat());
+                plan.setUbicacionLon(primerVuelo.getOrigenLon());
+            }
+
+            List<SegmentoReplanInfo> segInfos = new ArrayList<>();
+            boolean valido = true;
+            for (SegmentoInfo segInfo : ruta.segmentos()) {
+                Vuelo segVuelo = vuelosMap.get(segInfo.vueloId());
+                if (segVuelo == null) { valido = false; break; }
+
+                NodoLogistico segOrigen = nodosPorIata.get(segInfo.nodoOrigenIata());
+                NodoLogistico segDestino = nodosPorIata.get(segInfo.nodoDestinoIata());
+
+                SegmentoPlan seg = new SegmentoPlan();
+                seg.setId(UUID.randomUUID());
+                seg.setPlanViaje(plan);
+                seg.setVuelo(segVuelo);
+                seg.setNodoOrigen(segOrigen);
+                seg.setNodoDestino(segDestino);
+                seg.setOrden(segInfo.orden());
+                seg.setHoraSalidaProg(segInfo.horaSalida());
+                seg.setEstado(EstadoSegmento.PENDIENTE);
+                segmentosNuevos.add(seg);
+                plan.getSegmentos().add(seg);
+
+                segInfos.add(new SegmentoReplanInfo(
+                        segInfo.orden(), segVuelo.getId(), segVuelo.getCodigoVuelo(),
+                        segInfo.nodoOrigenIata(), segInfo.nodoDestinoIata(),
+                        segInfo.horaSalida() != null ? segInfo.horaSalida().toString() : null));
+            }
+            if (!valido) {
+                replanInfos.add(new EquipajeReplanInfo(eq.getId(),
+                        eq.getIdExterno() != null ? eq.getIdExterno() : eq.getId().toString(),
+                        null, null, List.of()));
+                continue;
+            }
+
+            planesNuevos.add(plan);
+            enRutaBatch.add(new EquipajeEnRuta(eq, primerVuelo));
+
+            replanInfos.add(new EquipajeReplanInfo(eq.getId(),
+                    eq.getIdExterno() != null ? eq.getIdExterno() : eq.getId().toString(),
+                    primerVuelo != null ? primerVuelo.getId() : null,
+                    primerVuelo != null ? primerVuelo.getCodigoVuelo() : null,
+                    segInfos));
+        }
+
+        if (!planesNuevos.isEmpty()) {
+            planViajeRepository.saveAll(planesNuevos);
+            segmentoPlanRepository.saveAll(segmentosNuevos);
+            for (EquipajeEnRuta par : enRutaBatch) {
+                int cantidad = par.eq.getCantidad() != null ? par.eq.getCantidad() : 1;
+                Vuelo v = par.primerVuelo;
+                if (v != null) {
+                    v.setCargaDisponible(v.getCargaDisponible() - cantidad);
+                    vueloRepository.save(v);
+                }
+                par.eq.setEstado(EstadoEquipaje.ENRUTADO);
+                par.eq.setVueloActual(v);
+                equipajeRepository.save(par.eq);
+            }
         }
 
         eventPublisher.publishEvent(new ReplanificacionIniciada(
                 lote.getId(), sesionId, afectados.size(), OffsetDateTime.now()));
 
-        log.info("Replanificacion iniciada: lote={}, sesion={}, vuelo={}, equipajes={}",
-                lote.getId(), sesionId, vueloId, afectados.size());
+        log.info("Replanificacion completada: lote={}, sesion={}, vuelo={}, equipajes={}, enrutados={}",
+                lote.getId(), sesionId, vueloId, afectados.size(), planesNuevos.size());
         return new ReplanificacionResult(afectados.size(), lote.getId(),
-                afectados.stream().map(Equipaje::getId).toList());
+                afectados.stream().map(Equipaje::getId).toList(), replanInfos);
     }
 
     @EventListener
@@ -136,4 +229,6 @@ public class ReplanificacionService {
 
         log.info("VueloCanceladoEvent: vuelo={}, equipajes encolados={}", event.vueloId(), afectados.size());
     }
+
+    private record EquipajeEnRuta(Equipaje eq, Vuelo primerVuelo) {}
 }

@@ -127,7 +127,7 @@ export function aeropuertoToEnMapa(aeropuerto: Aeropuerto): AeropuertoEnMapa {
     ? (aeropuerto.ocupacion_actual / aeropuerto.capacidad_almacen) * 100
     : 0;
   const color = pct < 70 ? COLOR_AEROPUERTO.VERDE : pct < 90 ? COLOR_AEROPUERTO.AMBAR : COLOR_AEROPUERTO.ROJO;
-  return { ...aeropuerto, color, ocupacionPorcentaje: pct };
+  return { ...aeropuerto, color, ocupacionPorcentaje: pct, continente: undefined };
 }
 
 export function calcularPosicionAvion(

@@ -5,6 +5,7 @@ import com.tasfb2b.backend.bc1.application.VueloService;
 import com.tasfb2b.backend.bc1.domain.Equipaje;
 import com.tasfb2b.backend.bc1.domain.EstadoEquipaje;
 import com.tasfb2b.backend.bc1.domain.EstadoSegmento;
+import com.tasfb2b.backend.bc1.domain.PlanViaje;
 import com.tasfb2b.backend.bc1.infrastructure.EquipajeRepository;
 import org.springframework.data.domain.PageRequest;
 import com.tasfb2b.backend.bc1.infrastructure.PlanViajeRepository;
@@ -672,12 +673,41 @@ public class SesionService {
                 items.stream().map(ItemLote::getEquipajeRefId).toList());
 
         List<EquipajeReplanificadoResponse> eqList = equipajes.stream()
-                .map(e -> new EquipajeReplanificadoResponse(
-                        e.getId(),
-                        e.getIdExterno() != null ? e.getIdExterno() : e.getId().toString(),
-                        e.getOrigenIata(),
-                        e.getDestinoIata(),
-                        e.getEstado().name()))
+                .map(e -> {
+                    String vueloCodigo = null;
+                    UUID vueloId = null;
+                    List<SegmentoReplanInfo> segmentos = List.of();
+                    try {
+                        PlanViaje pv = planViajeRepository.findByEquipajeId(e.getId()).orElse(null);
+                        if (pv != null && pv.getSegmentos() != null && !pv.getSegmentos().isEmpty()) {
+                            segmentos = pv.getSegmentos().stream()
+                                    .map(s -> new SegmentoReplanInfo(
+                                            s.getOrden(),
+                                            s.getVuelo().getId(),
+                                            s.getVuelo().getCodigoVuelo(),
+                                            s.getNodoOrigen().getCodigoIata(),
+                                            s.getNodoDestino().getCodigoIata(),
+                                            s.getHoraSalidaProg() != null
+                                                    ? s.getHoraSalidaProg().toString()
+                                                    : null))
+                                    .toList();
+                            var primero = segmentos.get(0);
+                            vueloCodigo = primero.vueloCodigo();
+                            vueloId = primero.vueloId();
+                        }
+                    } catch (Exception ex) {
+                        log.warn("No se pudo cargar plan_viaje para equipaje {}: {}", e.getId(), ex.getMessage());
+                    }
+                    return new EquipajeReplanificadoResponse(
+                            e.getId(),
+                            e.getIdExterno() != null ? e.getIdExterno() : e.getId().toString(),
+                            e.getOrigenIata(),
+                            e.getDestinoIata(),
+                            e.getEstado().name(),
+                            vueloId,
+                            vueloCodigo,
+                            segmentos);
+                })
                 .toList();
 
         return new ReplanificacionDetalleResponse(
@@ -705,6 +735,14 @@ public class SesionService {
             String codigo,
             String origen_iata,
             String destino_iata,
-            String estado_actual
-    ) {}
+            String estado_actual,
+            UUID vuelo_replanificado_id,
+            String vuelo_replanificado_codigo,
+            List<SegmentoReplanInfo> plan_viaje
+    ) {
+        public EquipajeReplanificadoResponse(UUID id, String codigo, String origen_iata,
+                                             String destino_iata, String estado_actual) {
+            this(id, codigo, origen_iata, destino_iata, estado_actual, null, null, List.of());
+        }
+    }
 }

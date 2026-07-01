@@ -25,18 +25,29 @@ export function PanelReporte({
   const serieSla = reporte.serie_sla ?? [];
 
   const handleDescargarCsv = async () => {
+    // Detener sesion vacia el `sesionId` del estado antes de mostrar el reporte;
+    // usamos `reporte.sesion_id` (siempre presente en el payload) como respaldo.
+    const id = sesionId || reporte.sesion_id;
+    if (!id) {
+      alert("No se puede descargar el CSV: identificador de sesion no disponible.");
+      return;
+    }
     try {
-      const blob = await api.downloadBlob(`/sesiones/${sesionId}/rutas/csv`);
+      const blob = await api.downloadBlob(`/sesiones/${id}/rutas/csv`);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `rutas_sesion_${sesionId.slice(0, 8)}.csv`;
+      a.download = `rutas_sesion_${id.slice(0, 8)}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch {
-      alert("Error al descargar CSV");
+    } catch (err) {
+      const mensaje =
+        err && typeof err === "object" && "mensaje" in err
+          ? (err as { mensaje?: string }).mensaje
+          : null;
+      alert(mensaje || "Error al descargar CSV");
     }
   };
 

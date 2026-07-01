@@ -7,6 +7,7 @@ import { colorVueloPorEstado } from '@/lib/colors';
 import { bezierControlPoint, bezierPoint, bezierBearing, bezierSamples } from '@/lib/bezier';
 import type { VueloEnMapa } from '@/lib/types';
 import type { UmbralesConfig } from './ConfigUmbrales';
+import { CENTRO, ZOOM } from './mapaConfig';
 
 function esCoordenadaValida(v: number): boolean {
   return Number.isFinite(v) && Math.abs(v) <= 180;
@@ -87,15 +88,13 @@ const AvionAnimado = React.memo(function AvionAnimado({
     }
   }, [seguido, map]);
 
-  // ESC sale del modo seguir
-  useEffect(() => {
-    if (!seguido || !onSalir) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onSalir();
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [seguido, onSalir]);
+  // ESC lo maneja MapController (GeoMapa): sale del seguimiento y aleja la cámara.
+
+  // Salir del seguimiento: exit + alejar zoom y centrar en el Atlántico.
+  const salirYAlejar = () => {
+    onSalir?.();
+    map.flyTo(CENTRO, ZOOM, { duration: 0.8 });
+  };
 
   useEffect(() => { iconSizeRef.current = iconSize; }, [iconSize]);
 
@@ -406,10 +405,10 @@ const AvionAnimado = React.memo(function AvionAnimado({
       {seguido && onSalir && (
         <Tooltip permanent direction="bottom" offset={[0, 10]} className="salir-vuelo-tooltip">
           <button
-            onClick={e => { e.stopPropagation(); onSalir(); }}
+            onClick={e => { e.stopPropagation(); salirYAlejar(); }}
             className="px-2 py-0.5 text-[10px] font-medium bg-amber-400 text-amber-900 rounded-full shadow-md whitespace-nowrap hover:bg-amber-500 transition-colors"
           >
-            Salir del vuelo
+            Salir del vuelo [ESC]
           </button>
         </Tooltip>
       )}

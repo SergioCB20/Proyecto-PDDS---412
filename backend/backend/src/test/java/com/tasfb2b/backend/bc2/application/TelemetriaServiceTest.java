@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tasfb2b.backend.bc1.domain.EstadoVuelo;
 import com.tasfb2b.backend.bc1.domain.NodoLogistico;
 import com.tasfb2b.backend.bc1.domain.Vuelo;
+import com.tasfb2b.backend.bc1.infrastructure.EquipajeRepository;
 import com.tasfb2b.backend.bc1.infrastructure.NodoLogisticoRepository;
 import com.tasfb2b.backend.bc1.infrastructure.VueloRepository;
 import com.tasfb2b.backend.bc2.domain.EstadoSesion;
@@ -33,6 +34,7 @@ class TelemetriaServiceTest {
 
     @Mock private NodoLogisticoRepository nodoRepository;
     @Mock private VueloRepository vueloRepository;
+    @Mock private EquipajeRepository equipajeRepository;
     @Mock private TelemetriaWebSocket telemetriaWebSocket;
 
     private ObjectMapper objectMapper;
@@ -47,7 +49,7 @@ class TelemetriaServiceTest {
     void setUp() {
         objectMapper = new ObjectMapper();
         telemetriaService = new TelemetriaService(
-                nodoRepository, vueloRepository, telemetriaWebSocket);
+                nodoRepository, vueloRepository, equipajeRepository, telemetriaWebSocket);
 
         sesion = new SesionEjecucion(
                 UUID.randomUUID(), TipoSesion.SIMULADA,

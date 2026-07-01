@@ -4,9 +4,11 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.tasfb2b.backend.bc1.domain.EstadoEquipaje;
 import com.tasfb2b.backend.bc1.domain.EstadoVuelo;
 import com.tasfb2b.backend.bc1.domain.NodoLogistico;
 import com.tasfb2b.backend.bc1.domain.Vuelo;
+import com.tasfb2b.backend.bc1.infrastructure.EquipajeRepository;
 import com.tasfb2b.backend.bc1.infrastructure.NodoLogisticoRepository;
 import com.tasfb2b.backend.bc1.infrastructure.VueloRepository;
 import com.tasfb2b.backend.bc2.domain.SesionEjecucion;
@@ -31,14 +33,17 @@ public class TelemetriaService {
 
     private final NodoLogisticoRepository nodoRepository;
     private final VueloRepository vueloRepository;
+    private final EquipajeRepository equipajeRepository;
     private final TelemetriaWebSocket telemetriaWebSocket;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public TelemetriaService(NodoLogisticoRepository nodoRepository,
                              VueloRepository vueloRepository,
+                             EquipajeRepository equipajeRepository,
                              TelemetriaWebSocket telemetriaWebSocket) {
         this.nodoRepository = nodoRepository;
         this.vueloRepository = vueloRepository;
+        this.equipajeRepository = equipajeRepository;
         this.telemetriaWebSocket = telemetriaWebSocket;
     }
 
@@ -139,6 +144,8 @@ public class TelemetriaService {
                 sesion.getVuelosCancelados() != null ? sesion.getVuelosCancelados() : 0);
         metrics.put("maletas_replanificadas",
                 sesion.getMaletasReplanificadas() != null ? sesion.getMaletasReplanificadas() : 0);
+        metrics.put("maletas_entregadas",
+                equipajeRepository.countByEstado(EstadoEquipaje.ENTREGADO));
         metrics.put("k", sesion.getK() != null ? sesion.getK() : 120.0);
         metrics.put("fecha_inicio_real", sesion.getFechaInicioReal() != null
                 ? sesion.getFechaInicioReal().toString() : null);

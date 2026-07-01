@@ -84,6 +84,7 @@ export interface Ubicacion {
 export interface AeropuertoEnMapa extends Aeropuerto {
   color: string;
   ocupacionPorcentaje: number;
+  continente?: string;
 }
 
 export interface VueloEnMapa extends Vuelo {
@@ -99,6 +100,7 @@ export interface MetricasSimulacion {
   sla_acumulado_pct: number;
   vuelos_cancelados: number;
   maletas_replanificadas: number;
+  maletas_entregadas?: number;
   fecha_inicio_real?: string | null;
   /** virtual/real time ratio sent from backend */
   k?: number;
