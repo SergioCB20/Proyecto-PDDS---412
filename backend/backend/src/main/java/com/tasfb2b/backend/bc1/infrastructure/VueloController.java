@@ -87,4 +87,26 @@ public class VueloController {
     public ResponseEntity<?> obtenerEquipajes(@PathVariable UUID id) {
         return ResponseEntity.ok(equipajeService.obtenerEnviosVuelo(id));
     }
+
+    @GetMapping("/{id}/maletas")
+    public ResponseEntity<?> obtenerMaletas(@PathVariable UUID id) {
+        try {
+            var lista = equipajeService.listarMaletasVuelo(id);
+            var response = lista.stream().map(VueloController::toMaletaResponse).toList();
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("status", 500, "error", "ERROR_INTERNO", "mensaje", e.getMessage()));
+        }
+    }
+
+    private static EquipajeService.MaletaResponse toMaletaResponse(com.tasfb2b.backend.bc1.domain.Maleta m) {
+        return new EquipajeService.MaletaResponse(
+                m.getId(),
+                m.getCodigoMaleta(),
+                m.getEquipaje() != null ? m.getEquipaje().getId() : null,
+                m.getEquipaje() != null ? m.getEquipaje().getIdExterno() : null,
+                m.getCreatedAt()
+        );
+    }
 }

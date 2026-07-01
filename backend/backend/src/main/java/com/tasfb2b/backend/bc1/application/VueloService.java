@@ -328,6 +328,32 @@ public class VueloService {
                 count, equipajesNullificados, segmentosEliminados);
     }
 
+    /**
+     * Marca como COMPLETADO cualquier vuelo de simulacion (es_plantilla = false) que aun
+     * figure como EN_RUTA fuera del rango de fechas de la sesion activa. Casos origen:
+     *   - Simulacion previa que colapso/finalizo abruptamente y dejo mid-flight registros
+     *     EN_RUTA que el siguiente tick no proceso (su salida.llegada estaba adelantada a
+     *     la nueva fecha_inicio_virtual).
+     *   - Replay de plantillas que se cruzo con EN_RUTA heredados.
+     * Sin este barrido, el query de telemetria devolveria esos EN_RUTA "fantasma" y el
+     * frontend mostraria el mismo codigo de vuelo duplicado en posiciones arbitrarias.
+     */
+    public int completarEnRutaHuerfanos(LocalDate desdeFechaActiva, LocalDate hastaFechaActiva) {
+        int actualizados = jdbcTemplate.update(
+            "UPDATE vuelos SET estado = ? " +
+            "WHERE es_plantilla = false AND estado = ? " +
+            "AND (fecha_operacion < ? OR fecha_operacion > ?)",
+            EstadoVuelo.COMPLETADO.name(),
+            EstadoVuelo.EN_RUTA.name(),
+            desdeFechaActiva,
+            hastaFechaActiva);
+        if (actualizados > 0) {
+            log.info("Limpieza huérfanos: {} vuelos EN_RUTA fuera de [{}, {}] marcados como COMPLETADO",
+                    actualizados, desdeFechaActiva, hastaFechaActiva);
+        }
+        return actualizados;
+    }
+
     @Transactional
     public int resetearInstanciasPorFecha(LocalDate fechaOperacion) {
         int actualizados = jdbcTemplate.update(

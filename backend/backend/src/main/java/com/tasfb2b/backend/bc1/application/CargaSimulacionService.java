@@ -174,6 +174,41 @@ public class CargaSimulacionService {
                 "INSERT INTO equipajes (id, origen_iata, destino_iata, estado, id_externo, cantidad, fecha_ingreso, sla_comprometido, fecha_operacion) " +
                         "VALUES (?, ?, ?, 'REGISTRADO', ?, ?, NOW(), ?, ?)",
                 equipajes);
+
+        // Cada equipaje crea `cantidad` maletas hijas con codigo_maleta UNIQUE
+        // patron "MAL-{id_externo}-NN" para trazabilidad individual.
+        List<Object[]> maletasBatch = new ArrayList<>(equipajes.size() * 2);
+        OffsetDateTime ahora = OffsetDateTime.now();
+        java.util.Set<String> codigosVistos = new java.util.HashSet<>();
+        for (Object[] row : equipajes) {
+            UUID equipajeId = (UUID) row[0];
+            String idExterno = (String) row[3];
+            int cantidad = ((Number) row[4]).intValue();
+            String prefijo = idExterno.length() > 20 ? idExterno.substring(0, 20) : idExterno;
+            int ancho = String.valueOf(cantidad).length();
+            for (int i = 1; i <= cantidad; i++) {
+                String codigo = String.format("MAL-%s-%0" + ancho + "d", prefijo, i);
+                int intentos = 0;
+                while (codigosVistos.contains(codigo) && intentos < 5) {
+                    prefijo = prefijo.length() > 1 ? prefijo.substring(0, prefijo.length() - 1) : prefijo;
+                    ancho = ancho + 1;
+                    codigo = String.format("MAL-%s-%0" + ancho + "d", prefijo, i);
+                    intentos++;
+                }
+                codigosVistos.add(codigo);
+                maletasBatch.add(new Object[]{
+                        UUID.randomUUID(),  // id
+                        codigo,              // codigo_maleta
+                        equipajeId,          // equipaje_id
+                        ahora                // created_at
+                });
+            }
+        }
+        if (!maletasBatch.isEmpty()) {
+            jdbcTemplate.batchUpdate(
+                    "INSERT INTO maletas (id, codigo_maleta, equipaje_id, created_at) VALUES (?, ?, ?, ?)",
+                    maletasBatch);
+        }
     }
 
     DatosLinea parsearLinea(String linea, String origenCodigo) {

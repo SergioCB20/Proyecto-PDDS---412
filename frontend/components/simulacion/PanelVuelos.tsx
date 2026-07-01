@@ -1,10 +1,12 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { PlaneTakeoff, PlaneLanding } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { colorVueloPorEstado } from '@/lib/colors';
 import type { VueloTelemetria } from '@/lib/types';
+import { formatearFechaHoraSeparado } from '@/lib/formatearHora';
 
 interface PanelVuelosProps {
   vuelos: VueloTelemetria[];
@@ -162,30 +164,52 @@ export function PanelVuelos({ vuelos, onVueloClick, origenFilter = '', destinoFi
           const ocupada = v.capacidad_carga - v.carga_disponible;
           const pct = v.capacidad_carga > 0 ? (ocupada / v.capacidad_carga) * 100 : 0;
           const colorHex = colorVueloPorEstado(v.estado);
+          const salida = formatearFechaHoraSeparado(v.hora_salida);
+          const llegada = formatearFechaHoraSeparado(v.hora_llegada);
           return (
             <div
               key={v.id}
-              className={`py-1.5 px-2 rounded bg-slate-50 dark:bg-slate-800/50 ${onVueloClick ? 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50' : ''}`}
+              className={`py-2 px-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/60 ${onVueloClick ? 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/70 hover:border-slate-200 dark:hover:border-slate-700 transition-colors' : ''}`}
               onClick={() => onVueloClick?.(v.id, v.codigo_vuelo)}
             >
-              <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: colorHex }} />
-                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{v.codigo_vuelo}</span>
+                  <span className="w-2 h-2 rounded-full shadow-sm" style={{ backgroundColor: colorHex }} />
+                  <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">{v.codigo_vuelo}</span>
                 </div>
-                <span className="text-xs text-slate-500">
-                  {v.origen_iata}→{v.destino_iata}
+                <span className="text-[11px] font-mono font-medium text-slate-500 dark:text-slate-400">
+                  {v.origen_iata} → {v.destino_iata}
                 </span>
               </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-500">{ocupada}/{v.capacidad_carga}</span>
+              <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 mb-1">
+                <span>Carga: {ocupada} / {v.capacidad_carga}</span>
                 <span className="font-semibold" style={{ color: colorHex }}>{pct.toFixed(0)}%</span>
               </div>
-              <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden mt-1">
+              <div className="w-full h-1 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden mb-2">
                 <div
                   className="h-full rounded-full transition-all duration-500"
                   style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: colorHex }}
                 />
+              </div>
+              <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+                <div className="flex items-center gap-1 rounded bg-white/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-700/50 px-1.5 py-1">
+                  <PlaneTakeoff size={10} className="text-slate-400 dark:text-slate-500 shrink-0" />
+                  <div className="flex flex-col leading-tight min-w-0">
+                    <span className="text-[9px] uppercase tracking-wide text-slate-400 dark:text-slate-500">Sale</span>
+                    <span className="font-mono font-semibold text-slate-700 dark:text-slate-200 truncate">
+                      {salida.hora} <span className="text-slate-400 dark:text-slate-500 font-normal">{salida.fecha}</span>
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 rounded bg-white/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-700/50 px-1.5 py-1">
+                  <PlaneLanding size={10} className="text-slate-400 dark:text-slate-500 shrink-0" />
+                  <div className="flex flex-col leading-tight min-w-0">
+                    <span className="text-[9px] uppercase tracking-wide text-slate-400 dark:text-slate-500">Llega</span>
+                    <span className="font-mono font-semibold text-slate-700 dark:text-slate-200 truncate">
+                      {llegada.hora} <span className="text-slate-400 dark:text-slate-500 font-normal">{llegada.fecha}</span>
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           );

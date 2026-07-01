@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.data.domain.PageRequest;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -25,6 +26,7 @@ public class EquipajeService {
     private final VueloRepository vueloRepository;
     private final NodoLogisticoRepository nodoRepository;
     private final ColaPlanificacionRepository colaRepository;
+    private final MaletaRepository maletaRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final RedisCacheService redisCacheService;
 
@@ -32,6 +34,7 @@ public class EquipajeService {
                            SegmentoPlanRepository segmentoPlanRepository, VueloRepository vueloRepository,
                            NodoLogisticoRepository nodoRepository,
                            ColaPlanificacionRepository colaRepository,
+                           MaletaRepository maletaRepository,
                            ApplicationEventPublisher eventPublisher,
                            RedisCacheService redisCacheService) {
         this.equipajeRepository = equipajeRepository;
@@ -40,6 +43,7 @@ public class EquipajeService {
         this.vueloRepository = vueloRepository;
         this.nodoRepository = nodoRepository;
         this.colaRepository = colaRepository;
+        this.maletaRepository = maletaRepository;
         this.eventPublisher = eventPublisher;
         this.redisCacheService = redisCacheService;
     }
@@ -82,6 +86,14 @@ public class EquipajeService {
             OffsetDateTime hora_salida_prog
     ) {}
 
+    public record MaletaResponse(
+            UUID id,
+            String codigo_maleta,
+            UUID equipaje_id,
+            String equipaje_id_externo,
+            OffsetDateTime created_at
+    ) {}
+
     @Transactional
     public EquipajeRegistradoResponse registrar(UUID operadorNodoId, RegistrarEquipajeRequest request) {
         NodoLogistico nodoOrigen = nodoRepository.findById(operadorNodoId)
@@ -120,6 +132,10 @@ public class EquipajeService {
         equipaje.setEstado(EstadoEquipaje.REGISTRADO);
         equipaje.setVueloActual(null);
         equipajeRepository.save(equipaje);
+
+        // Crear N maletas individuales (una por unidad de `cantidad`).
+        // Cada maleta tiene su propio codigo_maleta UNIQUE para trazabilidad.
+        generarMaletasPara(equipaje);
 
         eventPublisher.publishEvent(new EquipajeIngresadoEvent(equipaje.getId(), OffsetDateTime.now()));
 
@@ -197,7 +213,64 @@ public class EquipajeService {
             vueloRepository.save(vuelo);
         }
 
+        // Las maletas hijas se eliminan en cascada via FK ON DELETE CASCADE.
         equipajeRepository.delete(equipaje);
+    }
+
+    /**
+     * Persiste N {@link Maleta} con codigo_maleta UNIQUE derivado del id_externo del
+     * equipaje, formato "MAL-{id_externo}-NN" donde NN es el ordinal dentro del envio.
+     * Pensada para llamarse justo despues de persistir el equipaje para que cada
+     * registro padre tenga sus N hijas-maleta con identificadores trazables
+     * individualmente.
+     */
+    public void generarMaletasPara(Equipaje equipaje) {
+        int cantidad = equipaje.getCantidad() != null ? equipaje.getCantidad() : 1;
+        if (cantidad <= 0) return;
+
+        String idExternoEquipaje = equipaje.getIdExterno() != null
+                ? equipaje.getIdExterno()
+                : equipaje.getId().toString().substring(0, 8);
+        // Limitar el prefijo a 20 caracteres para caber en VARCHAR(50) sumando "MAL-" (4) + "-" (1) + "NN" (>=2)
+        String prefijo = idExternoEquipaje.length() > 20
+                ? idExternoEquipaje.substring(0, 20)
+                : idExternoEquipaje;
+        int ancho = String.valueOf(cantidad).length();
+
+        OffsetDateTime ahora = OffsetDateTime.now();
+        List<Maleta> maletas = new ArrayList<>(cantidad);
+        for (int i = 1; i <= cantidad; i++) {
+            String codigo = String.format("MAL-%s-%0" + ancho + "d", prefijo, i);
+            // Salvaguarda contra colision por truncamiento del prefijo:
+            // si choca con uno existente, recorta un caracter y vuelve a intentar.
+            int intentos = 0;
+            while (maletaRepository.existsByCodigoMaleta(codigo) && intentos < 5) {
+                prefijo = prefijo.length() > 1 ? prefijo.substring(0, prefijo.length() - 1) : prefijo;
+                ancho = ancho + 1;
+                codigo = String.format("MAL-%s-%0" + ancho + "d", prefijo, i);
+                intentos++;
+            }
+            Maleta m = new Maleta(UUID.randomUUID(), codigo, equipaje, ahora);
+            maletas.add(m);
+        }
+        maletaRepository.saveAll(maletas);
+    }
+
+    public List<Maleta> listarMaletasEquipaje(UUID equipajeId) {
+        return maletaRepository.findByEquipajeId(equipajeId);
+    }
+
+    public List<Maleta> listarMaletasVuelo(UUID vueloId) {
+        // El vuelo lleva maletas sia via vuelo_actual_id sia via segmentos planificados
+        // (un equipaje puede ya tener maletas registradas aunque su plan no esté emitido).
+        List<Equipaje> porVueloActual = equipajeRepository.findByVueloActualId(vueloId);
+        if (porVueloActual.isEmpty()) return List.of();
+        return maletaRepository.findByEquipajeIdIn(
+                porVueloActual.stream().map(Equipaje::getId).toList());
+    }
+
+    public Equipaje buscarPorIdExterno(String idExterno) {
+        return equipajeRepository.findByIdExterno(idExterno).orElse(null);
     }
 
     public EquipajeResponse obtenerPlanViaje(UUID equipajeId) {

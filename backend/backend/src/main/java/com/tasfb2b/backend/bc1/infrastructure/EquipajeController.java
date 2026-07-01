@@ -170,6 +170,33 @@ public class EquipajeController {
         return ResponseEntity.ok(equipajeService.obtenerMetricasOperacion(desde));
     }
 
+    @GetMapping("/{idExterno}/maletas")
+    public ResponseEntity<?> maletasDeEquipaje(@PathVariable String idExterno) {
+        try {
+            var equipaje = equipajeService.buscarPorIdExterno(idExterno);
+            if (equipaje == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(error(404, "NO_ENCONTRADO", "Equipaje no encontrado: " + idExterno));
+            }
+            var maletas = equipajeService.listarMaletasEquipaje(equipaje.getId())
+                    .stream().map(EquipajeController::toMaletaResponse).toList();
+            return ResponseEntity.ok(maletas);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError()
+                    .body(error(500, "ERROR_INTERNO", e.getMessage()));
+        }
+    }
+
+    private static EquipajeService.MaletaResponse toMaletaResponse(com.tasfb2b.backend.bc1.domain.Maleta m) {
+        return new EquipajeService.MaletaResponse(
+                m.getId(),
+                m.getCodigoMaleta(),
+                m.getEquipaje() != null ? m.getEquipaje().getId() : null,
+                m.getEquipaje() != null ? m.getEquipaje().getIdExterno() : null,
+                m.getCreatedAt()
+        );
+    }
+
     private Map<String, Object> error(int status, String error, String mensaje) {
         return Map.of("status", status, "error", error, "mensaje", mensaje);
     }

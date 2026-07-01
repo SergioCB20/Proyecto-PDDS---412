@@ -1,12 +1,15 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Upload, XCircle, Map as MapIcon } from 'lucide-react';
+import { Upload, XCircle, Map as MapIcon, PlaneTakeoff, PlaneLanding, X, Copy, Check, Briefcase } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
+import { Modal } from '@/components/ui/Modal';
+import { Button } from '@/components/ui/Button';
 import { colorVueloPorEstado } from '@/lib/colors';
-import type { VueloTelemetria } from '@/lib/types';
-import { formatearHoraLocalCorta } from '@/lib/formatearHora';
+import type { VueloTelemetria, Maleta } from '@/lib/types';
+import { formatearFechaHoraSeparado } from '@/lib/formatearHora';
+import { fetchMaletasVuelo } from '@/lib/api';
 
 interface PanelVuelosOperacionProps {
   vuelos: VueloTelemetria[];
@@ -28,6 +31,59 @@ const MAX_RENDER = 100;
 export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiesto, onCancelVuelo, onVerEnMapa, seguidoId, origenFilter = '', destinoFilter = '', onFilterChange }: PanelVuelosOperacionProps) {
   const [filtroCodigo, setFiltroCodigo] = useState('');
   const [orden, setOrden] = useState('');
+
+  // Estado del modal "Ver Maletas"
+  const [maletasModal, setMaletasModal] = useState<{ vueloId: string; vueloCodigo: string } | null>(null);
+  const [maletas, setMaletas] = useState<Maleta[]>([]);
+  const [maletasLoading, setMaletasLoading] = useState(false);
+  const [maletasError, setMaletasError] = useState<string | null>(null);
+  const [maletaCopiada, setMaletaCopiada] = useState<string | null>(null);
+
+  const handleAbrirMaletas = async (vueloId: string, vueloCodigo: string) => {
+    setMaletasModal({ vueloId, vueloCodigo });
+    setMaletas([]);
+    setMaletasLoading(true);
+    setMaletasError(null);
+    try {
+      const lista = await fetchMaletasVuelo(vueloId);
+      setMaletas(lista);
+    } catch (err) {
+      const e = err as { mensaje?: string; message?: string };
+      setMaletasError(e.mensaje || e.message || 'Error al cargar las maletas del vuelo');
+      setMaletas([]);
+    } finally {
+      setMaletasLoading(false);
+    }
+  };
+
+  const handleCerrarMaletas = () => {
+    setMaletasModal(null);
+    setMaletas([]);
+    setMaletasError(null);
+    setMaletaCopiada(null);
+  };
+
+  const handleCopiarMaleta = async (codigo: string) => {
+    try {
+      await navigator.clipboard.writeText(codigo);
+      setMaletaCopiada(codigo);
+      setTimeout(() => setMaletaCopiada((curr) => (curr === codigo ? null : curr)), 1500);
+    } catch {
+      // Browser sin clipboard API, fallback silencioso
+    }
+  };
+
+  // Agrupa las maletas por equipaje para presentacion clara.
+  const maletasPorEquipaje = useMemo(() => {
+    const map = new Map<string, Maleta[]>();
+    for (const m of maletas) {
+      const key = m.equipaje_id_externo ?? m.equipaje_id;
+      const existing = map.get(key);
+      if (existing) existing.push(m);
+      else map.set(key, [m]);
+    }
+    return Array.from(map.entries());
+  }, [maletas]);
 
   const opcionesOrigen = useMemo(() => {
     const set = new Set(vuelos.map(v => v.origen_iata));
@@ -198,9 +254,35 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
                   style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: colorHex }}
                 />
               </div>
-              <div className="flex justify-between text-[10px] text-slate-400 dark:text-slate-500 mb-2">
-                <span>Salida: <strong className="font-medium text-slate-600 dark:text-slate-400">{formatearHoraLocalCorta(v.hora_salida)}</strong></span>
-                <span>Llegada: <strong className="font-medium text-slate-600 dark:text-slate-400">{formatearHoraLocalCorta(v.hora_llegada)}</strong></span>
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                {(() => {
+                  const salida = formatearFechaHoraSeparado(v.hora_salida);
+                  const llegada = formatearFechaHoraSeparado(v.hora_llegada);
+                  return (
+                    <>
+                      <div className="flex items-center gap-1.5 rounded-md bg-white/70 dark:bg-slate-900/40 border border-slate-200/70 dark:border-slate-700/50 px-2 py-1.5">
+                        <PlaneTakeoff size={11} className="text-slate-400 dark:text-slate-500 shrink-0" />
+                        <div className="flex flex-col leading-tight min-w-0">
+                          <span className="text-[9px] uppercase tracking-wide text-slate-400 dark:text-slate-500 font-medium">Salida</span>
+                          <span className="text-[11px] font-mono font-semibold text-slate-700 dark:text-slate-200 truncate">
+                            {salida.hora}
+                            <span className="text-slate-400 dark:text-slate-500 font-normal"> · {salida.fecha}</span>
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 rounded-md bg-white/70 dark:bg-slate-900/40 border border-slate-200/70 dark:border-slate-700/50 px-2 py-1.5">
+                        <PlaneLanding size={11} className="text-slate-400 dark:text-slate-500 shrink-0" />
+                        <div className="flex flex-col leading-tight min-w-0">
+                          <span className="text-[9px] uppercase tracking-wide text-slate-400 dark:text-slate-500 font-medium">Llegada</span>
+                          <span className="text-[11px] font-mono font-semibold text-slate-700 dark:text-slate-200 truncate">
+                            {llegada.hora}
+                            <span className="text-slate-400 dark:text-slate-500 font-normal"> · {llegada.fecha}</span>
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
               
               <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800/80 pt-2 mt-1.5 gap-2">
@@ -215,8 +297,9 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
                   )}
                   {onDownloadManifiesto && (
                     <button
-                      onClick={(e) => { e.stopPropagation(); onDownloadManifiesto(v.id, v.codigo_vuelo); }}
+                      onClick={(e) => { e.stopPropagation(); handleAbrirMaletas(v.id, v.codigo_vuelo); }}
                       className="px-2.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 text-[10px] font-medium transition-colors cursor-pointer border border-transparent dark:border-emerald-900/30"
+                      title="Ver IDs individuales de las maletas asignadas a este vuelo"
                     >
                       Ver Maletas
                     </button>
@@ -257,6 +340,100 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
           </p>
         )}
       </div>
+
+      <Modal
+        open={!!maletasModal}
+        onClose={handleCerrarMaletas}
+        title={
+          <div className="flex items-center gap-2">
+            <Briefcase size={16} className="text-emerald-600" />
+            <span>
+              Maletas del vuelo {maletasModal?.vueloCodigo ?? ''}
+            </span>
+          </div>
+        }
+      >
+        {maletasLoading && (
+          <div className="flex items-center gap-2 text-xs text-slate-500 py-4">
+            <span className="w-3 h-3 border-2 border-slate-300 border-t-emerald-500 rounded-full animate-spin" />
+            Cargando maletas...
+          </div>
+        )}
+
+        {!maletasLoading && maletasError && (
+          <div className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400 p-3 rounded">
+            {maletasError}
+          </div>
+        )}
+
+        {!maletasLoading && !maletasError && (
+          <>
+            <div className="flex items-center justify-between mb-3 text-xs text-slate-500">
+              <span>
+                {maletas.length === 0
+                  ? 'Este vuelo no tiene maletas asignadas todavía.'
+                  : `${maletas.length} maleta${maletas.length !== 1 ? 's' : ''} en ${maletasPorEquipaje.length} equipaje${maletasPorEquipaje.length !== 1 ? 's' : ''}.`}
+              </span>
+              {maletas.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    const all = maletas.map(m => m.codigo_maleta).join('\n');
+                    navigator.clipboard?.writeText(all);
+                  }}
+                  title="Copiar todos los IDs al portapapeles"
+                >
+                  <Copy size={12} />
+                  Copiar todos
+                </Button>
+              )}
+            </div>
+
+            {maletas.length > 0 && (
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {maletasPorEquipaje.map(([equipajeIdExt, lista]) => (
+                  <div key={equipajeIdExt} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40">
+                    <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 dark:border-slate-700 bg-white/60 dark:bg-slate-900/30">
+                      <div className="flex items-center gap-2">
+                        <span className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-[10px] font-semibold tracking-wide">
+                          EQUIPAJE
+                        </span>
+                        <span className="text-sm font-mono font-semibold text-slate-800 dark:text-slate-200">
+                          {equipajeIdExt}
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-slate-500">
+                        {lista.length} maleta{lista.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <ul className="divide-y divide-slate-200 dark:divide-slate-700">
+                      {lista.map((m) => (
+                        <li key={m.id} className="flex items-center justify-between px-3 py-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                            <span className="font-mono text-xs text-slate-700 dark:text-slate-300 truncate">
+                              {m.codigo_maleta}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleCopiarMaleta(m.codigo_maleta)}
+                            className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors shrink-0"
+                            title="Copiar ID al portapapeles"
+                          >
+                            {maletaCopiada === m.codigo_maleta ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </Modal>
     </div>
   );
 }

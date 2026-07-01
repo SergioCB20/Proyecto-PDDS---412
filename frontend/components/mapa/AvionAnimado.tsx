@@ -8,6 +8,7 @@ import { bezierControlPoint, bezierPoint, bezierBearing, bezierSamples } from '@
 import type { VueloEnMapa } from '@/lib/types';
 import type { UmbralesConfig } from './ConfigUmbrales';
 import { CENTRO, ZOOM } from './mapaConfig';
+import { formatearFechaHoraSeparado } from '@/lib/formatearHora';
 
 function esCoordenadaValida(v: number): boolean {
   return Number.isFinite(v) && Math.abs(v) <= 180;
@@ -414,10 +415,22 @@ const AvionAnimado = React.memo(function AvionAnimado({
       )}
       {/* Etiqueta de carga: visible solo al pasar el cursor sobre el avión */}
       <Tooltip direction="top" offset={[0, -14]} className="avion-carga-tooltip">
-        <div className="text-center min-w-[90px]">
+        <div className="text-center min-w-[120px]">
           <div className="font-bold text-xs">{vuelo.codigo_vuelo}</div>
           <div className="text-[10px] text-slate-600">
             {vuelo.origen.codigo_iata} → {vuelo.destino.codigo_iata}
+          </div>
+          <div className="text-[10px] text-slate-500 mt-0.5 font-mono leading-tight">
+            {(() => {
+              const s = formatearFechaHoraSeparado(vuelo.hora_salida);
+              const l = formatearFechaHoraSeparado(vuelo.hora_llegada);
+              return (
+                <>
+                  <div>Sale <span className="font-semibold text-slate-700">{s.hora}</span> · {s.fecha}</div>
+                  <div>Llega <span className="font-semibold text-slate-700">{l.hora}</span> · {l.fecha}</div>
+                </>
+              );
+            })()}
           </div>
           <div className="text-[11px] mt-0.5">
             <span className="text-slate-500">Carga: </span>
@@ -435,10 +448,22 @@ const AvionAnimado = React.memo(function AvionAnimado({
         </div>
       </Tooltip>
       <Popup>
-        <div className="text-center min-w-[150px]">
+        <div className="text-center min-w-[170px]">
           <div className="font-bold text-base mb-1">{vuelo.codigo_vuelo}</div>
           <div className="text-xs text-slate-600 mb-2">
             {vuelo.origen.codigo_iata} → {vuelo.destino.codigo_iata}
+          </div>
+          <div className="text-[11px] text-slate-500 mb-2 font-mono leading-tight">
+            {(() => {
+              const s = formatearFechaHoraSeparado(vuelo.hora_salida);
+              const l = formatearFechaHoraSeparado(vuelo.hora_llegada);
+              return (
+                <>
+                  <div>Salida: <span className="font-semibold text-slate-700">{s.hora}</span> · {s.fecha}</div>
+                  <div>Llegada: <span className="font-semibold text-slate-700">{l.hora}</span> · {l.fecha}</div>
+                </>
+              );
+            })()}
           </div>
           <div className="text-sm mb-1">
             <span className="text-slate-500">Capacidad: </span>

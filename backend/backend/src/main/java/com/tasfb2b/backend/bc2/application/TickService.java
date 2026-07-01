@@ -181,10 +181,14 @@ public class TickService {
         // Cargar datos UNA SOLA VEZ para telemetria.
         // Vuelos: EN_RUTA + PROGRAMADO dentro de la ventana virtual, no todos los días clonados.
         List<NodoLogistico> nodos = nodoRepository.findAllByOrderByCodigoIataAsc();
-        OffsetDateTime ventanaTelemetria = sesion.getDiaHoraVirtual() != null
-                ? sesion.getDiaHoraVirtual().plusHours(TelemetriaService.VENTANA_TELEMETRIA_HORAS)
-                : OffsetDateTime.now().plusYears(1);
-        List<Vuelo> vuelos = vueloRepository.findTelemetriaVuelos(ventanaTelemetria);
+        OffsetDateTime virtualActual = sesion.getDiaHoraVirtual() != null
+                ? sesion.getDiaHoraVirtual()
+                : OffsetDateTime.now();
+        java.time.LocalDate fechaActual = virtualActual.toLocalDate();
+        java.time.LocalDate desdeFecha = fechaActual.minusDays(1);
+        java.time.LocalDate hastaFecha = fechaActual.plusDays(1);
+        OffsetDateTime ventanaTelemetria = virtualActual.plusHours(TelemetriaService.VENTANA_TELEMETRIA_HORAS);
+        List<Vuelo> vuelos = vueloRepository.findTelemetriaVuelos(desdeFecha, hastaFecha, ventanaTelemetria);
 
         // Colapso por saturación de almacén (umbral rojo de nodo, cualquier tipo de sesión) o
         // por incumplimiento del primer SLA (solo HASTA_COLAPSO). Ambas son causas que impiden

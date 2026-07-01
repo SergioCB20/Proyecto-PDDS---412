@@ -33,15 +33,25 @@ public interface VueloRepository extends JpaRepository<Vuelo, UUID>, JpaSpecific
     List<Vuelo> findByEstadoInAndEsPlantillaAndFechaOperacion(List<EstadoVuelo> estados, Boolean esPlantilla, LocalDate fechaOperacion);
 
     /**
-     * Vuelos relevantes para la telemetría en tiempo real: todos los EN_RUTA (visibles/
-     * animados en el mapa) más los PROGRAMADO cuya salida cae dentro de la ventana virtual
-     * actual. Evita transmitir miles de vuelos de días futuros ya clonados en cada tick.
+     * Vuelos relevantes para la telemetría en tiempo real.
+     *
+     * Para evitar que vuelos "huérfanos" de sesiones anteriores (que quedaron EN_RUTA sin
+     * procesarse al colapsar/finalizar y cuyo virtual time ya no aplica) contaminen el mapa
+     * como duplicados, limitamos los EN_RUTA a la ventana virtual ± 1 día alrededor del
+     * virtual actual. Los PROGRAMADO se siguen filtrando por hora_salida <= ventana.
+     *
+     * El parámetro {@code desde} representa el virtual actual − 1 día y {@code hasta}
+     * el virtual actual + 1 día. La pequeña holgura evita flickering cuando un vuelo sale
+     * minutos antes de medianoche virtual.
      */
     @Query("SELECT v FROM Vuelo v WHERE v.esPlantilla = false AND ("
-            + "v.estado = com.tasfb2b.backend.bc1.domain.EstadoVuelo.EN_RUTA "
+            + "(v.estado = com.tasfb2b.backend.bc1.domain.EstadoVuelo.EN_RUTA "
+            + "  AND v.fechaOperacion >= :desde AND v.fechaOperacion <= :hastaHasta) "
             + "OR (v.estado = com.tasfb2b.backend.bc1.domain.EstadoVuelo.PROGRAMADO "
-            + "AND v.horaSalida <= :hasta))")
-    List<Vuelo> findTelemetriaVuelos(@Param("hasta") OffsetDateTime hasta);
+            + "  AND v.horaSalida <= :hasta))")
+    List<Vuelo> findTelemetriaVuelos(@Param("desde") LocalDate desde,
+                                     @Param("hastaHasta") LocalDate hastaHasta,
+                                     @Param("hasta") OffsetDateTime hasta);
     List<Vuelo> findByEstadoAndEsPlantillaAndHoraSalidaBetween(EstadoVuelo estado, Boolean esPlantilla, OffsetDateTime desde, OffsetDateTime hasta);
     Page<Vuelo> findByEstadoAndEsPlantilla(EstadoVuelo estado, Boolean esPlantilla, Pageable pageable);
     List<Vuelo> findByEsPlantilla(Boolean esPlantilla);

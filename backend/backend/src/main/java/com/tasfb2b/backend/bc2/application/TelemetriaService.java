@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -68,10 +69,14 @@ public class TelemetriaService {
 
     private String buildTelemetryJson(SesionEjecucion sesion) {
         List<NodoLogistico> nodos = nodoRepository.findAllByOrderByCodigoIataAsc();
-        OffsetDateTime hasta = sesion.getDiaHoraVirtual() != null
-                ? sesion.getDiaHoraVirtual().plusHours(VENTANA_TELEMETRIA_HORAS)
-                : OffsetDateTime.now().plusYears(1);
-        List<Vuelo> vuelos = vueloRepository.findTelemetriaVuelos(hasta);
+        OffsetDateTime virtual = sesion.getDiaHoraVirtual() != null
+                ? sesion.getDiaHoraVirtual()
+                : OffsetDateTime.now();
+        LocalDate fechaActual = virtual.toLocalDate();
+        LocalDate desdeFecha = fechaActual.minusDays(1);
+        LocalDate hastaFecha = fechaActual.plusDays(1);
+        OffsetDateTime hasta = virtual.plusHours(VENTANA_TELEMETRIA_HORAS);
+        List<Vuelo> vuelos = vueloRepository.findTelemetriaVuelos(desdeFecha, hastaFecha, hasta);
         return buildTelemetryJson(sesion, nodos, vuelos);
     }
 
