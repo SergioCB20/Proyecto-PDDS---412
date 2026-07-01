@@ -3,19 +3,17 @@
 import { useState, useMemo } from 'react';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import { Map as MapIcon, PlaneTakeoff, PlaneLanding } from 'lucide-react';
-import type { AeropuertoTelemetria, VueloTelemetria } from '@/lib/types';
-import { formatearFechaHoraSeparado } from '@/lib/formatearHora';
+import { Map as MapIcon } from 'lucide-react';
+import type { AeropuertoTelemetria } from '@/lib/types';
 
 interface PanelAeropuertosProps {
   aeropuertos: AeropuertoTelemetria[];
-  vuelos: VueloTelemetria[];
   onAeropuertoClick?: (id: string, codigo: string) => void;
   onVerEnMapa?: (id: string) => void;
   seguidoId?: string;
 }
 
-export function PanelAeropuertos({ aeropuertos, vuelos, onAeropuertoClick, onVerEnMapa, seguidoId }: PanelAeropuertosProps) {
+export function PanelAeropuertos({ aeropuertos, onAeropuertoClick, onVerEnMapa, seguidoId }: PanelAeropuertosProps) {
   const [filtroCodigo, setFiltroCodigo] = useState('');
   const [filtroContinente, setFiltroContinente] = useState('');
   const [orden, setOrden] = useState('');
@@ -29,27 +27,7 @@ export function PanelAeropuertos({ aeropuertos, vuelos, onAeropuertoClick, onVer
     { value: '', label: 'Sin orden' },
     { value: 'ocupacion-asc', label: 'Ocupación ↑' },
     { value: 'ocupacion-desc', label: 'Ocupación ↓' },
-    { value: 'salida-ut', label: 'Salida UT' },
-    { value: 'llegada-ut', label: 'Llegada UT' },
   ];
-
-  const timingPorAeropuerto = useMemo(() => {
-    const salida = new Map<string, string>();
-    const llegada = new Map<string, string>();
-
-    for (const v of vuelos) {
-      const actualSalida = salida.get(v.origen_iata);
-      if (!actualSalida || v.hora_salida < actualSalida) {
-        salida.set(v.origen_iata, v.hora_salida);
-      }
-      const actualLlegada = llegada.get(v.destino_iata);
-      if (!actualLlegada || v.hora_llegada < actualLlegada) {
-        llegada.set(v.destino_iata, v.hora_llegada);
-      }
-    }
-
-    return { salida, llegada };
-  }, [vuelos]);
 
   const aeropuertosFiltrados = useMemo(() => {
     return aeropuertos.filter(n => {
@@ -71,23 +49,9 @@ export function PanelAeropuertos({ aeropuertos, vuelos, onAeropuertoClick, onVer
       case 'ocupacion-desc':
         lista.sort((a, b) => b.ocupacion_pct - a.ocupacion_pct);
         break;
-      case 'salida-ut':
-        lista.sort((a, b) => {
-          const sa = timingPorAeropuerto.salida.get(a.codigo_iata) || '';
-          const sb = timingPorAeropuerto.salida.get(b.codigo_iata) || '';
-          return sa.localeCompare(sb);
-        });
-        break;
-      case 'llegada-ut':
-        lista.sort((a, b) => {
-          const la = timingPorAeropuerto.llegada.get(a.codigo_iata) || '';
-          const lb = timingPorAeropuerto.llegada.get(b.codigo_iata) || '';
-          return la.localeCompare(lb);
-        });
-        break;
     }
     return lista;
-  }, [aeropuertosFiltrados, orden, timingPorAeropuerto]);
+  }, [aeropuertosFiltrados, orden]);
 
   const hayFiltrosActivos = filtroCodigo || filtroContinente;
 
@@ -153,10 +117,6 @@ export function PanelAeropuertos({ aeropuertos, vuelos, onAeropuertoClick, onVer
       <div className="space-y-2 max-h-56 overflow-y-auto">
         {aeropuertosOrdenados.map(n => {
           const continenteLabel = n.continente && n.continente !== 'Desconocido' ? n.continente : (n.zona_horaria ? n.zona_horaria.split('/')[0] : '');
-          const proxSalida = timingPorAeropuerto.salida.get(n.codigo_iata) || '';
-          const proxLlegada = timingPorAeropuerto.llegada.get(n.codigo_iata) || '';
-          const fmtSalida = formatearFechaHoraSeparado(proxSalida || null);
-          const fmtLlegada = formatearFechaHoraSeparado(proxLlegada || null);
           return (
             <div
               key={n.id}
@@ -187,28 +147,6 @@ export function PanelAeropuertos({ aeropuertos, vuelos, onAeropuertoClick, onVer
                       </button>
                     )
                   )}
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-1.5 mb-1.5">
-                <div className="flex items-center gap-1 rounded bg-white/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-700/50 px-1.5 py-1">
-                  <PlaneTakeoff size={10} className="text-slate-400 dark:text-slate-500 shrink-0" />
-                  <div className="flex flex-col leading-tight min-w-0">
-                    <span className="text-[9px] uppercase tracking-wide text-slate-400 dark:text-slate-500">Sale</span>
-                    <span className="font-mono text-[11px] font-semibold text-slate-700 dark:text-slate-200 truncate">
-                      {fmtSalida.hora}
-                      <span className="text-slate-400 dark:text-slate-500 font-normal"> · {fmtSalida.fecha}</span>
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 rounded bg-white/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-700/50 px-1.5 py-1">
-                  <PlaneLanding size={10} className="text-slate-400 dark:text-slate-500 shrink-0" />
-                  <div className="flex flex-col leading-tight min-w-0">
-                    <span className="text-[9px] uppercase tracking-wide text-slate-400 dark:text-slate-500">Llega</span>
-                    <span className="font-mono text-[11px] font-semibold text-slate-700 dark:text-slate-200 truncate">
-                      {fmtLlegada.hora}
-                      <span className="text-slate-400 dark:text-slate-500 font-normal"> · {fmtLlegada.fecha}</span>
-                    </span>
-                  </div>
                 </div>
               </div>
               <div className="flex items-center justify-between text-[10px]">

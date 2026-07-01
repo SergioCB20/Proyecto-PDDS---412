@@ -261,12 +261,23 @@ public class EquipajeService {
     }
 
     public List<Maleta> listarMaletasVuelo(UUID vueloId) {
-        // El vuelo lleva maletas sia via vuelo_actual_id sia via segmentos planificados
-        // (un equipaje puede ya tener maletas registradas aunque su plan no esté emitido).
-        List<Equipaje> porVueloActual = equipajeRepository.findByVueloActualId(vueloId);
-        if (porVueloActual.isEmpty()) return List.of();
-        return maletaRepository.findByEquipajeIdIn(
-                porVueloActual.stream().map(Equipaje::getId).toList());
+        // Un vuelo lleva maletas por dos vias que hay que unir:
+        //  A) equipaje.vuelo_actual_id == vueloId (equipajes actualmente embarcados;
+        //     se setea al despegar y se limpia al aterrizar/completarse, asi que
+        //     PROGRAMADO/ATERRIZADO/COMPLETADO recientes pueden aparecer vacios por aqui).
+        //  B) segmentos_plan.vuelo_id == vueloId (equipajes cuyo plan de viaje pasa
+        //     por este vuelo en cualquier estado: PENDIENTE/EN_CURSO/COMPLETADO).
+        // Solo unir (A)∪(B) garantiza que el modal del panel muestre las maletas
+        // incluso de vuelos ya aterrizados o de planes no emitidos todavia.
+        java.util.Set<UUID> equipajeIds = new java.util.LinkedHashSet<>();
+        for (Equipaje eq : equipajeRepository.findByVueloActualId(vueloId)) {
+            equipajeIds.add(eq.getId());
+        }
+        for (Equipaje eq : segmentoPlanRepository.findEquipajesByVueloId(vueloId)) {
+            equipajeIds.add(eq.getId());
+        }
+        if (equipajeIds.isEmpty()) return List.of();
+        return maletaRepository.findByEquipajeIdIn(new java.util.ArrayList<>(equipajeIds));
     }
 
     public Equipaje buscarPorIdExterno(String idExterno) {
