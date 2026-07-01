@@ -1,4 +1,4 @@
-import type { ApiError, EnvioEntregadoResponse, EnvioItemResponse, EnvioPanelResponse, MetricasOperacion, ReporteSesion } from './types';
+import type { ApiError, EnvioEntregadoResponse, EnvioItemResponse, EnvioPanelResponse, Maleta, MetricasOperacion, ReporteSesion } from './types';
 import { device } from './device';
 
 function getBaseUrl(): string {
@@ -183,4 +183,12 @@ export async function fetchEnviosPanelSesion(sesionId: string, tipo: string, ori
   if (origen) url += `&origen_iata=${encodeURIComponent(origen)}`;
   if (destino) url += `&destino_iata=${encodeURIComponent(destino)}`;
   return api.get<EnvioPanelResponse[]>(url);
+}
+
+export async function fetchMaletasVuelo(vueloId: string): Promise<Maleta[]> {
+  return api.get<Maleta[]>(`/vuelos/${vueloId}/maletas`);
+}
+
+export async function fetchMaletasEquipaje(idExternoEquipaje: string): Promise<Maleta[]> {
+  return api.get<Maleta[]>(`/equipajes/${encodeURIComponent(idExternoEquipaje)}/maletas`);
 }

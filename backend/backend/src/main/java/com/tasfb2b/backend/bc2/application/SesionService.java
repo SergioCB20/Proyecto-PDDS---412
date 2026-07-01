@@ -250,6 +250,13 @@ public class SesionService {
                 log.warn("Error limpiando instancias para sesion {}: {}", id, e.getMessage());
             }
 
+            // Barrido extra: EN_RUTA huerfanos de sesiones previas fuera de este rango.
+            try {
+                vueloService.completarEnRutaHuerfanos(desde, hasta);
+            } catch (Exception e) {
+                log.warn("Error limpiando EN_RUTA huerfanos al preparar sesion {}: {}", id, e.getMessage());
+            }
+
             log.info("Clonando plantillas para sesion {} en fecha {}", id, sesion.getFechaInicioVirtual());
             try {
                 int clonadas = vueloService.clonarPlantillas(sesion.getFechaInicioVirtual());
@@ -408,6 +415,15 @@ public class SesionService {
                 vueloService.eliminarInstanciasPorFecha(desde, hasta);
             } catch (Exception e) {
                 log.warn("Error limpiando instancias al detener sesion {}: {}", id, e.getMessage());
+            }
+
+            // Completar cualquier EN_RUTA residual fuera de este rango (huérfanos
+            // de otras sesiones), para que no aparezca la próxima vez que arranque
+            // una sesion con fecha_inicio_virtual distinta.
+            try {
+                vueloService.completarEnRutaHuerfanos(desde, hasta);
+            } catch (Exception e) {
+                log.warn("Error limpiando EN_RUTA huerfanos al detener sesion {}: {}", id, e.getMessage());
             }
         }
 

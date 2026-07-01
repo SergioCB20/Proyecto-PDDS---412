@@ -76,6 +76,19 @@ export interface EquipajePlanViaje {
   segmentos: SegmentoResponse[];
 }
 
+/**
+ * Maleta física con identificador único, hija 1:N de un Equipaje.
+ * Cada registro de equipaje genera N maletas al registrarse con `cantidad`,
+ * cada una con su propio `codigo_maleta` UNIQUE trazable individualmente.
+ */
+export interface Maleta {
+  id: string;
+  codigo_maleta: string;
+  equipaje_id: string;
+  equipaje_id_externo?: string;
+  created_at: string;
+}
+
 export interface Ubicacion {
   lat: number;
   lon: number;

@@ -27,17 +27,20 @@ public class CargaMasivaService {
     private final NodoLogisticoRepository nodoRepository;
     private final ColaPlanificacionRepository colaRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final EquipajeService equipajeService;
 
     private final Map<UUID, List<RegistroPreview>> previewStore = new ConcurrentHashMap<>();
 
     public CargaMasivaService(EquipajeRepository equipajeRepository,
                               NodoLogisticoRepository nodoRepository,
                               ColaPlanificacionRepository colaRepository,
-                              ApplicationEventPublisher eventPublisher) {
+                              ApplicationEventPublisher eventPublisher,
+                              EquipajeService equipajeService) {
         this.equipajeRepository = equipajeRepository;
         this.nodoRepository = nodoRepository;
         this.colaRepository = colaRepository;
         this.eventPublisher = eventPublisher;
+        this.equipajeService = equipajeService;
     }
 
     public record RegistroPreview(
@@ -192,6 +195,9 @@ public class CargaMasivaService {
                 equipaje.setEstado(EstadoEquipaje.REGISTRADO);
                 equipaje.setVueloActual(null);
                 equipajeRepository.save(equipaje);
+
+                // Cada equipaje genera N maletas hijas con codigo_maleta unico.
+                equipajeService.generarMaletasPara(equipaje);
 
                 eventPublisher.publishEvent(new EquipajeIngresadoEvent(equipaje.getId(), OffsetDateTime.now()));
 

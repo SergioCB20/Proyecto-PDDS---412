@@ -61,6 +61,15 @@ public class SesionPreparacionAsync {
                     log.warn("Error limpiando instancias para sesion {}: {}", id, e.getMessage());
                 }
 
+                // Barrido extra: EN_RUTA huerfanos de sesiones previas cuya fecha_operacion
+                // cae fuera de este rango. Sin esto reaparecen en la telemetria y el usuario
+                // ve vuelos "duplicados" en el mapa (mismo codigo dos veces).
+                try {
+                    vueloService.completarEnRutaHuerfanos(desde, hasta);
+                } catch (Exception e) {
+                    log.warn("Error limpiando EN_RUTA huerfanos para sesion {}: {}", id, e.getMessage());
+                }
+
                 // Reset de estado residual para arrancar "desde 0". Una sesión que COLAPSÓ o
                 // finalizó por tiempo no pasa por detenerSesion(), así que deja planes/segmentos,
                 // equipajes ENRUTADO y ocupación de nodos saturada. Sin esto, la siguiente sesión

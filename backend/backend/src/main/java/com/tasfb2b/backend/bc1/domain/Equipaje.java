@@ -2,6 +2,8 @@ package com.tasfb2b.backend.bc1.domain;
 
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -43,6 +45,9 @@ public class Equipaje {
     @Column(name = "sla_comprometido", nullable = false)
     private OffsetDateTime slaComprometido;
 
+    @OneToMany(mappedBy = "equipaje", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = false)
+    private List<Maleta> maletas = new ArrayList<>();
+
     public Equipaje() {}
 
     public UUID getId() { return id; }
@@ -77,4 +82,7 @@ public class Equipaje {
 
     public OffsetDateTime getSlaComprometido() { return slaComprometido; }
     public void setSlaComprometido(OffsetDateTime slaComprometido) { this.slaComprometido = slaComprometido; }
+
+    public List<Maleta> getMaletas() { return maletas; }
+    public void setMaletas(List<Maleta> maletas) { this.maletas = maletas; }
 }
