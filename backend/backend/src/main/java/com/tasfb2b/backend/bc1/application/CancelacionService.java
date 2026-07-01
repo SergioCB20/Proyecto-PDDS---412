@@ -21,8 +21,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
+
+import com.tasfb2b.backend.bc2.application.EquipajeReplanInfo;
+import com.tasfb2b.backend.bc2.application.SegmentoReplanInfo;
 
 @Service
 public class CancelacionService {
@@ -52,7 +57,9 @@ public class CancelacionService {
         this.lockManager = lockManager;
     }
 
-    public record EquipajeAfectado(UUID id, String codigo, String origen_iata, String destino_iata) {}
+    public record EquipajeAfectado(UUID id, String codigo, String origen_iata, String destino_iata,
+                                    UUID vuelo_replanificado_id, String vuelo_replanificado_codigo,
+                                    List<SegmentoReplanInfo> plan_viaje) {}
 
     public record CancelacionRequest(UUID vuelo_id, String causa, UUID sesion_id) {}
 
@@ -126,10 +133,23 @@ public class CancelacionService {
             sesionRepository.save(sesion);
 
             List<Equipaje> eqs = equipajeRepository.findAllById(result.equipajeIds());
+            Map<UUID, EquipajeReplanInfo> replanMap = result.equipajes().stream()
+                    .collect(Collectors.toMap(EquipajeReplanInfo::id, r -> r));
             List<EquipajeAfectado> equipajes = eqs.stream()
-                    .map(e -> new EquipajeAfectado(e.getId(),
-                            e.getIdExterno() != null ? e.getIdExterno() : e.getId().toString(),
-                            e.getOrigenIata(), e.getDestinoIata()))
+                    .map(e -> {
+                        EquipajeReplanInfo ri = replanMap.get(e.getId());
+                        if (ri != null) {
+                            return new EquipajeAfectado(e.getId(),
+                                    e.getIdExterno() != null ? e.getIdExterno() : e.getId().toString(),
+                                    e.getOrigenIata(), e.getDestinoIata(),
+                                    ri.vueloId(), ri.vueloCodigo(),
+                                    ri.segmentos());
+                        }
+                        return new EquipajeAfectado(e.getId(),
+                                e.getIdExterno() != null ? e.getIdExterno() : e.getId().toString(),
+                                e.getOrigenIata(), e.getDestinoIata(),
+                                null, null, List.of());
+                    })
                     .toList();
 
             return new CancelacionResponse(vuelo.getId(), "CANCELADO",
