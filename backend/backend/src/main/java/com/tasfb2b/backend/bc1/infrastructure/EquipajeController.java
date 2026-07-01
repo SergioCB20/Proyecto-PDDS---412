@@ -189,11 +189,12 @@ public class EquipajeController {
 
     private static EquipajeService.MaletaResponse toMaletaResponse(com.tasfb2b.backend.bc1.domain.Maleta m) {
         return new EquipajeService.MaletaResponse(
-                m.getId(),
+                m.getId().toString(),
                 m.getCodigoMaleta(),
                 m.getEquipaje() != null ? m.getEquipaje().getId() : null,
                 m.getEquipaje() != null ? m.getEquipaje().getIdExterno() : null,
-                m.getCreatedAt()
+                m.getCreatedAt(),
+                false
         );
     }
 
