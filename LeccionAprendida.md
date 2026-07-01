@@ -7,6 +7,52 @@
 
 ---
 
+## INSTRUCCIONES — PARÁMETROS PARA GENERAR LECCIONES APRENDIDAS
+
+### Estructura obligatoria por estudiante
+
+Cada estudiante debe registrar **4 lecciones aprendidas** en el siguiente orden:
+
+| # | Categoría | Tipo |
+|---|---|---|
+| 1 | Gestión del Proyecto | Positiva |
+| 2 | Gestión del Proyecto | Negativa |
+| 3 | Desarrollo del Producto | Positiva |
+| 4 | Desarrollo del Producto | Negativa |
+
+### Componentes de cada lección
+
+- **Descripción corta:** Título de la lección, no exceder **15 palabras**.
+- **Descripción en detalle:** Explicación completa, no exceder **150 palabras**.
+
+### Temas cubiertos
+
+| Categoría | Alcance |
+|---|---|
+| **Gestión del Proyecto** | Planificación, riesgos, ejecución, control, reuniones, equipo de trabajo, comunicación, roles, metodología, herramientas de gestión. |
+| **Desarrollo del Producto** | Análisis, diseño, desarrollo de algoritmos, desarrollo de componentes, integración, pruebas, tecnologías, arquitectura, base de datos, despliegue. |
+
+### Criterios de calidad
+
+Las lecciones aprendidas deben ser:
+
+- **Aplicables:** que tengan impacto real o potencial en las operaciones o procesos.
+- **Válidas:** basadas en hechos verdaderos del proyecto.
+- **Significativas:** que identifiquen procesos o decisiones que reducen fallas o refuerzan resultados positivos.
+
+### Reglas para generar nuevas propuestas
+
+Si se requiere generar una nueva lección aprendida para un estudiante, se debe proporcionar al asistente:
+
+1. **Nombre del estudiante** y breve descripción de su rol en el proyecto.
+2. **Categoría y tipo** deseado (ej. "Desarrollo del Producto — Negativa").
+3. **Contexto o área específica** en la que trabajó (ej. "frontend con Leaflet", "algoritmo ACO", "migraciones Flyway", "simulación 5D", etc.).
+4. **Opcional:** un hecho concreto o problema real que haya ocurrido, para basar la lección en evidencia.
+
+El asistente generará la lección respetando la estructura y límites de palabras indicados arriba.
+
+---
+
 ## 1. EDUARDO CALDERON SIPAN
 
 ---
