@@ -727,6 +727,11 @@ setInicioRealMs(Date.now());
 ---
 
 **¿Qué pendientes o mejoras futuras se identificaron?**
-- El componente `MetricasOperacion` tiene su propio layout interno (`grid grid-cols-2`, `p-4`) que difiere del estilo compacto de chips usado en Simulación y Colapso. Si se desea uniformidad total, se podría refactorizar para que use el mismo patrón de chips en las cards.
-- Los flotantes no son draggables — si en el futuro se requiere reubicación dinámica, habría que implementar arrastre.
-- La atribución de Leaflet se ocultó completamente; si se requiere por licencia, se podría agregar como texto estático en una esquina no conflictiva (ej. dentro de la Leyenda).
+- **MetricasOperacion en SimulacionView y ColapsoView:** El componente `MetricasOperacion` (4 cards: Total/Entregados/EnVuelo/Replan) debía aparecer apilado sobre el panel de tiempos en `top-4 right-4` según el diseño de Actualización posterior 3, pero no se implementó. El panel derecho solo tiene el panel de tiempos sin MetricasOperacion.
+- **Unificación de estilo MetricasOperacion:** `MetricasOperacion` usa `grid grid-cols-2` con cards internas; los chips de Simulación/Colapso usan diseño inline compacto. Si se desea uniformidad visual, refactorizar.
+- **Flotantes no draggables:** Si se requiere reubicación dinámica por parte del usuario, implementar arrastre.
+- **Atribución de Leaflet:** Se ocultó con `attributionControl={false}`. Si se requiere por licencia, agregar texto estático en esquina no conflictiva (ej. dentro de la Leyenda).
+- **Precisión de coordenadas de aeropuertos:** Las coordenadas actuales son reales (WGS84). Verificar periódicamente contra fuentes oficiales si se agregan nuevos aeropuertos.
+- **Pruebas automatizadas (frontend):** No existe infraestructura de tests unitarios ni de integración. Solo se ejecuta `next build` + `eslint` en CI. Agregar tests (Vitest, Playwright) para evitar regressiones visuales y de lógica.
+- **TypeScript errors ignorados en build:** `next.config.ts` tiene `ignoreBuildErrors: true`. Si se requiere validación estricta de tipos en CI, cambiar a `false` y agregar script `typecheck` en package.json.
+- **Refactor de time panels:** El JSX del panel de tiempos está duplicado en SimulacionView y ColapsoView. Extraer a un componente `<PanelTiempo>` compartido para evitar divergencia futura.
