@@ -44,6 +44,7 @@ import {
   type UmbralesConfig,
 } from "@/components/mapa/ConfigUmbrales";
 import type { SelectedEnvioOperacion } from "@/components/operacion/PanelEnviosOperacion";
+import { formatearFechaHoraCortaLima } from "@/lib/formatearHora";
 import type { SelectedEnvio } from "@/components/simulacion/PanelEnvios";
 import type {
   Aeropuerto,
@@ -291,15 +292,15 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     useState<SelectedEnvioOperacion | null>(null);
   const [vueloFilterOrigen, setVueloFilterOrigen] = useState("");
   const [vueloFilterDestino, setVueloFilterDestino] = useState("");
+  const [equipajeFilter, setEquipajeFilter] = useState<
+    "todos" | "con_equipaje" | "sin_equipaje"
+  >("todos");
   const [seguidoVueloId, setSeguidoVueloId] = useState<string | null>(null);
   const [seguidoAeropuertoId, setSeguidoAeropuertoId] = useState<string | null>(
     null,
   );
   const [aeroFiltroCodigo, setAeroFiltroCodigo] = useState("");
   const [aeroFiltroContinente, setAeroFiltroContinente] = useState("");
-  const [equipajeFilter, setEquipajeFilter] = useState<
-    "todos" | "con_equipaje" | "sin_equipaje"
-  >("todos");
 
   const fetchData = async () => {
     setLoading(true);
@@ -1274,6 +1275,9 @@ function SimulacionView({
   );
   const [vueloFilterOrigen, setVueloFilterOrigen] = useState("");
   const [vueloFilterDestino, setVueloFilterDestino] = useState("");
+  const [equipajeFilter, setEquipajeFilter] = useState<
+    "todos" | "con_equipaje" | "sin_equipaje"
+  >("todos");
   const [seguidoVueloId, setSeguidoVueloId] = useState<string | null>(null);
   const [seguidoAeropuertoId, setSeguidoAeropuertoId] = useState<string | null>(
     null,
@@ -1604,7 +1608,11 @@ function SimulacionView({
                     (!vueloFilterOrigen ||
                       v.origen.codigo_iata === vueloFilterOrigen) &&
                     (!vueloFilterDestino ||
-                      v.destino.codigo_iata === vueloFilterDestino),
+                      v.destino.codigo_iata === vueloFilterDestino) &&
+                    (equipajeFilter === "todos" ||
+                      (equipajeFilter === "con_equipaje"
+                        ? v.carga_disponible < v.capacidad_carga
+                        : v.carga_disponible >= v.capacidad_carga)),
                 )
               : []
           }
@@ -1714,7 +1722,7 @@ function SimulacionView({
               </div>
             </div>
           </div>
-          <div className="absolute top-4 right-4 z-[1001] pointer-events-none max-w-[320px]">
+          <div className="absolute top-4 right-4 z-[1001] pointer-events-none max-w-[320px] flex flex-col gap-1.5">
             <div className="pointer-events-auto p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 space-y-1 text-[11px] text-slate-600 dark:text-slate-400 min-w-[220px]">
               <div className="flex justify-between">
                 <span>Inicio Real:</span>
@@ -1743,7 +1751,7 @@ function SimulacionView({
               <div className="flex justify-between">
                 <span>Actual Virtual:</span>
                 <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
-                  {metricas.dia_hora_virtual?.slice(0, 19).replace("T", " ") ||
+                  {formatearFechaHoraCortaLima(metricas.dia_hora_virtual) ||
                     `${simulacionConfig.fecha_inicio_virtual} ${simulacionConfig.hora_inicio_virtual}:00`}
                 </span>
               </div>
@@ -1752,6 +1760,33 @@ function SimulacionView({
                 <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
                   {formatSegundos(metricas.segundos_reales_transcurridos ?? 0)}
                 </span>
+              </div>
+            </div>
+            <div className="pointer-events-auto p-2 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-1">
+                <Luggage
+                  size={14}
+                  className="text-slate-500 dark:text-slate-400"
+                />
+                {(["todos", "con_equipaje", "sin_equipaje"] as const).map(
+                  (opt) => (
+                    <button
+                      key={opt}
+                      onClick={() => setEquipajeFilter(opt)}
+                      className={`px-2 py-0.5 text-[11px] font-medium rounded-md transition-colors ${
+                        equipajeFilter === opt
+                          ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
+                          : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                      }`}
+                    >
+                      {opt === "todos"
+                        ? "Todos"
+                        : opt === "con_equipaje"
+                          ? "Con equipaje"
+                          : "Sin equipaje"}
+                    </button>
+                  ),
+                )}
               </div>
             </div>
           </div>
@@ -2128,6 +2163,9 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   );
   const [vueloFilterOrigen, setVueloFilterOrigen] = useState("");
   const [vueloFilterDestino, setVueloFilterDestino] = useState("");
+  const [equipajeFilter, setEquipajeFilter] = useState<
+    "todos" | "con_equipaje" | "sin_equipaje"
+  >("todos");
   const [seguidoVueloId, setSeguidoVueloId] = useState<string | null>(null);
   const [seguidoAeropuertoId, setSeguidoAeropuertoId] = useState<string | null>(
     null,
@@ -2478,7 +2516,11 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                     (!vueloFilterOrigen ||
                       v.origen.codigo_iata === vueloFilterOrigen) &&
                     (!vueloFilterDestino ||
-                      v.destino.codigo_iata === vueloFilterDestino),
+                      v.destino.codigo_iata === vueloFilterDestino) &&
+                    (equipajeFilter === "todos" ||
+                      (equipajeFilter === "con_equipaje"
+                        ? v.carga_disponible < v.capacidad_carga
+                        : v.carga_disponible >= v.capacidad_carga)),
                 )
               : []
           }
@@ -2588,7 +2630,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               </div>
             </div>
           </div>
-          <div className="absolute top-4 right-4 z-[1001] pointer-events-none max-w-[320px]">
+          <div className="absolute top-4 right-4 z-[1001] pointer-events-none max-w-[320px] flex flex-col gap-1.5">
             <div className="pointer-events-auto p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 space-y-1 text-[11px] text-slate-600 dark:text-slate-400 min-w-[220px]">
               <div className="flex justify-between">
                 <span>Inicio Real:</span>
@@ -2617,7 +2659,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               <div className="flex justify-between">
                 <span>Actual Virtual:</span>
                 <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
-                  {metricas.dia_hora_virtual?.slice(0, 19).replace("T", " ") ||
+                  {formatearFechaHoraCortaLima(metricas.dia_hora_virtual) ||
                     `${simulacionConfig.fecha_inicio_virtual} ${simulacionConfig.hora_inicio_virtual}:00`}
                 </span>
               </div>
@@ -2626,6 +2668,33 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                 <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
                   {formatSegundos(metricas.segundos_reales_transcurridos ?? 0)}
                 </span>
+              </div>
+            </div>
+            <div className="pointer-events-auto p-2 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-1">
+                <Luggage
+                  size={14}
+                  className="text-slate-500 dark:text-slate-400"
+                />
+                {(["todos", "con_equipaje", "sin_equipaje"] as const).map(
+                  (opt) => (
+                    <button
+                      key={opt}
+                      onClick={() => setEquipajeFilter(opt)}
+                      className={`px-2 py-0.5 text-[11px] font-medium rounded-md transition-colors ${
+                        equipajeFilter === opt
+                          ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
+                          : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                      }`}
+                    >
+                      {opt === "todos"
+                        ? "Todos"
+                        : opt === "con_equipaje"
+                          ? "Con equipaje"
+                          : "Sin equipaje"}
+                    </button>
+                  ),
+                )}
               </div>
             </div>
           </div>

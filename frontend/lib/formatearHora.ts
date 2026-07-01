@@ -58,3 +58,39 @@ export function formatearFechaHoraSeparado(isoStr: string | null | undefined): {
   };
 }
 
+const LIMA_TZ = 'America/Lima';
+
+/**
+ * Fecha + hora compacta SIEMPRE en hora Lima (America/Lima), independiente del TZ del
+ * navegador. Pensada para renderizar el reloj virtual de la sesion, que el backend ya
+ * almacena con offset -05 (Lima). Evita confusion cuando el navegador del operador
+ * no esta en -05 y mostraba horas desfasadas (ej. UTC veia "19:40" en vez de "14:40").
+ * Formato salida: "YYYY-MM-DD HH:MM:SS".
+ */
+export function formatearFechaHoraCortaLima(isoStr: string | null | undefined): string {
+  if (!isoStr) return '—';
+  const d = new Date(isoStr);
+  if (isNaN(d.getTime())) return '—';
+  const fecha = d.toLocaleDateString('es-PE', {
+    day: '2-digit', month: '2-digit', year: 'numeric', timeZone: LIMA_TZ,
+  });
+  const hora = d.toLocaleTimeString('es-PE', {
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: LIMA_TZ,
+  });
+  return `${fecha} ${hora}`;
+}
+
+/**
+ * Solo la parte de hora HH:MM en hora Lima. Util cuando el reloj virtual debe
+ * compararse visualmente contra las horas de salida/llegada del panel de vuelos
+ * (que tambien se muestran en Lima porque el backend emite con offset -05).
+ */
+export function formatearHoraLima(isoStr: string | null | undefined): string {
+  if (!isoStr) return '--:--';
+  const d = new Date(isoStr);
+  if (isNaN(d.getTime())) return '--:--';
+  return d.toLocaleTimeString('es-PE', {
+    hour: '2-digit', minute: '2-digit', hour12: false, timeZone: LIMA_TZ,
+  });
+}
+
