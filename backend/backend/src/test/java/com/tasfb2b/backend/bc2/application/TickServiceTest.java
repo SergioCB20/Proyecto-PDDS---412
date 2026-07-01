@@ -261,6 +261,9 @@ class TickServiceTest {
                 .thenReturn(List.of(vuelo));
         when(nodoRepository.findAllByOrderByCodigoIataAsc())
                 .thenReturn(List.of(nodoOrigen, nodoDestino));
+        when(replanificacionService.replanificarEnSesion(
+                any(UUID.class), any(UUID.class), anyString(), any(OffsetDateTime.class)))
+                .thenReturn(new ReplanificacionResult(0, UUID.randomUUID(), List.of()));
 
         tickService.tick();
 

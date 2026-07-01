@@ -17,6 +17,9 @@ interface PanelTabsProps {
   onDownloadManifiesto?: (id: string, codigo: string) => void;
   onCancelVuelo?: (id: string, codigo: string) => void;
   onVerEnMapa?: (id: string) => void;
+  seguidoVueloId?: string;
+  onAeropuertoVerEnMapa?: (id: string) => void;
+  seguidoAeropuertoId?: string;
   vueloFilterOrigen: string;
   vueloFilterDestino: string;
   onVueloFilterChange: (filters: { origen: string; destino: string }) => void;
@@ -40,6 +43,9 @@ export function PanelTabs({
   onDownloadManifiesto,
   onCancelVuelo,
   onVerEnMapa,
+  seguidoVueloId,
+  onAeropuertoVerEnMapa,
+  seguidoAeropuertoId,
   vueloFilterOrigen,
   vueloFilterDestino,
   onVueloFilterChange,
@@ -72,6 +78,8 @@ export function PanelTabs({
           aeropuertos={aeropuertos}
           vuelos={vuelosAeropuerto}
           onAeropuertoClick={onAeropuertoClick}
+          onVerEnMapa={onAeropuertoVerEnMapa}
+          seguidoId={seguidoAeropuertoId}
         />
       )}
 
@@ -82,6 +90,7 @@ export function PanelTabs({
           onDownloadManifiesto={onDownloadManifiesto}
           onCancelVuelo={onCancelVuelo}
           onVerEnMapa={onVerEnMapa}
+          seguidoId={seguidoVueloId}
           origenFilter={vueloFilterOrigen}
           destinoFilter={vueloFilterDestino}
           onFilterChange={onVueloFilterChange}
