@@ -7,6 +7,7 @@ import type { VueloEnMapa } from '@/lib/types';
 import type { UmbralesConfig } from './ConfigUmbrales';
 import { bezierCurvePoints } from '@/lib/bezier';
 import { formatearFechaHoraSeparado } from '@/lib/formatearHora';
+import { ciudadDe } from '@/lib/aeropuertos';
 import AvionAnimado from './AvionAnimado';
 
 interface GeoMapaVueloProps {
@@ -86,8 +87,8 @@ export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false
           <Tooltip direction="center" className="vuelo-tooltip">
             <div className="text-center min-w-[150px]">
               <div className="font-bold text-sm">{vuelo.codigo_vuelo}</div>
-              <div className="text-xs text-slate-600">
-                {vuelo.origen.codigo_iata} → {vuelo.destino.codigo_iata}
+              <div className="text-xs text-slate-600" title={`${vuelo.origen.codigo_iata} → ${vuelo.destino.codigo_iata}`}>
+                {ciudadDe(vuelo.origen.codigo_iata)} → {ciudadDe(vuelo.destino.codigo_iata)}
               </div>
               <div className="text-[10px] text-slate-500 mt-0.5 font-mono">
                 {(() => {

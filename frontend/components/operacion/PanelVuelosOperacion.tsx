@@ -10,6 +10,7 @@ import { colorVueloPorEstado } from '@/lib/colors';
 import type { VueloTelemetria, Maleta } from '@/lib/types';
 import { formatearFechaHoraSeparado } from '@/lib/formatearHora';
 import { fetchMaletasVuelo } from '@/lib/api';
+import { ciudadDe, etiquetaFiltroAeropuerto } from '@/lib/aeropuertos';
 
 interface PanelVuelosOperacionProps {
   vuelos: VueloTelemetria[];
@@ -27,6 +28,14 @@ interface PanelVuelosOperacionProps {
 // completa; solo se acota cuántas se renderizan a la vez para no saturar la
 // pestaña cuando la telemetría trae muchos vuelos.
 const MAX_RENDER = 100;
+
+// Un vuelo PROGRAMADO aún no ha embarcado: la carga real se fija al despegar. La reserva que
+// el planificador hace por adelantado (baja carga_disponible) es transitoria y se re-ajusta
+// cada ciclo, así que no se muestra ocupación hasta que el vuelo está EN_RUTA/COMPLETADO.
+function cargaOcupada(v: VueloTelemetria): number {
+  if (v.estado === 'PROGRAMADO') return 0;
+  return Math.max(0, v.capacidad_carga - v.carga_disponible);
+}
 
 export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiesto, onCancelVuelo, onVerEnMapa, seguidoId, origenFilter = '', destinoFilter = '', onFilterChange }: PanelVuelosOperacionProps) {
   const [filtroCodigo, setFiltroCodigo] = useState('');
@@ -87,12 +96,12 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
 
   const opcionesOrigen = useMemo(() => {
     const set = new Set(vuelos.map(v => v.origen_iata));
-    return Array.from(set).sort().map(iata => ({ value: iata, label: iata }));
+    return Array.from(set).sort().map(iata => ({ value: iata, label: etiquetaFiltroAeropuerto(iata) }));
   }, [vuelos]);
 
   const opcionesDestino = useMemo(() => {
     const set = new Set(vuelos.map(v => v.destino_iata));
-    return Array.from(set).sort().map(iata => ({ value: iata, label: iata }));
+    return Array.from(set).sort().map(iata => ({ value: iata, label: etiquetaFiltroAeropuerto(iata) }));
   }, [vuelos]);
 
   const vuelosFiltrados = useMemo(() => {
@@ -118,10 +127,10 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
     const lista = [...vuelosFiltrados];
     switch (orden) {
       case 'ocupacion-asc':
-        lista.sort((a, b) => (a.capacidad_carga - a.carga_disponible) - (b.capacidad_carga - b.carga_disponible));
+        lista.sort((a, b) => cargaOcupada(a) - cargaOcupada(b));
         break;
       case 'ocupacion-desc':
-        lista.sort((a, b) => (b.capacidad_carga - b.carga_disponible) - (a.capacidad_carga - a.carga_disponible));
+        lista.sort((a, b) => cargaOcupada(b) - cargaOcupada(a));
         break;
       case 'hora-salida':
         lista.sort((a, b) => a.hora_salida.localeCompare(b.hora_salida));
@@ -221,7 +230,7 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
 
       <div className="space-y-2 max-h-56 overflow-y-auto">
         {vuelosVisibles.map(v => {
-          const ocupada = v.capacidad_carga - v.carga_disponible;
+          const ocupada = cargaOcupada(v);
           const pct = v.capacidad_carga > 0 ? (ocupada / v.capacidad_carga) * 100 : 0;
           const colorHex = colorVueloPorEstado(v.estado);
           return (
@@ -240,8 +249,11 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
                     {v.estado === 'EN_RUTA' ? 'En Ruta' : v.estado === 'PROGRAMADO' ? 'Programado' : v.estado === 'CANCELADO' ? 'Cancelado' : 'Completado'}
                   </span>
                 </div>
-                <span className="text-[11px] font-mono font-medium text-slate-500 dark:text-slate-400">
-                  {v.origen_iata} &rarr; {v.destino_iata}
+                <span
+                  className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate max-w-[170px]"
+                  title={`${v.origen_iata} → ${v.destino_iata}`}
+                >
+                  {ciudadDe(v.origen_iata)} &rarr; {ciudadDe(v.destino_iata)}
                 </span>
               </div>
               <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 mb-1">
