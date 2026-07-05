@@ -2,7 +2,9 @@ package com.tasfb2b.backend.bc2.infrastructure;
 
 import com.tasfb2b.backend.bc2.application.*;
 import com.tasfb2b.backend.bc2.application.SesionService;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,9 +17,12 @@ import java.util.Map;
 public class SesionController {
 
     private final SesionService sesionService;
+    private final ReporteReplanificacionPdfService reporteReplanificacionPdfService;
 
-    public SesionController(SesionService sesionService) {
+    public SesionController(SesionService sesionService,
+                            ReporteReplanificacionPdfService reporteReplanificacionPdfService) {
         this.sesionService = sesionService;
+        this.reporteReplanificacionPdfService = reporteReplanificacionPdfService;
     }
 
     @GetMapping
@@ -112,6 +117,30 @@ public class SesionController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("status", 404, "error", "NO_ENCONTRADO", "mensaje", e.getMessage()));
         }
+    }
+
+    @GetMapping("/{id}/replanificaciones/{loteId}")
+    public ResponseEntity<?> obtenerDetalleReplanificacion(
+            @PathVariable UUID id,
+            @PathVariable UUID loteId) {
+        try {
+            return ResponseEntity.ok(sesionService.obtenerDetalleReplanificacion(id, loteId));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("status", 404, "error", "NO_ENCONTRADO", "mensaje", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/{id}/replanificaciones/{loteId}/pdf")
+    public ResponseEntity<byte[]> descargarReplanificacionPdf(
+            @PathVariable UUID id,
+            @PathVariable UUID loteId) {
+        byte[] pdf = reporteReplanificacionPdfService.generarPdf(id, loteId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=replanificacion_" + loteId + ".pdf")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdf);
     }
 
 }

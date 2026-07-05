@@ -20,8 +20,11 @@ public interface EquipajeRepository extends JpaRepository<Equipaje, UUID> {
     List<Equipaje> findByVueloActualIdIn(List<UUID> vueloActualIds);
     long countByVueloActualId(UUID vueloId);
 
-    @Query("SELECT e FROM Equipaje e JOIN PlanViaje pv ON pv.equipaje = e " +
-           "WHERE pv.sesionId = :sesionId AND e.vueloActual.id = :vueloId")
+    @Query("SELECT DISTINCT e FROM Equipaje e " +
+           "JOIN PlanViaje pv ON pv.equipaje = e " +
+           "LEFT JOIN SegmentoPlan sp ON sp.planViaje = pv " +
+           "WHERE pv.sesionId = :sesionId " +
+           "  AND (e.vueloActual.id = :vueloId OR sp.vuelo.id = :vueloId)")
     List<Equipaje> findBySesionIdAndVueloActualId(
             @Param("sesionId") UUID sesionId,
             @Param("vueloId") UUID vueloId);

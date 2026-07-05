@@ -3,15 +3,18 @@
 import { useState, useMemo } from 'react';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
+import { Map as MapIcon } from 'lucide-react';
 import type { AeropuertoTelemetria, VueloTelemetria } from '@/lib/types';
 
 interface PanelAeropuertosProps {
   aeropuertos: AeropuertoTelemetria[];
   vuelos: VueloTelemetria[];
   onAeropuertoClick?: (id: string, codigo: string) => void;
+  onVerEnMapa?: (id: string) => void;
+  seguidoId?: string;
 }
 
-export function PanelAeropuertos({ aeropuertos, vuelos, onAeropuertoClick }: PanelAeropuertosProps) {
+export function PanelAeropuertos({ aeropuertos, vuelos, onAeropuertoClick, onVerEnMapa, seguidoId }: PanelAeropuertosProps) {
   const [filtroCodigo, setFiltroCodigo] = useState('');
   const [filtroContinente, setFiltroContinente] = useState('');
   const [orden, setOrden] = useState('');
@@ -163,7 +166,24 @@ export function PanelAeropuertos({ aeropuertos, vuelos, onAeropuertoClick }: Pan
                 )}
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <span className="text-xs text-slate-500">
+                <div className="flex items-center gap-1">
+                  {seguidoId === n.codigo_iata ? (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-medium whitespace-nowrap">
+                      Salir del mapa [ESC]
+                    </span>
+                  ) : (
+                    onVerEnMapa && (
+                      <button
+                        onClick={e => { e.stopPropagation(); onVerEnMapa(n.codigo_iata); }}
+                        className="p-1 rounded hover:bg-amber-100 dark:hover:bg-amber-900/30 text-amber-600"
+                        title="Ver en mapa"
+                      >
+                        <MapIcon size={12} />
+                      </button>
+                    )
+                  )}
+                </div>
+                <span className="text-xs text-slate-500 ml-1">
                   {n.ocupacion_actual}/{n.capacidad_almacen}
                 </span>
                 <span className="text-xs font-semibold" style={{ color: n.color }}>

@@ -14,6 +14,7 @@ interface PanelVuelosOperacionProps {
   onDownloadManifiesto?: (id: string, codigo: string) => void;
   onCancelVuelo?: (id: string, codigo: string) => void;
   onVerEnMapa?: (id: string) => void;
+  seguidoId?: string;
   origenFilter?: string;
   destinoFilter?: string;
   onFilterChange?: (filters: { origen: string; destino: string }) => void;
@@ -24,7 +25,7 @@ interface PanelVuelosOperacionProps {
 // pestaña cuando la telemetría trae muchos vuelos.
 const MAX_RENDER = 100;
 
-export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiesto, onCancelVuelo, onVerEnMapa, origenFilter = '', destinoFilter = '', onFilterChange }: PanelVuelosOperacionProps) {
+export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiesto, onCancelVuelo, onVerEnMapa, seguidoId, origenFilter = '', destinoFilter = '', onFilterChange }: PanelVuelosOperacionProps) {
   const [filtroCodigo, setFiltroCodigo] = useState('');
   const [orden, setOrden] = useState('');
 
@@ -196,7 +197,11 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
                     <span>Salida: {formatearHoraLocalCorta(v.hora_salida)}</span>
                     <div className="flex items-center gap-2">
                       <span>Llegada: {formatearHoraLocalCorta(v.hora_llegada)}</span>
-                      {onVerEnMapa && v.estado === 'EN_RUTA' && (
+                      {seguidoId === v.id ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-medium whitespace-nowrap">
+                          Salir del mapa [ESC]
+                        </span>
+                      ) : onVerEnMapa && v.estado === 'EN_RUTA' && (
                         <button
                           onClick={e => { e.stopPropagation(); onVerEnMapa(v.id); }}
                           className="p-1 rounded hover:bg-amber-100 dark:hover:bg-amber-900/30 text-amber-600"

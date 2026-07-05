@@ -67,7 +67,8 @@ public class SesionPreparacionAsync {
                 // colapsa en el tick 0 al heredar nodos por encima del umbral rojo.
                 try {
                     int eqReset = jdbcTemplate.update(
-                        "UPDATE equipajes SET estado = 'REGISTRADO', vuelo_actual_id = NULL WHERE estado <> 'REGISTRADO'");
+                        "UPDATE equipajes SET estado = 'REGISTRADO', vuelo_actual_id = NULL " +
+                        "WHERE id IN (SELECT equipaje_id FROM planes_viaje)");
                     jdbcTemplate.update("DELETE FROM segmentos_plan");
                     int planes = jdbcTemplate.update("DELETE FROM planes_viaje");
                     jdbcTemplate.update("UPDATE nodos_logisticos SET ocupacion_actual = 0");

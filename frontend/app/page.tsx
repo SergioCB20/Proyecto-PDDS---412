@@ -13,19 +13,37 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Modal } from '@/components/ui/Modal';
 import { Card } from '@/components/ui/Card';
-import { PanelVuelosOperacion } from '@/components/operacion/PanelVuelosOperacion';
-import { PanelAeropuertosOperacion } from '@/components/operacion/PanelAeropuertosOperacion';
-import { PanelEntregadosOperacion } from '@/components/operacion/PanelEntregadosOperacion';
 import { PanelEnviosOperacion } from '@/components/operacion/PanelEnviosOperacion';
-import { ResumenVuelosOperacion } from '@/components/operacion/ResumenVuelosOperacion';
-import { PanelEntregados } from '@/components/simulacion/PanelEntregados';
 import { PanelEnvios } from '@/components/simulacion/PanelEnvios';
 import { PanelReporte } from '@/components/simulacion/PanelReporte';
-import { PanelEnviosMaletas } from '@/components/shared/PanelEnviosMaletas';
+import { SimulacionLoadingOverlay } from '@/components/simulacion/SimulacionLoadingOverlay';
+import { PanelTabs } from '@/components/shared/PanelTabs';
 import { ConfigUmbrales, type UmbralesConfig } from '@/components/mapa/ConfigUmbrales';
 import type { SelectedEnvioOperacion } from '@/components/operacion/PanelEnviosOperacion';
 import type { SelectedEnvio } from '@/components/simulacion/PanelEnvios';
 import type { Aeropuerto, Vuelo, VueloEnMapa, VueloPageResponse, AeropuertoEnMapa, CrearEquipajeResponse, CargaMasivaPreview, CargaMasivaConfirmResponse, MetricasSimulacion, ReporteSesion } from '@/lib/types';
+
+interface CancelResultEquipaje {
+  id: string;
+  codigo: string;
+  origen_iata: string;
+  destino_iata: string;
+}
+
+interface CancelResult {
+  vueloId: string;
+  codigo: string;
+  loteId: string;
+  equipajes: CancelResultEquipaje[];
+}
+
+interface CancelResultResponse {
+  vuelo_id: string;
+  estado_nuevo: string;
+  equipajes_afectados: number;
+  lote_replanificacion_id: string;
+  equipajes: CancelResultEquipaje[];
+}
 
 const GeoMapa = dynamic(() => import('@/components/mapa/GeoMapa'), {
   ssr: false,
@@ -200,6 +218,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [vueloFilterOrigen, setVueloFilterOrigen] = useState('');
   const [vueloFilterDestino, setVueloFilterDestino] = useState('');
   const [seguidoVueloId, setSeguidoVueloId] = useState<string | null>(null);
+  const [seguidoAeropuertoId, setSeguidoAeropuertoId] = useState<string | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -375,10 +394,14 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
 
   const metricasOpSim = telemetria?.metricas_sesion;
 
+  const vuelosActivosOp = allVuelos.filter(v => v.estado === 'EN_RUTA').length;
+  const vuelosProgramadosOp = allVuelos.filter(v => v.estado === 'PROGRAMADO').length;
+  const vuelosEntregadosOp = allVuelos.filter(v => v.estado === 'COMPLETADO').length;
+
   return (
     <div className="flex h-full">
       <div className="flex-1 p-4 relative">
-        <GeoMapa aeropuertos={aeropuertos} vuelos={vuelosMapaFiltrados} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} cargando={aeropuertos.length === 0} seguidoVueloId={seguidoVueloId ?? undefined} onSalirSeguimiento={() => setSeguidoVueloId(null)}>
+        <GeoMapa aeropuertos={aeropuertos} vuelos={vuelosMapaFiltrados} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} cargando={aeropuertos.length === 0} seguidoVueloId={seguidoVueloId ?? undefined} onSalirSeguimiento={() => { setSeguidoVueloId(null); setSeguidoAeropuertoId(null); }} onSeguirVuelo={setSeguidoVueloId} seguidoAeropuertoId={seguidoAeropuertoId ?? undefined} onSalirSeguimientoAeropuerto={() => { setSeguidoAeropuertoId(null); setSeguidoVueloId(null); }}>
           <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
             <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
               <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
@@ -409,6 +432,20 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                   width: `${Math.min(maxOcupacion, 100)}%`,
                   backgroundColor: maxOcupacion < configUmbrales.verdeMax ? '#22c55e' : maxOcupacion < configUmbrales.ambarMax ? '#eab308' : '#ef4444'
                 }} />
+              </div>
+            </div>
+            <div className="pointer-events-auto mt-1.5 p-2 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-slate-500">Vuelos activos</span>
+                <span className="text-xs font-bold text-green-600">{vuelosActivosOp}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-slate-500">Vuelos programados</span>
+                <span className="text-xs font-bold text-blue-600">{vuelosProgramadosOp}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-slate-500">Últimos Vuelos Entregados</span>
+                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{vuelosEntregadosOp}</span>
               </div>
             </div>
           </div>
@@ -491,36 +528,31 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               )}
             </div>
 
-            <ResumenVuelosOperacion vuelos={telemetria?.vuelos ?? []} />
-
-            {telemetria?.nodos && telemetria.nodos.length > 0 && (
-              <PanelAeropuertosOperacion aeropuertos={telemetria.nodos} vuelos={telemetria.vuelos ?? []} onAeropuertoClick={(id, codigo) => setSelectedEnvio({ tipo: 'nodo', id, codigo })} />
-            )}
-
-            {telemetria?.vuelos && telemetria.vuelos.length > 0 && (
-              <PanelVuelosOperacion
-                vuelos={telemetria.vuelos} onVueloClick={(id, codigo) => setSelectedEnvio({ tipo: 'vuelo', id, codigo })}
-                onVerEnMapa={id => setSeguidoVueloId(id)}
-                onDownloadManifiesto={async (id, codigo) => {
-                  try {
-                    const blob = await api.downloadBlob(`/manifiestos/${id}`);
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a'); a.href = url;
-                    a.download = `manifiesto_${codigo}_${new Date().toISOString().split('T')[0]}.pdf`;
-                    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                  } catch { alert('Error al descargar manifiesto'); }
-                }}
-                onCancelVuelo={handleCancelarVuelo}
-                origenFilter={vueloFilterOrigen} destinoFilter={vueloFilterDestino}
-                onFilterChange={({ origen, destino }) => { setVueloFilterOrigen(origen); setVueloFilterDestino(destino); }}
-              />
-            )}
-
-            <PanelEntregadosOperacion activo={true} />
-
-            <PanelEnviosMaletas
-              activo={estadoOperacion === 'ACTIVO'}
+            <PanelTabs
+              aeropuertos={telemetria?.nodos ?? []}
+              vuelosAeropuerto={telemetria?.vuelos ?? []}
+              onAeropuertoClick={(id, codigo) => setSelectedEnvio({ tipo: 'nodo', id, codigo })}
+              vuelos={telemetria?.vuelos ?? []}
+              onVueloClick={(id, codigo) => setSelectedEnvio({ tipo: 'vuelo', id, codigo })}
+              onVerEnMapa={id => { setSeguidoVueloId(id); setSeguidoAeropuertoId(null); }}
+              seguidoVueloId={seguidoVueloId ?? undefined}
+              onAeropuertoVerEnMapa={id => { setSeguidoAeropuertoId(id); setSeguidoVueloId(null); }}
+              seguidoAeropuertoId={seguidoAeropuertoId ?? undefined}
+              onDownloadManifiesto={async (id, codigo) => {
+                try {
+                  const blob = await api.downloadBlob(`/manifiestos/${id}`);
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a'); a.href = url;
+                  a.download = `manifiesto_${codigo}_${new Date().toISOString().split('T')[0]}.pdf`;
+                  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                } catch { alert('Error al descargar manifiesto'); }
+              }}
+              onCancelVuelo={handleCancelarVuelo}
+              vueloFilterOrigen={vueloFilterOrigen}
+              vueloFilterDestino={vueloFilterDestino}
+              onVueloFilterChange={({ origen, destino }) => { setVueloFilterOrigen(origen); setVueloFilterDestino(destino); }}
+              enviosActivo={estadoOperacion === 'ACTIVO'}
               nodos={aeropuertos.map(n => ({ codigo_iata: n.codigo_iata, nombre: n.nombre }))}
             />
 
@@ -597,6 +629,7 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
   const [sesionId, setSesionId] = useState<string | null>(null);
   const [inicioRealMs, setInicioRealMs] = useState(0);
   const [estadoSesion, setEstadoSesion] = useState<'CONFIGURADA' | 'EN_CURSO' | 'PAUSADA' | 'FINALIZADA'>('CONFIGURADA');
+  const [cancelResult, setCancelResult] = useState<CancelResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [sesionesActivas, setSesionesActivas] = useState<SesionListaItem[]>([]);
@@ -616,6 +649,7 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
   const [vueloFilterOrigen, setVueloFilterOrigen] = useState('');
   const [vueloFilterDestino, setVueloFilterDestino] = useState('');
   const [seguidoVueloId, setSeguidoVueloId] = useState<string | null>(null);
+  const [seguidoAeropuertoId, setSeguidoAeropuertoId] = useState<string | null>(null);
 
   const [metricasPoll, setMetricasPoll] = useState<MetricasSimulacion>({
     sesion_id: '', estado: 'CONFIGURADA', dia_hora_virtual: '',
@@ -701,6 +735,10 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
       }))
     : initialVuelos;
 
+  const vuelosSimActivos = vuelosMapa.filter(v => v.estado === 'EN_RUTA').length;
+  const vuelosSimProgramados = vuelosMapa.filter(v => v.estado === 'PROGRAMADO').length;
+  const vuelosSimEntregados = vuelosMapa.filter(v => v.estado === 'COMPLETADO').length;
+
   const handleIniciar = async () => {
     setError(''); setLoading(true); setReporte(null);
     try {
@@ -775,7 +813,13 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
   const handleCancelarVuelo = async (id: string, codigo: string) => {
     if (!confirm(`¿Cancelar vuelo ${codigo}?`)) return;
     try {
-      await api.post('/simulacion/cancelacion', { vuelo_id: id, causa: 'Cancelación manual', sesion_id: sesionId });
+      const res = await api.post<CancelResultResponse>('/simulacion/cancelacion', { vuelo_id: id, causa: 'Cancelación manual', sesion_id: sesionId });
+      setCancelResult({
+        vueloId: res.vuelo_id,
+        codigo,
+        loteId: res.lote_replanificacion_id,
+        equipajes: res.equipajes ?? [],
+      });
     } catch { alert('Error al cancelar vuelo'); }
   };
 
@@ -791,7 +835,7 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
   return (
     <div className="flex h-full">
       <div className="flex-1 p-4 relative">
-        <GeoMapa aeropuertos={aeropuertosMapa} vuelos={(estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA') ? vuelosMapa.filter(v => v.estado === 'EN_RUTA' && (!vueloFilterOrigen || v.origen.codigo_iata === vueloFilterOrigen) && (!vueloFilterDestino || v.destino.codigo_iata === vueloFilterDestino)) : []} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} cargando={(!!sesionId || estadoSesion === 'EN_CURSO') && aeropuertosMapa.length === 0} seguidoVueloId={seguidoVueloId ?? undefined} onSalirSeguimiento={() => setSeguidoVueloId(null)}>
+        <GeoMapa aeropuertos={aeropuertosMapa} vuelos={(estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA') ? vuelosMapa.filter(v => v.estado === 'EN_RUTA' && (!vueloFilterOrigen || v.origen.codigo_iata === vueloFilterOrigen) && (!vueloFilterDestino || v.destino.codigo_iata === vueloFilterDestino)) : []} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} cargando={(!!sesionId || estadoSesion === 'EN_CURSO') && aeropuertosMapa.length === 0} seguidoVueloId={seguidoVueloId ?? undefined} onSalirSeguimiento={() => { setSeguidoVueloId(null); setSeguidoAeropuertoId(null); }} onSeguirVuelo={setSeguidoVueloId} seguidoAeropuertoId={seguidoAeropuertoId ?? undefined} onSalirSeguimientoAeropuerto={() => { setSeguidoAeropuertoId(null); setSeguidoVueloId(null); }}>
           <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
             <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
               <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
@@ -824,6 +868,20 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
                 }} />
               </div>
             </div>
+            <div className="pointer-events-auto mt-1.5 p-2 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-slate-500">Vuelos activos</span>
+                <span className="text-xs font-bold text-green-600">{vuelosSimActivos}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-slate-500">Vuelos programados</span>
+                <span className="text-xs font-bold text-blue-600">{vuelosSimProgramados}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-slate-500">Últimos Vuelos Entregados</span>
+                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{vuelosSimEntregados}</span>
+              </div>
+            </div>
           </div>
           <div className="absolute top-4 right-4 z-[1001] pointer-events-none max-w-[320px]">
             <div className="pointer-events-auto p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 space-y-1 text-[11px] text-slate-600 dark:text-slate-400 min-w-[220px]">
@@ -851,6 +909,9 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
             </div>
           </div>
         </GeoMapa>
+        {sesionId && estadoSesion !== 'FINALIZADA' && (metricas.segundos_reales_transcurridos ?? 0) === 0 && (
+          <SimulacionLoadingOverlay visible={true} />
+        )}
       </div>
 
       <div className={`border-l border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col overflow-y-auto transition-all duration-300 ${isCollapsed ? 'w-12' : 'w-80'}`}>
@@ -946,40 +1007,60 @@ function SimulacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) 
             </>
             )}
 
-            {(sesionId || telemetria?.vuelos) && (
-              <ResumenVuelosOperacion vuelos={telemetria?.vuelos ?? []} />
-            )}
-
-            {(sesionId && estadoSesion !== 'FINALIZADA') && telemetria?.nodos && telemetria.nodos.length > 0 && (
-              <PanelAeropuertosOperacion aeropuertos={telemetria.nodos} vuelos={telemetria.vuelos ?? []}
-                onAeropuertoClick={(id, codigo) => setSelectedEnvio({ tipo: 'nodo', id, codigo })}
-              />
-            )}
-
-            {(sesionId && estadoSesion !== 'FINALIZADA') && telemetria?.vuelos && telemetria.vuelos.length > 0 && (
-              <PanelVuelosOperacion vuelos={telemetria.vuelos}
-                onVueloClick={(id, codigo) => setSelectedEnvio({ tipo: 'vuelo', id, codigo })}
-                onVerEnMapa={id => setSeguidoVueloId(id)}
-                onCancelVuelo={handleCancelarVuelo}
-                origenFilter={vueloFilterOrigen} destinoFilter={vueloFilterDestino}
-                onFilterChange={({ origen, destino }) => { setVueloFilterOrigen(origen); setVueloFilterDestino(destino); }}
-              />
-            )}
-
             {sesionId && estadoSesion !== 'FINALIZADA' && (
-              <PanelEntregados sesionId={sesionId} activo={true} />
-            )}
-
-            {sesionId && (
-              <PanelEnviosMaletas
+              <PanelTabs
+                aeropuertos={telemetria?.nodos ?? []}
+                vuelosAeropuerto={telemetria?.vuelos ?? []}
+                onAeropuertoClick={(id, codigo) => setSelectedEnvio({ tipo: 'nodo', id, codigo })}
+                vuelos={telemetria?.vuelos ?? []}
+                onVueloClick={(id, codigo) => setSelectedEnvio({ tipo: 'vuelo', id, codigo })}
+                onVerEnMapa={id => { setSeguidoVueloId(id); setSeguidoAeropuertoId(null); }}
+                seguidoVueloId={seguidoVueloId ?? undefined}
+                onAeropuertoVerEnMapa={id => { setSeguidoAeropuertoId(id); setSeguidoVueloId(null); }}
+                seguidoAeropuertoId={seguidoAeropuertoId ?? undefined}
+                onCancelVuelo={handleCancelarVuelo}
+                vueloFilterOrigen={vueloFilterOrigen}
+                vueloFilterDestino={vueloFilterDestino}
+                onVueloFilterChange={({ origen, destino }) => { setVueloFilterOrigen(origen); setVueloFilterDestino(destino); }}
                 sesionId={sesionId}
-                activo={estadoSesion === 'EN_CURSO'}
+                enviosActivo={estadoSesion === 'EN_CURSO'}
                 nodos={aeropuertosMapa.map(n => ({ codigo_iata: n.codigo_iata, nombre: n.nombre }))}
               />
             )}
 
             {selectedEnvio && sesionId && (
               <PanelEnvios selectedEnvio={selectedEnvio} sesionId={sesionId} onClose={() => setSelectedEnvio(null)} />
+            )}
+
+            {cancelResult && (
+              <Modal open={true} onClose={() => setCancelResult(null)} title={`Vuelo ${cancelResult.codigo} cancelado`}
+                footer={
+                  <div className="flex gap-2">
+                    <Button variant="secondary" onClick={() => setCancelResult(null)}>Cerrar</Button>
+                    <Button onClick={async () => {
+                      const blob = await api.downloadBlob(`/sesiones/${sesionId}/replanificaciones/${cancelResult.loteId}/pdf`);
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a'); a.href = url;
+                      a.download = `replanificacion_${cancelResult.loteId}.pdf`;
+                      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
+                    }}>Descargar PDF</Button>
+                  </div>
+                }>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+                  {cancelResult.equipajes.length} equipaje{cancelResult.equipajes.length !== 1 ? 's' : ''} afectado{cancelResult.equipajes.length !== 1 ? 's' : ''} y re-enrutado{cancelResult.equipajes.length !== 1 ? 's' : ''}.
+                </p>
+                {cancelResult.equipajes.length > 0 && (
+                  <div className="max-h-48 overflow-y-auto space-y-1">
+                    {cancelResult.equipajes.map(eq => (
+                      <div key={eq.id} className="flex items-center justify-between text-xs px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
+                        <span className="font-medium text-slate-700 dark:text-slate-300">{eq.codigo}</span>
+                        <span className="text-slate-500">{eq.origen_iata} → {eq.destino_iata}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Modal>
             )}
           </>
         )}
@@ -998,6 +1079,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [finalizandoId, setFinalizandoId] = useState<string | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(true);
   const [reporte, setReporte] = useState<ReporteSesion | null>(null);
+  const [cancelResult, setCancelResult] = useState<CancelResult | null>(null);
 
   const [simulacionConfig, setSimulacionConfig] = useState({
     fecha_inicio_virtual: '2026-01-02',
@@ -1011,6 +1093,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [vueloFilterOrigen, setVueloFilterOrigen] = useState('');
   const [vueloFilterDestino, setVueloFilterDestino] = useState('');
   const [seguidoVueloId, setSeguidoVueloId] = useState<string | null>(null);
+  const [seguidoAeropuertoId, setSeguidoAeropuertoId] = useState<string | null>(null);
 
   const [metricasPoll, setMetricasPoll] = useState<MetricasSimulacion>({
     sesion_id: '', estado: 'CONFIGURADA', dia_hora_virtual: '',
@@ -1100,6 +1183,10 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
       }))
     : initialVuelos;
 
+  const vuelosColActivos = vuelosMapa.filter(v => v.estado === 'EN_RUTA').length;
+  const vuelosColProgramados = vuelosMapa.filter(v => v.estado === 'PROGRAMADO').length;
+  const vuelosColEntregados = vuelosMapa.filter(v => v.estado === 'COMPLETADO').length;
+
   const maxOcupacion = Math.max(
     0,
     ...(telemetria?.nodos ?? []).map(n => n.ocupacion_pct),
@@ -1174,7 +1261,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     try {
       await api.post(`/sesiones/${id}/detener`, {});
       setSesionesActivas(prev => prev.filter(s => s.id !== id));
-      if (id === sesionId) { setSesionId(null); setEstadoSesion('FINALIZADA'); setInicioRealMs(0); }
+      if (id === sesionId) {       setSesionId(null); setEstadoSesion('FINALIZADA'); setInicioRealMs(0); }
       await fetchReportWithRetry(id);
     } catch (err: unknown) {
       const e = err as { mensaje?: string; message?: string };
@@ -1185,7 +1272,19 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const handleCancelarVuelo = async (id: string, codigo: string) => {
     if (!confirm(`¿Cancelar vuelo ${codigo}?`)) return;
     try {
-      await api.post('/simulacion/cancelacion', { vuelo_id: id, causa: 'Cancelación manual', sesion_id: sesionId });
+      const res = await api.post<CancelResultResponse>('/simulacion/cancelacion', { vuelo_id: id, causa: 'Cancelación manual', sesion_id: sesionId });
+      setCancelResult({
+        vueloId: res.vuelo_id,
+        codigo,
+        loteId: res.lote_replanificacion_id,
+        equipajes: res.equipajes ?? [],
+      });
+      setCancelResult({
+        vueloId: res.vuelo_id,
+        codigo,
+        loteId: res.lote_replanificacion_id,
+        equipajes: res.equipajes ?? [],
+      });
     } catch { alert('Error al cancelar vuelo'); }
   };
 
@@ -1195,7 +1294,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   return (
     <div className="flex h-full">
       <div className="flex-1 p-4 relative">
-        <GeoMapa aeropuertos={aeropuertosMapa} vuelos={(estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA') ? vuelosMapa.filter(v => v.estado === 'EN_RUTA' && (!vueloFilterOrigen || v.origen.codigo_iata === vueloFilterOrigen) && (!vueloFilterDestino || v.destino.codigo_iata === vueloFilterDestino)) : []} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} cargando={(!!sesionId || estadoSesion === 'EN_CURSO') && aeropuertosMapa.length === 0} seguidoVueloId={seguidoVueloId ?? undefined} onSalirSeguimiento={() => setSeguidoVueloId(null)}>
+        <GeoMapa aeropuertos={aeropuertosMapa} vuelos={(estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA') ? vuelosMapa.filter(v => v.estado === 'EN_RUTA' && (!vueloFilterOrigen || v.origen.codigo_iata === vueloFilterOrigen) && (!vueloFilterDestino || v.destino.codigo_iata === vueloFilterDestino)) : []} mostrarAviones={true} animacionActiva={animacionActiva} k={k} className="h-full" umbralesConfig={configUmbrales} cargando={(!!sesionId || estadoSesion === 'EN_CURSO') && aeropuertosMapa.length === 0} seguidoVueloId={seguidoVueloId ?? undefined} onSalirSeguimiento={() => { setSeguidoVueloId(null); setSeguidoAeropuertoId(null); }} onSeguirVuelo={setSeguidoVueloId} seguidoAeropuertoId={seguidoAeropuertoId ?? undefined} onSalirSeguimientoAeropuerto={() => { setSeguidoAeropuertoId(null); setSeguidoVueloId(null); }}>
           <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
             <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
               <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
@@ -1226,6 +1325,20 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                   width: `${Math.min(maxOcupacion, 100)}%`,
                   backgroundColor: maxOcupacion < configUmbrales.verdeMax ? '#22c55e' : maxOcupacion < configUmbrales.ambarMax ? '#eab308' : '#ef4444'
                 }} />
+              </div>
+            </div>
+            <div className="pointer-events-auto mt-1.5 p-2 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-slate-500">Vuelos activos</span>
+                <span className="text-xs font-bold text-green-600">{vuelosColActivos}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-slate-500">Vuelos programados</span>
+                <span className="text-xs font-bold text-blue-600">{vuelosColProgramados}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-slate-500">Últimos Vuelos Entregados</span>
+                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{vuelosColEntregados}</span>
               </div>
             </div>
           </div>
@@ -1374,40 +1487,60 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               </>
             )}
 
-            {(sesionId || telemetria?.vuelos) && (
-              <ResumenVuelosOperacion vuelos={telemetria?.vuelos ?? []} />
-            )}
-
-            {(sesionId && estadoSesion !== 'FINALIZADA' && estadoSesion !== 'COLAPSADA') && telemetria?.nodos && telemetria.nodos.length > 0 && (
-              <PanelAeropuertosOperacion aeropuertos={telemetria.nodos} vuelos={telemetria.vuelos ?? []}
-                onAeropuertoClick={(id, codigo) => setSelectedEnvio({ tipo: 'nodo', id, codigo })}
-              />
-            )}
-
-            {(sesionId && estadoSesion !== 'FINALIZADA' && estadoSesion !== 'COLAPSADA') && telemetria?.vuelos && telemetria.vuelos.length > 0 && (
-              <PanelVuelosOperacion vuelos={telemetria.vuelos}
-                onVueloClick={(id, codigo) => setSelectedEnvio({ tipo: 'vuelo', id, codigo })}
-                onVerEnMapa={id => setSeguidoVueloId(id)}
-                onCancelVuelo={handleCancelarVuelo}
-                origenFilter={vueloFilterOrigen} destinoFilter={vueloFilterDestino}
-                onFilterChange={({ origen, destino }) => { setVueloFilterOrigen(origen); setVueloFilterDestino(destino); }}
-              />
-            )}
-
             {sesionId && estadoSesion !== 'FINALIZADA' && estadoSesion !== 'COLAPSADA' && (
-              <PanelEntregados sesionId={sesionId} activo={true} />
-            )}
-
-            {sesionId && (
-              <PanelEnviosMaletas
+              <PanelTabs
+                aeropuertos={telemetria?.nodos ?? []}
+                vuelosAeropuerto={telemetria?.vuelos ?? []}
+                onAeropuertoClick={(id, codigo) => setSelectedEnvio({ tipo: 'nodo', id, codigo })}
+                vuelos={telemetria?.vuelos ?? []}
+                onVueloClick={(id, codigo) => setSelectedEnvio({ tipo: 'vuelo', id, codigo })}
+                onVerEnMapa={id => { setSeguidoVueloId(id); setSeguidoAeropuertoId(null); }}
+                seguidoVueloId={seguidoVueloId ?? undefined}
+                onAeropuertoVerEnMapa={id => { setSeguidoAeropuertoId(id); setSeguidoVueloId(null); }}
+                seguidoAeropuertoId={seguidoAeropuertoId ?? undefined}
+                onCancelVuelo={handleCancelarVuelo}
+                vueloFilterOrigen={vueloFilterOrigen}
+                vueloFilterDestino={vueloFilterDestino}
+                onVueloFilterChange={({ origen, destino }) => { setVueloFilterOrigen(origen); setVueloFilterDestino(destino); }}
                 sesionId={sesionId}
-                activo={estadoSesion === 'EN_CURSO'}
+                enviosActivo={estadoSesion === 'EN_CURSO'}
                 nodos={aeropuertosMapa.map(n => ({ codigo_iata: n.codigo_iata, nombre: n.nombre }))}
               />
             )}
 
             {selectedEnvio && sesionId && (
               <PanelEnvios selectedEnvio={selectedEnvio} sesionId={sesionId} onClose={() => setSelectedEnvio(null)} />
+            )}
+
+            {cancelResult && (
+              <Modal open={true} onClose={() => setCancelResult(null)} title={`Vuelo ${cancelResult.codigo} cancelado`}
+                footer={
+                  <div className="flex gap-2">
+                    <Button variant="secondary" onClick={() => setCancelResult(null)}>Cerrar</Button>
+                    <Button onClick={async () => {
+                      const blob = await api.downloadBlob(`/sesiones/${sesionId}/replanificaciones/${cancelResult.loteId}/pdf`);
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a'); a.href = url;
+                      a.download = `replanificacion_${cancelResult.loteId}.pdf`;
+                      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
+                    }}>Descargar PDF</Button>
+                  </div>
+                }>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+                  {cancelResult.equipajes.length} equipaje{cancelResult.equipajes.length !== 1 ? 's' : ''} afectado{cancelResult.equipajes.length !== 1 ? 's' : ''} y re-enrutado{cancelResult.equipajes.length !== 1 ? 's' : ''}.
+                </p>
+                {cancelResult.equipajes.length > 0 && (
+                  <div className="max-h-48 overflow-y-auto space-y-1">
+                    {cancelResult.equipajes.map(eq => (
+                      <div key={eq.id} className="flex items-center justify-between text-xs px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
+                        <span className="font-medium text-slate-700 dark:text-slate-300">{eq.codigo}</span>
+                        <span className="text-slate-500">{eq.origen_iata} → {eq.destino_iata}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Modal>
             )}
           </>
         )}

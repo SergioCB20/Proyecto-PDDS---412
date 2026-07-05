@@ -50,6 +50,7 @@ interface AvionAnimadoProps {
   umbralesConfig?: UmbralesConfig;
   seguido?: boolean;
   onSalir?: () => void;
+  onSeguirVuelo?: (id: string) => void;
 }
 
 const AvionAnimado = React.memo(function AvionAnimado({
@@ -59,6 +60,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
   umbralesConfig,
   seguido = false,
   onSalir,
+  onSeguirVuelo,
 }: AvionAnimadoProps) {
   const markerRef = useRef<L.Marker>(null);
   const polylineRef = useRef<L.Polyline>(null);
@@ -84,6 +86,16 @@ const AvionAnimado = React.memo(function AvionAnimado({
       lastFollowPosRef.current = pos;
     }
   }, [seguido, map]);
+
+  // ESC sale del modo seguir
+  useEffect(() => {
+    if (!seguido || !onSalir) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onSalir();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [seguido, onSalir]);
 
   useEffect(() => { iconSizeRef.current = iconSize; }, [iconSize]);
 
@@ -389,7 +401,8 @@ const AvionAnimado = React.memo(function AvionAnimado({
           pathOptions={{ color: colorVueloPorEstado('EN_RUTA'), weight: 1, opacity: 0.6 }}
         />
       )}
-      <Marker ref={markerRef} position={frozenPos} icon={icono}>
+      <Marker ref={markerRef} position={frozenPos} icon={icono}
+        eventHandlers={onSeguirVuelo ? { click: () => onSeguirVuelo(vuelo.id) } : undefined}>
       {seguido && onSalir && (
         <Tooltip permanent direction="bottom" offset={[0, 10]} className="salir-vuelo-tooltip">
           <button

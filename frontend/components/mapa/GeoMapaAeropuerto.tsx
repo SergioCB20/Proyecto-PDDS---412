@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-import { CircleMarker, Tooltip, Popup } from 'react-leaflet';
+import { useEffect, useMemo, useRef } from 'react';
+import { Marker, Tooltip, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import type { AeropuertoEnMapa } from '@/lib/types';
 
@@ -9,36 +9,31 @@ interface GeoMapaAeropuertoProps {
   aeropuerto: AeropuertoEnMapa;
 }
 
-export default function GeoMapaAeropuerto({ aeropuerto }: GeoMapaAeropuertoProps) {
-  const radius = Math.max(5, Math.min(11, aeropuerto.ocupacionPorcentaje / 12 + 4));
-  const circleRef = useRef<L.CircleMarker>(null);
+/** Icono fijo de aeropuerto — al menos 4× mayor que el icono de vuelo (~13 px a zoom 4). */
+function crearIconoAeropuerto(iata: string, color: string, size: number = 48) {
+  const half = Math.round(size / 2);
+  const fontSize = Math.max(9, Math.round(size * 0.3));
+  return L.divIcon({
+    className: 'aeropuerto-icon',
+    html: `<div style="width:${size}px;height:${size}px;background:${color};border-radius:14px;border:3px solid white;box-shadow:0 3px 8px rgba(0,0,0,0.35);display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;font-weight:700;font-size:${fontSize}px;line-height:1.2;text-shadow:0 1px 2px rgba(0,0,0,0.4)"><span>${iata}</span></div>`,
+    iconSize: [size, size],
+    iconAnchor: [half, half],
+  });
+}
 
-  // react-leaflet does not reactively update `radius` or `pathOptions` on re-render
-  // for CircleMarker — we drive updates imperatively so every tick is reflected.
-  useEffect(() => {
-    const circle = circleRef.current;
-    if (!circle) return;
-    circle.setRadius(radius);
-    circle.setStyle({ color: aeropuerto.color, fillColor: aeropuerto.color });
-  }, [radius, aeropuerto.color]);
+export default function GeoMapaAeropuerto({ aeropuerto }: GeoMapaAeropuertoProps) {
+  const icono = useMemo(
+    () => crearIconoAeropuerto(aeropuerto.codigo_iata, aeropuerto.color),
+    [aeropuerto.codigo_iata, aeropuerto.color]
+  );
 
   return (
-    <CircleMarker
-      ref={circleRef}
-      center={[aeropuerto.latitud, aeropuerto.longitud]}
-      radius={radius}
-      pathOptions={{
-        color: aeropuerto.color,
-        fillColor: aeropuerto.color,
-        fillOpacity: 0.8,
-        weight: 2,
-      }}
+    <Marker
+      position={[aeropuerto.latitud, aeropuerto.longitud]}
+      icon={icono}
     >
-      {/* Etiqueta compacta permanente: solo IATA + % en una línea, para que
-          no se solapen con tantos aeropuertos. El detalle va en el popup. */}
-      <Tooltip permanent direction="top" offset={[0, -radius - 2]} className="aeropuerto-label">
-        <span className="font-bold">{aeropuerto.codigo_iata}</span>
-        <span className="ml-1 font-semibold" style={{ color: aeropuerto.color }}>
+      <Tooltip direction="top" offset={[0, -28]} className="aeropuerto-label">
+        <span className="font-semibold" style={{ color: aeropuerto.color }}>
           {aeropuerto.ocupacionPorcentaje.toFixed(0)}%
         </span>
       </Tooltip>
@@ -62,6 +57,6 @@ export default function GeoMapaAeropuerto({ aeropuerto }: GeoMapaAeropuertoProps
           </div>
         </div>
       </Popup>
-    </CircleMarker>
+    </Marker>
   );
 }

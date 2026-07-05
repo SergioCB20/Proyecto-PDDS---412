@@ -9,6 +9,13 @@ import com.tasfb2b.backend.bc1.infrastructure.EquipajeRepository;
 import org.springframework.data.domain.PageRequest;
 import com.tasfb2b.backend.bc1.infrastructure.PlanViajeRepository;
 import com.tasfb2b.backend.bc2.domain.*;
+import com.tasfb2b.backend.bc1.infrastructure.VueloRepository;
+import com.tasfb2b.backend.bc2.domain.LoteReplanificacion;
+import com.tasfb2b.backend.bc2.domain.ItemLote;
+import com.tasfb2b.backend.bc2.domain.EventoCancelacion;
+import com.tasfb2b.backend.bc2.infrastructure.ItemLoteRepository;
+import com.tasfb2b.backend.bc2.infrastructure.LoteReplanificacionRepository;
+import com.tasfb2b.backend.bc2.infrastructure.EventoCancelacionRepository;
 import com.tasfb2b.backend.bc2.infrastructure.PuntoSLARepository;
 import com.tasfb2b.backend.bc2.infrastructure.ReporteSesionRepository;
 import com.tasfb2b.backend.bc2.infrastructure.SesionRepository;
@@ -53,6 +60,10 @@ public class SesionService {
     private final SimulacionPlanificador simulacionPlanificador;
     private final SesionLockManager lockManager;
     private final ReporteService reporteService;
+    private final LoteReplanificacionRepository loteReplanificacionRepository;
+    private final EventoCancelacionRepository eventoCancelacionRepository;
+    private final ItemLoteRepository itemLoteRepository;
+    private final VueloRepository vueloRepository;
 
     // Fecha del primer día de datos en los archivos _envios_*.txt
     private static final LocalDate FECHA_BASE_ARCHIVO = LocalDate.of(2026, 1, 2);
@@ -71,7 +82,11 @@ public class SesionService {
                          JdbcTemplate jdbcTemplate,
                          SimulacionPlanificador simulacionPlanificador,
                          SesionLockManager lockManager,
-                         ReporteService reporteService) {
+                         ReporteService reporteService,
+                         LoteReplanificacionRepository loteReplanificacionRepository,
+                         EventoCancelacionRepository eventoCancelacionRepository,
+                         ItemLoteRepository itemLoteRepository,
+                         VueloRepository vueloRepository) {
         this.sesionRepository = sesionRepository;
         this.vueloService = vueloService;
         this.redisCacheService = redisCacheService;
@@ -87,6 +102,10 @@ public class SesionService {
         this.simulacionPlanificador = simulacionPlanificador;
         this.lockManager = lockManager;
         this.reporteService = reporteService;
+        this.loteReplanificacionRepository = loteReplanificacionRepository;
+        this.eventoCancelacionRepository = eventoCancelacionRepository;
+        this.itemLoteRepository = itemLoteRepository;
+        this.vueloRepository = vueloRepository;
     }
 
     public SesionResponse crearSesion(CrearSesionRequest request) {
@@ -340,8 +359,28 @@ public class SesionService {
         sesionRepository.save(sesion);
         readinessManager.eliminar(id);
 
-        // 2. Espera ACOTADA a que termine cualquier ciclo de tick/planificador en vuelo
-        //    antes de borrar planes/segmentos — evita StaleObjectStateException.
+        // 2. La limpieza pesada (esperar el lock hasta 60s, generar reporte/CSV y borrar
+        //    instancias/planes de hasta 30 dias) corre en BACKGROUND. Antes corria dentro
+        //    del request HTTP y podia exceder el timeout del cliente (120s) -> el front
+        //    mostraba "Error al detener" aunque la sesion YA quedaba FINALIZADA en el paso 1.
+        //    Ahora respondemos de inmediato y la limpieza se completa aparte.
+        taskExecutor.execute(() -> limpiezaPostDetencion(id));
+
+        return new SesionEstadoResponse(EstadoSesion.FINALIZADA.name());
+    }
+
+    /**
+     * Fase 2 (background) de la detencion: espera ACOTADA al lock para no chocar con un
+     * ciclo de tick/planificador en vuelo, genera el reporte ANTES de borrar y limpia el
+     * estado de la sesion. Best-effort: cada paso atrapa sus errores.
+     */
+    public void limpiezaPostDetencion(UUID id) {
+        SesionEjecucion sesion = sesionRepository.findById(id).orElse(null);
+        if (sesion == null) {
+            log.warn("limpiezaPostDetencion: sesion {} no encontrada", id);
+            return;
+        }
+
         var lock = lockManager.obtener(id);
         boolean locked = false;
         try {
@@ -400,21 +439,20 @@ public class SesionService {
         }
 
         try {
-            redisCacheService.setEstadoSesion(sesion.getId(), "FINALIZADA");
-            redisCacheService.eliminarMetricasSesion(sesion.getId());
+            redisCacheService.setEstadoSesion(id, "FINALIZADA");
+            redisCacheService.eliminarMetricasSesion(id);
         } catch (Exception e) {
-            log.warn("Redis no disponible al detener sesion {}: {}", sesion.getId(), e.getMessage());
+            log.warn("Redis no disponible al detener sesion {}: {}", id, e.getMessage());
         }
 
-        simulacionPlanificador.limpiarSesion(sesion.getId());
+        simulacionPlanificador.limpiarSesion(id);
 
         eventPublisher.publishEvent(new SesionFinalizada(
-                sesion.getId(), "FINALIZADA", OffsetDateTime.now()));
+                id, "FINALIZADA", OffsetDateTime.now()));
 
-        return new SesionEstadoResponse(sesion.getEstado().name());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("Interrumpido al detener sesion " + id, e);
+            log.warn("limpiezaPostDetencion {} interrumpida", id);
         } finally {
             if (locked) lock.unlock();
         }
@@ -437,7 +475,8 @@ public class SesionService {
                     new BigDecimal(node.get("sla_acumulado_pct").asDouble()),
                     node.get("vuelos_cancelados").asInt(),
                     node.get("maletas_replanificadas").asInt(),
-                    fechaInicioReal
+                    fechaInicioReal,
+                    simulacionPlanificador.obtenerUltimoTiempoPlanificacionMs(id)
                 );
             }
         } catch (Exception e) {
@@ -455,7 +494,8 @@ public class SesionService {
             sesion.getSlaAcumuladoPct() != null ? sesion.getSlaAcumuladoPct() : new BigDecimal("100"),
             sesion.getVuelosCancelados() != null ? sesion.getVuelosCancelados() : 0,
             sesion.getMaletasReplanificadas() != null ? sesion.getMaletasReplanificadas() : 0,
-            sesion.getFechaInicioReal()
+            sesion.getFechaInicioReal(),
+            simulacionPlanificador.obtenerUltimoTiempoPlanificacionMs(id)
         );
     }
 
@@ -532,7 +572,7 @@ public class SesionService {
             .orElseThrow(() -> new IllegalArgumentException("Sesion no encontrada: " + sesionId));
 
         List<EstadoEquipaje> estados = switch (tipo) {
-            case "planificados" -> List.of(EstadoEquipaje.REGISTRADO, EstadoEquipaje.ENRUTADO, EstadoEquipaje.EN_ALMACEN);
+            case "planificados" -> List.of(EstadoEquipaje.ENRUTADO, EstadoEquipaje.EN_ALMACEN);
             case "en_vuelo" -> List.of(EstadoEquipaje.EN_VUELO);
             case "entregados" -> List.of(EstadoEquipaje.ENTREGADO);
             default -> throw new IllegalArgumentException("tipo inválido: " + tipo);
@@ -571,6 +611,20 @@ public class SesionService {
                 .toList();
     }
 
+    public List<EnvioItemResponse> obtenerDatosUltimosPlanificados(List<UUID> equipajeIds) {
+        if (equipajeIds == null || equipajeIds.isEmpty()) return List.of();
+        List<Equipaje> equipajes = equipajeRepository.findAllById(equipajeIds);
+        return equipajes.stream()
+            .map(e -> new EnvioItemResponse(
+                e.getId(),
+                e.getOrigenIata(),
+                e.getDestinoIata(),
+                e.getIdExterno() != null ? e.getIdExterno() : e.getId().toString(),
+                e.getCantidad() != null ? e.getCantidad() : 1
+            ))
+            .toList();
+    }
+
     public SesionEjecucion obtenerSesion(UUID id) {
         return sesionRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Sesion no encontrada"));
@@ -599,4 +653,58 @@ public class SesionService {
             ))
             .toList();
     }
+
+    public ReplanificacionDetalleResponse obtenerDetalleReplanificacion(UUID sesionId, UUID loteId) {
+        LoteReplanificacion lote = loteReplanificacionRepository.findById(loteId)
+                .orElseThrow(() -> new IllegalArgumentException("Lote no encontrado: " + loteId));
+        if (!lote.getSesionId().equals(sesionId)) {
+            throw new IllegalArgumentException("El lote no pertenece a la sesion indicada");
+        }
+
+        EventoCancelacion evento = eventoCancelacionRepository.findById(lote.getEventoId())
+                .orElseThrow(() -> new IllegalArgumentException("Evento no encontrado"));
+
+        var vuelo = vueloRepository.findById(evento.getVueloRefId())
+                .orElse(null);
+
+        List<ItemLote> items = itemLoteRepository.findByLoteId(loteId);
+        List<Equipaje> equipajes = equipajeRepository.findAllById(
+                items.stream().map(ItemLote::getEquipajeRefId).toList());
+
+        List<EquipajeReplanificadoResponse> eqList = equipajes.stream()
+                .map(e -> new EquipajeReplanificadoResponse(
+                        e.getId(),
+                        e.getIdExterno() != null ? e.getIdExterno() : e.getId().toString(),
+                        e.getOrigenIata(),
+                        e.getDestinoIata(),
+                        e.getEstado().name()))
+                .toList();
+
+        return new ReplanificacionDetalleResponse(
+                lote.getId(),
+                evento.getVueloRefId(),
+                vuelo != null ? vuelo.getCodigoVuelo() : "?",
+                evento.getCausa(),
+                evento.getOcurridoEnVirtual() != null ? evento.getOcurridoEnVirtual().toString() : null,
+                lote.getTotalEquipajes() != null ? lote.getTotalEquipajes() : 0,
+                eqList);
+    }
+
+    public record ReplanificacionDetalleResponse(
+            UUID lote_id,
+            UUID vuelo_id,
+            String vuelo_codigo,
+            String causa,
+            String ocurrido_en_virtual,
+            int total_equipajes,
+            List<EquipajeReplanificadoResponse> equipajes
+    ) {}
+
+    public record EquipajeReplanificadoResponse(
+            UUID id,
+            String codigo,
+            String origen_iata,
+            String destino_iata,
+            String estado_actual
+    ) {}
 }
