@@ -1,4 +1,4 @@
-import type { ApiError, EnvioEntregadoResponse, EnvioItemResponse, EnvioPanelResponse, Maleta, MetricasOperacion, ReporteSesion } from './types';
+import type { ApiError, EnvioEntregadoResponse, EnvioItemResponse, EnvioPanelResponse, EquipajePlanViaje, Maleta, MetricasOperacion, ReporteSesion } from './types';
 import { device } from './device';
 
 function getBaseUrl(): string {
@@ -191,4 +191,8 @@ export async function fetchMaletasVuelo(vueloId: string): Promise<Maleta[]> {
 
 export async function fetchMaletasEquipaje(idExternoEquipaje: string): Promise<Maleta[]> {
   return api.get<Maleta[]>(`/equipajes/${encodeURIComponent(idExternoEquipaje)}/maletas`);
+}
+
+export async function fetchPlanViaje(equipajeId: string): Promise<EquipajePlanViaje> {
+  return api.get<EquipajePlanViaje>(`/equipajes/${equipajeId}/plan-viaje`);
 }

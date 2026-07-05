@@ -271,3 +271,8 @@ export interface EquipajeListItem {
   fecha_ingreso: string;
   cantidad: number;
 }
+
+export interface RutaDestacada {
+  vueloIds: string[];
+  coordenadas: [number, number][];
+}
