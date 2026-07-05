@@ -28,13 +28,19 @@ const MAX_VEL = 1 / MIN_TRAVESIA_MS; // progreso por ms real
 
 // SVG airplane pointing NORTH (up). rotacion = geographic bearing (0=N, 90=E …)
 // `seguido`: vuelo en modo "seguir" -> borde dorado brillante para ubicarlo facil.
-function crearIconoAvion(color: string, rotacion: number = 0, size: number = 22, seguido: boolean = false) {
+// `destacado`: vuelo en ruta destacada -> borde azul con glow.
+function crearIconoAvion(color: string, rotacion: number = 0, size: number = 22, seguido: boolean = false, destacado: boolean = false) {
   const half = Math.round(size / 2);
   const border = Math.max(1, Math.round(size * 0.09));
   const svgSize = Math.round(size * 0.62);
-  const borde = seguido
-    ? `border:${Math.max(2, border)}px solid #f5c518;box-shadow:0 0 0 3px rgba(245,197,24,0.55),0 0 14px 5px rgba(245,197,24,0.85)`
-    : `border:${border}px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.35)`;
+  let borde: string;
+  if (seguido) {
+    borde = `border:${Math.max(2, border)}px solid #f5c518;box-shadow:0 0 0 3px rgba(245,197,24,0.55),0 0 14px 5px rgba(245,197,24,0.85)`;
+  } else if (destacado) {
+    borde = `border:${Math.max(2, border)}px solid #2563eb;box-shadow:0 0 0 3px rgba(37,99,235,0.55),0 0 14px 5px rgba(37,99,235,0.85)`;
+  } else {
+    borde = `border:${border}px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.35)`;
+  }
   return L.divIcon({
     className: 'avion-icon',
     html: `<div style="width:${size}px;height:${size}px;background:${color};border-radius:50%;${borde};display:flex;align-items:center;justify-content:center;transform:rotate(${rotacion}deg)"><svg viewBox="0 0 24 24" width="${svgSize}" height="${svgSize}" fill="white" xmlns="http://www.w3.org/2000/svg"><path d="M12 2 L8 10 L3 12 L3 13.5 L8 12 L9.5 11.5 L9.5 19 L10 19 L8.5 22 L9.5 22.5 L12 21.5 L14.5 22.5 L15.5 22 L14 19 L14.5 19 L14.5 11.5 L16 12 L21 13.5 L21 12 L16 10 Z"/></svg></div>`,
@@ -52,6 +58,7 @@ interface AvionAnimadoProps {
   k?: number;
   umbralesConfig?: UmbralesConfig;
   seguido?: boolean;
+  destacado?: boolean;
   onSalir?: () => void;
   onSeguirVuelo?: (id: string) => void;
 }
@@ -62,6 +69,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
   k = 120,
   umbralesConfig,
   seguido = false,
+  destacado = false,
   onSalir,
   onSeguirVuelo,
 }: AvionAnimadoProps) {
@@ -147,7 +155,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
   };
 
   const [icono, setIcono] = useState(() =>
-    crearIconoAvion(colorVueloPorEstado(vuelo.estado), 0, iconSize)
+    crearIconoAvion(colorVueloPorEstado(vuelo.estado), 0, iconSize, false, destacado)
   );
 
   const [frozenPos] = useState<[number, number]>(() => {
@@ -218,14 +226,14 @@ const AvionAnimado = React.memo(function AvionAnimado({
 
   // Update icon color on state change (preserve current bearing & size)
   useEffect(() => {
-    setIcono(crearIconoAvion(colorVueloPorEstado(vuelo.estado), bearingRef.current, iconSizeRef.current));
+    setIcono(crearIconoAvion(colorVueloPorEstado(vuelo.estado), bearingRef.current, iconSizeRef.current, seguidoRef.current, destacado));
     flightRef.current.lastBearingT = -1; // force bearing refresh
   }, [vuelo.estado]);
 
   // Recreate icon when zoom changes (keeps current bearing)
   useEffect(() => {
-    setIcono(crearIconoAvion(colorVueloPorEstado(vuelo.estado), bearingRef.current, iconSize));
-  }, [iconSize, vuelo.estado]);
+    setIcono(crearIconoAvion(colorVueloPorEstado(vuelo.estado), bearingRef.current, iconSize, seguido, destacado));
+  }, [iconSize, vuelo.estado, seguido, destacado]);
 
   /**
    * Continuous rAF loop.
@@ -253,7 +261,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
           map.panTo(np, { animate: false });
         }
       }
-      flightRef.current.lastEstelaT = t;
+      flightRef.current.lastBearingT = t;
       dibujarEstela(t);
       const bearing = bezierBearing(
         vuelo.origen_lat, vuelo.origen_lon,
@@ -262,7 +270,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
         t
       );
       bearingRef.current = bearing;
-      setIcono(crearIconoAvion(colorVueloPorEstado(vuelo.estado), bearing, iconSizeRef.current));
+      setIcono(crearIconoAvion(colorVueloPorEstado(vuelo.estado), bearing, iconSizeRef.current, seguidoRef.current, destacado));
       return;
     }
 
@@ -351,7 +359,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
           t
         );
         bearingRef.current = bearing;
-        setIcono(crearIconoAvion(colorVueloPorEstado(vuelo.estado), bearing, iconSizeRef.current));
+        setIcono(crearIconoAvion(colorVueloPorEstado(vuelo.estado), bearing, iconSizeRef.current, seguidoRef.current, destacado));
       }
 
       rafRef.current = requestAnimationFrame(frame);
@@ -399,7 +407,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
         <Polyline
           ref={polylineRef}
           positions={estelaInicial}
-          pathOptions={{ color: colorVueloPorEstado('EN_RUTA'), weight: 1, opacity: 0.6 }}
+          pathOptions={{ color: colorVueloPorEstado('EN_RUTA'), weight: destacado ? 6 : 1, opacity: destacado ? 0.9 : 0.6 }}
         />
       )}
       <Marker ref={markerRef} position={frozenPos} icon={icono}

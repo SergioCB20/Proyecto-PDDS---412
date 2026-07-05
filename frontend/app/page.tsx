@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import {
   Package,
   RefreshCw,
@@ -60,6 +60,8 @@ import type {
   CargaMasivaConfirmResponse,
   MetricasSimulacion,
   ReporteSesion,
+  RutaDestacada,
+  SegmentoResponse,
 } from "@/lib/types";
 
 interface CancelResultEquipaje {
@@ -285,6 +287,22 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [seguidoAeropuertoId, setSeguidoAeropuertoId] = useState<string | null>(
     null,
   );
+  const [rutaDestacadaOp, setRutaDestacadaOp] = useState<RutaDestacada | null>(null);
+
+  const handleMostrarRutaOp = useCallback((segmentos: SegmentoResponse[]) => {
+    const vueloIds = segmentos.map(s => s.vuelo_codigo);
+    const coordenadas: [number, number][] = [];
+    for (const seg of segmentos) {
+      const a = aeropuertos.find(a => a.codigo_iata === seg.nodo_origen);
+      if (a) coordenadas.push([a.latitud, a.longitud]);
+    }
+    const ultimo = segmentos[segmentos.length - 1];
+    const destAero = aeropuertos.find(a => a.codigo_iata === ultimo?.nodo_destino);
+    if (destAero) coordenadas.push([destAero.latitud, destAero.longitud]);
+    if (coordenadas.length >= 2) {
+      setRutaDestacadaOp({ vueloIds, coordenadas });
+    }
+  }, [aeropuertos]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -603,6 +621,8 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
             setSeguidoAeropuertoId(null);
             setSeguidoVueloId(null);
           }}
+          rutaDestacada={rutaDestacadaOp}
+          onLimpiarRuta={() => setRutaDestacadaOp(null)}
         >
           <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
             <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
@@ -922,6 +942,8 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               <PanelEnviosOperacion
                 selectedEnvio={selectedEnvio}
                 onClose={() => setSelectedEnvio(null)}
+                onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
+                onMostrarRuta={handleMostrarRutaOp}
               />
             )}
 
@@ -1199,6 +1221,7 @@ function SimulacionView({
   const [seguidoAeropuertoId, setSeguidoAeropuertoId] = useState<string | null>(
     null,
   );
+  const [rutaDestacadaSim, setRutaDestacadaSim] = useState<RutaDestacada | null>(null);
 
   const [metricasPoll, setMetricasPoll] = useState<MetricasSimulacion>({
     sesion_id: "",
@@ -1389,6 +1412,21 @@ function SimulacionView({
   const vuelosSimProgramados = vuelosMapa.filter(
     (v) => v.estado === "PROGRAMADO",
   ).length;
+
+  const handleMostrarRutaSim = useCallback((segmentos: SegmentoResponse[]) => {
+    const vueloIds = segmentos.map(s => s.vuelo_codigo);
+    const coordenadas: [number, number][] = [];
+    for (const seg of segmentos) {
+      const a = aeropuertosMapa.find(a => a.codigo_iata === seg.nodo_origen);
+      if (a) coordenadas.push([a.latitud, a.longitud]);
+    }
+    const ultimo = segmentos[segmentos.length - 1];
+    const destAero = aeropuertosMapa.find(a => a.codigo_iata === ultimo?.nodo_destino);
+    if (destAero) coordenadas.push([destAero.latitud, destAero.longitud]);
+    if (coordenadas.length >= 2) {
+      setRutaDestacadaSim({ vueloIds, coordenadas });
+    }
+  }, [aeropuertosMapa]);
 
   const handleIniciar = async () => {
     setError("");
@@ -1599,6 +1637,8 @@ function SimulacionView({
             setSeguidoAeropuertoId(null);
             setSeguidoVueloId(null);
           }}
+          rutaDestacada={rutaDestacadaSim}
+          onLimpiarRuta={() => setRutaDestacadaSim(null)}
         >
           <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
             <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
@@ -2049,6 +2089,8 @@ function SimulacionView({
                 selectedEnvio={selectedEnvio}
                 sesionId={sesionId}
                 onClose={() => setSelectedEnvio(null)}
+                onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
+                onMostrarRuta={handleMostrarRutaSim}
               />
             )}
 
@@ -2155,6 +2197,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [seguidoAeropuertoId, setSeguidoAeropuertoId] = useState<string | null>(
     null,
   );
+  const [rutaDestacadaCol, setRutaDestacadaCol] = useState<RutaDestacada | null>(null);
 
   const [metricasPoll, setMetricasPoll] = useState<MetricasSimulacion>({
     sesion_id: "",
@@ -2343,6 +2386,21 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     ...(telemetria?.nodos ?? []).map((n) => n.ocupacion_pct),
     ...initialAeropuertos.map((n) => n.ocupacionPorcentaje),
   );
+
+  const handleMostrarRutaCol = useCallback((segmentos: SegmentoResponse[]) => {
+    const vueloIds = segmentos.map(s => s.vuelo_codigo);
+    const coordenadas: [number, number][] = [];
+    for (const seg of segmentos) {
+      const a = aeropuertosMapa.find(a => a.codigo_iata === seg.nodo_origen);
+      if (a) coordenadas.push([a.latitud, a.longitud]);
+    }
+    const ultimo = segmentos[segmentos.length - 1];
+    const destAero = aeropuertosMapa.find(a => a.codigo_iata === ultimo?.nodo_destino);
+    if (destAero) coordenadas.push([destAero.latitud, destAero.longitud]);
+    if (coordenadas.length >= 2) {
+      setRutaDestacadaCol({ vueloIds, coordenadas });
+    }
+  }, [aeropuertosMapa]);
 
   async function fetchReportWithRetry(id: string) {
     for (let i = 0; i < 10; i++) {
@@ -2558,6 +2616,8 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
             setSeguidoAeropuertoId(null);
             setSeguidoVueloId(null);
           }}
+          rutaDestacada={rutaDestacadaCol}
+          onLimpiarRuta={() => setRutaDestacadaCol(null)}
         >
           <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
             <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
@@ -3050,6 +3110,8 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                 selectedEnvio={selectedEnvio}
                 sesionId={sesionId}
                 onClose={() => setSelectedEnvio(null)}
+                onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
+                onMostrarRuta={handleMostrarRutaCol}
               />
             )}
 
