@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import { FileDown, Loader2, MapPin } from 'lucide-react';
+import { FileDown, Loader2, MapPin, Route } from 'lucide-react';
 import { fetchEnviosVueloOperacion, fetchEnviosAeropuertoOperacion, descargarPlanViajePdf, fetchPlanViaje } from '@/lib/api';
-import type { EnvioItemResponse } from '@/lib/types';
+import type { EnvioItemResponse, SegmentoResponse } from '@/lib/types';
 
 export interface SelectedEnvioOperacion {
   tipo: 'vuelo' | 'nodo';
@@ -15,6 +15,7 @@ interface PanelEnviosOperacionProps {
   selectedEnvio: SelectedEnvioOperacion;
   onClose: () => void;
   onSeguirEnMapa?: (vueloId: string) => void;
+  onMostrarRuta?: (segmentos: SegmentoResponse[]) => void;
 }
 
 type State = {
@@ -39,7 +40,7 @@ function reducer(state: State, action: Action): State {
   }
 }
 
-export function PanelEnviosOperacion({ selectedEnvio, onClose, onSeguirEnMapa }: PanelEnviosOperacionProps) {
+export function PanelEnviosOperacion({ selectedEnvio, onClose, onSeguirEnMapa, onMostrarRuta }: PanelEnviosOperacionProps) {
   const [{ data, loading, error }, dispatch] = useReducer(reducer, {
     data: null,
     loading: true,
@@ -47,9 +48,26 @@ export function PanelEnviosOperacion({ selectedEnvio, onClose, onSeguirEnMapa }:
   });
 
   const [siguiendoId, setSiguiendoId] = useState<string | null>(null);
-
+  const [mostrandoRutaId, setMostrandoRutaId] = useState<string | null>(null);
+ 
   const ref = useRef<HTMLDivElement>(null);
-
+ 
+  const handleMostrarRuta = useCallback(async (id: string) => {
+    setMostrandoRutaId(id);
+    try {
+      const plan = await fetchPlanViaje(id);
+      if (plan.segmentos && plan.segmentos.length > 0) {
+        onMostrarRuta?.(plan.segmentos);
+      } else {
+        alert('El grupo de maletas no tiene un plan de viaje asignado');
+      }
+    } catch {
+      alert('Error al obtener información de la maleta');
+    } finally {
+      setMostrandoRutaId(null);
+    }
+  }, [onMostrarRuta]);
+ 
   const handleSeguir = useCallback(async (id: string) => {
     setSiguiendoId(id);
     try {
@@ -137,6 +155,20 @@ export function PanelEnviosOperacion({ selectedEnvio, onClose, onSeguirEnMapa }:
                       <Loader2 size={14} className="animate-spin" />
                     ) : (
                       <MapPin size={14} />
+                    )}
+                  </button>
+                )}
+                {onMostrarRuta && (
+                  <button
+                    onClick={() => handleMostrarRuta(item.id)}
+                    disabled={mostrandoRutaId === item.id}
+                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-50 disabled:cursor-wait"
+                    title="Mostrar ruta en el mapa"
+                  >
+                    {mostrandoRutaId === item.id ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Route size={14} />
                     )}
                   </button>
                 )}
