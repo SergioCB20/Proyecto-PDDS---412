@@ -922,6 +922,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               <PanelEnviosOperacion
                 selectedEnvio={selectedEnvio}
                 onClose={() => setSelectedEnvio(null)}
+                onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
               />
             )}
 
@@ -2049,6 +2050,7 @@ function SimulacionView({
                 selectedEnvio={selectedEnvio}
                 sesionId={sesionId}
                 onClose={() => setSelectedEnvio(null)}
+                onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
               />
             )}
 
@@ -3050,6 +3052,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                 selectedEnvio={selectedEnvio}
                 sesionId={sesionId}
                 onClose={() => setSelectedEnvio(null)}
+                onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
               />
             )}
 

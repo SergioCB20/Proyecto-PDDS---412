@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useReducer, useRef } from 'react';
-import { FileDown } from 'lucide-react';
-import { fetchEnviosVuelo, fetchEnviosAeropuerto, descargarPlanViajePdf } from '@/lib/api';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { FileDown, Loader2, MapPin } from 'lucide-react';
+import { fetchEnviosVuelo, fetchEnviosAeropuerto, descargarPlanViajePdf, fetchPlanViaje } from '@/lib/api';
 import type { EnvioItemResponse } from '@/lib/types';
 
 export interface SelectedEnvio {
@@ -15,6 +15,7 @@ interface PanelEnviosProps {
   sesionId: string;
   selectedEnvio: SelectedEnvio;
   onClose: () => void;
+  onSeguirEnMapa?: (vueloId: string) => void;
 }
 
 type State = {
@@ -39,14 +40,32 @@ function reducer(state: State, action: Action): State {
   }
 }
 
-export function PanelEnvios({ sesionId, selectedEnvio, onClose }: PanelEnviosProps) {
+export function PanelEnvios({ sesionId, selectedEnvio, onClose, onSeguirEnMapa }: PanelEnviosProps) {
   const [{ data, loading, error }, dispatch] = useReducer(reducer, {
     data: null,
     loading: true,
     error: '',
   });
 
+  const [siguiendoId, setSiguiendoId] = useState<string | null>(null);
+
   const ref = useRef<HTMLDivElement>(null);
+
+  const handleSeguir = useCallback(async (id: string) => {
+    setSiguiendoId(id);
+    try {
+      const plan = await fetchPlanViaje(id);
+      if (plan.ubicacion_actual?.tipo === 'VUELO') {
+        onSeguirEnMapa?.(plan.ubicacion_actual.referencia_id);
+      } else {
+        alert('La maleta no está en un vuelo actualmente');
+      }
+    } catch {
+      alert('Error al obtener información de la maleta');
+    } finally {
+      setSiguiendoId(null);
+    }
+  }, [onSeguirEnMapa]);
 
   useEffect(() => {
     ref.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -108,6 +127,20 @@ export function PanelEnvios({ sesionId, selectedEnvio, onClose }: PanelEnviosPro
                 </span>
               </div>
               <div className="flex items-center gap-2 shrink-0">
+                {onSeguirEnMapa && (
+                  <button
+                    onClick={() => handleSeguir(item.id)}
+                    disabled={siguiendoId === item.id}
+                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 disabled:opacity-50 disabled:cursor-wait"
+                    title="Seguir en mapa"
+                  >
+                    {siguiendoId === item.id ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <MapPin size={14} />
+                    )}
+                  </button>
+                )}
                 <button
                   onClick={() => descargarPlanViajePdf(item.id).catch(() => alert('Error al descargar plan de viaje'))}
                   className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
