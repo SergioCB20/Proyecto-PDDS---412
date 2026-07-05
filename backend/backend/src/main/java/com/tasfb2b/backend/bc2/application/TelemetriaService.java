@@ -83,6 +83,7 @@ public class TelemetriaService {
     private String buildTelemetryJson(SesionEjecucion sesion, List<NodoLogistico> nodos, List<Vuelo> vuelos) {
         ObjectNode root = objectMapper.createObjectNode();
         root.put("timestamp", OffsetDateTime.now().toString());
+        root.put("sesion_id", sesion.getId().toString());
 
         ArrayNode nodosArr = root.putArray("nodos");
         for (NodoLogistico nodo : nodos) {
