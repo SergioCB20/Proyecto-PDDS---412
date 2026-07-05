@@ -29,14 +29,6 @@ interface PanelVuelosOperacionProps {
 // pestaña cuando la telemetría trae muchos vuelos.
 const MAX_RENDER = 100;
 
-// Un vuelo PROGRAMADO aún no ha embarcado: la carga real se fija al despegar. La reserva que
-// el planificador hace por adelantado (baja carga_disponible) es transitoria y se re-ajusta
-// cada ciclo, así que no se muestra ocupación hasta que el vuelo está EN_RUTA/COMPLETADO.
-function cargaOcupada(v: VueloTelemetria): number {
-  if (v.estado === 'PROGRAMADO') return 0;
-  return Math.max(0, v.capacidad_carga - v.carga_disponible);
-}
-
 export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiesto, onCancelVuelo, onVerEnMapa, seguidoId, origenFilter = '', destinoFilter = '', onFilterChange }: PanelVuelosOperacionProps) {
   const [filtroCodigo, setFiltroCodigo] = useState('');
   const [orden, setOrden] = useState('');
@@ -127,10 +119,10 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
     const lista = [...vuelosFiltrados];
     switch (orden) {
       case 'ocupacion-asc':
-        lista.sort((a, b) => cargaOcupada(a) - cargaOcupada(b));
+        lista.sort((a, b) => (a.capacidad_carga - a.carga_disponible) - (b.capacidad_carga - b.carga_disponible));
         break;
       case 'ocupacion-desc':
-        lista.sort((a, b) => cargaOcupada(b) - cargaOcupada(a));
+        lista.sort((a, b) => (b.capacidad_carga - b.carga_disponible) - (a.capacidad_carga - a.carga_disponible));
         break;
       case 'hora-salida':
         lista.sort((a, b) => a.hora_salida.localeCompare(b.hora_salida));
@@ -230,7 +222,7 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
 
       <div className="space-y-2 max-h-56 overflow-y-auto">
         {vuelosVisibles.map(v => {
-          const ocupada = cargaOcupada(v);
+          const ocupada = v.capacidad_carga - v.carga_disponible;
           const pct = v.capacidad_carga > 0 ? (ocupada / v.capacidad_carga) * 100 : 0;
           const colorHex = colorVueloPorEstado(v.estado);
           return (

@@ -377,10 +377,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
     // NOTE: vuelo.progreso / k intentionally excluded — handled via flightRef
   ]);
 
-  // Un vuelo PROGRAMADO aún no embarcó: la reserva del planificador es transitoria y la carga
-  // real se fija al despegar, así que se muestra 0 ocupado / capacidad disponible hasta EN_RUTA.
-  const ocupada = vuelo.estado === 'PROGRAMADO' ? 0 : Math.max(0, vuelo.capacidad_carga - vuelo.carga_disponible);
-  const disponible = vuelo.estado === 'PROGRAMADO' ? vuelo.capacidad_carga : vuelo.carga_disponible;
+  const ocupada = vuelo.capacidad_carga - vuelo.carga_disponible;
 
   // Estela inicial: ruta por delante del avión desde su progreso actual
   // (evita un parpadeo con la ruta completa antes del primer frame).
@@ -479,7 +476,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
           </div>
           <div className="text-sm mb-2">
             <span className="text-slate-500">Disponible: </span>
-            <span className="font-semibold">{disponible}</span>
+            <span className="font-semibold">{vuelo.carga_disponible}</span>
           </div>
           <div
             className="px-2 py-1 rounded text-white text-xs font-bold"
