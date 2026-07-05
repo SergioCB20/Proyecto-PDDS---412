@@ -1,5 +1,6 @@
 package com.tasfb2b.backend.bc2.application;
 
+import com.tasfb2b.backend.bc1.application.OcupacionNodoService;
 import com.tasfb2b.backend.bc1.application.VueloService;
 import com.tasfb2b.backend.bc1.domain.*;
 import com.tasfb2b.backend.bc1.infrastructure.*;
@@ -45,6 +46,7 @@ class TickServiceTest {
     @Mock private PlanViajeRepository planViajeRepository;
     @Mock private SesionReadinessManager readinessManager;
     @Mock private SesionLockManager lockManager;
+    @Mock private OcupacionNodoService ocupacionNodoService;
 
     private ObjectMapper objectMapper;
     private TickService tickService;
@@ -67,8 +69,20 @@ class TickServiceTest {
                 vueloService,
                 replanificacionService, eventPublisher,
                 reporteSesionRepository, puntoSLARepository,
-                planViajeRepository, readinessManager, lockManager);
+                planViajeRepository, readinessManager, lockManager, ocupacionNodoService);
         lenient().when(lockManager.obtener(any())).thenReturn(new java.util.concurrent.locks.ReentrantLock());
+
+        // La ocupación ahora se lee por contexto; el stub la deriva de lo que cada test fija en los nodos.
+        lenient().when(ocupacionNodoService.mapa(any())).thenAnswer(inv -> {
+            java.util.Map<UUID, Integer> m = new java.util.HashMap<>();
+            if (nodoOrigen != null && nodoOrigen.getOcupacionActual() != null) {
+                m.put(nodoOrigen.getId(), nodoOrigen.getOcupacionActual());
+            }
+            if (nodoDestino != null && nodoDestino.getOcupacionActual() != null) {
+                m.put(nodoDestino.getId(), nodoDestino.getOcupacionActual());
+            }
+            return m;
+        });
 
         sesion = new SesionEjecucion(
                 UUID.randomUUID(), TipoSesion.SIMULADA,

@@ -29,6 +29,7 @@ public class EquipajeService {
     private final MaletaRepository maletaRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final RedisCacheService redisCacheService;
+    private final OcupacionNodoService ocupacionNodoService;
 
     public EquipajeService(EquipajeRepository equipajeRepository, PlanViajeRepository planViajeRepository,
                            SegmentoPlanRepository segmentoPlanRepository, VueloRepository vueloRepository,
@@ -36,7 +37,8 @@ public class EquipajeService {
                            ColaPlanificacionRepository colaRepository,
                            MaletaRepository maletaRepository,
                            ApplicationEventPublisher eventPublisher,
-                           RedisCacheService redisCacheService) {
+                           RedisCacheService redisCacheService,
+                           OcupacionNodoService ocupacionNodoService) {
         this.equipajeRepository = equipajeRepository;
         this.planViajeRepository = planViajeRepository;
         this.segmentoPlanRepository = segmentoPlanRepository;
@@ -46,6 +48,7 @@ public class EquipajeService {
         this.maletaRepository = maletaRepository;
         this.eventPublisher = eventPublisher;
         this.redisCacheService = redisCacheService;
+        this.ocupacionNodoService = ocupacionNodoService;
     }
 
     public record RegistrarEquipajeRequest(
@@ -103,7 +106,8 @@ public class EquipajeService {
         NodoLogistico nodoDestino = nodoRepository.findByCodigoIata(request.destino_iata())
                 .orElseThrow(() -> new ValidacionException("Destino IATA no existe: " + request.destino_iata()));
 
-        if (nodoOrigen.getOcupacionActual() >= nodoOrigen.getCapacidadAlmacen()) {
+        int capOrigen = nodoOrigen.getCapacidadAlmacen() != null ? nodoOrigen.getCapacidadAlmacen() : 0;
+        if (ocupacionNodoService.leer(nodoOrigen.getId(), OcupacionNodoService.OPERACION) >= capOrigen) {
             throw new ValidacionException("Capacidad del almacen superada en nodo " + nodoOrigen.getCodigoIata());
         }
 

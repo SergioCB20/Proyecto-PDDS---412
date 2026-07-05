@@ -49,7 +49,9 @@ public class NodoService {
                 nodo.getLatitud().doubleValue(),
                 nodo.getLongitud().doubleValue(),
                 nodo.getCapacidadAlmacen(),
-                nodo.getOcupacionActual(),
+                // La ocupación ya no es global: es por contexto (operación / sesión) y llega por
+                // telemetría. Aquí (listado base sin contexto) se reporta 0.
+                0,
                 nodo.getZonaHoraria()
         );
     }

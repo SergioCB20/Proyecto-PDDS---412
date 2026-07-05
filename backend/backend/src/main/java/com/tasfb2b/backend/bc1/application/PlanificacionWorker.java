@@ -61,6 +61,7 @@ public class PlanificacionWorker {
     private final ApplicationEventPublisher eventPublisher;
     private final RedisCacheService redisCacheService;
     private final SseService sseService;
+    private final OcupacionNodoService ocupacionNodoService;
 
     @Autowired
     private ApplicationContext applicationContext;
@@ -79,7 +80,8 @@ public class PlanificacionWorker {
                                 MotorEnrutamiento motorEnrutamiento,
                                 ApplicationEventPublisher eventPublisher,
                                 RedisCacheService redisCacheService,
-                                SseService sseService) {
+                                SseService sseService,
+                                OcupacionNodoService ocupacionNodoService) {
         this.colaRepository = colaRepository;
         this.equipajeRepository = equipajeRepository;
         this.vueloRepository = vueloRepository;
@@ -90,6 +92,7 @@ public class PlanificacionWorker {
         this.eventPublisher = eventPublisher;
         this.redisCacheService = redisCacheService;
         this.sseService = sseService;
+        this.ocupacionNodoService = ocupacionNodoService;
     }
 
     @Scheduled(fixedDelay = 500)
@@ -188,7 +191,8 @@ public class PlanificacionWorker {
             if (origen == null) {
                 throw new RuntimeException("Vuelo " + vueloActual.getId() + " no tiene nodo origen");
             }
-            if (origen.getOcupacionActual() >= origen.getCapacidadAlmacen()) {
+            int capOrigen = origen.getCapacidadAlmacen() != null ? origen.getCapacidadAlmacen() : 0;
+            if (ocupacionNodoService.leer(origen.getId(), OcupacionNodoService.OPERACION) >= capOrigen) {
                 throw new RuntimeException("Capacidad de almacen superada en " + origen.getCodigoIata());
             }
             if (vueloActual.getCargaDisponible() <= 0) {
@@ -246,7 +250,8 @@ public class PlanificacionWorker {
         // Updates atómicos para evitar lost updates con SimulacionEnrutamientoService corriendo en paralelo
         int cantidad = equipaje.getCantidad() != null ? equipaje.getCantidad() : 1;
         vueloRepository.decrementarCargaDisponible(primerVuelo.getId(), cantidad);
-        nodoRepository.actualizarOcupacion(primerNodoOrigen.getId(), cantidad);
+        // Ocupación del nodo origen en el contexto de la operación día a día (no el global).
+        ocupacionNodoService.ajustar(primerNodoOrigen.getId(), OcupacionNodoService.OPERACION, cantidad);
 
         equipaje.setEstado(EstadoEquipaje.ENRUTADO);
         equipaje.setVueloActual(primerVuelo);
@@ -254,8 +259,8 @@ public class PlanificacionWorker {
 
         int cargaActualizada = vueloRepository.findById(primerVuelo.getId())
                 .map(Vuelo::getCargaDisponible).orElse(primerVuelo.getCargaDisponible() - cantidad);
-        int ocupacionActualizada = nodoRepository.findById(primerNodoOrigen.getId())
-                .map(NodoLogistico::getOcupacionActual).orElse(primerNodoOrigen.getOcupacionActual() + cantidad);
+        int ocupacionActualizada = ocupacionNodoService.leer(
+                primerNodoOrigen.getId(), OcupacionNodoService.OPERACION);
         redisCacheService.actualizarCargaDisponibleVuelo(primerVuelo.getId(), cargaActualizada);
         redisCacheService.actualizarOcupacionNodo(primerNodoOrigen.getId(), ocupacionActualizada);
 

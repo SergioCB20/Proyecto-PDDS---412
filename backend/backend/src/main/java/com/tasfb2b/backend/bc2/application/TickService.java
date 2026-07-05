@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.tasfb2b.backend.bc1.application.VueloService;
+import com.tasfb2b.backend.bc1.application.OcupacionNodoService;
 import com.tasfb2b.backend.bc1.domain.*;
 import com.tasfb2b.backend.bc1.infrastructure.*;
 import com.tasfb2b.backend.bc2.domain.*;
@@ -54,6 +55,7 @@ public class TickService {
     private final PlanViajeRepository planViajeRepository;
     private final SesionReadinessManager readinessManager;
     private final SesionLockManager lockManager;
+    private final OcupacionNodoService ocupacionNodoService;
     private final double k;
 
     private final ConcurrentHashMap<UUID, Integer> ultimaHoraRegistrada = new ConcurrentHashMap<>();
@@ -73,7 +75,8 @@ public class TickService {
                         PuntoSLARepository puntoSLARepository,
                         PlanViajeRepository planViajeRepository,
                         SesionReadinessManager readinessManager,
-                        SesionLockManager lockManager) {
+                        SesionLockManager lockManager,
+                        OcupacionNodoService ocupacionNodoService) {
         this.sesionRepository = sesionRepository;
         this.vueloRepository = vueloRepository;
         this.equipajeRepository = equipajeRepository;
@@ -89,6 +92,7 @@ public class TickService {
         this.planViajeRepository = planViajeRepository;
         this.readinessManager = readinessManager;
         this.lockManager = lockManager;
+        this.ocupacionNodoService = ocupacionNodoService;
         this.k = 120.0; // fallback; el valor real viene de sesion.getK()
     }
 
@@ -231,11 +235,12 @@ public class TickService {
             }
         }
 
-        // Nodo más cargado (early signal de saturación / colapso).
+        // Nodo más cargado (early signal de saturación / colapso), según la ocupación de ESTA sesión.
+        Map<UUID, Integer> ocupacion = ocupacionNodoService.mapa(sesion.getId());
         String nodoTop = "-";
         double pctTop = 0;
         for (NodoLogistico nodo : nodos) {
-            double pct = nodo.getOcupacionPorcentaje();
+            double pct = pctOcupacion(nodo, ocupacion.getOrDefault(nodo.getId(), 0));
             if (pct > pctTop) { pctTop = pct; nodoTop = nodo.getCodigoIata(); }
         }
 
@@ -264,6 +269,12 @@ public class TickService {
 
     private static String fmt(double v) {
         return String.format(Locale.US, "%.1f", v);
+    }
+
+    /** % de ocupación de un nodo dada su ocupación en el contexto actual. */
+    private static double pctOcupacion(NodoLogistico nodo, int ocupacion) {
+        int cap = nodo.getCapacidadAlmacen() != null ? nodo.getCapacidadAlmacen() : 0;
+        return cap > 0 ? (ocupacion * 100.0) / cap : 0.0;
     }
 
     /** Duración legible (HhMm / Mm) entre dos instantes; "-" si falta alguno. */
@@ -441,11 +452,10 @@ public class TickService {
         segmentoPlanRepository.saveAll(segmentosActualizar);
         equipajeRepository.saveAll(equipajesActualizar);
 
+        // Al abordar, las maletas dejan el almacén de origen: se descuenta de la ocupación
+        // de ESTA sesión (contexto propio, no el contador global compartido).
         for (Map.Entry<UUID, Integer> entry : nodosCarga.entrySet()) {
-            nodoRepository.findById(entry.getKey()).ifPresent(nodo -> {
-                nodo.setOcupacionActual(Math.max(0, nodo.getOcupacionActual() - entry.getValue()));
-                nodoRepository.save(nodo);
-            });
+            ocupacionNodoService.ajustar(entry.getKey(), sesion.getId(), -entry.getValue());
         }
 
         if (log.isInfoEnabled()) {
@@ -512,11 +522,10 @@ public class TickService {
         segmentoPlanRepository.saveAll(segmentosActualizar);
         equipajeRepository.saveAll(equipajesActualizar);
 
+        // Las maletas que quedan en tránsito (EN_ALMACEN) ocupan el almacén de destino: se suma
+        // a la ocupación de ESTA sesión (contexto propio, no el contador global compartido).
         for (Map.Entry<UUID, Integer> entry : nodosCarga.entrySet()) {
-            nodoRepository.findById(entry.getKey()).ifPresent(nodo -> {
-                nodo.setOcupacionActual(nodo.getOcupacionActual() + entry.getValue());
-                nodoRepository.save(nodo);
-            });
+            ocupacionNodoService.ajustar(entry.getKey(), sesion.getId(), entry.getValue());
         }
 
         if (log.isInfoEnabled()) {
@@ -598,8 +607,9 @@ public class TickService {
         BigDecimal rojoMax = sesion.getAlmacenRojoMax();
         if (rojoMax == null) return false;
 
+        Map<UUID, Integer> ocupacion = ocupacionNodoService.mapa(sesion.getId());
         for (NodoLogistico nodo : nodos) {
-            double pct = nodo.getOcupacionPorcentaje();
+            double pct = pctOcupacion(nodo, ocupacion.getOrDefault(nodo.getId(), 0));
             if (pct > rojoMax.doubleValue()) {
                 log.warn("COLAPSO en sesion {}: nodo {} ocupacion {}% supera umbral rojo {}%",
                         sesion.getId(), nodo.getCodigoIata(), pct, rojoMax);
