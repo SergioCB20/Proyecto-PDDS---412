@@ -1,5 +1,6 @@
 package com.tasfb2b.backend.bc2.application;
 
+import com.tasfb2b.backend.bc1.application.OcupacionNodoService;
 import com.tasfb2b.backend.bc1.domain.*;
 import com.tasfb2b.backend.bc1.infrastructure.*;
 import org.slf4j.Logger;
@@ -31,19 +32,22 @@ public class SimulacionEnrutamientoService {
     private final VueloRepository vueloRepository;
     private final PlanViajeRepository planViajeRepository;
     private final SegmentoPlanRepository segmentoPlanRepository;
+    private final OcupacionNodoService ocupacionNodoService;
 
     public SimulacionEnrutamientoService(JdbcTemplate jdbcTemplate,
                                          MotorEnrutamiento motorEnrutamiento,
                                          NodoLogisticoRepository nodoRepository,
                                          VueloRepository vueloRepository,
                                          PlanViajeRepository planViajeRepository,
-                                         SegmentoPlanRepository segmentoPlanRepository) {
+                                         SegmentoPlanRepository segmentoPlanRepository,
+                                         OcupacionNodoService ocupacionNodoService) {
         this.jdbcTemplate = jdbcTemplate;
         this.motorEnrutamiento = motorEnrutamiento;
         this.nodoRepository = nodoRepository;
         this.vueloRepository = vueloRepository;
         this.planViajeRepository = planViajeRepository;
         this.segmentoPlanRepository = segmentoPlanRepository;
+        this.ocupacionNodoService = ocupacionNodoService;
     }
 
     @Transactional
@@ -205,7 +209,8 @@ public class SimulacionEnrutamientoService {
 
             // Batch updates con JDBC
             batchActualizarVuelos(vuelosActualizar);
-            batchActualizarNodos(nodosActualizar);
+            // Ocupación de origen sube al reservar la maleta, en el contexto de ESTA sesión.
+            ocupacionNodoService.ajustarLote(nodosActualizar, sesionId);
             batchMarcarEnrutados(equipajesEnrutados);
             equipajesEnrutados.clear();
             sinRutaTotal += sinRutaLote;
@@ -244,21 +249,6 @@ public class SimulacionEnrutamientoService {
                         ps.setObject(2, vueloIds.get(i));
                     }
                     public int getBatchSize() { return vueloIds.size(); }
-                });
-    }
-
-    private void batchActualizarNodos(Map<UUID, Integer> nodosMap) {
-        if (nodosMap.isEmpty()) return;
-        List<UUID> nodoIds = new ArrayList<>(nodosMap.keySet());
-        List<Integer> cantidades = new ArrayList<>(nodosMap.values());
-        jdbcTemplate.batchUpdate(
-                "UPDATE nodos_logisticos SET ocupacion_actual = ocupacion_actual + ? WHERE id = ?",
-                new BatchPreparedStatementSetter() {
-                    public void setValues(PreparedStatement ps, int i) throws SQLException {
-                        ps.setInt(1, cantidades.get(i));
-                        ps.setObject(2, nodoIds.get(i));
-                    }
-                    public int getBatchSize() { return nodoIds.size(); }
                 });
     }
 
