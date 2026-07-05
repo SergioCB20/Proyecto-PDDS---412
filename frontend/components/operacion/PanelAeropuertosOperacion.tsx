@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Map as MapIcon } from 'lucide-react';
 import type { AeropuertoTelemetria } from '@/lib/types';
+import { ciudadDe, paisDe } from '@/lib/aeropuertos';
 
 interface PanelAeropuertosOperacionProps {
   aeropuertos: AeropuertoTelemetria[];
@@ -31,7 +32,13 @@ export function PanelAeropuertosOperacion({ aeropuertos, onAeropuertoClick, onVe
 
   const aeropuertosFiltrados = useMemo(() => {
     return aeropuertos.filter(n => {
-      if (filtroCodigo && !n.codigo_iata.toLowerCase().includes(filtroCodigo.toLowerCase())) return false;
+      if (filtroCodigo) {
+        const q = filtroCodigo.toLowerCase();
+        const coincide = n.codigo_iata.toLowerCase().includes(q)
+          || ciudadDe(n.codigo_iata).toLowerCase().includes(q)
+          || paisDe(n.codigo_iata).toLowerCase().includes(q);
+        if (!coincide) return false;
+      }
       if (filtroContinente) {
         const valor = n.continente || n.zona_horaria;
         if (valor !== filtroContinente) return false;
@@ -81,7 +88,7 @@ export function PanelAeropuertosOperacion({ aeropuertos, onAeropuertoClick, onVe
       <div className="flex flex-wrap gap-2 mb-3">
         <div className="flex-1 min-w-[100px]">
           <Input
-            placeholder="Código..."
+            placeholder="Código, ciudad o país..."
             value={filtroCodigo}
             onChange={e => setFiltroCodigo(e.target.value)}
           />
@@ -117,6 +124,9 @@ export function PanelAeropuertosOperacion({ aeropuertos, onAeropuertoClick, onVe
       <div className="space-y-2 max-h-56 overflow-y-auto">
         {aeropuertosOrdenados.map(n => {
           const continenteLabel = n.continente && n.continente !== 'Desconocido' ? n.continente : (n.zona_horaria ? n.zona_horaria.split('/')[0] : '');
+          const ciudad = ciudadDe(n.codigo_iata);
+          const pais = paisDe(n.codigo_iata);
+          const ubicacion = [pais, continenteLabel].filter(Boolean).join(' · ');
           return (
             <div
               key={n.id}
@@ -126,10 +136,17 @@ export function PanelAeropuertosOperacion({ aeropuertos, onAeropuertoClick, onVe
               <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="w-2 h-2 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: n.color }} />
-                  <span className="font-semibold text-sm text-slate-800 dark:text-slate-200">{n.codigo_iata}</span>
-                  {continenteLabel && (
-                    <span className="text-[10px] text-slate-400 truncate hidden sm:inline">{continenteLabel}</span>
-                  )}
+                  <div className="flex flex-col min-w-0 leading-tight">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {ciudad && ciudad !== n.codigo_iata && (
+                        <span className="font-semibold text-sm text-slate-800 dark:text-slate-200 truncate">{ciudad}</span>
+                      )}
+                      <span className="text-[10px] font-mono text-slate-400 shrink-0">{n.codigo_iata}</span>
+                    </div>
+                    {ubicacion && (
+                      <span className="text-[10px] text-slate-400 truncate">{ubicacion}</span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   {seguidoId === n.codigo_iata ? (

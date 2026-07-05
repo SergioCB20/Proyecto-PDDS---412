@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { Marker, Tooltip, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import type { AeropuertoEnMapa } from '@/lib/types';
+import { ciudadDe, paisDe } from '@/lib/aeropuertos';
 
 interface GeoMapaAeropuertoProps {
   aeropuerto: AeropuertoEnMapa;
@@ -44,7 +45,8 @@ export default function GeoMapaAeropuerto({ aeropuerto }: GeoMapaAeropuertoProps
     >
       <Tooltip direction="top" offset={[0, -16]} className="aeropuerto-label">
         <div className="text-center">
-          <div className="font-bold text-[11px]">{aeropuerto.codigo_iata}</div>
+          <div className="font-bold text-[11px]">{ciudadDe(aeropuerto.codigo_iata)}</div>
+          <div className="text-[9px] text-slate-500 font-mono">{aeropuerto.codigo_iata}</div>
           <span className="font-semibold text-[10px]" style={{ color: aeropuerto.color }}>
             {aeropuerto.ocupacionPorcentaje.toFixed(0)}%
           </span>
@@ -52,8 +54,11 @@ export default function GeoMapaAeropuerto({ aeropuerto }: GeoMapaAeropuertoProps
       </Tooltip>
       <Popup>
         <div className="text-center min-w-[120px]">
-          <div className="font-bold text-sm">{aeropuerto.codigo_iata}</div>
-          <div className="text-xs text-slate-600">
+          <div className="font-bold text-sm">{ciudadDe(aeropuerto.codigo_iata)}</div>
+          <div className="text-[11px] text-slate-500">
+            {[paisDe(aeropuerto.codigo_iata), aeropuerto.codigo_iata].filter(Boolean).join(' · ')}
+          </div>
+          <div className="text-xs text-slate-600 mt-1">
             {aeropuerto.ocupacion_actual}/{aeropuerto.capacidad_almacen}
           </div>
           <div className="text-xs font-semibold" style={{ color: aeropuerto.color }}>

@@ -9,6 +9,7 @@ import type { VueloEnMapa } from '@/lib/types';
 import type { UmbralesConfig } from './ConfigUmbrales';
 import { CENTRO, ZOOM } from './mapaConfig';
 import { formatearFechaHoraSeparado } from '@/lib/formatearHora';
+import { ciudadDe } from '@/lib/aeropuertos';
 
 function esCoordenadaValida(v: number): boolean {
   return Number.isFinite(v) && Math.abs(v) <= 180;
@@ -376,7 +377,10 @@ const AvionAnimado = React.memo(function AvionAnimado({
     // NOTE: vuelo.progreso / k intentionally excluded — handled via flightRef
   ]);
 
-  const ocupada = vuelo.capacidad_carga - vuelo.carga_disponible;
+  // Un vuelo PROGRAMADO aún no embarcó: la reserva del planificador es transitoria y la carga
+  // real se fija al despegar, así que se muestra 0 ocupado / capacidad disponible hasta EN_RUTA.
+  const ocupada = vuelo.estado === 'PROGRAMADO' ? 0 : Math.max(0, vuelo.capacidad_carga - vuelo.carga_disponible);
+  const disponible = vuelo.estado === 'PROGRAMADO' ? vuelo.capacidad_carga : vuelo.carga_disponible;
 
   // Estela inicial: ruta por delante del avión desde su progreso actual
   // (evita un parpadeo con la ruta completa antes del primer frame).
@@ -418,7 +422,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
         <div className="text-center min-w-[120px]">
           <div className="font-bold text-xs">{vuelo.codigo_vuelo}</div>
           <div className="text-[10px] text-slate-600">
-            {vuelo.origen.codigo_iata} → {vuelo.destino.codigo_iata}
+            {ciudadDe(vuelo.origen.codigo_iata)} → {ciudadDe(vuelo.destino.codigo_iata)}
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 font-mono leading-tight">
             {(() => {
@@ -451,7 +455,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
         <div className="text-center min-w-[170px]">
           <div className="font-bold text-base mb-1">{vuelo.codigo_vuelo}</div>
           <div className="text-xs text-slate-600 mb-2">
-            {vuelo.origen.codigo_iata} → {vuelo.destino.codigo_iata}
+            {ciudadDe(vuelo.origen.codigo_iata)} → {ciudadDe(vuelo.destino.codigo_iata)}
           </div>
           <div className="text-[11px] text-slate-500 mb-2 font-mono leading-tight">
             {(() => {
@@ -475,7 +479,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
           </div>
           <div className="text-sm mb-2">
             <span className="text-slate-500">Disponible: </span>
-            <span className="font-semibold">{vuelo.carga_disponible}</span>
+            <span className="font-semibold">{disponible}</span>
           </div>
           <div
             className="px-2 py-1 rounded text-white text-xs font-bold"

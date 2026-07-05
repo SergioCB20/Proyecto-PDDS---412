@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import type { VueloTelemetria } from '@/lib/types';
+import { ciudadDe } from '@/lib/aeropuertos';
 
 interface ResumenVuelosOperacionProps {
   vuelos: VueloTelemetria[];
@@ -43,7 +44,10 @@ export function ResumenVuelosOperacion({ vuelos }: ResumenVuelosOperacionProps) 
       <div className="space-y-1 max-h-48 overflow-y-auto text-sm">
         {porAeropuerto.map(([iata, cnt]) => (
           <div key={iata} className="flex items-center justify-between py-1.5 px-2 rounded bg-slate-50 dark:bg-slate-800/50">
-            <span className="font-medium text-slate-700 dark:text-slate-300">{iata}</span>
+            <span className="font-medium text-slate-700 dark:text-slate-300 truncate flex items-center gap-1.5 min-w-0" title={iata}>
+              <span className="truncate">{ciudadDe(iata)}</span>
+              <span className="text-[10px] font-mono text-slate-400 shrink-0">{iata}</span>
+            </span>
             <div className="flex items-center gap-2 text-xs">
               <span className="flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
