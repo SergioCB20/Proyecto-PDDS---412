@@ -1220,6 +1220,7 @@ function SimulacionView({
 
   const [simReady, setSimReady] = useState(false);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSimReady(false);
   }, [sesionId]);
   useEffect(() => {
@@ -1229,6 +1230,7 @@ function SimulacionView({
       telemetria?.sesion_id === sesionId &&
       (telemetria?.metricas_sesion?.segundos_reales_transcurridos ?? 0) > 0
     ) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSimReady(true);
     }
   }, [telemetria, sesionId, estadoSesion]);
@@ -1386,9 +1388,6 @@ function SimulacionView({
   ).length;
   const vuelosSimProgramados = vuelosMapa.filter(
     (v) => v.estado === "PROGRAMADO",
-  ).length;
-  const vuelosSimEntregados = vuelosMapa.filter(
-    (v) => v.estado === "COMPLETADO",
   ).length;
 
   const handleIniciar = async () => {
@@ -2175,21 +2174,6 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const metricas = telemetria?.metricas_sesion ?? metricasPoll;
   const hora = useReloj();
 
-  const [simReady, setSimReady] = useState(false);
-  useEffect(() => {
-    setSimReady(false);
-  }, [sesionId]);
-  useEffect(() => {
-    if (
-      sesionId &&
-      estadoSesion === "EN_CURSO" &&
-      telemetria?.sesion_id === sesionId &&
-      (telemetria?.metricas_sesion?.segundos_reales_transcurridos ?? 0) > 0
-    ) {
-      setSimReady(true);
-    }
-  }, [telemetria, sesionId, estadoSesion]);
-
   useEffect(() => {
     api
       .get<SesionListaItem[]>("/sesiones?estado=EN_CURSO")
@@ -2352,9 +2336,6 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   ).length;
   const vuelosColProgramados = vuelosMapa.filter(
     (v) => v.estado === "PROGRAMADO",
-  ).length;
-  const vuelosColEntregados = vuelosMapa.filter(
-    (v) => v.estado === "COMPLETADO",
   ).length;
 
   const maxOcupacion = Math.max(

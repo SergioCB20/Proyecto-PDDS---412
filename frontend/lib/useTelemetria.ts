@@ -60,6 +60,7 @@ export function useTelemetria(activo: boolean) {
     }
 
     if (!activo) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setData(null);
       return;
     }
