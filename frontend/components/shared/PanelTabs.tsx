@@ -4,7 +4,7 @@ import { useReducer } from 'react';
 import { PanelAeropuertosOperacion } from '@/components/operacion/PanelAeropuertosOperacion';
 import { PanelVuelosOperacion } from '@/components/operacion/PanelVuelosOperacion';
 import { PanelEnviosMaletas } from '@/components/shared/PanelEnviosMaletas';
-import type { AeropuertoTelemetria, VueloTelemetria } from '@/lib/types';
+import type { AeropuertoTelemetria, VueloTelemetria, SegmentoResponse } from '@/lib/types';
 
 type TabName = 'aeropuertos' | 'vuelos' | 'envios';
 
@@ -26,6 +26,8 @@ interface PanelTabsProps {
   sesionId?: string;
   enviosActivo: boolean;
   nodos: { codigo_iata: string; nombre: string }[];
+  onSeguirEnMapa?: (vueloId: string) => void;
+  onMostrarRuta?: (segmentos: SegmentoResponse[]) => void;
 }
 
 const TAB_LABELS: Record<TabName, string> = {
@@ -52,6 +54,8 @@ export function PanelTabs({
   sesionId,
   enviosActivo,
   nodos,
+  onSeguirEnMapa,
+  onMostrarRuta,
 }: PanelTabsProps) {
   const [tab, setTab] = useReducer((_: TabName, next: TabName) => next, 'aeropuertos' as TabName);
 
@@ -101,6 +105,8 @@ export function PanelTabs({
           sesionId={sesionId}
           activo={enviosActivo}
           nodos={nodos}
+          onSeguirEnMapa={onSeguirEnMapa}
+          onMostrarRuta={onMostrarRuta}
         />
       )}
     </div>

@@ -936,6 +936,8 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                 codigo_iata: n.codigo_iata,
                 nombre: n.nombre,
               }))}
+              onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
+              onMostrarRuta={handleMostrarRutaOp}
             />
 
             {selectedEnvio && (
@@ -2081,6 +2083,8 @@ function SimulacionView({
                   codigo_iata: n.codigo_iata,
                   nombre: n.nombre,
                 }))}
+                onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
+                onMostrarRuta={handleMostrarRutaSim}
               />
             )}
 
@@ -3102,6 +3106,8 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                     codigo_iata: n.codigo_iata,
                     nombre: n.nombre,
                   }))}
+                  onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
+                  onMostrarRuta={handleMostrarRutaCol}
                 />
               )}
 
