@@ -35,14 +35,17 @@ public class OperacionTelemetriaService {
     private final NodoLogisticoRepository nodoRepository;
     private final VueloRepository vueloRepository;
     private final TelemetriaWebSocket telemetriaWebSocket;
+    private final OcupacionNodoService ocupacionNodoService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public OperacionTelemetriaService(NodoLogisticoRepository nodoRepository,
                                        VueloRepository vueloRepository,
-                                       TelemetriaWebSocket telemetriaWebSocket) {
+                                       TelemetriaWebSocket telemetriaWebSocket,
+                                       OcupacionNodoService ocupacionNodoService) {
         this.nodoRepository = nodoRepository;
         this.vueloRepository = vueloRepository;
         this.telemetriaWebSocket = telemetriaWebSocket;
+        this.ocupacionNodoService = ocupacionNodoService;
     }
 
     @Async
@@ -64,6 +67,8 @@ public class OperacionTelemetriaService {
         ObjectNode root = objectMapper.createObjectNode();
         root.put("timestamp", now.toString());
 
+        // Ocupación del contexto de la operación día a día (no el contador global compartido).
+        java.util.Map<java.util.UUID, Integer> ocupacion = ocupacionNodoService.mapa(OcupacionNodoService.OPERACION);
         ArrayNode nodosArr = root.putArray("nodos");
         for (NodoLogistico nodo : nodos) {
             ObjectNode n = nodosArr.addObject();
@@ -71,9 +76,11 @@ public class OperacionTelemetriaService {
             n.put("codigo_iata", nodo.getCodigoIata());
             n.put("lat", nodo.getLatitud().doubleValue());
             n.put("lon", nodo.getLongitud().doubleValue());
-            n.put("capacidad_almacen", nodo.getCapacidadAlmacen() != null ? nodo.getCapacidadAlmacen() : 0);
-            n.put("ocupacion_actual", nodo.getOcupacionActual() != null ? nodo.getOcupacionActual() : 0);
-            double pct = nodo.getOcupacionPorcentaje();
+            int cap = nodo.getCapacidadAlmacen() != null ? nodo.getCapacidadAlmacen() : 0;
+            int occ = ocupacion.getOrDefault(nodo.getId(), 0);
+            n.put("capacidad_almacen", cap);
+            n.put("ocupacion_actual", occ);
+            double pct = cap > 0 ? (occ * 100.0) / cap : 0.0;
             n.put("ocupacion_pct", Math.round(pct * 100.0) / 100.0);
             n.put("color", evaluarColorNodo(pct));
             n.put("continente", nodo.getContinente() != null ? nodo.getContinente() : "");

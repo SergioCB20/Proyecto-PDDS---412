@@ -40,13 +40,15 @@ public class CancelacionService {
     private final ReplanificacionService replanificacionService;
     private final SesionRepository sesionRepository;
     private final SesionLockManager lockManager;
+    private final OcupacionNodoService ocupacionNodoService;
 
     public CancelacionService(VueloRepository vueloRepository, EquipajeRepository equipajeRepository,
                               NodoLogisticoRepository nodoRepository, ApplicationEventPublisher eventPublisher,
                               RedisCacheService redisCacheService,
                               ReplanificacionService replanificacionService,
                               SesionRepository sesionRepository,
-                              SesionLockManager lockManager) {
+                              SesionLockManager lockManager,
+                              OcupacionNodoService ocupacionNodoService) {
         this.vueloRepository = vueloRepository;
         this.equipajeRepository = equipajeRepository;
         this.nodoRepository = nodoRepository;
@@ -55,6 +57,7 @@ public class CancelacionService {
         this.replanificacionService = replanificacionService;
         this.sesionRepository = sesionRepository;
         this.lockManager = lockManager;
+        this.ocupacionNodoService = ocupacionNodoService;
     }
 
     public record EquipajeAfectado(UUID id, String codigo, String origen_iata, String destino_iata,
@@ -97,8 +100,11 @@ public class CancelacionService {
         vueloRepository.save(vuelo);
 
         redisCacheService.actualizarCargaDisponibleVuelo(vuelo.getId(), 0);
+        // Ruta legacy = operación día a día: refresca el caché con la ocupación del contexto de
+        // operación (ya no el contador global obsoleto nodos_logisticos.ocupacion_actual).
         for (NodoLogistico nodo : nodoRepository.findAllByOrderByCodigoIataAsc()) {
-            redisCacheService.actualizarOcupacionNodo(nodo.getId(), nodo.getOcupacionActual());
+            redisCacheService.actualizarOcupacionNodo(
+                    nodo.getId(), ocupacionNodoService.leer(nodo.getId(), OcupacionNodoService.OPERACION));
         }
 
         eventPublisher.publishEvent(new VueloCanceladoEvent(vuelo.getId(), OffsetDateTime.now(), request.causa()));

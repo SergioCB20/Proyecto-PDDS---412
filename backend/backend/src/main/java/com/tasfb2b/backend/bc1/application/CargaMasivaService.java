@@ -28,6 +28,7 @@ public class CargaMasivaService {
     private final ColaPlanificacionRepository colaRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final EquipajeService equipajeService;
+    private final OcupacionNodoService ocupacionNodoService;
 
     private final Map<UUID, List<RegistroPreview>> previewStore = new ConcurrentHashMap<>();
 
@@ -35,12 +36,14 @@ public class CargaMasivaService {
                               NodoLogisticoRepository nodoRepository,
                               ColaPlanificacionRepository colaRepository,
                               ApplicationEventPublisher eventPublisher,
-                              EquipajeService equipajeService) {
+                              EquipajeService equipajeService,
+                              OcupacionNodoService ocupacionNodoService) {
         this.equipajeRepository = equipajeRepository;
         this.nodoRepository = nodoRepository;
         this.colaRepository = colaRepository;
         this.eventPublisher = eventPublisher;
         this.equipajeService = equipajeService;
+        this.ocupacionNodoService = ocupacionNodoService;
     }
 
     public record RegistroPreview(
@@ -120,7 +123,8 @@ public class CargaMasivaService {
                     errores.add("cantidad no es un número válido: " + cantidadStr);
                 }
 
-                if (nodoOrigen.getOcupacionActual() >= nodoOrigen.getCapacidadAlmacen()) {
+                if (ocupacionNodoService.leer(nodoOrigen.getId(), OcupacionNodoService.OPERACION)
+                        >= (nodoOrigen.getCapacidadAlmacen() != null ? nodoOrigen.getCapacidadAlmacen() : 0)) {
                     errores.add("Capacidad del almacén superada en nodo " + nodoOrigen.getCodigoIata());
                 }
 
@@ -169,7 +173,8 @@ public class CargaMasivaService {
 
         for (RegistroPreview preview : validos) {
             try {
-                if (nodoOrigen.getOcupacionActual() >= nodoOrigen.getCapacidadAlmacen()) {
+                if (ocupacionNodoService.leer(nodoOrigen.getId(), OcupacionNodoService.OPERACION)
+                        >= (nodoOrigen.getCapacidadAlmacen() != null ? nodoOrigen.getCapacidadAlmacen() : 0)) {
                     fallidos++;
                     continue;
                 }
