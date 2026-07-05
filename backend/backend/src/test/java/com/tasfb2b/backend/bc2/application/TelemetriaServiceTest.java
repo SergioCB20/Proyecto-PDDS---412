@@ -5,6 +5,7 @@ import com.tasfb2b.backend.bc1.domain.EstadoVuelo;
 import com.tasfb2b.backend.bc1.domain.NodoLogistico;
 import com.tasfb2b.backend.bc1.domain.Vuelo;
 import com.tasfb2b.backend.bc1.infrastructure.EquipajeRepository;
+import com.tasfb2b.backend.bc1.application.OcupacionNodoService;
 import com.tasfb2b.backend.bc1.infrastructure.NodoLogisticoRepository;
 import com.tasfb2b.backend.bc1.infrastructure.VueloRepository;
 import com.tasfb2b.backend.bc2.domain.EstadoSesion;
@@ -36,6 +37,7 @@ class TelemetriaServiceTest {
     @Mock private VueloRepository vueloRepository;
     @Mock private EquipajeRepository equipajeRepository;
     @Mock private TelemetriaWebSocket telemetriaWebSocket;
+    @Mock private OcupacionNodoService ocupacionNodoService;
 
     private ObjectMapper objectMapper;
     private TelemetriaService telemetriaService;
@@ -49,7 +51,16 @@ class TelemetriaServiceTest {
     void setUp() {
         objectMapper = new ObjectMapper();
         telemetriaService = new TelemetriaService(
-                nodoRepository, vueloRepository, equipajeRepository, telemetriaWebSocket);
+                nodoRepository, vueloRepository, equipajeRepository, telemetriaWebSocket, ocupacionNodoService);
+
+        // La ocupación ahora se lee por contexto; el stub devuelve lo que cada test fija en el nodo.
+        lenient().when(ocupacionNodoService.mapa(any())).thenAnswer(inv -> {
+            java.util.Map<UUID, Integer> m = new java.util.HashMap<>();
+            if (nodo != null && nodo.getOcupacionActual() != null) {
+                m.put(nodo.getId(), nodo.getOcupacionActual());
+            }
+            return m;
+        });
 
         sesion = new SesionEjecucion(
                 UUID.randomUUID(), TipoSesion.SIMULADA,
