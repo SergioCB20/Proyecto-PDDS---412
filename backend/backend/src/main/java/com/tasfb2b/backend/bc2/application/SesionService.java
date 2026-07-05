@@ -593,7 +593,7 @@ public class SesionService {
             .toList();
     }
 
-    public List<EnvioPanelResponse> obtenerEnviosPanelSesion(UUID sesionId, String tipo, String origenIata, String destinoIata) {
+    public List<EnvioPanelResponse> obtenerEnviosPanelSesion(UUID sesionId, String tipo, String origenIata, String destinoIata, String codigoEquipaje) {
         sesionRepository.findById(sesionId)
             .orElseThrow(() -> new IllegalArgumentException("Sesion no encontrada: " + sesionId));
 
@@ -605,7 +605,8 @@ public class SesionService {
         };
         String o = (origenIata != null && !origenIata.isBlank()) ? origenIata : null;
         String d = (destinoIata != null && !destinoIata.isBlank()) ? destinoIata : null;
-        List<Equipaje> equipajes = equipajeRepository.findEnviosPanel(estados, o, d, PageRequest.of(0, 100));
+        String ce = (codigoEquipaje != null && !codigoEquipaje.isBlank()) ? codigoEquipaje : null;
+        List<Equipaje> equipajes = equipajeRepository.findEnviosPanel(estados, o, d, ce, PageRequest.of(0, 100));
         return equipajes.stream()
                 .filter(e -> e.getPlanViaje() != null && sesionId.equals(e.getPlanViaje().getSesionId()))
                 .map(e -> {
