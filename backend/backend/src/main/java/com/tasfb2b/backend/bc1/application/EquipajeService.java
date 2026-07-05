@@ -464,7 +464,7 @@ public class EquipajeService {
             Integer cantidad
     ) {}
 
-    public List<EnvioPanelResponse> obtenerEnviosPanel(String tipo, String origenIata, String destinoIata) {
+    public List<EnvioPanelResponse> obtenerEnviosPanel(String tipo, String origenIata, String destinoIata, String codigoEquipaje) {
         List<EstadoEquipaje> estados = switch (tipo) {
             case "planificados" -> List.of(EstadoEquipaje.ENRUTADO, EstadoEquipaje.EN_ALMACEN);
             case "en_vuelo" -> List.of(EstadoEquipaje.EN_VUELO);
@@ -473,7 +473,8 @@ public class EquipajeService {
         };
         String o = (origenIata != null && !origenIata.isBlank()) ? origenIata : null;
         String d = (destinoIata != null && !destinoIata.isBlank()) ? destinoIata : null;
-        List<Equipaje> equipajes = equipajeRepository.findEnviosPanel(estados, o, d, PageRequest.of(0, 100));
+        String ce = (codigoEquipaje != null && !codigoEquipaje.isBlank()) ? codigoEquipaje : null;
+        List<Equipaje> equipajes = equipajeRepository.findEnviosPanel(estados, o, d, ce, PageRequest.of(0, 100));
         return equipajes.stream()
                 .map(e -> {
                     String codigoVuelo = "";

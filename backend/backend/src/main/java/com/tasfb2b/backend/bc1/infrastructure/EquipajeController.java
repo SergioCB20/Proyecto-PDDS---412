@@ -156,9 +156,10 @@ public class EquipajeController {
     public ResponseEntity<?> enviosPanel(
             @RequestParam String tipo,
             @RequestParam(required = false) String origen_iata,
-            @RequestParam(required = false) String destino_iata) {
+            @RequestParam(required = false) String destino_iata,
+            @RequestParam(required = false) String codigo_equipaje) {
         try {
-            return ResponseEntity.ok(equipajeService.obtenerEnviosPanel(tipo, origen_iata, destino_iata));
+            return ResponseEntity.ok(equipajeService.obtenerEnviosPanel(tipo, origen_iata, destino_iata, codigo_equipaje));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest()
                     .body(Map.of("status", 400, "error", "PARAMETRO_INVALIDO", "mensaje", e.getMessage()));
