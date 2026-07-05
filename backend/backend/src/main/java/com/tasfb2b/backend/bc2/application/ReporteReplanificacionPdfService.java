@@ -5,8 +5,11 @@ import com.lowagie.text.pdf.PdfPCell;
 import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfWriter;
 import com.tasfb2b.backend.bc1.domain.Equipaje;
+import com.tasfb2b.backend.bc1.domain.PlanViaje;
+import com.tasfb2b.backend.bc1.domain.SegmentoPlan;
 import com.tasfb2b.backend.bc1.domain.Vuelo;
 import com.tasfb2b.backend.bc1.infrastructure.EquipajeRepository;
+import com.tasfb2b.backend.bc1.infrastructure.PlanViajeRepository;
 import com.tasfb2b.backend.bc1.infrastructure.VueloRepository;
 import com.tasfb2b.backend.bc2.domain.EventoCancelacion;
 import com.tasfb2b.backend.bc2.domain.ItemLote;
@@ -29,17 +32,20 @@ public class ReporteReplanificacionPdfService {
     private final VueloRepository vueloRepository;
     private final ItemLoteRepository itemLoteRepository;
     private final EquipajeRepository equipajeRepository;
+    private final PlanViajeRepository planViajeRepository;
 
     public ReporteReplanificacionPdfService(LoteReplanificacionRepository loteRepository,
                                             EventoCancelacionRepository eventoRepository,
                                             VueloRepository vueloRepository,
                                             ItemLoteRepository itemLoteRepository,
-                                            EquipajeRepository equipajeRepository) {
+                                            EquipajeRepository equipajeRepository,
+                                            PlanViajeRepository planViajeRepository) {
         this.loteRepository = loteRepository;
         this.eventoRepository = eventoRepository;
         this.vueloRepository = vueloRepository;
         this.itemLoteRepository = itemLoteRepository;
         this.equipajeRepository = equipajeRepository;
+        this.planViajeRepository = planViajeRepository;
     }
 
     public byte[] generarPdf(UUID sesionId, UUID loteId) {
@@ -68,13 +74,14 @@ public class ReporteReplanificacionPdfService {
             Font tituloFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 16);
             Font headerFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 11);
             Font normalFont = FontFactory.getFont(FontFactory.HELVETICA, 10);
+            Font smallFont = FontFactory.getFont(FontFactory.HELVETICA, 8);
 
             document.add(new Paragraph("REPORTE DE REPLANIFICACION", tituloFont));
             document.add(new Paragraph(" "));
 
             document.add(new Paragraph("Vuelo cancelado: " + vuelo.getCodigoVuelo(), headerFont));
             document.add(new Paragraph("Ruta: " + (vuelo.getOrigen() != null ? vuelo.getOrigen().getCodigoIata() : "?")
-                    + " → " + (vuelo.getDestino() != null ? vuelo.getDestino().getCodigoIata() : "?"), normalFont));
+                    + " \u2192 " + (vuelo.getDestino() != null ? vuelo.getDestino().getCodigoIata() : "?"), normalFont));
             document.add(new Paragraph("Causa: " + (evento.getCausa() != null ? evento.getCausa() : "No especificada"), normalFont));
             document.add(new Paragraph("Fecha del evento: " + (evento.getOcurridoEnVirtual() != null
                     ? evento.getOcurridoEnVirtual().format(fmt) : "N/A"), normalFont));
@@ -84,11 +91,11 @@ public class ReporteReplanificacionPdfService {
             document.add(new Paragraph("Equipajes afectados (" + equipajes.size() + ")", headerFont));
             document.add(new Paragraph(" "));
 
-            PdfPTable table = new PdfPTable(4);
+            PdfPTable table = new PdfPTable(6);
             table.setWidthPercentage(100);
-            table.setWidths(new float[]{1, 3, 2, 2});
+            table.setWidths(new float[]{1, 3, 2, 2, 2, 3});
 
-            for (String col : new String[]{"N°", "ID Equipaje", "Origen", "Destino"}) {
+            for (String col : new String[]{"N\u00B0", "ID Equipaje", "Origen", "Destino", "Nuevo Vuelo", "Plan de Viaje"}) {
                 PdfPCell cell = new PdfPCell(new Phrase(col, headerFont));
                 cell.setHorizontalAlignment(Element.ALIGN_CENTER);
                 table.addCell(cell);
@@ -96,11 +103,32 @@ public class ReporteReplanificacionPdfService {
 
             int i = 1;
             for (Equipaje eq : equipajes) {
+                String vueloCodigo = "";
+                String planStr = "";
+                try {
+                    PlanViaje pv = planViajeRepository.findByEquipajeId(eq.getId()).orElse(null);
+                    if (pv != null && pv.getSegmentos() != null && !pv.getSegmentos().isEmpty()) {
+                        List<SegmentoPlan> segs = pv.getSegmentos();
+                        vueloCodigo = segs.get(0).getVuelo().getCodigoVuelo();
+                        StringBuilder sb = new StringBuilder();
+                        for (int j = 0; j < segs.size(); j++) {
+                            SegmentoPlan sp = segs.get(j);
+                            if (j > 0) sb.append(" \u2192 ");
+                            sb.append(sp.getNodoOrigen().getCodigoIata())
+                              .append("(").append(sp.getVuelo().getCodigoVuelo()).append(")")
+                              .append(sp.getNodoDestino().getCodigoIata());
+                        }
+                        planStr = sb.toString();
+                    }
+                } catch (Exception ignored) {}
+
                 table.addCell(new PdfPCell(new Phrase(String.valueOf(i++), normalFont)));
                 table.addCell(new PdfPCell(new Phrase(
                         eq.getIdExterno() != null ? eq.getIdExterno() : eq.getId().toString(), normalFont)));
                 table.addCell(new PdfPCell(new Phrase(eq.getOrigenIata(), normalFont)));
                 table.addCell(new PdfPCell(new Phrase(eq.getDestinoIata(), normalFont)));
+                table.addCell(new PdfPCell(new Phrase(vueloCodigo, normalFont)));
+                table.addCell(new PdfPCell(new Phrase(planStr, smallFont)));
             }
 
             document.add(table);

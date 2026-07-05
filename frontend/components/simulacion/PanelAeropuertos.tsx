@@ -3,8 +3,9 @@
 import { useState, useMemo } from 'react';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import { Map as MapIcon } from 'lucide-react';
-import type { AeropuertoTelemetria, VueloTelemetria } from '@/lib/types';
+import { Map as MapIcon, PlaneTakeoff, PlaneLanding } from 'lucide-react';
+import type { AeropuertoTelemetria, VueloTelemetria } from '@/lib/types'
+import { formatearFechaHoraSeparado } from '@/lib/formatearHora';
 
 interface PanelAeropuertosProps {
   aeropuertos: AeropuertoTelemetria[];
@@ -152,24 +153,28 @@ export function PanelAeropuertos({ aeropuertos, vuelos, onAeropuertoClick, onVer
       <div className="space-y-2 max-h-56 overflow-y-auto">
         {aeropuertosOrdenados.map(n => {
           const continenteLabel = n.continente && n.continente !== 'Desconocido' ? n.continente : (n.zona_horaria ? n.zona_horaria.split('/')[0] : '');
+          const proxSalida = timingPorAeropuerto.salida.get(n.codigo_iata) || '';
+          const proxLlegada = timingPorAeropuerto.llegada.get(n.codigo_iata) || '';
+          const fmtSalida = formatearFechaHoraSeparado(proxSalida || null);
+          const fmtLlegada = formatearFechaHoraSeparado(proxLlegada || null);
           return (
             <div
               key={n.id}
-              className={`flex items-center justify-between py-1.5 px-2 rounded bg-slate-50 dark:bg-slate-800/50 ${onAeropuertoClick ? 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50' : ''}`}
+              className={`py-2 px-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/60 ${onAeropuertoClick ? 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/70 hover:border-slate-200 dark:hover:border-slate-700 transition-colors' : ''}`}
               onClick={() => onAeropuertoClick?.(n.codigo_iata, n.codigo_iata)}
             >
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: n.color }} />
-                <span className="font-medium text-sm text-slate-700 dark:text-slate-300">{n.codigo_iata}</span>
-                {continenteLabel && (
-                  <span className="text-[10px] text-slate-400 truncate hidden sm:inline">{continenteLabel}</span>
-                )}
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <div className="flex items-center gap-1">
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-2 h-2 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: n.color }} />
+                  <span className="font-semibold text-sm text-slate-800 dark:text-slate-200">{n.codigo_iata}</span>
+                  {continenteLabel && (
+                    <span className="text-[10px] text-slate-400 truncate hidden sm:inline">{continenteLabel}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
                   {seguidoId === n.codigo_iata ? (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-medium whitespace-nowrap">
-                      Salir del mapa [ESC]
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-medium whitespace-nowrap">
+                      Salir mapa [ESC]
                     </span>
                   ) : (
                     onVerEnMapa && (
@@ -183,10 +188,34 @@ export function PanelAeropuertos({ aeropuertos, vuelos, onAeropuertoClick, onVer
                     )
                   )}
                 </div>
-                <span className="text-xs text-slate-500 ml-1">
+              </div>
+              <div className="grid grid-cols-2 gap-1.5 mb-1.5">
+                <div className="flex items-center gap-1 rounded bg-white/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-700/50 px-1.5 py-1">
+                  <PlaneTakeoff size={10} className="text-slate-400 dark:text-slate-500 shrink-0" />
+                  <div className="flex flex-col leading-tight min-w-0">
+                    <span className="text-[9px] uppercase tracking-wide text-slate-400 dark:text-slate-500">Sale</span>
+                    <span className="font-mono text-[11px] font-semibold text-slate-700 dark:text-slate-200 truncate">
+                      {fmtSalida.hora}
+                      <span className="text-slate-400 dark:text-slate-500 font-normal"> · {fmtSalida.fecha}</span>
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 rounded bg-white/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-700/50 px-1.5 py-1">
+                  <PlaneLanding size={10} className="text-slate-400 dark:text-slate-500 shrink-0" />
+                  <div className="flex flex-col leading-tight min-w-0">
+                    <span className="text-[9px] uppercase tracking-wide text-slate-400 dark:text-slate-500">Llega</span>
+                    <span className="font-mono text-[11px] font-semibold text-slate-700 dark:text-slate-200 truncate">
+                      {fmtLlegada.hora}
+                      <span className="text-slate-400 dark:text-slate-500 font-normal"> · {fmtLlegada.fecha}</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="text-slate-500 dark:text-slate-400">
                   {n.ocupacion_actual}/{n.capacidad_almacen}
                 </span>
-                <span className="text-xs font-semibold" style={{ color: n.color }}>
+                <span className="font-bold" style={{ color: n.color }}>
                   {n.ocupacion_pct.toFixed(0)}%
                 </span>
               </div>

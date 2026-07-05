@@ -4,17 +4,17 @@ import { useState, useMemo } from 'react';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Map as MapIcon } from 'lucide-react';
-import type { AeropuertoTelemetria, VueloTelemetria } from '@/lib/types';
+import type { AeropuertoTelemetria } from '@/lib/types';
+import { ciudadDe, paisDe } from '@/lib/aeropuertos';
 
 interface PanelAeropuertosOperacionProps {
   aeropuertos: AeropuertoTelemetria[];
-  vuelos: VueloTelemetria[];
   onAeropuertoClick?: (id: string, codigo: string) => void;
   onVerEnMapa?: (id: string) => void;
   seguidoId?: string;
 }
 
-export function PanelAeropuertosOperacion({ aeropuertos, vuelos, onAeropuertoClick, onVerEnMapa, seguidoId }: PanelAeropuertosOperacionProps) {
+export function PanelAeropuertosOperacion({ aeropuertos, onAeropuertoClick, onVerEnMapa, seguidoId }: PanelAeropuertosOperacionProps) {
   const [filtroCodigo, setFiltroCodigo] = useState('');
   const [filtroContinente, setFiltroContinente] = useState('');
   const [orden, setOrden] = useState('');
@@ -28,31 +28,17 @@ export function PanelAeropuertosOperacion({ aeropuertos, vuelos, onAeropuertoCli
     { value: '', label: 'Sin orden' },
     { value: 'ocupacion-asc', label: 'Ocupación ↑' },
     { value: 'ocupacion-desc', label: 'Ocupación ↓' },
-    { value: 'salida-ut', label: 'Salida UT' },
-    { value: 'llegada-ut', label: 'Llegada UT' },
   ];
-
-  const timingPorAeropuerto = useMemo(() => {
-    const salida = new Map<string, string>();
-    const llegada = new Map<string, string>();
-
-    for (const v of vuelos) {
-      const actualSalida = salida.get(v.origen_iata);
-      if (!actualSalida || v.hora_salida < actualSalida) {
-        salida.set(v.origen_iata, v.hora_salida);
-      }
-      const actualLlegada = llegada.get(v.destino_iata);
-      if (!actualLlegada || v.hora_llegada < actualLlegada) {
-        llegada.set(v.destino_iata, v.hora_llegada);
-      }
-    }
-
-    return { salida, llegada };
-  }, [vuelos]);
 
   const aeropuertosFiltrados = useMemo(() => {
     return aeropuertos.filter(n => {
-      if (filtroCodigo && !n.codigo_iata.toLowerCase().includes(filtroCodigo.toLowerCase())) return false;
+      if (filtroCodigo) {
+        const q = filtroCodigo.toLowerCase();
+        const coincide = n.codigo_iata.toLowerCase().includes(q)
+          || ciudadDe(n.codigo_iata).toLowerCase().includes(q)
+          || paisDe(n.codigo_iata).toLowerCase().includes(q);
+        if (!coincide) return false;
+      }
       if (filtroContinente) {
         const valor = n.continente || n.zona_horaria;
         if (valor !== filtroContinente) return false;
@@ -70,23 +56,9 @@ export function PanelAeropuertosOperacion({ aeropuertos, vuelos, onAeropuertoCli
       case 'ocupacion-desc':
         lista.sort((a, b) => b.ocupacion_pct - a.ocupacion_pct);
         break;
-      case 'salida-ut':
-        lista.sort((a, b) => {
-          const sa = timingPorAeropuerto.salida.get(a.codigo_iata) || '';
-          const sb = timingPorAeropuerto.salida.get(b.codigo_iata) || '';
-          return sa.localeCompare(sb);
-        });
-        break;
-      case 'llegada-ut':
-        lista.sort((a, b) => {
-          const la = timingPorAeropuerto.llegada.get(a.codigo_iata) || '';
-          const lb = timingPorAeropuerto.llegada.get(b.codigo_iata) || '';
-          return la.localeCompare(lb);
-        });
-        break;
     }
     return lista;
-  }, [aeropuertosFiltrados, orden, timingPorAeropuerto]);
+  }, [aeropuertosFiltrados, orden]);
 
   const hayFiltrosActivos = filtroCodigo || filtroContinente;
 
@@ -116,7 +88,7 @@ export function PanelAeropuertosOperacion({ aeropuertos, vuelos, onAeropuertoCli
       <div className="flex flex-wrap gap-2 mb-3">
         <div className="flex-1 min-w-[100px]">
           <Input
-            placeholder="Código..."
+            placeholder="Código, ciudad o país..."
             value={filtroCodigo}
             onChange={e => setFiltroCodigo(e.target.value)}
           />
@@ -152,24 +124,34 @@ export function PanelAeropuertosOperacion({ aeropuertos, vuelos, onAeropuertoCli
       <div className="space-y-2 max-h-56 overflow-y-auto">
         {aeropuertosOrdenados.map(n => {
           const continenteLabel = n.continente && n.continente !== 'Desconocido' ? n.continente : (n.zona_horaria ? n.zona_horaria.split('/')[0] : '');
+          const ciudad = ciudadDe(n.codigo_iata);
+          const pais = paisDe(n.codigo_iata);
+          const ubicacion = [pais, continenteLabel].filter(Boolean).join(' · ');
           return (
             <div
               key={n.id}
-              className={`flex items-center justify-between py-1.5 px-2 rounded bg-slate-50 dark:bg-slate-800/50 ${onAeropuertoClick ? 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50' : ''}`}
+              className={`py-2 px-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/60 ${onAeropuertoClick ? 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/70 hover:border-slate-200 dark:hover:border-slate-700 transition-colors' : ''}`}
               onClick={() => onAeropuertoClick?.(n.codigo_iata, n.codigo_iata)}
             >
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: n.color }} />
-                <span className="font-medium text-sm text-slate-700 dark:text-slate-300">{n.codigo_iata}</span>
-                {continenteLabel && (
-                  <span className="text-[10px] text-slate-400 truncate hidden sm:inline">{continenteLabel}</span>
-                )}
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <div className="flex items-center gap-1">
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-2 h-2 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: n.color }} />
+                  <div className="flex flex-col min-w-0 leading-tight">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {ciudad && ciudad !== n.codigo_iata && (
+                        <span className="font-semibold text-sm text-slate-800 dark:text-slate-200 truncate">{ciudad}</span>
+                      )}
+                      <span className="text-[10px] font-mono text-slate-400 shrink-0">{n.codigo_iata}</span>
+                    </div>
+                    {ubicacion && (
+                      <span className="text-[10px] text-slate-400 truncate">{ubicacion}</span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
                   {seguidoId === n.codigo_iata ? (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-medium whitespace-nowrap">
-                      Salir del mapa [ESC]
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-medium whitespace-nowrap">
+                      Salir mapa [ESC]
                     </span>
                   ) : (
                     onVerEnMapa && (
@@ -183,10 +165,12 @@ export function PanelAeropuertosOperacion({ aeropuertos, vuelos, onAeropuertoCli
                     )
                   )}
                 </div>
-                <span className="text-xs text-slate-500 ml-1">
+              </div>
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="text-slate-500 dark:text-slate-400">
                   {n.ocupacion_actual}/{n.capacidad_almacen}
                 </span>
-                <span className="text-xs font-semibold" style={{ color: n.color }}>
+                <span className="font-bold" style={{ color: n.color }}>
                   {n.ocupacion_pct.toFixed(0)}%
                 </span>
               </div>

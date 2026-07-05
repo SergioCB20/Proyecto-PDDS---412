@@ -76,6 +76,25 @@ export interface EquipajePlanViaje {
   segmentos: SegmentoResponse[];
 }
 
+/**
+ * Maleta física con identificador único, hija 1:N de un Equipaje.
+ * Cada registro de equipaje genera N maletas al registrarse con `cantidad`,
+ * cada una con su propio `codigo_maleta` UNIQUE trazable individualmente.
+ */
+export interface Maleta {
+  id: string;
+  codigo_maleta: string;
+  equipaje_id: string;
+  equipaje_id_externo?: string;
+  created_at?: string;
+  /* true cuando el backend no tiene fila fisica en `maletas` para este equipaje
+   * (equipajes importados desde archivos de simulación no llaman a
+   * generarMaletasPara), y sintetiza N entradas segun equipaje.cantidad con
+   * codigo MAL-{id_externo}-NN. Sirve para que el panel muestre coherencia
+   * con la "Carga X/Y" del vuelo. */
+  virtual?: boolean;
+}
+
 export interface Ubicacion {
   lat: number;
   lon: number;
@@ -84,6 +103,7 @@ export interface Ubicacion {
 export interface AeropuertoEnMapa extends Aeropuerto {
   color: string;
   ocupacionPorcentaje: number;
+  continente?: string;
 }
 
 export interface VueloEnMapa extends Vuelo {
@@ -99,6 +119,7 @@ export interface MetricasSimulacion {
   sla_acumulado_pct: number;
   vuelos_cancelados: number;
   maletas_replanificadas: number;
+  maletas_entregadas?: number;
   fecha_inicio_real?: string | null;
   /** virtual/real time ratio sent from backend */
   k?: number;

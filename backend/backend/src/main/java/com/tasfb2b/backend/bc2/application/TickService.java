@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -181,10 +182,14 @@ public class TickService {
         // Cargar datos UNA SOLA VEZ para telemetria.
         // Vuelos: EN_RUTA + PROGRAMADO dentro de la ventana virtual, no todos los días clonados.
         List<NodoLogistico> nodos = nodoRepository.findAllByOrderByCodigoIataAsc();
-        OffsetDateTime ventanaTelemetria = sesion.getDiaHoraVirtual() != null
-                ? sesion.getDiaHoraVirtual().plusHours(TelemetriaService.VENTANA_TELEMETRIA_HORAS)
-                : OffsetDateTime.now().plusYears(1);
-        List<Vuelo> vuelos = vueloRepository.findTelemetriaVuelos(ventanaTelemetria);
+        OffsetDateTime virtualActual = sesion.getDiaHoraVirtual() != null
+                ? sesion.getDiaHoraVirtual()
+                : OffsetDateTime.now();
+        java.time.LocalDate fechaActual = virtualActual.toLocalDate();
+        java.time.LocalDate desdeFecha = fechaActual.minusDays(1);
+        java.time.LocalDate hastaFecha = fechaActual.plusDays(1);
+        OffsetDateTime ventanaTelemetria = virtualActual.plusHours(TelemetriaService.VENTANA_TELEMETRIA_HORAS);
+        List<Vuelo> vuelos = vueloRepository.findTelemetriaVuelos(desdeFecha, hastaFecha, ventanaTelemetria);
 
         // Colapso por saturación de almacén (umbral rojo de nodo, cualquier tipo de sesión) o
         // por incumplimiento del primer SLA (solo HASTA_COLAPSO). Ambas son causas que impiden
@@ -311,10 +316,19 @@ public class TickService {
         long virtualMinutos = (long) ((TICK_INTERVAL_MS / 1000.0) * kEfectivo / 60);
 
         if (sesion.getDiaHoraVirtual() == null) {
+            // Reloj virtual alineado con la hora Lima (America/Lima, -05:00 sin DST) para que
+            // las horas digitadas en el form (fecha/hora_inicio_virtual) coincidan con el
+            // offset con el que backend almacena vuelos (vuelos.hora_salida/llegada = -05).
+            // Antes se construia con ZoneOffset.UTC, lo que desplazaba 5h el reloj virtual
+            // frente a los vuelos clonados y generaba confusion al comparar con el panel.
+            ZoneOffset offsetLima = ZoneId.of("America/Lima").getRules()
+                    .getOffset(java.time.LocalDateTime.of(
+                            sesion.getFechaInicioVirtual(),
+                            sesion.getHoraInicioVirtual()));
             OffsetDateTime inicio = OffsetDateTime.of(
                     sesion.getFechaInicioVirtual(),
                     sesion.getHoraInicioVirtual(),
-                    ZoneOffset.UTC);
+                    offsetLima);
             sesion.setDiaHoraVirtual(inicio);
         } else {
             sesion.setDiaHoraVirtual(sesion.getDiaHoraVirtual().plusMinutes(virtualMinutos));
@@ -678,6 +692,8 @@ public class TickService {
                     sesion.getVuelosCancelados() != null ? sesion.getVuelosCancelados() : 0);
             root.put("maletas_replanificadas",
                     sesion.getMaletasReplanificadas() != null ? sesion.getMaletasReplanificadas() : 0);
+            root.put("maletas_entregadas",
+                    equipajeRepository.countByEstado(EstadoEquipaje.ENTREGADO));
             root.put("fecha_inicio_real", sesion.getFechaInicioReal() != null
                     ? sesion.getFechaInicioReal().toString() : null);
             root.put("timestamp", now.toString());

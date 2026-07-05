@@ -7,6 +7,9 @@ import { colorVueloPorEstado } from '@/lib/colors';
 import { bezierControlPoint, bezierPoint, bezierBearing, bezierSamples } from '@/lib/bezier';
 import type { VueloEnMapa } from '@/lib/types';
 import type { UmbralesConfig } from './ConfigUmbrales';
+import { CENTRO, ZOOM } from './mapaConfig';
+import { formatearFechaHoraSeparado } from '@/lib/formatearHora';
+import { ciudadDe } from '@/lib/aeropuertos';
 
 function esCoordenadaValida(v: number): boolean {
   return Number.isFinite(v) && Math.abs(v) <= 180;
@@ -87,15 +90,13 @@ const AvionAnimado = React.memo(function AvionAnimado({
     }
   }, [seguido, map]);
 
-  // ESC sale del modo seguir
-  useEffect(() => {
-    if (!seguido || !onSalir) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onSalir();
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [seguido, onSalir]);
+  // ESC lo maneja MapController (GeoMapa): sale del seguimiento y aleja la cámara.
+
+  // Salir del seguimiento: exit + alejar zoom y centrar en el Atlántico.
+  const salirYAlejar = () => {
+    onSalir?.();
+    map.flyTo(CENTRO, ZOOM, { duration: 0.8 });
+  };
 
   useEffect(() => { iconSizeRef.current = iconSize; }, [iconSize]);
 
@@ -376,7 +377,10 @@ const AvionAnimado = React.memo(function AvionAnimado({
     // NOTE: vuelo.progreso / k intentionally excluded — handled via flightRef
   ]);
 
-  const ocupada = vuelo.capacidad_carga - vuelo.carga_disponible;
+  // Un vuelo PROGRAMADO aún no embarcó: la reserva del planificador es transitoria y la carga
+  // real se fija al despegar, así que se muestra 0 ocupado / capacidad disponible hasta EN_RUTA.
+  const ocupada = vuelo.estado === 'PROGRAMADO' ? 0 : Math.max(0, vuelo.capacidad_carga - vuelo.carga_disponible);
+  const disponible = vuelo.estado === 'PROGRAMADO' ? vuelo.capacidad_carga : vuelo.carga_disponible;
 
   // Estela inicial: ruta por delante del avión desde su progreso actual
   // (evita un parpadeo con la ruta completa antes del primer frame).
@@ -406,19 +410,31 @@ const AvionAnimado = React.memo(function AvionAnimado({
       {seguido && onSalir && (
         <Tooltip permanent direction="bottom" offset={[0, 10]} className="salir-vuelo-tooltip">
           <button
-            onClick={e => { e.stopPropagation(); onSalir(); }}
+            onClick={e => { e.stopPropagation(); salirYAlejar(); }}
             className="px-2 py-0.5 text-[10px] font-medium bg-amber-400 text-amber-900 rounded-full shadow-md whitespace-nowrap hover:bg-amber-500 transition-colors"
           >
-            Salir del vuelo
+            Salir del vuelo [ESC]
           </button>
         </Tooltip>
       )}
       {/* Etiqueta de carga: visible solo al pasar el cursor sobre el avión */}
       <Tooltip direction="top" offset={[0, -14]} className="avion-carga-tooltip">
-        <div className="text-center min-w-[90px]">
+        <div className="text-center min-w-[120px]">
           <div className="font-bold text-xs">{vuelo.codigo_vuelo}</div>
           <div className="text-[10px] text-slate-600">
-            {vuelo.origen.codigo_iata} → {vuelo.destino.codigo_iata}
+            {ciudadDe(vuelo.origen.codigo_iata)} → {ciudadDe(vuelo.destino.codigo_iata)}
+          </div>
+          <div className="text-[10px] text-slate-500 mt-0.5 font-mono leading-tight">
+            {(() => {
+              const s = formatearFechaHoraSeparado(vuelo.hora_salida);
+              const l = formatearFechaHoraSeparado(vuelo.hora_llegada);
+              return (
+                <>
+                  <div>Sale <span className="font-semibold text-slate-700">{s.hora}</span> · {s.fecha}</div>
+                  <div>Llega <span className="font-semibold text-slate-700">{l.hora}</span> · {l.fecha}</div>
+                </>
+              );
+            })()}
           </div>
           <div className="text-[11px] mt-0.5">
             <span className="text-slate-500">Carga: </span>
@@ -436,10 +452,22 @@ const AvionAnimado = React.memo(function AvionAnimado({
         </div>
       </Tooltip>
       <Popup>
-        <div className="text-center min-w-[150px]">
+        <div className="text-center min-w-[170px]">
           <div className="font-bold text-base mb-1">{vuelo.codigo_vuelo}</div>
           <div className="text-xs text-slate-600 mb-2">
-            {vuelo.origen.codigo_iata} → {vuelo.destino.codigo_iata}
+            {ciudadDe(vuelo.origen.codigo_iata)} → {ciudadDe(vuelo.destino.codigo_iata)}
+          </div>
+          <div className="text-[11px] text-slate-500 mb-2 font-mono leading-tight">
+            {(() => {
+              const s = formatearFechaHoraSeparado(vuelo.hora_salida);
+              const l = formatearFechaHoraSeparado(vuelo.hora_llegada);
+              return (
+                <>
+                  <div>Salida: <span className="font-semibold text-slate-700">{s.hora}</span> · {s.fecha}</div>
+                  <div>Llegada: <span className="font-semibold text-slate-700">{l.hora}</span> · {l.fecha}</div>
+                </>
+              );
+            })()}
           </div>
           <div className="text-sm mb-1">
             <span className="text-slate-500">Capacidad: </span>
@@ -451,7 +479,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
           </div>
           <div className="text-sm mb-2">
             <span className="text-slate-500">Disponible: </span>
-            <span className="font-semibold">{vuelo.carga_disponible}</span>
+            <span className="font-semibold">{disponible}</span>
           </div>
           <div
             className="px-2 py-1 rounded text-white text-xs font-bold"

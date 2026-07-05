@@ -4,18 +4,29 @@ import { useEffect, useMemo, useRef } from 'react';
 import { Marker, Tooltip, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import type { AeropuertoEnMapa } from '@/lib/types';
+import { ciudadDe, paisDe } from '@/lib/aeropuertos';
 
 interface GeoMapaAeropuertoProps {
   aeropuerto: AeropuertoEnMapa;
 }
 
-/** Icono fijo de aeropuerto — al menos 4× mayor que el icono de vuelo (~13 px a zoom 4). */
-function crearIconoAeropuerto(iata: string, color: string, size: number = 48) {
+/**
+ * Icono de aeropuerto: torre de control estilizada dentro de un cuadro redondeado
+ * cuyo relleno cambia al color de ocupacion actual. Tamano objetivo 2x el icono
+ * de vuelo (~11 px a zoom mundial) para que se distinga sin saturar el mapa.
+ *
+ *   v0.1 — antes era un cuadrado 48px con el codigo IATA en texto gigante; eso
+ *   obligaba a reducir el zoom para ver el mundo entero y los iconos de vuelo
+ *   quedaban diminutos frente a cada aeropuerto. Ahora el tamano es 22 px y la
+ *   meta visual se cumple con un simbolo reconocible + color.
+ */
+function crearIconoAeropuerto(color: string, size: number = 22) {
   const half = Math.round(size / 2);
-  const fontSize = Math.max(9, Math.round(size * 0.3));
+  const border = Math.max(1, Math.round(size * 0.09));
+  const svgSize = Math.round(size * 0.6);
   return L.divIcon({
     className: 'aeropuerto-icon',
-    html: `<div style="width:${size}px;height:${size}px;background:${color};border-radius:14px;border:3px solid white;box-shadow:0 3px 8px rgba(0,0,0,0.35);display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;font-weight:700;font-size:${fontSize}px;line-height:1.2;text-shadow:0 1px 2px rgba(0,0,0,0.4)"><span>${iata}</span></div>`,
+    html: `<div style="width:${size}px;height:${size}px;background:${color};border-radius:${Math.round(size * 0.27)}px;border:${border}px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="${svgSize}" height="${svgSize}" fill="white" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M11 2 L13 2 L13 5 L18 5 L18 8 L13 8 L13 10 L20 13 L20 16 L11 14 L2 16 L2 13 L11 10 Z M9 17 L15 17 L15 22 L9 22 Z"/></svg></div>`,
     iconSize: [size, size],
     iconAnchor: [half, half],
   });
@@ -23,8 +34,8 @@ function crearIconoAeropuerto(iata: string, color: string, size: number = 48) {
 
 export default function GeoMapaAeropuerto({ aeropuerto }: GeoMapaAeropuertoProps) {
   const icono = useMemo(
-    () => crearIconoAeropuerto(aeropuerto.codigo_iata, aeropuerto.color),
-    [aeropuerto.codigo_iata, aeropuerto.color]
+    () => crearIconoAeropuerto(aeropuerto.color),
+    [aeropuerto.color]
   );
 
   return (
@@ -32,15 +43,22 @@ export default function GeoMapaAeropuerto({ aeropuerto }: GeoMapaAeropuertoProps
       position={[aeropuerto.latitud, aeropuerto.longitud]}
       icon={icono}
     >
-      <Tooltip direction="top" offset={[0, -28]} className="aeropuerto-label">
-        <span className="font-semibold" style={{ color: aeropuerto.color }}>
-          {aeropuerto.ocupacionPorcentaje.toFixed(0)}%
-        </span>
+      <Tooltip direction="top" offset={[0, -16]} className="aeropuerto-label">
+        <div className="text-center">
+          <div className="font-bold text-[11px]">{ciudadDe(aeropuerto.codigo_iata)}</div>
+          <div className="text-[9px] text-slate-500 font-mono">{aeropuerto.codigo_iata}</div>
+          <span className="font-semibold text-[10px]" style={{ color: aeropuerto.color }}>
+            {aeropuerto.ocupacionPorcentaje.toFixed(0)}%
+          </span>
+        </div>
       </Tooltip>
       <Popup>
         <div className="text-center min-w-[120px]">
-          <div className="font-bold text-sm">{aeropuerto.codigo_iata}</div>
-          <div className="text-xs text-slate-600">
+          <div className="font-bold text-sm">{ciudadDe(aeropuerto.codigo_iata)}</div>
+          <div className="text-[11px] text-slate-500">
+            {[paisDe(aeropuerto.codigo_iata), aeropuerto.codigo_iata].filter(Boolean).join(' · ')}
+          </div>
+          <div className="text-xs text-slate-600 mt-1">
             {aeropuerto.ocupacion_actual}/{aeropuerto.capacidad_almacen}
           </div>
           <div className="text-xs font-semibold" style={{ color: aeropuerto.color }}>

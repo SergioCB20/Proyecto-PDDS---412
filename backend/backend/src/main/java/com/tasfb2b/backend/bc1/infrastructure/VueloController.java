@@ -87,4 +87,14 @@ public class VueloController {
     public ResponseEntity<?> obtenerEquipajes(@PathVariable UUID id) {
         return ResponseEntity.ok(equipajeService.obtenerEnviosVuelo(id));
     }
+
+    @GetMapping("/{id}/maletas")
+    public ResponseEntity<?> obtenerMaletas(@PathVariable UUID id) {
+        try {
+            return ResponseEntity.ok(equipajeService.listarMaletasVuelo(id));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("status", 500, "error", "ERROR_INTERNO", "mensaje", e.getMessage()));
+        }
+    }
 }

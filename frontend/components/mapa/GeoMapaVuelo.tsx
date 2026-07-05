@@ -6,6 +6,8 @@ import { colorVueloPorEstado, COLOR_AEROPUERTO } from '@/lib/colors';
 import type { VueloEnMapa } from '@/lib/types';
 import type { UmbralesConfig } from './ConfigUmbrales';
 import { bezierCurvePoints } from '@/lib/bezier';
+import { formatearFechaHoraSeparado } from '@/lib/formatearHora';
+import { ciudadDe } from '@/lib/aeropuertos';
 import AvionAnimado from './AvionAnimado';
 
 interface GeoMapaVueloProps {
@@ -83,10 +85,22 @@ export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false
           }}
         >
           <Tooltip direction="center" className="vuelo-tooltip">
-            <div className="text-center min-w-[120px]">
+            <div className="text-center min-w-[150px]">
               <div className="font-bold text-sm">{vuelo.codigo_vuelo}</div>
-              <div className="text-xs text-slate-600">
-                {vuelo.origen.codigo_iata} → {vuelo.destino.codigo_iata}
+              <div className="text-xs text-slate-600" title={`${vuelo.origen.codigo_iata} → ${vuelo.destino.codigo_iata}`}>
+                {ciudadDe(vuelo.origen.codigo_iata)} → {ciudadDe(vuelo.destino.codigo_iata)}
+              </div>
+              <div className="text-[10px] text-slate-500 mt-0.5 font-mono">
+                {(() => {
+                  const s = formatearFechaHoraSeparado(vuelo.hora_salida);
+                  const l = formatearFechaHoraSeparado(vuelo.hora_llegada);
+                  return (
+                    <>
+                      <div>Salida: <span className="font-semibold text-slate-700">{s.hora}</span> · {s.fecha}</div>
+                      <div>Llegada: <span className="font-semibold text-slate-700">{l.hora}</span> · {l.fecha}</div>
+                    </>
+                  );
+                })()}
               </div>
               <div className="text-xs mt-1">
                 <span className="text-slate-500">Ocupado: </span>
