@@ -233,6 +233,7 @@ export interface EnvioEntregadoResponse {
 
 export interface TelemetriaMensaje {
   timestamp: string;
+  sesion_id?: string;
   nodos: AeropuertoTelemetria[];
   vuelos: VueloTelemetria[];
   metricas_sesion: MetricasSimulacion;

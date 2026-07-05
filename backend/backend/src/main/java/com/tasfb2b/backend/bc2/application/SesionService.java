@@ -305,10 +305,14 @@ public class SesionService {
     public SesionIniciarResponse activarSesion(SesionEjecucion sesion) {
         sesion.setEstado(EstadoSesion.EN_CURSO);
         sesion.setFechaInicioReal(OffsetDateTime.now());
+        if (sesion.getSegundosRealesTranscurridos() == null || sesion.getSegundosRealesTranscurridos() > 0) {
+            sesion.setSegundosRealesTranscurridos(0);
+        }
         sesionRepository.save(sesion);
 
         try {
             redisCacheService.setEstadoSesion(sesion.getId(), "EN_CURSO");
+            redisCacheService.delMetricasSesion(sesion.getId());
         } catch (Exception e) {
             log.warn("Redis no disponible al iniciar sesion {}: {}", sesion.getId(), e.getMessage());
         }

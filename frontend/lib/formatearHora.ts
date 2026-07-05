@@ -1,96 +1,103 @@
-/**
- * Convierte un string ISO 8601 UTC a hora local del navegador.
- * Formato: DD/MM/YYYY HH:MM
- */
-export function formatearHoraLocal(isoStr: string | null | undefined): string {
-  if (!isoStr) return '-';
-  const d = new Date(isoStr);
-  if (isNaN(d.getTime())) return '-';
-  return d.toLocaleString('es-PE', {
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit',
+const LIMA_TZ = 'America/Lima';
+
+function pad(n: number, w = 2): string {
+  return n.toString().padStart(w, '0');
+}
+
+function formatDate(d: Date, tz?: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeZone: tz,
+  }).formatToParts(d);
+  const day = parts.find((p) => p.type === 'day')?.value ?? '';
+  const month = parts.find((p) => p.type === 'month')?.value ?? '';
+  const year = parts.find((p) => p.type === 'year')?.value ?? '';
+  return `${day}/${month}/${year}`;
+}
+
+function formatTime(d: Date, tz?: string): string {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
     hour12: false,
-  });
+    timeZone: tz,
+  }).formatToParts(d);
+  const hour = parts.find((p) => p.type === 'hour')?.value ?? '00';
+  const minute = parts.find((p) => p.type === 'minute')?.value ?? '00';
+  const second = parts.find((p) => p.type === 'second')?.value ?? '00';
+  return `${hour}:${minute}:${second}`;
+}
+
+function parseOrNull(iso: string | null | undefined): Date | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? null : d;
 }
 
 /**
- * Solo la parte de hora HH:MM:SS en hora local.
+ * DD/MM/YYYY HH:MM:SS en hora local del navegador. "-" si vacio o invalido.
  */
-export function formatearHoraLocalCorta(isoStr: string | null | undefined): string {
-  if (!isoStr) return '--:--';
-  const d = new Date(isoStr);
-  if (isNaN(d.getTime())) return '--:--';
-  return d.toLocaleString('es-PE', {
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-    hour12: false,
-  });
+export function formatearFechaHora(
+  iso: string | null | undefined,
+): string {
+  const d = parseOrNull(iso);
+  if (!d) return '-';
+  return `${formatDate(d)} ${formatTime(d)}`;
 }
 
 /**
- * Fecha + hora compacta, una sola linea ej. "17/07 13:40".
- * Pensada para chips dentro de items ajustados (vuelos, equipajes, tramos).
+ * DD/MM/YYYY HH:MM:SS en hora Lima (America/Lima). "-" si vacio o invalido.
+ * Pensada para timestamps del backend (que almacena con offset -05).
  */
-export function formatearFechaHoraCorta(isoStr: string | null | undefined): string {
-  if (!isoStr) return '—';
-  const d = new Date(isoStr);
-  if (isNaN(d.getTime())) return '—';
-  const fecha = d.toLocaleDateString('es-PE', {
-    day: '2-digit', month: '2-digit',
-  });
-  const hora = d.toLocaleTimeString('es-PE', {
-    hour: '2-digit', minute: '2-digit',
-    hour12: false,
-  });
-  return `${fecha} ${hora}`;
+export function formatearFechaHoraLima(
+  iso: string | null | undefined,
+): string {
+  const d = parseOrNull(iso);
+  if (!d) return '-';
+  return `${formatDate(d, LIMA_TZ)} ${formatTime(d, LIMA_TZ)}`;
 }
 
 /**
- * Devuelve la fecha formateada (DD/MM/YYYY) y la hora (HH:MM) por separado para
- * componer visualmente un item con la fecha como subtítulo y la hora destacada.
+ * Solo HH:MM:SS en hora Lima. "-" si vacio o invalido.
  */
-export function formatearFechaHoraSeparado(isoStr: string | null | undefined): { fecha: string; hora: string } {
-  if (!isoStr) return { fecha: '—', hora: '—' };
-  const d = new Date(isoStr);
-  if (isNaN(d.getTime())) return { fecha: '—', hora: '—' };
+export function formatearHoraLima(
+  iso: string | null | undefined,
+): string {
+  const d = parseOrNull(iso);
+  if (!d) return '-';
+  return formatTime(d, LIMA_TZ);
+}
+
+/**
+ * Fecha y hora por separado, mismo formato canonico. "-" si vacio o invalido.
+ */
+export function formatearFechaHoraSeparado(
+  iso: string | null | undefined,
+): { fecha: string; hora: string } {
+  const d = parseOrNull(iso);
+  if (!d) return { fecha: '-', hora: '-' };
   return {
-    fecha: d.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: '2-digit' }),
-    hora: d.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false }),
+    fecha: formatDate(d, LIMA_TZ),
+    hora: formatTime(d, LIMA_TZ),
   };
 }
 
-const LIMA_TZ = 'America/Lima';
-
 /**
- * Fecha + hora compacta SIEMPRE en hora Lima (America/Lima), independiente del TZ del
- * navegador. Pensada para renderizar el reloj virtual de la sesion, que el backend ya
- * almacena con offset -05 (Lima). Evita confusion cuando el navegador del operador
- * no esta en -05 y mostraba horas desfasadas (ej. UTC veia "19:40" en vez de "14:40").
- * Formato salida: "YYYY-MM-DD HH:MM:SS".
+ * Convierte una duracion en segundos a HH:MM:SS. "-" si <= 0.
  */
-export function formatearFechaHoraCortaLima(isoStr: string | null | undefined): string {
-  if (!isoStr) return '—';
-  const d = new Date(isoStr);
-  if (isNaN(d.getTime())) return '—';
-  const fecha = d.toLocaleDateString('es-PE', {
-    day: '2-digit', month: '2-digit', year: 'numeric', timeZone: LIMA_TZ,
-  });
-  const hora = d.toLocaleTimeString('es-PE', {
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: LIMA_TZ,
-  });
-  return `${fecha} ${hora}`;
+export function formatDuracionHHMMSS(segundos: number | null | undefined): string {
+  if (!segundos || segundos <= 0) return '-';
+  const h = Math.floor(segundos / 3600);
+  const m = Math.floor((segundos % 3600) / 60);
+  const s = segundos % 60;
+  return `${pad(h)}:${pad(m)}:${pad(s)}`;
 }
 
-/**
- * Solo la parte de hora HH:MM en hora Lima. Util cuando el reloj virtual debe
- * compararse visualmente contra las horas de salida/llegada del panel de vuelos
- * (que tambien se muestran en Lima porque el backend emite con offset -05).
- */
-export function formatearHoraLima(isoStr: string | null | undefined): string {
-  if (!isoStr) return '--:--';
-  const d = new Date(isoStr);
-  if (isNaN(d.getTime())) return '--:--';
-  return d.toLocaleTimeString('es-PE', {
-    hour: '2-digit', minute: '2-digit', hour12: false, timeZone: LIMA_TZ,
-  });
-}
-
+// Aliases legacy (referencias historicas) — todos producen el mismo formato canonico.
+export const formatearHoraLocal = formatearFechaHora;
+export const formatearHoraLocalCorta = formatearFechaHoraLima;
+export const formatearFechaHoraCorta = formatearFechaHoraLima;
+export const formatearFechaHoraCortaLima = formatearFechaHoraLima;
