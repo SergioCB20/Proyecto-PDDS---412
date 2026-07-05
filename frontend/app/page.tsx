@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import {
   Package,
   RefreshCw,
@@ -43,7 +43,11 @@ import {
   type UmbralesConfig,
 } from "@/components/mapa/ConfigUmbrales";
 import type { SelectedEnvioOperacion } from "@/components/operacion/PanelEnviosOperacion";
-import { formatearFechaHoraCortaLima } from "@/lib/formatearHora";
+import {
+  formatearFechaHora,
+  formatearFechaHoraLima,
+  formatDuracionHHMMSS,
+} from "@/lib/formatearHora";
 import type { SelectedEnvio } from "@/components/simulacion/PanelEnvios";
 import type {
   Aeropuerto,
@@ -88,23 +92,6 @@ const GeoMapa = dynamic(() => import("@/components/mapa/GeoMapa"), {
     </div>
   ),
 });
-
-function formatSegundos(s: number): string {
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  return `${h}h ${m}m ${sec}s`;
-}
-
-function formatoFechaHoraLocal(d: Date): string {
-  const y = d.getFullYear();
-  const M = String(d.getMonth() + 1).padStart(2, "0");
-  const D = String(d.getDate()).padStart(2, "0");
-  const h = String(d.getHours()).padStart(2, "0");
-  const m = String(d.getMinutes()).padStart(2, "0");
-  const s = String(d.getSeconds()).padStart(2, "0");
-  return `${y}-${M}-${D} ${h}:${m}:${s}`;
-}
 
 function useReloj() {
   const [hora, setHora] = useState(new Date());
@@ -734,7 +721,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               <div className="flex items-center gap-1.5 mb-1 pb-1 border-b border-slate-200 dark:border-slate-600">
                 <Clock size={11} />
                 <span className="font-semibold text-slate-900 dark:text-slate-100">
-                  {formatoFechaHoraLocal(hora)}
+                  {formatearFechaHora(hora.toISOString())}
                 </span>
               </div>
               <div className="flex justify-between">
@@ -1223,8 +1210,28 @@ function SimulacionView({
     maletas_replanificadas: 0,
   });
 
+  const sesionIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    sesionIdRef.current = sesionId;
+  }, [sesionId]);
+
   const metricas = telemetria?.metricas_sesion ?? metricasPoll;
   const hora = useReloj();
+
+  const [simReady, setSimReady] = useState(false);
+  useEffect(() => {
+    setSimReady(false);
+  }, [sesionId]);
+  useEffect(() => {
+    if (
+      sesionId &&
+      estadoSesion === "EN_CURSO" &&
+      telemetria?.sesion_id === sesionId &&
+      (telemetria?.metricas_sesion?.segundos_reales_transcurridos ?? 0) > 0
+    ) {
+      setSimReady(true);
+    }
+  }, [telemetria, sesionId, estadoSesion]);
 
   useEffect(() => {
     api
@@ -1241,10 +1248,13 @@ function SimulacionView({
 
   useEffect(() => {
     if (!sesionId || estadoSesion === "FINALIZADA") return;
+    const targetSesionId = sesionId;
     const interval = setInterval(() => {
       api
-        .get<MetricasSimulacion>(`/sesiones/${sesionId}/metricas`)
+        .get<MetricasSimulacion>(`/sesiones/${targetSesionId}/metricas`)
         .then((m) => {
+          if (!sesionIdRef.current || sesionIdRef.current !== targetSesionId)
+            return;
           setMetricasPoll(m);
         })
         .catch(() => {});
@@ -1432,7 +1442,17 @@ function SimulacionView({
       setInicioRealMs(hora.getTime());
       setEstadoSesion("EN_CURSO");
       setSesionesActivas([]);
-      setMetricasPoll((prev) => ({ ...prev, sesion_id: res.id }));
+      setMetricasPoll({
+        sesion_id: res.id,
+        estado: "EN_CURSO",
+        dia_hora_virtual: "",
+        segundos_reales_transcurridos: 0,
+        sla_acumulado_pct: 100,
+        vuelos_cancelados: 0,
+        maletas_replanificadas: 0,
+      });
+      setInitialVuelos([]);
+      setInitialAeropuertos([]);
     } catch (err: unknown) {
       const e = err as { mensaje?: string; message?: string };
       setError(e.mensaje || e.message || "Error al crear sesion");
@@ -1457,12 +1477,26 @@ function SimulacionView({
   const handleReanudar = async () => {
     if (!sesionId) return;
     setLoading(true);
+    setError("");
     try {
+      const otrasActivas = await api
+        .get<SesionListaItem[]>("/sesiones?estado=EN_CURSO")
+        .catch(() => [] as SesionListaItem[]);
+      for (const s of otrasActivas) {
+        if (s.id !== sesionId) {
+          try {
+            await api.post(`/sesiones/${s.id}/detener`, {});
+          } catch {
+            /* ignore */
+          }
+        }
+      }
       await api.post(`/sesiones/${sesionId}/iniciar`, {});
       setInicioRealMs(hora.getTime());
       setEstadoSesion("EN_CURSO");
-    } catch {
-      setError("Error al reanudar");
+    } catch (err: unknown) {
+      const e = err as { mensaje?: string; message?: string };
+      setError(e.mensaje || e.message || "Error al reanudar");
     } finally {
       setLoading(false);
     }
@@ -1657,9 +1691,11 @@ function SimulacionView({
               <div className="flex justify-between">
                 <span>Inicio Real:</span>
                 <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
-                  {formatoFechaHoraLocal(
-                    new Date(inicioRealMs || hora.getTime()),
-                  )}
+                  {inicioRealMs > 0
+                    ? formatearFechaHora(
+                        new Date(inicioRealMs).toISOString(),
+                      )
+                    : "-"}
                 </span>
               </div>
               <div className="flex justify-between">
@@ -1673,22 +1709,25 @@ function SimulacionView({
               <div className="flex justify-between">
                 <span>Actual Real:</span>
                 <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
-                  {sesionId
-                    ? formatoFechaHoraLocal(new Date(inicioRealMs))
-                    : formatoFechaHoraLocal(hora)}
+                  {inicioRealMs > 0
+                    ? formatearFechaHora(
+                        new Date(inicioRealMs).toISOString(),
+                      )
+                    : "-"}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>Actual Virtual:</span>
                 <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
-                  {formatearFechaHoraCortaLima(metricas.dia_hora_virtual) ||
-                    `${simulacionConfig.fecha_inicio_virtual} ${simulacionConfig.hora_inicio_virtual}:00`}
+                  {formatearFechaHoraLima(metricas.dia_hora_virtual)}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>Transcurrido:</span>
                 <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
-                  {formatSegundos(metricas.segundos_reales_transcurridos ?? 0)}
+                  {formatDuracionHHMMSS(
+                    metricas.segundos_reales_transcurridos ?? 0,
+                  )}
                 </span>
               </div>
             </div>
@@ -1721,11 +1760,9 @@ function SimulacionView({
             </div>
           </div>
         </GeoMapa>
-        {sesionId &&
-          estadoSesion !== "FINALIZADA" &&
-          (metricas.segundos_reales_transcurridos ?? 0) === 0 && (
-            <SimulacionLoadingOverlay visible={true} />
-          )}
+        {sesionId && estadoSesion === "EN_CURSO" && !simReady && (
+          <SimulacionLoadingOverlay visible={true} />
+        )}
       </div>
 
       <div
@@ -1813,15 +1850,34 @@ function SimulacionView({
                     onClick={async () => {
                       setSesionId(sesionPausada.id);
                       setLoading(true);
+                      setError("");
                       try {
+                        const otrasActivas = await api
+                          .get<SesionListaItem[]>("/sesiones?estado=EN_CURSO")
+                          .catch(() => [] as SesionListaItem[]);
+                        for (const s of otrasActivas) {
+                          if (s.id !== sesionPausada.id) {
+                            try {
+                              await api.post(
+                                `/sesiones/${s.id}/detener`,
+                                {},
+                              );
+                            } catch {
+                              /* ignore */
+                            }
+                          }
+                        }
                         await api.post(
                           `/sesiones/${sesionPausada.id}/iniciar`,
                           {},
                         );
                         setInicioRealMs(hora.getTime());
                         setEstadoSesion("EN_CURSO");
-                      } catch {
-                        setError("Error al reanudar");
+                      } catch (err: unknown) {
+                        const e = err as { mensaje?: string; message?: string };
+                        setError(
+                          e.mensaje || e.message || "Error al reanudar",
+                        );
                       } finally {
                         setLoading(false);
                       }
@@ -2111,8 +2167,28 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     maletas_replanificadas: 0,
   });
 
+  const sesionIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    sesionIdRef.current = sesionId;
+  }, [sesionId]);
+
   const metricas = telemetria?.metricas_sesion ?? metricasPoll;
   const hora = useReloj();
+
+  const [simReady, setSimReady] = useState(false);
+  useEffect(() => {
+    setSimReady(false);
+  }, [sesionId]);
+  useEffect(() => {
+    if (
+      sesionId &&
+      estadoSesion === "EN_CURSO" &&
+      telemetria?.sesion_id === sesionId &&
+      (telemetria?.metricas_sesion?.segundos_reales_transcurridos ?? 0) > 0
+    ) {
+      setSimReady(true);
+    }
+  }, [telemetria, sesionId, estadoSesion]);
 
   useEffect(() => {
     api
@@ -2134,10 +2210,13 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
       estadoSesion === "COLAPSADA"
     )
       return;
+    const targetSesionId = sesionId;
     const interval = setInterval(() => {
       api
         .get<MetricasSimulacion>(`/sesiones/${sesionId}/metricas`)
         .then((m) => {
+          if (!sesionIdRef.current || sesionIdRef.current !== targetSesionId)
+            return;
           setMetricasPoll(m);
           if (m.estado === "COLAPSADA") {
             setEstadoSesion("COLAPSADA");
@@ -2349,7 +2428,17 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
       setInicioRealMs(hora.getTime());
       setEstadoSesion("EN_CURSO");
       setSesionesActivas([]);
-      setMetricasPoll((prev) => ({ ...prev, sesion_id: res.id }));
+      setMetricasPoll({
+        sesion_id: res.id,
+        estado: "EN_CURSO",
+        dia_hora_virtual: "",
+        segundos_reales_transcurridos: 0,
+        sla_acumulado_pct: 100,
+        vuelos_cancelados: 0,
+        maletas_replanificadas: 0,
+      });
+      setInitialVuelos([]);
+      setInitialAeropuertos([]);
     } catch (err: unknown) {
       const e = err as { mensaje?: string; message?: string };
       setError(e.mensaje || e.message || "Error al crear sesion");
@@ -2374,12 +2463,26 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const handleReanudar = async () => {
     if (!sesionId) return;
     setLoading(true);
+    setError("");
     try {
+      const otrasActivas = await api
+        .get<SesionListaItem[]>("/sesiones?estado=EN_CURSO")
+        .catch(() => [] as SesionListaItem[]);
+      for (const s of otrasActivas) {
+        if (s.id !== sesionId) {
+          try {
+            await api.post(`/sesiones/${s.id}/detener`, {});
+          } catch {
+            /* ignore */
+          }
+        }
+      }
       await api.post(`/sesiones/${sesionId}/iniciar`, {});
       setInicioRealMs(hora.getTime());
       setEstadoSesion("EN_CURSO");
-    } catch {
-      setError("Error al reanudar");
+    } catch (err: unknown) {
+      const e = err as { mensaje?: string; message?: string };
+      setError(e.mensaje || e.message || "Error al reanudar");
     } finally {
       setLoading(false);
     }
@@ -2565,9 +2668,11 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               <div className="flex justify-between">
                 <span>Inicio Real:</span>
                 <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
-                  {formatoFechaHoraLocal(
-                    new Date(inicioRealMs || hora.getTime()),
-                  )}
+                  {inicioRealMs > 0
+                    ? formatearFechaHora(
+                        new Date(inicioRealMs).toISOString(),
+                      )
+                    : "-"}
                 </span>
               </div>
               <div className="flex justify-between">
@@ -2581,22 +2686,25 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               <div className="flex justify-between">
                 <span>Actual Real:</span>
                 <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
-                  {sesionId
-                    ? formatoFechaHoraLocal(new Date(inicioRealMs))
-                    : formatoFechaHoraLocal(hora)}
+                  {inicioRealMs > 0
+                    ? formatearFechaHora(
+                        new Date(inicioRealMs).toISOString(),
+                      )
+                    : "-"}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>Actual Virtual:</span>
                 <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
-                  {formatearFechaHoraCortaLima(metricas.dia_hora_virtual) ||
-                    `${simulacionConfig.fecha_inicio_virtual} ${simulacionConfig.hora_inicio_virtual}:00`}
+                  {formatearFechaHoraLima(metricas.dia_hora_virtual)}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>Transcurrido:</span>
                 <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
-                  {formatSegundos(metricas.segundos_reales_transcurridos ?? 0)}
+                  {formatDuracionHHMMSS(
+                    metricas.segundos_reales_transcurridos ?? 0,
+                  )}
                 </span>
               </div>
             </div>
@@ -2716,15 +2824,34 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                     onClick={async () => {
                       setSesionId(sesionPausada.id);
                       setLoading(true);
+                      setError("");
                       try {
+                        const otrasActivas = await api
+                          .get<SesionListaItem[]>("/sesiones?estado=EN_CURSO")
+                          .catch(() => [] as SesionListaItem[]);
+                        for (const s of otrasActivas) {
+                          if (s.id !== sesionPausada.id) {
+                            try {
+                              await api.post(
+                                `/sesiones/${s.id}/detener`,
+                                {},
+                              );
+                            } catch {
+                              /* ignore */
+                            }
+                          }
+                        }
                         await api.post(
                           `/sesiones/${sesionPausada.id}/iniciar`,
                           {},
                         );
                         setInicioRealMs(hora.getTime());
                         setEstadoSesion("EN_CURSO");
-                      } catch {
-                        setError("Error al reanudar");
+                      } catch (err: unknown) {
+                        const e = err as { mensaje?: string; message?: string };
+                        setError(
+                          e.mensaje || e.message || "Error al reanudar",
+                        );
                       } finally {
                         setLoading(false);
                       }

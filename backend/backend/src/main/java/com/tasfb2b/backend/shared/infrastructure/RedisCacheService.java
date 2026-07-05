@@ -71,6 +71,14 @@ public class RedisCacheService {
         }
     }
 
+    public void delMetricasSesion(UUID sesionId) {
+        try {
+            redisTemplate.delete("sesion:" + sesionId + ":metricas");
+        } catch (Exception e) {
+            log.warn("Redis no disponible en delMetricasSesion({}): {}", sesionId, e.getMessage());
+        }
+    }
+
     public void setEstadoSesion(UUID sesionId, String estado) {
         try {
             redisTemplate.opsForValue().set("sesion:" + sesionId + ":estado", estado);

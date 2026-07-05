@@ -59,14 +59,18 @@ export function useTelemetria(activo: boolean) {
       wsRef.current = ws;
     }
 
-    if (activo) {
-      conectar();
+    if (!activo) {
+      setData(null);
+      return;
     }
+    setData(null);
+    conectar();
     return () => {
       wsRef.current?.close();
       if (reconnectRef.current) clearTimeout(reconnectRef.current);
       wsRef.current = null;
       setConnected(false);
+      setData(null);
     };
   }, [activo]);
 
