@@ -1388,7 +1388,7 @@ function SimulacionView({
     (v) => v.estado === "PROGRAMADO",
   ).length;
   const vuelosSimEntregados = vuelosMapa.filter(
-    (v) => v.estado === "ENTREGADO",
+    (v) => v.estado === "COMPLETADO",
   ).length;
 
   const handleIniciar = async () => {
