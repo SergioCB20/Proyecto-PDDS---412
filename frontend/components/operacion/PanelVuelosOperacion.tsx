@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { Upload, XCircle, Map as MapIcon, PlaneTakeoff, PlaneLanding, X, Copy, Check, Briefcase } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
@@ -19,6 +19,7 @@ interface PanelVuelosOperacionProps {
   onCancelVuelo?: (id: string, codigo: string) => void;
   onVerEnMapa?: (id: string) => void;
   seguidoId?: string;
+  seleccionadoId?: string;
   origenFilter?: string;
   destinoFilter?: string;
   onFilterChange?: (filters: { origen: string; destino: string }) => void;
@@ -31,8 +32,14 @@ interface PanelVuelosOperacionProps {
 // pestaña cuando la telemetría trae muchos vuelos.
 const MAX_RENDER = 100;
 
-export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiesto, onCancelVuelo, onVerEnMapa, seguidoId, origenFilter = '', destinoFilter = '', onFilterChange, filtroColor, umbralesConfig }: PanelVuelosOperacionProps) {
+export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiesto, onCancelVuelo, onVerEnMapa, seguidoId, seleccionadoId, origenFilter = '', destinoFilter = '', onFilterChange, filtroColor, umbralesConfig }: PanelVuelosOperacionProps) {
   const [filtroCodigo, setFiltroCodigo] = useState('');
+  const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  useEffect(() => {
+    if (seleccionadoId && itemRefs.current[seleccionadoId]) {
+      itemRefs.current[seleccionadoId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [seleccionadoId]);
   const [orden, setOrden] = useState('');
 
   // Estado del modal "Ver Maletas"
@@ -233,7 +240,12 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
           return (
             <div
               key={v.id}
-              className="py-2.5 px-3 rounded-lg bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800/50 hover:border-slate-200 dark:hover:border-slate-700/50 transition-all duration-200 shadow-sm"
+              ref={el => { itemRefs.current[v.id] = el; }}
+              className={`py-2.5 px-3 rounded-lg bg-slate-50 dark:bg-slate-800/30 border ${
+                seleccionadoId === v.id
+                  ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-800'
+                  : 'border-slate-100 dark:border-slate-800/50'
+              } hover:border-slate-200 dark:hover:border-slate-700/50 transition-all duration-200 shadow-sm`}
             >
               <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-1.5">
