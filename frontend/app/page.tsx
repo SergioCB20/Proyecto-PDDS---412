@@ -289,6 +289,13 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   );
   const [rutaDestacadaOp, setRutaDestacadaOp] = useState<RutaDestacada | null>(null);
   const [filtroColor, setFiltroColor] = useState<'' | ColorSemaforo>('');
+  const [aeroSeleccionado, setAeroSeleccionado] = useState<string | null>(null);
+
+  const handleAeropuertoClickOp = useCallback((codigoIata: string) => {
+    setAeroSeleccionado(codigoIata);
+    setSeguidoAeropuertoId(codigoIata);
+    setSeguidoVueloId(null);
+  }, []);
 
   const handleMostrarRutaOp = useCallback((segmentos: SegmentoResponse[]) => {
     const vueloIds = segmentos.map(s => s.vuelo_codigo);
@@ -625,6 +632,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
           rutaDestacada={rutaDestacadaOp}
           onLimpiarRuta={() => setRutaDestacadaOp(null)}
           filtroColor={filtroColor}
+          onAeropuertoClick={handleAeropuertoClickOp}
         >
           <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
             <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
@@ -941,6 +949,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                 setSeguidoVueloId(null);
               }}
               seguidoAeropuertoId={seguidoAeropuertoId ?? undefined}
+              aeropuertoSeleccionadoId={aeroSeleccionado ?? undefined}
               onDownloadManifiesto={async (id, codigo) => {
                 try {
                   const blob = await api.downloadBlob(`/manifiestos/${id}`);
@@ -1259,6 +1268,7 @@ function SimulacionView({
     null,
   );
   const [rutaDestacadaSim, setRutaDestacadaSim] = useState<RutaDestacada | null>(null);
+  const [aeroSeleccionadoSim, setAeroSeleccionadoSim] = useState<string | null>(null);
 
   const [metricasPoll, setMetricasPoll] = useState<MetricasSimulacion>({
     sesion_id: "",
@@ -1449,6 +1459,12 @@ function SimulacionView({
   const vuelosSimProgramados = vuelosMapa.filter(
     (v) => v.estado === "PROGRAMADO",
   ).length;
+
+  const handleAeropuertoClickSim = useCallback((codigoIata: string) => {
+    setAeroSeleccionadoSim(codigoIata);
+    setSeguidoAeropuertoId(codigoIata);
+    setSeguidoVueloId(null);
+  }, []);
 
   const handleMostrarRutaSim = useCallback((segmentos: SegmentoResponse[]) => {
     const vueloIds = segmentos.map(s => s.vuelo_codigo);
@@ -1676,6 +1692,7 @@ function SimulacionView({
           }}
           rutaDestacada={rutaDestacadaSim}
           onLimpiarRuta={() => setRutaDestacadaSim(null)}
+          onAeropuertoClick={handleAeropuertoClickSim}
         >
           <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
             <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
@@ -2105,6 +2122,7 @@ function SimulacionView({
                   setSeguidoVueloId(null);
                 }}
                 seguidoAeropuertoId={seguidoAeropuertoId ?? undefined}
+                aeropuertoSeleccionadoId={aeroSeleccionadoSim ?? undefined}
                 onCancelVuelo={handleCancelarVuelo}
                 vueloFilterOrigen={vueloFilterOrigen}
                 vueloFilterDestino={vueloFilterDestino}
@@ -2237,6 +2255,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     null,
   );
   const [rutaDestacadaCol, setRutaDestacadaCol] = useState<RutaDestacada | null>(null);
+  const [aeroSeleccionadoCol, setAeroSeleccionadoCol] = useState<string | null>(null);
 
   const [metricasPoll, setMetricasPoll] = useState<MetricasSimulacion>({
     sesion_id: "",
@@ -2425,6 +2444,12 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     const sumCap = aeropuertosMapa.reduce((s, a) => s + (a.capacidad_almacen || 0), 0);
     return sumCap > 0 ? (sumOcup / sumCap) * 100 : 0;
   }, [aeropuertosMapa]);
+
+  const handleAeropuertoClickCol = useCallback((codigoIata: string) => {
+    setAeroSeleccionadoCol(codigoIata);
+    setSeguidoAeropuertoId(codigoIata);
+    setSeguidoVueloId(null);
+  }, []);
 
   const handleMostrarRutaCol = useCallback((segmentos: SegmentoResponse[]) => {
     const vueloIds = segmentos.map(s => s.vuelo_codigo);
@@ -2657,6 +2682,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
           }}
           rutaDestacada={rutaDestacadaCol}
           onLimpiarRuta={() => setRutaDestacadaCol(null)}
+          onAeropuertoClick={handleAeropuertoClickCol}
         >
           <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
             <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
@@ -3128,6 +3154,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                     setSeguidoVueloId(null);
                   }}
                   seguidoAeropuertoId={seguidoAeropuertoId ?? undefined}
+                  aeropuertoSeleccionadoId={aeroSeleccionadoCol ?? undefined}
                   onCancelVuelo={handleCancelarVuelo}
                   vueloFilterOrigen={vueloFilterOrigen}
                   vueloFilterDestino={vueloFilterDestino}
