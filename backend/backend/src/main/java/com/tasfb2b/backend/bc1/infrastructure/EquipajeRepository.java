@@ -90,7 +90,7 @@ public interface EquipajeRepository extends JpaRepository<Equipaje, UUID> {
     @Query("SELECT e FROM Equipaje e WHERE e.estado IN :estados " +
            "AND (:origenIata IS NULL OR e.origenIata = :origenIata) " +
            "AND (:destinoIata IS NULL OR e.destinoIata = :destinoIata) " +
-           "AND (:codigoEquipaje IS NULL OR e.idExterno LIKE CONCAT('%', :codigoEquipaje, '%')) " +
+           "AND (:codigoEquipaje IS NULL OR e.idExterno LIKE :codigoEquipaje) " +
            "ORDER BY e.fechaIngreso DESC")
     List<Equipaje> findEnviosPanel(@Param("estados") List<EstadoEquipaje> estados,
                                    @Param("origenIata") String origenIata,
