@@ -726,6 +726,243 @@ setInicioRealMs(Date.now());
 
 ---
 
+---
+
+# Tarea: FILTRO POR OCUPACION - Agregar filtro por color de semáforo en panel vuelos y aeropuertos
+
+## Descripción
+
+Agregar un bloque de filtro por color de semáforo (VERDE, ÁMBAR, ROJO) basado en ocupación, en el panel lateral de la vista **Operación**. El filtro se refleja tanto en los paneles de aeropuertos y vuelos como en los marcadores del mapa.
+
+## Problema
+
+- No existía forma de filtrar elementos por nivel de ocupación (verde/ámbar/rojo).
+- Los paneles de aeropuertos y vuelos mostraban todos los elementos independientemente de su ocupación.
+- El mapa tampoco permitía filtrar visualmente por nivel de ocupación.
+
+## Archivos modificados
+
+### 1. `frontend/lib/colors.ts`
+
+- Agregado tipo `ColorSemaforo = 'VERDE' | 'AMBAR' | 'ROJO'`.
+- Agregada función `determinarColorSemaforo(pct, umbrales?)` que retorna la categoría según ocupación y umbrales configurables (default 70/90).
+
+```typescript
+export type ColorSemaforo = 'VERDE' | 'AMBAR' | 'ROJO';
+
+export function determinarColorSemaforo(
+  pct: number,
+  umbrales?: { verdeMax?: number; ambarMax?: number }
+): ColorSemaforo {
+  const vm = umbrales?.verdeMax ?? 70;
+  const am = umbrales?.ambarMax ?? 90;
+  if (pct < vm) return 'VERDE';
+  if (pct < am) return 'AMBAR';
+  return 'ROJO';
+}
+```
+
+### 2. `frontend/components/operacion/PanelAeropuertosOperacion.tsx`
+
+- Agregados props: `filtroColor?: string`, `onFilterColorChange?: (color: string) => void`, `umbralesConfig?: { verdeMax: number; ambarMax: number }`.
+- Importado `determinarColorSemaforo` desde `@/lib/colors`.
+- En `aeropuertosFiltrados` (useMemo): agregado filtro por `determinarColorSemaforo(n.ocupacion_pct, umbralesConfig) === filtroColor`.
+- `hayFiltrosActivos` ahora incluye `filtroColor`.
+- `limpiarFiltros` también llama a `onFilterColorChange?.('')` para limpiar el filtro de color.
+
+### 3. `frontend/components/operacion/PanelVuelosOperacion.tsx`
+
+- Agregados props: `filtroColor?: string`, `umbralesConfig?: { verdeMax: number; ambarMax: number }`.
+- Importado `determinarColorSemaforo` desde `@/lib/colors`.
+- En `vuelosFiltrados` (useMemo): agregado filtro por `determinarColorSemaforo(v.ocupacion_pct, umbralesConfig) === filtroColor`.
+
+### 4. `frontend/components/shared/PanelTabs.tsx`
+
+- Agregados props: `filtroColor?: string`, `onFilterColorChange?: (color: string) => void`, `umbralesConfig?: { verdeMax: number; ambarMax: number }`.
+- Pasados los nuevos props a ambos componentes `PanelAeropuertosOperacion` y `PanelVuelosOperacion`.
+
+### 5. `frontend/components/mapa/GeoMapa.tsx`
+
+- Agregada prop `filtroColor?: string` a `GeoMapaProps`.
+- Importado `determinarColorSemaforo` desde `@/lib/colors`.
+- `aeropuertosFiltrados`: después del filtro por seguido, se aplica filtro por color usando `determinarColorSemaforo(a.ocupacionPorcentaje, umbralesConfig)`.
+- `vuelosFiltrados`: después del filtro por seguido, se aplica filtro por color calculando el pct desde `capacidad_carga - carga_disponible`.
+
+### 6. `frontend/app/page.tsx` — OperacionView
+
+- Agregado import de `determinarColorSemaforo` y `type ColorSemaforo`.
+- Agregado estado `const [filtroColor, setFiltroColor] = useState<'' | ColorSemaforo>('')`.
+- Agregado bloque UI "Filtro por Ocupación" entre los controles de operación y `PanelTabs`:
+  - 4 botones toggle: "Todos", círculo verde, círculo ámbar, círculo rojo.
+  - Mismo estilo que los botones de filtro de equipaje en el mapa.
+- Pasado `filtroColor` a `<GeoMapa>`.
+- Pasados `filtroColor`, `onFilterColorChange={setFiltroColor}` y `umbralesConfig={configUmbrales}` a `<PanelTabs>`.
+
+## Arquitectura del filtro
+
+```
+OperacionView (page.tsx)
+  │
+  ├── Estado: filtroColor ('' | 'VERDE' | 'AMBAR' | 'ROJO')
+  │
+  ├── [BLOQUE UI] "Filtro por Ocupación" ── 4 botones toggle
+  │   └── Entre controles de operación y PanelTabs
+  │
+  ├──→ PanelTabs ──→ PanelAeropuertosOperacion (filtra con ocupacion_pct + umbrales)
+  │               └──→ PanelVuelosOperacion (filtra con ocupacion_pct + umbrales)
+  │
+  └──→ GeoMapa (filtra aeropuertosFiltrados/vuelosFiltrados con color)
+```
+
+## Criterio de color
+
+| Categoría | Rango (umbrales default) | Hex |
+|---|---|---|
+| VERDE | ocupación < 70% | `#22c55e` |
+| ÁMBAR | 70% ≤ ocupación < 90% | `#eab308` |
+| ROJO | ocupación ≥ 90% | `#ef4444` |
+
+## Flujo de datos
+
+1. El usuario selecciona un color en los botones del panel lateral.
+2. `setFiltroColor` actualiza el estado en `OperacionView`.
+3. El cambio se propaga a:
+   - `PanelAeropuertosOperacion` — vuelve a filtrar la lista via useMemo.
+   - `PanelVuelosOperacion` — vuelve a filtrar la lista via useMemo.
+   - `GeoMapa` — vuelve a filtrar los marcadores visibles.
+4. Al seleccionar "Todos" (`''`), se muestran todos los elementos sin filtro de color.
+
+## Impacto visual
+
+```
+ANTES:
+┌─ Panel lateral ─────────────────┐
+│ [Iniciar Operación]             │
+│ ┌─ Aeropuertos | Vuelos ────┐  │
+│ │ [Buscar...] [Continente..] │  │
+│ │ • LIM 45%  • MIA 80%      │  │
+│ └────────────────────────────┘  │
+└─────────────────────────────────┘
+
+DESPUÉS:
+┌─ Panel lateral ─────────────────┐
+│ [Iniciar Operación]             │
+│ ┌─ Filtro por Ocupación ────┐  │
+│ │ [Todos] [●] [●] [●]       │  │
+│ └────────────────────────────┘  │
+│ ┌─ Aeropuertos | Vuelos ────┐  │
+│ │ [Buscar...] [Continente..] │  │
+│ │ • LIM 45%  • MIA 80%      │  │
+│ └────────────────────────────┘  │
+└─────────────────────────────────┘
+```
+
+## Prerrequisitos
+
+- TypeScript compila sin errores nuevos (build exitoso).
+- Los umbrales `verdeMax`/`ambarMax` se toman del `ConfigUmbrales` ya existente.
+- Sin cambios en backend, tipos, SimulacionView, ColapsoView ni componentes de mapa existentes.
+- Botón "Limpiar filtros" en PanelAeropuertosOperacion también resetea el filtro de color.
+
+---
+
+# Tarea: OCUPACION GLOBAL - Reemplazar Ocupación Máxima por Ocupación Global (suma/suma)
+
+## Descripción
+
+Reemplazar la métrica **"Ocupación máxima"** (que mostraba el porcentaje del aeropuerto individual más ocupado) por **"Ocupación global"** (suma total de ocupaciones / suma total de capacidades × 100). Aplica a las tres vistas: Operación, Simulación y Colapso.
+
+## Problema
+
+- La métrica "Ocupación máxima" mostraba `Math.max(...nodos.ocupacion_pct)`, que solo reflejaba el nodo más congestionado, no la ocupación real del sistema completo.
+- No había una métrica agregada que indicara qué tan lleno está el sistema en su conjunto.
+- Para la detección de saturación general, se necesita conocer la ocupación global (promedio ponderado).
+
+## Fórmula
+
+```
+ocupacion_global = (Σ ocupacion_actual) / (Σ capacidad_almacen) × 100
+```
+
+Donde:
+- `Σ ocupacion_actual` = suma de maletas almacenadas en todos los aeropuertos/nodos
+- `Σ capacidad_almacen` = suma de capacidades máximas de todos los aeropuertos/nodos
+
+## Archivo modificado
+
+### `frontend/app/page.tsx`
+
+| Vista | Línea (aprox.) | Cambio |
+|---|---|---|
+| **OperacionView** | 570 | `maxOcupacion = Math.max(...)` → `ocupacionGlobal = useMemo()` con `aeropuertos.reduce(...)` |
+| **OperacionView** | 653-686 | Label `"Ocupación máxima"` → `"Ocupación global"`, variable `maxOcupacion` → `ocupacionGlobal`, `toFixed(0)` → `toFixed(1)` |
+| **SimulacionView** | 1630 | `maxOcupacion = Math.max(...)` → `ocupacionGlobal = useMemo()` con `aeropuertosMapa.reduce(...)` |
+| **SimulacionView** | 1704-1737 | Mismos reemplazos que OperacionView |
+| **ColapsoView** | 2423 | `maxOcupacion = Math.max(...)` → `ocupacionGlobal = useMemo()` con `aeropuertosMapa.reduce(...)` |
+| **ColapsoView** | 2685-2718 | Mismos reemplazos que OperacionView |
+
+## Detalle técnico de los cómputos
+
+### OperacionView (usa `aeropuertos` como fuente única)
+
+```typescript
+const ocupacionGlobal = useMemo(() => {
+  const sumOcup = aeropuertos.reduce((s, a) => s + (a.ocupacion_actual || 0), 0);
+  const sumCap = aeropuertos.reduce((s, a) => s + (a.capacidad_almacen || 0), 0);
+  return sumCap > 0 ? (sumOcup / sumCap) * 100 : 0;
+}, [aeropuertos]);
+```
+
+### SimulacionView y ColapsoView (usan `aeropuertosMapa` como fuente única)
+
+```typescript
+const ocupacionGlobal = useMemo(() => {
+  const sumOcup = aeropuertosMapa.reduce((s, a) => s + (a.ocupacion_actual || 0), 0);
+  const sumCap = aeropuertosMapa.reduce((s, a) => s + (a.capacidad_almacen || 0), 0);
+  return sumCap > 0 ? (sumOcup / sumCap) * 100 : 0;
+}, [aeropuertosMapa]);
+```
+
+**¿Por qué `aeropuertosMapa` en Simulación/Colapso?** Porque `aeropuertosMapa` ya es la fuente de verdad única que mezcla telemetría (`telemetria?.nodos`) con datos iniciales (`initialAeropuertos`). Usarla directamente evita doble conteo y mantiene consistencia con lo que se renderiza en el mapa.
+
+## Lo que se mantiene igual
+
+- ✅ Colores de semáforo: verde (`#22c55e`), ámbar (`#eab308`), rojo (`#ef4444`) según `configUmbrales.verdeMax`/`ambarMax`
+- ✅ Estructura del recuadro: `bg-white/90`, `rounded-lg`, `border`, `shadow-lg`, `backdrop-blur-sm`
+- ✅ Barra de progreso: `h-1.5`, `rounded-full`, `transition-all duration-500`
+- ✅ `Math.min(..., 100)` para no exceder el 100%
+- ✅ Las transiciones de color siguen funcionando al cambiar umbrales o datos
+
+## Cambios adicionales
+
+- Se agregó `useMemo` para el cómputo (evita recalcular en cada render innecesario).
+- Se cambió `toFixed(0)` → `toFixed(1)` para mostrar 1 decimal de precisión (al ser un promedio ponderado, el decimal aporta información útil).
+
+## Impacto visual
+
+```
+ANTES (3 vistas):
+┌─────────────────────┐
+│ Ocupación máxima    │
+│ 85% ██████████░░    │  ← era el % del nodo más ocupado (Math.max)
+└─────────────────────┘
+
+DESPUÉS (3 vistas):
+┌─────────────────────┐
+│ Ocupación global    │
+│ 62.3% ██████░░░░░   │  ← ahora es (Σ ocup / Σ cap) × 100
+└─────────────────────┘
+```
+
+## Prerrequisitos
+
+- TypeScript compila sin errores nuevos (build exitoso).
+- Sin cambios en backend, tipos, componentes, ni otros archivos fuera de `page.tsx`.
+- Los umbrales de semáforo siguen siendo los mismos (`configUmbrales`).
+- `useMemo` ya estaba importado globalmente en `page.tsx`.
+
+---
+
 **¿Qué pendientes o mejoras futuras se identificaron?**
 - **MetricasOperacion en SimulacionView y ColapsoView:** El componente `MetricasOperacion` (4 cards: Total/Entregados/EnVuelo/Replan) debía aparecer apilado sobre el panel de tiempos en `top-4 right-4` según el diseño de Actualización posterior 3, pero no se implementó. El panel derecho solo tiene el panel de tiempos sin MetricasOperacion.
 - **Unificación de estilo MetricasOperacion:** `MetricasOperacion` usa `grid grid-cols-2` con cards internas; los chips de Simulación/Colapso usan diseño inline compacto. Si se desea uniformidad visual, refactorizar.

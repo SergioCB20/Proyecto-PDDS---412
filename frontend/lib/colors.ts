@@ -29,4 +29,17 @@ export function colorAeropuertoPorOcupacion(
   return COLOR_AEROPUERTO.ROJO;
 }
 
+export type ColorSemaforo = 'VERDE' | 'AMBAR' | 'ROJO';
+
+export function determinarColorSemaforo(
+  pct: number,
+  umbrales?: { verdeMax?: number; ambarMax?: number }
+): ColorSemaforo {
+  const vm = umbrales?.verdeMax ?? UMBRALES_DEFAULT.verdeMax;
+  const am = umbrales?.ambarMax ?? UMBRALES_DEFAULT.ambarMax;
+  if (pct < vm) return 'VERDE';
+  if (pct < am) return 'AMBAR';
+  return 'ROJO';
+}
+
 

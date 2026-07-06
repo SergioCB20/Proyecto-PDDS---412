@@ -26,7 +26,7 @@ import dynamic from "next/dynamic";
 import { api, fetchReporte } from "@/lib/api";
 import { aeropuertoToEnMapa } from "@/lib/mock";
 import { useTelemetria } from "@/lib/useTelemetria";
-import { colorAeropuertoPorOcupacion } from "@/lib/colors";
+import { colorAeropuertoPorOcupacion, determinarColorSemaforo, type ColorSemaforo } from "@/lib/colors";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -288,6 +288,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     null,
   );
   const [rutaDestacadaOp, setRutaDestacadaOp] = useState<RutaDestacada | null>(null);
+  const [filtroColor, setFiltroColor] = useState<'' | ColorSemaforo>('');
 
   const handleMostrarRutaOp = useCallback((segmentos: SegmentoResponse[]) => {
     const vueloIds = segmentos.map(s => s.vuelo_codigo);
@@ -566,11 +567,11 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     }
   };
 
-  const maxOcupacion = Math.max(
-    0,
-    ...(telemetria?.nodos ?? []).map((n) => n.ocupacion_pct),
-    ...aeropuertos.map((n) => n.ocupacionPorcentaje),
-  );
+  const ocupacionGlobal = useMemo(() => {
+    const sumOcup = aeropuertos.reduce((s, a) => s + (a.ocupacion_actual || 0), 0);
+    const sumCap = aeropuertos.reduce((s, a) => s + (a.capacidad_almacen || 0), 0);
+    return sumCap > 0 ? (sumOcup / sumCap) * 100 : 0;
+  }, [aeropuertos]);
 
   const metricasOpSim = telemetria?.metricas_sesion;
 
@@ -623,6 +624,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
           }}
           rutaDestacada={rutaDestacadaOp}
           onLimpiarRuta={() => setRutaDestacadaOp(null)}
+          filtroColor={filtroColor}
         >
           <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
             <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
@@ -651,31 +653,31 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
             <div className="pointer-events-auto mt-1.5 p-2 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
               <div className="flex items-center justify-between mb-0.5">
                 <span className="text-[10px] text-slate-500">
-                  Ocupación máxima
+                  Ocupación global
                 </span>
                 <span
                   className="text-xs font-bold"
                   style={{
                     color:
-                      maxOcupacion < configUmbrales.verdeMax
+                      ocupacionGlobal < configUmbrales.verdeMax
                         ? "#22c55e"
-                        : maxOcupacion < configUmbrales.ambarMax
+                        : ocupacionGlobal < configUmbrales.ambarMax
                           ? "#eab308"
                           : "#ef4444",
                   }}
                 >
-                  {maxOcupacion.toFixed(0)}%
+                  {ocupacionGlobal.toFixed(1)}%
                 </span>
               </div>
               <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
                 <div
                   className="h-full rounded-full transition-all duration-500"
                   style={{
-                    width: `${Math.min(maxOcupacion, 100)}%`,
+                    width: `${Math.min(ocupacionGlobal, 100)}%`,
                     backgroundColor:
-                      maxOcupacion < configUmbrales.verdeMax
+                      ocupacionGlobal < configUmbrales.verdeMax
                         ? "#22c55e"
-                        : maxOcupacion < configUmbrales.ambarMax
+                        : ocupacionGlobal < configUmbrales.ambarMax
                           ? "#eab308"
                           : "#ef4444",
                   }}
@@ -889,6 +891,36 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               )}
             </div>
 
+            {/* Filtro por Ocupación */}
+            <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+              <h4 className="text-xs font-semibold text-slate-900 dark:text-slate-100 mb-2">
+                Filtro por Ocupación
+              </h4>
+              <div className="flex items-center gap-1">
+                {(['', 'VERDE', 'AMBAR', 'ROJO'] as const).map((opt) => (
+                  <button
+                    key={opt}
+                    onClick={() => setFiltroColor(opt)}
+                    className={`px-2 py-1 text-[11px] font-medium rounded-md transition-colors flex items-center gap-1 ${
+                      filtroColor === opt
+                        ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    {opt === '' ? 'Todos' : (
+                      <span
+                        className="w-3 h-3 rounded-full inline-block"
+                        style={{
+                          backgroundColor:
+                            opt === 'VERDE' ? '#22c55e' : opt === 'AMBAR' ? '#eab308' : '#ef4444',
+                        }}
+                      />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <PanelTabs
               aeropuertos={telemetria?.nodos ?? []}
               vuelosAeropuerto={telemetria?.vuelos ?? []}
@@ -938,6 +970,9 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               }))}
               onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
               onMostrarRuta={handleMostrarRutaOp}
+              filtroColor={filtroColor}
+              onFilterColorChange={setFiltroColor}
+              umbralesConfig={configUmbrales}
             />
 
             {selectedEnvio && (
@@ -1592,11 +1627,11 @@ function SimulacionView({
   const animacionActiva =
     wsConnected && (vuelosMapa.some((v) => v.estado === "EN_RUTA") ?? false);
 
-  const maxOcupacion = Math.max(
-    0,
-    ...(telemetria?.nodos ?? []).map((n) => n.ocupacion_pct),
-    ...initialAeropuertos.map((n) => n.ocupacionPorcentaje),
-  );
+  const ocupacionGlobal = useMemo(() => {
+    const sumOcup = aeropuertosMapa.reduce((s, a) => s + (a.ocupacion_actual || 0), 0);
+    const sumCap = aeropuertosMapa.reduce((s, a) => s + (a.capacidad_almacen || 0), 0);
+    return sumCap > 0 ? (sumOcup / sumCap) * 100 : 0;
+  }, [aeropuertosMapa]);
 
   return (
     <div className="flex h-full">
@@ -1669,31 +1704,31 @@ function SimulacionView({
             <div className="pointer-events-auto mt-1.5 p-2 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
               <div className="flex items-center justify-between mb-0.5">
                 <span className="text-[10px] text-slate-500">
-                  Ocupación máxima
+                  Ocupación global
                 </span>
                 <span
                   className="text-xs font-bold"
                   style={{
                     color:
-                      maxOcupacion < configUmbrales.verdeMax
+                      ocupacionGlobal < configUmbrales.verdeMax
                         ? "#22c55e"
-                        : maxOcupacion < configUmbrales.ambarMax
+                        : ocupacionGlobal < configUmbrales.ambarMax
                           ? "#eab308"
                           : "#ef4444",
                   }}
                 >
-                  {maxOcupacion.toFixed(0)}%
+                  {ocupacionGlobal.toFixed(1)}%
                 </span>
               </div>
               <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
                 <div
                   className="h-full rounded-full transition-all duration-500"
                   style={{
-                    width: `${Math.min(maxOcupacion, 100)}%`,
+                    width: `${Math.min(ocupacionGlobal, 100)}%`,
                     backgroundColor:
-                      maxOcupacion < configUmbrales.verdeMax
+                      ocupacionGlobal < configUmbrales.verdeMax
                         ? "#22c55e"
-                        : maxOcupacion < configUmbrales.ambarMax
+                        : ocupacionGlobal < configUmbrales.ambarMax
                           ? "#eab308"
                           : "#ef4444",
                   }}
@@ -2385,11 +2420,11 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     (v) => v.estado === "PROGRAMADO",
   ).length;
 
-  const maxOcupacion = Math.max(
-    0,
-    ...(telemetria?.nodos ?? []).map((n) => n.ocupacion_pct),
-    ...initialAeropuertos.map((n) => n.ocupacionPorcentaje),
-  );
+  const ocupacionGlobal = useMemo(() => {
+    const sumOcup = aeropuertosMapa.reduce((s, a) => s + (a.ocupacion_actual || 0), 0);
+    const sumCap = aeropuertosMapa.reduce((s, a) => s + (a.capacidad_almacen || 0), 0);
+    return sumCap > 0 ? (sumOcup / sumCap) * 100 : 0;
+  }, [aeropuertosMapa]);
 
   const handleMostrarRutaCol = useCallback((segmentos: SegmentoResponse[]) => {
     const vueloIds = segmentos.map(s => s.vuelo_codigo);
@@ -2650,31 +2685,31 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
             <div className="pointer-events-auto mt-1.5 p-2 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
               <div className="flex items-center justify-between mb-0.5">
                 <span className="text-[10px] text-slate-500">
-                  Ocupación máxima
+                  Ocupación global
                 </span>
                 <span
                   className="text-xs font-bold"
                   style={{
                     color:
-                      maxOcupacion < configUmbrales.verdeMax
+                      ocupacionGlobal < configUmbrales.verdeMax
                         ? "#22c55e"
-                        : maxOcupacion < configUmbrales.ambarMax
+                        : ocupacionGlobal < configUmbrales.ambarMax
                           ? "#eab308"
                           : "#ef4444",
                   }}
                 >
-                  {maxOcupacion.toFixed(0)}%
+                  {ocupacionGlobal.toFixed(1)}%
                 </span>
               </div>
               <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
                 <div
                   className="h-full rounded-full transition-all duration-500"
                   style={{
-                    width: `${Math.min(maxOcupacion, 100)}%`,
+                    width: `${Math.min(ocupacionGlobal, 100)}%`,
                     backgroundColor:
-                      maxOcupacion < configUmbrales.verdeMax
+                      ocupacionGlobal < configUmbrales.verdeMax
                         ? "#22c55e"
-                        : maxOcupacion < configUmbrales.ambarMax
+                        : ocupacionGlobal < configUmbrales.ambarMax
                           ? "#eab308"
                           : "#ef4444",
                   }}
