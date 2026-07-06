@@ -290,11 +290,16 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [rutaDestacadaOp, setRutaDestacadaOp] = useState<RutaDestacada | null>(null);
   const [filtroColor, setFiltroColor] = useState<'' | ColorSemaforo>('');
   const [aeroSeleccionado, setAeroSeleccionado] = useState<string | null>(null);
+  const [vueloSeleccionadoOp, setVueloSeleccionadoOp] = useState<string | null>(null);
 
   const handleAeropuertoClickOp = useCallback((codigoIata: string) => {
     setAeroSeleccionado(codigoIata);
     setSeguidoAeropuertoId(codigoIata);
     setSeguidoVueloId(null);
+  }, []);
+
+  const handleVueloSeleccionadoOp = useCallback((id: string) => {
+    setVueloSeleccionadoOp(id);
   }, []);
 
   const handleMostrarRutaOp = useCallback((segmentos: SegmentoResponse[]) => {
@@ -633,6 +638,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
           onLimpiarRuta={() => setRutaDestacadaOp(null)}
           filtroColor={filtroColor}
           onAeropuertoClick={handleAeropuertoClickOp}
+          onVueloSeleccionado={handleVueloSeleccionadoOp}
         >
           <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
             <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
@@ -950,6 +956,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               }}
               seguidoAeropuertoId={seguidoAeropuertoId ?? undefined}
               aeropuertoSeleccionadoId={aeroSeleccionado ?? undefined}
+              vueloSeleccionadoId={vueloSeleccionadoOp ?? undefined}
               onDownloadManifiesto={async (id, codigo) => {
                 try {
                   const blob = await api.downloadBlob(`/manifiestos/${id}`);
@@ -1269,6 +1276,7 @@ function SimulacionView({
   );
   const [rutaDestacadaSim, setRutaDestacadaSim] = useState<RutaDestacada | null>(null);
   const [aeroSeleccionadoSim, setAeroSeleccionadoSim] = useState<string | null>(null);
+  const [vueloSeleccionadoSim, setVueloSeleccionadoSim] = useState<string | null>(null);
 
   const [metricasPoll, setMetricasPoll] = useState<MetricasSimulacion>({
     sesion_id: "",
@@ -1464,6 +1472,10 @@ function SimulacionView({
     setAeroSeleccionadoSim(codigoIata);
     setSeguidoAeropuertoId(codigoIata);
     setSeguidoVueloId(null);
+  }, []);
+
+  const handleVueloSeleccionadoSim = useCallback((id: string) => {
+    setVueloSeleccionadoSim(id);
   }, []);
 
   const handleMostrarRutaSim = useCallback((segmentos: SegmentoResponse[]) => {
@@ -1693,6 +1705,7 @@ function SimulacionView({
           rutaDestacada={rutaDestacadaSim}
           onLimpiarRuta={() => setRutaDestacadaSim(null)}
           onAeropuertoClick={handleAeropuertoClickSim}
+          onVueloSeleccionado={handleVueloSeleccionadoSim}
         >
           <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
             <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
@@ -2123,6 +2136,7 @@ function SimulacionView({
                 }}
                 seguidoAeropuertoId={seguidoAeropuertoId ?? undefined}
                 aeropuertoSeleccionadoId={aeroSeleccionadoSim ?? undefined}
+                vueloSeleccionadoId={vueloSeleccionadoSim ?? undefined}
                 onCancelVuelo={handleCancelarVuelo}
                 vueloFilterOrigen={vueloFilterOrigen}
                 vueloFilterDestino={vueloFilterDestino}
@@ -2256,6 +2270,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   );
   const [rutaDestacadaCol, setRutaDestacadaCol] = useState<RutaDestacada | null>(null);
   const [aeroSeleccionadoCol, setAeroSeleccionadoCol] = useState<string | null>(null);
+  const [vueloSeleccionadoCol, setVueloSeleccionadoCol] = useState<string | null>(null);
 
   const [metricasPoll, setMetricasPoll] = useState<MetricasSimulacion>({
     sesion_id: "",
@@ -2449,6 +2464,10 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     setAeroSeleccionadoCol(codigoIata);
     setSeguidoAeropuertoId(codigoIata);
     setSeguidoVueloId(null);
+  }, []);
+
+  const handleVueloSeleccionadoCol = useCallback((id: string) => {
+    setVueloSeleccionadoCol(id);
   }, []);
 
   const handleMostrarRutaCol = useCallback((segmentos: SegmentoResponse[]) => {
@@ -2683,6 +2702,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
           rutaDestacada={rutaDestacadaCol}
           onLimpiarRuta={() => setRutaDestacadaCol(null)}
           onAeropuertoClick={handleAeropuertoClickCol}
+          onVueloSeleccionado={handleVueloSeleccionadoCol}
         >
           <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
             <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
@@ -3155,6 +3175,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                   }}
                   seguidoAeropuertoId={seguidoAeropuertoId ?? undefined}
                   aeropuertoSeleccionadoId={aeroSeleccionadoCol ?? undefined}
+                  vueloSeleccionadoId={vueloSeleccionadoCol ?? undefined}
                   onCancelVuelo={handleCancelarVuelo}
                   vueloFilterOrigen={vueloFilterOrigen}
                   vueloFilterDestino={vueloFilterDestino}

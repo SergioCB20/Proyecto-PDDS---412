@@ -93,6 +93,7 @@ interface GeoMapaProps {
   seguidoVueloId?: string;
   onSalirSeguimiento?: () => void;
   onSeguirVuelo?: (id: string) => void;
+  onVueloSeleccionado?: (id: string) => void;
   seguidoAeropuertoId?: string;
   onSalirSeguimientoAeropuerto?: () => void;
   rutaDestacada?: RutaDestacada | null;
@@ -118,6 +119,7 @@ export default function GeoMapa({
   seguidoVueloId,
   onSalirSeguimiento,
   onSeguirVuelo,
+  onVueloSeleccionado,
   seguidoAeropuertoId,
   onSalirSeguimientoAeropuerto,
   rutaDestacada,
@@ -208,6 +210,7 @@ export default function GeoMapa({
             seguido={vuelo.id === seguidoVueloId}
             onSalirSeguimiento={onSalirSeguimiento}
             onSeguirVuelo={onSeguirVuelo}
+            onVueloSeleccionado={onVueloSeleccionado}
             destacado={rutaDestacada?.vueloIds.includes(vuelo.codigo_vuelo) ?? false}
           />
         ))}

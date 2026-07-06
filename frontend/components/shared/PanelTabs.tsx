@@ -21,6 +21,7 @@ interface PanelTabsProps {
   onAeropuertoVerEnMapa?: (id: string) => void;
   seguidoAeropuertoId?: string;
   aeropuertoSeleccionadoId?: string;
+  vueloSeleccionadoId?: string;
   vueloFilterOrigen: string;
   vueloFilterDestino: string;
   onVueloFilterChange: (filters: { origen: string; destino: string }) => void;
@@ -53,6 +54,7 @@ export function PanelTabs({
   onAeropuertoVerEnMapa,
   seguidoAeropuertoId,
   aeropuertoSeleccionadoId,
+  vueloSeleccionadoId,
   vueloFilterOrigen,
   vueloFilterDestino,
   onVueloFilterChange,
@@ -72,6 +74,12 @@ export function PanelTabs({
       setTab('aeropuertos');
     }
   }, [aeropuertoSeleccionadoId]);
+
+  useEffect(() => {
+    if (vueloSeleccionadoId) {
+      setTab('vuelos');
+    }
+  }, [vueloSeleccionadoId]);
 
   return (
     <div className="border-t border-slate-200 dark:border-slate-700">
@@ -112,6 +120,7 @@ export function PanelTabs({
           onCancelVuelo={onCancelVuelo}
           onVerEnMapa={onVerEnMapa}
           seguidoId={seguidoVueloId}
+          seleccionadoId={vueloSeleccionadoId}
           origenFilter={vueloFilterOrigen}
           destinoFilter={vueloFilterDestino}
           onFilterChange={onVueloFilterChange}
