@@ -23,7 +23,7 @@ interface GeoMapaVueloProps {
 
 function OcupacionBar({ ocupada, total, verdeMax, ambarMax }: { ocupada: number; total: number; verdeMax: number; ambarMax: number }) {
   const pct = total > 0 ? ((total - ocupada) / total) * 100 : 0;
-  const color = pct < verdeMax ? COLOR_AEROPUERTO.VERDE : pct < ambarMax ? COLOR_AEROPUERTO.AMBAR : COLOR_AEROPUERTO.ROJO;
+  const color = pct <= 0 ? COLOR_AEROPUERTO.VACIO : pct < verdeMax ? COLOR_AEROPUERTO.VERDE : pct < ambarMax ? COLOR_AEROPUERTO.AMBAR : COLOR_AEROPUERTO.ROJO;
   return (
     <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden mt-1">
       <div

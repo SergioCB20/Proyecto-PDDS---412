@@ -1,4 +1,5 @@
 export const COLOR_AEROPUERTO = {
+  VACIO: '#9ca3af',
   VERDE: '#22c55e',
   AMBAR: '#eab308',
   ROJO: '#ef4444',
@@ -22,6 +23,7 @@ export function colorAeropuertoPorOcupacion(
   pct: number,
   umbrales?: { verdeMax?: number; ambarMax?: number }
 ): string {
+  if (pct <= 0) return COLOR_AEROPUERTO.VACIO;
   const vm = umbrales?.verdeMax ?? UMBRALES_DEFAULT.verdeMax;
   const am = umbrales?.ambarMax ?? UMBRALES_DEFAULT.ambarMax;
   if (pct < vm) return COLOR_AEROPUERTO.VERDE;
@@ -29,12 +31,13 @@ export function colorAeropuertoPorOcupacion(
   return COLOR_AEROPUERTO.ROJO;
 }
 
-export type ColorSemaforo = 'VERDE' | 'AMBAR' | 'ROJO';
+export type ColorSemaforo = 'VACIO' | 'VERDE' | 'AMBAR' | 'ROJO';
 
 export function determinarColorSemaforo(
   pct: number,
   umbrales?: { verdeMax?: number; ambarMax?: number }
 ): ColorSemaforo {
+  if (pct <= 0) return 'VACIO';
   const vm = umbrales?.verdeMax ?? UMBRALES_DEFAULT.verdeMax;
   const am = umbrales?.ambarMax ?? UMBRALES_DEFAULT.ambarMax;
   if (pct < vm) return 'VERDE';
