@@ -1,6 +1,6 @@
 'use client';
 
-import { useReducer } from 'react';
+import { useReducer, useEffect } from 'react';
 import { PanelAeropuertosOperacion } from '@/components/operacion/PanelAeropuertosOperacion';
 import { PanelVuelosOperacion } from '@/components/operacion/PanelVuelosOperacion';
 import { PanelEnviosMaletas } from '@/components/shared/PanelEnviosMaletas';
@@ -20,6 +20,7 @@ interface PanelTabsProps {
   seguidoVueloId?: string;
   onAeropuertoVerEnMapa?: (id: string) => void;
   seguidoAeropuertoId?: string;
+  aeropuertoSeleccionadoId?: string;
   vueloFilterOrigen: string;
   vueloFilterDestino: string;
   onVueloFilterChange: (filters: { origen: string; destino: string }) => void;
@@ -51,6 +52,7 @@ export function PanelTabs({
   seguidoVueloId,
   onAeropuertoVerEnMapa,
   seguidoAeropuertoId,
+  aeropuertoSeleccionadoId,
   vueloFilterOrigen,
   vueloFilterDestino,
   onVueloFilterChange,
@@ -64,6 +66,12 @@ export function PanelTabs({
   umbralesConfig,
 }: PanelTabsProps) {
   const [tab, setTab] = useReducer((_: TabName, next: TabName) => next, 'aeropuertos' as TabName);
+
+  useEffect(() => {
+    if (aeropuertoSeleccionadoId) {
+      setTab('aeropuertos');
+    }
+  }, [aeropuertoSeleccionadoId]);
 
   return (
     <div className="border-t border-slate-200 dark:border-slate-700">
@@ -89,6 +97,7 @@ export function PanelTabs({
           onAeropuertoClick={onAeropuertoClick}
           onVerEnMapa={onAeropuertoVerEnMapa}
           seguidoId={seguidoAeropuertoId}
+          seleccionadoId={aeropuertoSeleccionadoId}
           filtroColor={filtroColor}
           onFilterColorChange={onFilterColorChange}
           umbralesConfig={umbralesConfig}
