@@ -28,6 +28,9 @@ interface PanelTabsProps {
   nodos: { codigo_iata: string; nombre: string }[];
   onSeguirEnMapa?: (vueloId: string) => void;
   onMostrarRuta?: (segmentos: SegmentoResponse[]) => void;
+  filtroColor?: string;
+  onFilterColorChange?: (color: string) => void;
+  umbralesConfig?: { verdeMax: number; ambarMax: number };
 }
 
 const TAB_LABELS: Record<TabName, string> = {
@@ -56,6 +59,9 @@ export function PanelTabs({
   nodos,
   onSeguirEnMapa,
   onMostrarRuta,
+  filtroColor,
+  onFilterColorChange,
+  umbralesConfig,
 }: PanelTabsProps) {
   const [tab, setTab] = useReducer((_: TabName, next: TabName) => next, 'aeropuertos' as TabName);
 
@@ -83,6 +89,9 @@ export function PanelTabs({
           onAeropuertoClick={onAeropuertoClick}
           onVerEnMapa={onAeropuertoVerEnMapa}
           seguidoId={seguidoAeropuertoId}
+          filtroColor={filtroColor}
+          onFilterColorChange={onFilterColorChange}
+          umbralesConfig={umbralesConfig}
         />
       )}
 
@@ -97,6 +106,8 @@ export function PanelTabs({
           origenFilter={vueloFilterOrigen}
           destinoFilter={vueloFilterDestino}
           onFilterChange={onVueloFilterChange}
+          filtroColor={filtroColor}
+          umbralesConfig={umbralesConfig}
         />
       )}
 

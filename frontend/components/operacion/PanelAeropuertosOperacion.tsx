@@ -6,15 +6,19 @@ import { Select } from '@/components/ui/Select';
 import { Map as MapIcon } from 'lucide-react';
 import type { AeropuertoTelemetria } from '@/lib/types';
 import { ciudadDe, paisDe } from '@/lib/aeropuertos';
+import { determinarColorSemaforo } from '@/lib/colors';
 
 interface PanelAeropuertosOperacionProps {
   aeropuertos: AeropuertoTelemetria[];
   onAeropuertoClick?: (id: string, codigo: string) => void;
   onVerEnMapa?: (id: string) => void;
   seguidoId?: string;
+  filtroColor?: string;
+  onFilterColorChange?: (color: string) => void;
+  umbralesConfig?: { verdeMax: number; ambarMax: number };
 }
 
-export function PanelAeropuertosOperacion({ aeropuertos, onAeropuertoClick, onVerEnMapa, seguidoId }: PanelAeropuertosOperacionProps) {
+export function PanelAeropuertosOperacion({ aeropuertos, onAeropuertoClick, onVerEnMapa, seguidoId, filtroColor, umbralesConfig }: PanelAeropuertosOperacionProps) {
   const [filtroCodigo, setFiltroCodigo] = useState('');
   const [filtroContinente, setFiltroContinente] = useState('');
   const [orden, setOrden] = useState('');
@@ -43,9 +47,12 @@ export function PanelAeropuertosOperacion({ aeropuertos, onAeropuertoClick, onVe
         const valor = n.continente || n.zona_horaria;
         if (valor !== filtroContinente) return false;
       }
+      if (filtroColor) {
+        if (determinarColorSemaforo(n.ocupacion_pct, umbralesConfig) !== filtroColor) return false;
+      }
       return true;
     });
-  }, [aeropuertos, filtroCodigo, filtroContinente]);
+  }, [aeropuertos, filtroCodigo, filtroContinente, filtroColor, umbralesConfig]);
 
   const aeropuertosOrdenados = useMemo(() => {
     const lista = [...aeropuertosFiltrados];
@@ -60,11 +67,12 @@ export function PanelAeropuertosOperacion({ aeropuertos, onAeropuertoClick, onVe
     return lista;
   }, [aeropuertosFiltrados, orden]);
 
-  const hayFiltrosActivos = filtroCodigo || filtroContinente;
+  const hayFiltrosActivos = filtroCodigo || filtroContinente || filtroColor;
 
   const limpiarFiltros = () => {
     setFiltroCodigo('');
     setFiltroContinente('');
+    if (filtroColor) onFilterColorChange?.('');
   };
 
   if (aeropuertos.length === 0) {

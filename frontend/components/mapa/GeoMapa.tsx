@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { EyeOff, X } from 'lucide-react';
 import type { AeropuertoEnMapa, VueloEnMapa, RutaDestacada } from '@/lib/types';
 import type { UmbralesConfig } from './ConfigUmbrales';
+import { determinarColorSemaforo } from '@/lib/colors';
 import 'leaflet/dist/leaflet.css';
 import dynamic from 'next/dynamic';
 import ControlZoom from './ControlZoom';
@@ -96,6 +97,7 @@ interface GeoMapaProps {
   onSalirSeguimientoAeropuerto?: () => void;
   rutaDestacada?: RutaDestacada | null;
   onLimpiarRuta?: () => void;
+  filtroColor?: string;
 }
 
 // Gracia tras `cargando=false` para que los marcadores terminen de montarse
@@ -119,10 +121,11 @@ export default function GeoMapa({
   onSalirSeguimientoAeropuerto,
   rutaDestacada,
   onLimpiarRuta,
+  filtroColor,
 }: GeoMapaProps) {
   const [legendaVisible, setLegendaVisible] = useState(true);
 
-  const aeropuertosFiltrados = seguidoAeropuertoId
+  const aeropuertosFiltrados = (seguidoAeropuertoId
     ? aeropuertos.filter(a => a.codigo_iata === seguidoAeropuertoId)
     : seguidoVueloId
       ? (() => {
@@ -133,13 +136,24 @@ export default function GeoMapa({
           }
           return aeropuertos;
         })()
-      : aeropuertos;
+      : aeropuertos
+  ).filter(a => {
+    if (!filtroColor) return true;
+    return determinarColorSemaforo(a.ocupacionPorcentaje, umbralesConfig) === filtroColor;
+  });
 
-  const vuelosFiltrados = seguidoAeropuertoId
+  const vuelosFiltrados = (seguidoAeropuertoId
     ? vuelos.filter(v => v.origen.codigo_iata === seguidoAeropuertoId || v.destino.codigo_iata === seguidoAeropuertoId)
     : seguidoVueloId
       ? vuelos.filter(v => v.id === seguidoVueloId)
-      : vuelos;
+      : vuelos
+  ).filter(v => {
+    if (!filtroColor) return true;
+    const pct = v.capacidad_carga > 0
+      ? ((v.capacidad_carga - v.carga_disponible) / v.capacidad_carga) * 100
+      : 0;
+    return determinarColorSemaforo(pct, umbralesConfig) === filtroColor;
+  });
 
   // Mantiene el overlay un poco más tras cargar para que la flota se pinte completa.
   // `settling` solo cubre la ventana de gracia posterior a la carga; el estado durante

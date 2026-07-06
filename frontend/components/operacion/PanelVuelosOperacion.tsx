@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
-import { colorVueloPorEstado } from '@/lib/colors';
+import { colorVueloPorEstado, determinarColorSemaforo } from '@/lib/colors';
 import type { VueloTelemetria, Maleta } from '@/lib/types';
 import { formatearFechaHoraSeparado } from '@/lib/formatearHora';
 import { fetchMaletasVuelo } from '@/lib/api';
@@ -22,6 +22,8 @@ interface PanelVuelosOperacionProps {
   origenFilter?: string;
   destinoFilter?: string;
   onFilterChange?: (filters: { origen: string; destino: string }) => void;
+  filtroColor?: string;
+  umbralesConfig?: { verdeMax: number; ambarMax: number };
 }
 
 // Tope de tarjetas montadas en el DOM. El filtrado opera sobre la lista
@@ -29,7 +31,7 @@ interface PanelVuelosOperacionProps {
 // pestaña cuando la telemetría trae muchos vuelos.
 const MAX_RENDER = 100;
 
-export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiesto, onCancelVuelo, onVerEnMapa, seguidoId, origenFilter = '', destinoFilter = '', onFilterChange }: PanelVuelosOperacionProps) {
+export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiesto, onCancelVuelo, onVerEnMapa, seguidoId, origenFilter = '', destinoFilter = '', onFilterChange, filtroColor, umbralesConfig }: PanelVuelosOperacionProps) {
   const [filtroCodigo, setFiltroCodigo] = useState('');
   const [orden, setOrden] = useState('');
 
@@ -101,9 +103,12 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
       if (filtroCodigo && !v.codigo_vuelo.toLowerCase().includes(filtroCodigo.toLowerCase())) return false;
       if (origenFilter && v.origen_iata !== origenFilter) return false;
       if (destinoFilter && v.destino_iata !== destinoFilter) return false;
+      if (filtroColor) {
+        if (determinarColorSemaforo(v.ocupacion_pct, umbralesConfig) !== filtroColor) return false;
+      }
       return true;
     });
-  }, [vuelos, filtroCodigo, origenFilter, destinoFilter]);
+  }, [vuelos, filtroCodigo, origenFilter, destinoFilter, filtroColor, umbralesConfig]);
 
   const opcionesOrden = [
     { value: '', label: 'Sin orden' },
