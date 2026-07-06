@@ -70,4 +70,8 @@ public interface VueloRepository extends JpaRepository<Vuelo, UUID>, JpaSpecific
     @Modifying
     @Query("UPDATE Vuelo v SET v.cargaDisponible = v.cargaDisponible - :cantidad WHERE v.id = :id AND v.cargaDisponible >= :cantidad")
     int decrementarCargaDisponible(@Param("id") UUID id, @Param("cantidad") int cantidad);
+
+    @Modifying
+    @Query("UPDATE Vuelo v SET v.cargaDisponible = v.cargaDisponible + :cantidad WHERE v.id = :id")
+    int incrementarCargaDisponible(@Param("id") UUID id, @Param("cantidad") int cantidad);
 }

@@ -203,20 +203,29 @@ public class EquipajeService {
 
     private void eliminarConEquipaje(Equipaje equipaje) {
         UUID equipajeId = equipaje.getId();
+        int cantidad = equipaje.getCantidad() != null ? equipaje.getCantidad() : 1;
 
         PlanViaje planViaje = planViajeRepository.findByEquipajeId(equipajeId)
                 .orElseThrow(() -> new ValidacionException("Plan de viaje no encontrado"));
 
         List<SegmentoPlan> segmentos = segmentoPlanRepository.findByPlanViajeIdOrderByOrdenAsc(planViaje.getId());
+
+        // Restaurar capacidad en TODOS los vuelos del plan, no solo vueloActual
+        Map<UUID, Integer> vuelosRestaurar = new java.util.HashMap<>();
+        for (SegmentoPlan seg : segmentos) {
+            if (seg.getVuelo() != null) {
+                vuelosRestaurar.merge(seg.getVuelo().getId(), cantidad, Integer::sum);
+            }
+        }
+        for (Map.Entry<UUID, Integer> entry : vuelosRestaurar.entrySet()) {
+            vueloRepository.findById(entry.getKey()).ifPresent(v -> {
+                v.setCargaDisponible(v.getCargaDisponible() + entry.getValue());
+                vueloRepository.save(v);
+            });
+        }
+
         segmentoPlanRepository.deleteAll(segmentos);
         planViajeRepository.delete(planViaje);
-
-        Vuelo vuelo = equipaje.getVueloActual();
-        if (vuelo != null) {
-            int cantidad = equipaje.getCantidad() != null ? equipaje.getCantidad() : 1;
-            vuelo.setCargaDisponible(vuelo.getCargaDisponible() + cantidad);
-            vueloRepository.save(vuelo);
-        }
 
         // Las maletas hijas se eliminan en cascada via FK ON DELETE CASCADE.
         equipajeRepository.delete(equipaje);
