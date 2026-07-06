@@ -329,15 +329,6 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
                       <MapIcon size={12} />
                     </button>
                   )}
-                  {onCancelVuelo && (v.estado === 'PROGRAMADO' || v.estado === 'EN_RUTA') && (
-                    <button
-                      onClick={e => { e.stopPropagation(); onCancelVuelo(v.id, v.codigo_vuelo); }}
-                      className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 transition-colors cursor-pointer"
-                      title="Cancelar vuelo"
-                    >
-                      <XCircle size={12} />
-                    </button>
-                  )}
                 </div>
               </div>
             </div>

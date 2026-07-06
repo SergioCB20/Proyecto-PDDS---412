@@ -963,6 +963,245 @@ DESPUÉS (3 vistas):
 
 ---
 
+---
+
+# DISCUSION PENDIENTE: Regla de 1 hora de escala (virtual) + 15 min de recogida (virtual)
+
+## Contexto de la discusión (06 jul 2026)
+
+Discutimos la necesidad de implementar una regla de tiempo mínimo de escala para maletas en los aeropuertos intermedios durante la simulación, más un tiempo de recogida al llegar a destino final.
+
+### ¿Qué cambió durante la discusión?
+
+Originalmente la regla era **10 minutos simulados** en cada escala. Tras analizar las implicaciones técnicas en los motores de ruteo:
+
+| Ítem | Antes | Después | Motivo |
+|------|-------|---------|--------|
+| Tiempo de escala | 10 min virtual | **1 hora virtual** | El ACO usa horas enteras (int 0-23) y refactorizar a minutos implicaba cambios riesgosos en el algoritmo de optimización por colonia de hormigas |
+| GreedyRoutingStrategy | Había que cambiar MIN_CONEXION_MINUTOS de 60→10 | **No se toca** (ya tiene 60) | 1 hora ya es el valor actual ✅ |
+| ACORoutingStrategy | Había que refactorizar de horas a minutos | **No se toca** (esperaV < 1 ya significa mínimo 1 hora) | Su granularidad en horas enteras es intencional para simplificar el cómputo ✅ |
+| Entrega final (recogida) | No existía | **15 min virtuales** desde que la maleta aterriza en destino hasta que se marca ENTREGADO | La maleta ocupa almacén durante esos 15 min |
+
+### Decisiones tomadas
+
+1. **No tocar los motores de ruteo** (GreedyRoutingStrategy ni ACORoutingStrategy) — ya cumplen con mínimo 1 hora de conexión.
+2. **Solo implementar en TickService.java** — los cambios van en la simulación, no en la planificación.
+3. **Tracking en memoria** (no BD) — usar `ConcurrentHashMap<UUID, OffsetDateTime>` dentro de TickService para registrar cuándo llegó cada maleta a un aeropuerto. Sin migración Flyway.
+4. **Ocupación de almacén durante los 15 min de recogida** — la maleta en EN_ALMACEN (destino final) sigue contando en la ocupación del nodo hasta que se marca ENTREGADO.
+5. **Todo se documenta aquí para retomar después** — no se implementó nada aún.
+
+### Lo que falta implementar
+
+#### A) En `TickService.java` — estructura de datos en memoria
+
+```java
+// TickService.java — nuevos campos
+private final ConcurrentHashMap<UUID, OffsetDateTime> llegadaEscala = new ConcurrentHashMap<>();
+// UUID = equipaje.id, OffsetDateTime = horaVirtual de llegada al aeropuerto actual
+```
+
+#### B) En `procesarVuelosLlegada()` — registrar llegada de TODAS las maletas
+
+Cuando una maleta llega a un aeropuerto (vuelo aterriza):
+
+```java
+// Al final del bucle de segmentos, para TODAS las maletas (intermedias y finales):
+llegadaEscala.put(eq.getId(), vuelo.getHoraLlegada());
+// Las intermedias ya se ponen EN_ALMACEN (sin cambios)
+// Las finales: NO marcar ENTREGADO aún — se quedan EN_ALMACEN
+//   y se registran en un Set<UUID> destinoFinal para el proceso de entrega
+```
+
+#### C) En `procesarVuelosSalida()` — validar 1 hora de escala
+
+```java
+// Para cada SegmentoPlan PENDIENTE con equipaje en EN_ALMACEN:
+if (llegadaEscala.containsKey(eq.getId())) {
+    OffsetDateTime llegada = llegadaEscala.get(eq.getId());
+    if (llegada.plusHours(1).isAfter(virtual)) {
+        // Maleta no ha esperado 1 hora — saltar este vuelo
+        continue;  // Segmento sigue PENDIENTE, se reintenta en próximo tick
+    }
+}
+```
+
+#### D) Nuevo método `procesarEntregas()` — delay de 15 min en destino final
+
+```java
+private int procesarEntregas(SesionEjecucion sesion) {
+    OffsetDateTime virtual = sesion.getDiaHoraVirtual();
+    int entregadas = 0;
+    for (UUID eqId : destinoFinal) {
+        OffsetDateTime llegada = llegadaEscala.get(eqId);
+        if (llegada != null && llegada.plusMinutes(15).isBefore(virtual)) {
+            Equipaje eq = equipajeRepository.findById(eqId).orElse(null);
+            if (eq != null && eq.getEstado() == EstadoEquipaje.EN_ALMACEN) {
+                eq.setEstado(EstadoEquipaje.ENTREGADO);
+                eq.setVueloActual(null);
+                // Descontar de ocupación del nodo
+                equipajesActualizar.add(eq);
+                entregadas++;
+            }
+        }
+    }
+    return entregadas;
+}
+```
+
+Llamar en `ejecutarTick()`:
+```java
+int entregas = procesarEntregas(sesion);
+```
+
+### Pregunta abierta (sin resolver)
+
+> **¿Qué pasa cuando una maleta pierde su conexión por la regla de 1 hora?**
+
+**Escenario:** Maleta llega al aeropuerto A a las 10:00 virtual. El vuelo de conexión A→B sale a las 10:30 (solo 30 min después). La maleta no puede abordar por la regla de 1 hora.
+
+| Opción | Vuelo | Maleta | SegmentoPlan | Consecuencia |
+|--------|-------|--------|-------------|--------------|
+| **A) Vuelo sale sin maleta** | EN_RUTA | EN_ALMACEN | PENDIENTE (inconsistente) | Requiere replanificación automática — la maleta perdió su conexión |
+| **B) Vuelo espera** | Sigue PROGRAMADO | EN_ALMACEN | PENDIENTE | El vuelo no despega en este tick; se reintenta en el próximo. La simulación se ralentiza pero no hay replanificación |
+
+**No se decidió cuál implementar.** Queda pendiente para la próxima sesión.
+
+### Archivos involucrados (para retomar)
+
+| Archivo | Qué tocar |
+|---------|-----------|
+| `backend/.../bc2/application/TickService.java` | Agregar `llegadaEscala` + `destinoFinal` + validación 1h en `procesarVuelosSalida()` + nuevo `procesarEntregas()` + llamado en `ejecutarTick()` |
+| `TareaEdViernes.md` | Documentar lo implementado |
+
+### Lo que NO se toca
+
+- `GreedyRoutingStrategy.java` (MIN_CONEXION_MINUTOS ya es 60 ✅)
+- `ACORoutingStrategy.java` (mínimo 1 hora por diseño ✅)
+- `Equipaje.java` (todo en memoria, sin migración)
+- Migración Flyway (ninguna)
+- Frontend (ningún cambio visual)
+- `PlanViaje.java`, `SegmentoPlan.java` (sin cambios)
+
+---
+
+# Tarea: COLOR VACIO - Agregar color gris para ocupación 0% en aeropuertos
+
+## Descripción
+
+Agregar un color visual distinguible (gris `#9ca3af`) para los aeropuertos con ocupación exactamente **0%** (vacío), diferenciándolos de aquellos con ocupación baja pero no nula (que siguen en verde).
+
+## Problema
+
+- Un aeropuerto con 0% de ocupación se mostraba exactamente igual (verde `#22c55e`) que uno con 30% de ocupación.
+- No era posible distinguir visualmente un aeropuerto vacío de uno con ocupación baja.
+- El filtro de ocupación no tenía opción para filtrar específicamente aeropuertos vacíos.
+
+## Archivos modificados
+
+### 1. `frontend/lib/colors.ts`
+
+| Cambio | Detalle |
+|--------|---------|
+| `COLOR_AEROPUERTO.VACIO` | Agregado `'#9ca3af'` (mismo gris que `COLOR_VUELO.VACIO`) |
+| `ColorSemaforo` | Ampliado de `'VERDE' \| 'AMBAR' \| 'ROJO'` a `'VACIO' \| 'VERDE' \| 'AMBAR' \| 'ROJO'` |
+| `determinarColorSemaforo(pct)` | Agregado early return: `if (pct <= 0) return 'VACIO'` |
+| `colorAeropuertoPorOcupacion(pct)` | Agregado early return: `if (pct <= 0) return COLOR_AEROPUERTO.VACIO` |
+
+### 2. `frontend/app/page.tsx`
+
+| Cambio | Detalle |
+|--------|---------|
+| Botón en filtro | Agregado `'VACIO'` al array de opciones del filtro por ocupación |
+| Círculo de color | Agregado `opt === 'VACIO'` → `'#9ca3af'` en el switch de colores del botón |
+
+### 3. `frontend/lib/mock.ts`
+
+| Cambio | Detalle |
+|--------|---------|
+| Línea 129 | `pct <= 0 ? COLOR_AEROPUERTO.VACIO :` agregado antes de la cadena de ternarias |
+
+### 4. `frontend/components/mapa/GeoMapaVuelo.tsx`
+
+| Cambio | Detalle |
+|--------|---------|
+| Línea 26 | `pct <= 0 ? COLOR_AEROPUERTO.VACIO :` agregado antes de la cadena de ternarias |
+
+## Lo que se actualiza automáticamente
+
+Los siguientes componentes ya usan `determinarColorSemaforo` o `colorAeropuertoPorOcupacion`, por lo que heredan el nuevo color `VACIO` sin cambios:
+
+- `PanelAeropuertosOperacion.tsx` — filtro por color vía `determinarColorSemaforo`
+- `PanelVuelosOperacion.tsx` — filtro por color vía `determinarColorSemaforo`
+- `GeoMapa.tsx` — filtro de marcadores vía `determinarColorSemaforo`
+- `page.tsx` — mapeo `/nodos` → `initialAeropuertos` vía `colorAeropuertoPorOcupacion` (3 `useEffect`s)
+
+## Impacto visual
+
+| Ocupación | Antes | Después | Hex |
+|-----------|-------|---------|-----|
+| 0% | Verde `#22c55e` | **Gris** `#9ca3af` | `🟤` |
+| 1% – 69% | Verde `#22c55e` | Sin cambio | `🟢` |
+| 70% – 89% | Ámbar `#eab308` | Sin cambio | `🟡` |
+| 90%+ | Rojo `#ef4444` | Sin cambio | `🔴` |
+
+## Prerrequisitos
+
+- TypeScript compila sin errores nuevos.
+- `COLOR_AEROPUERTO.VACIO` usa el mismo valor que `COLOR_VUELO.VACIO` (`#9ca3af`) para consistencia visual.
+- Sin cambios en backend, `PanelTabs`, `GeoMapaLeyenda`, `ControlZoom`, ni otros componentes.
+
+## Nota: filtro UI solo en OperacionView
+
+El bloque "Filtro por Ocupación" (botones Todos/VACIO/VERDE/AMBAR/ROJO) solo existe en **OperacionView**. SimulacionView y ColapsoView no tienen este bloque — heredan el color VACIO en la representación visual (marcadores del mapa, paneles) pero no tienen la UI para filtrar activamente por color de ocupación. Para agregarlo en el futuro, replicar el bloque JSX de `page.tsx` (~línea 894) dentro del sidebar de cada vista.
+
+---
+
+# Tarea: QUITAR BOTON CANCELAR - Eliminar botón de cancelación del panel de vuelos
+
+## Descripción
+
+Eliminar el botón de cancelar vuelo (icono `XCircle`) que aparecía en cada tarjeta de vuelo del `PanelVuelosOperacion` para los estados `PROGRAMADO` y `EN_RUTA`.
+
+## Problema
+
+- El botón de cancelar vuelo ya no es necesario en el panel de vuelos de la vista Operación.
+- Se conserva la funcionalidad subyacente (props `onCancelVuelo`, funciones `handleCancelarVuelo`) para un posible uso futuro.
+
+## Archivo modificado
+
+### `frontend/components/operacion/PanelVuelosOperacion.tsx`
+
+| Cambio | Líneas | Detalle |
+|--------|--------|---------|
+| Eliminar botón cancelar | 332–340 (antes del cambio) | Bloque JSX con `onCancelVuelo && (estado === PROGRAMADO \|\| EN_RUTA) && <button>` |
+
+**Código eliminado:**
+```tsx
+{onCancelVuelo && (v.estado === 'PROGRAMADO' || v.estado === 'EN_RUTA') && (
+  <button
+    onClick={e => { e.stopPropagation(); onCancelVuelo(v.id, v.codigo_vuelo); }}
+    className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 transition-colors cursor-pointer"
+    title="Cancelar vuelo"
+  >
+    <XCircle size={12} />
+  </button>
+)}
+```
+
+## Lo que NO se modificó
+
+- `onCancelVuelo` prop en `PanelVuelosOperacionProps` — conservada
+- `PanelTabs.tsx` — props y passthrough conservados
+- `page.tsx` — `handleCancelarVuelo` y `onCancelVuelo={...}` conservados en las 3 vistas
+- `frontend/lib/mock.ts`, `frontend/components/mapa/GeoMapaVuelo.tsx` — sin cambios
+- Backend — sin cambios
+
+## Prerrequisitos
+
+- Build exitoso (TypeScript compila sin errores nuevos).
+
+---
+
 **¿Qué pendientes o mejoras futuras se identificaron?**
 - **MetricasOperacion en SimulacionView y ColapsoView:** El componente `MetricasOperacion` (4 cards: Total/Entregados/EnVuelo/Replan) debía aparecer apilado sobre el panel de tiempos en `top-4 right-4` según el diseño de Actualización posterior 3, pero no se implementó. El panel derecho solo tiene el panel de tiempos sin MetricasOperacion.
 - **Unificación de estilo MetricasOperacion:** `MetricasOperacion` usa `grid grid-cols-2` con cards internas; los chips de Simulación/Colapso usan diseño inline compacto. Si se desea uniformidad visual, refactorizar.

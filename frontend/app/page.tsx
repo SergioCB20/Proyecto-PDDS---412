@@ -897,7 +897,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                 Filtro por Ocupación
               </h4>
               <div className="flex items-center gap-1">
-                {(['', 'VERDE', 'AMBAR', 'ROJO'] as const).map((opt) => (
+                {(['', 'VACIO', 'VERDE', 'AMBAR', 'ROJO'] as const).map((opt) => (
                   <button
                     key={opt}
                     onClick={() => setFiltroColor(opt)}
@@ -912,7 +912,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                         className="w-3 h-3 rounded-full inline-block"
                         style={{
                           backgroundColor:
-                            opt === 'VERDE' ? '#22c55e' : opt === 'AMBAR' ? '#eab308' : '#ef4444',
+                            opt === 'VACIO' ? '#9ca3af' : opt === 'VERDE' ? '#22c55e' : opt === 'AMBAR' ? '#eab308' : '#ef4444',
                         }}
                       />
                     )}
