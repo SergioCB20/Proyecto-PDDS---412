@@ -203,8 +203,22 @@ public class PlanificacionWorker {
                     .orElseThrow(() -> new RuntimeException("Origen no encontrado: " + equipaje.getOrigenIata()));
         }
 
-        // Replanificacion: el equipaje puede tener un plan previo. La constraint
-        // planes_viaje_equipaje_id_key es UNIQUE(equipaje_id), asi que hay que borrar
+        // Replanificacion: el equipaje puede tener un plan previo. Restaurar capacidad
+        // en todos los vuelos del plan anterior antes de borrarlo.
+        List<SegmentoPlan> segmentosPrevios = segmentoPlanRepository.findByEquipajeId(equipaje.getId());
+        if (!segmentosPrevios.isEmpty()) {
+            Map<UUID, Integer> vuelosRestaurar = new java.util.HashMap<>();
+            for (SegmentoPlan sp : segmentosPrevios) {
+                if (sp.getVuelo() != null) {
+                    vuelosRestaurar.merge(sp.getVuelo().getId(),
+                        equipaje.getCantidad() != null ? equipaje.getCantidad() : 1, Integer::sum);
+                }
+            }
+            for (Map.Entry<UUID, Integer> entry : vuelosRestaurar.entrySet()) {
+                vueloRepository.incrementarCargaDisponible(entry.getKey(), entry.getValue());
+            }
+        }
+        // La constraint planes_viaje_equipaje_id_key es UNIQUE(equipaje_id), asi que hay que borrar
         // el plan + segmentos anteriores antes de crear el nuevo, o el insert revienta.
         segmentoPlanRepository.deleteByEquipajeId(equipaje.getId());
         planViajeRepository.deleteByEquipajeId(equipaje.getId());
@@ -241,15 +255,24 @@ public class PlanificacionWorker {
             segmentoPlanRepository.save(segmento);
         }
 
+        int cantidad = equipaje.getCantidad() != null ? equipaje.getCantidad() : 1;
+
+        // Reservar capacidad en TODOS los vuelos del plan, no solo el primero
+        for (SegmentoInfo segInfo : ruta.segmentos()) {
+            Vuelo segVuelo = vueloRepository.findById(segInfo.vueloId())
+                    .orElseThrow(() -> new RuntimeException("Vuelo no encontrado: " + segInfo.vueloId()));
+            vueloRepository.decrementarCargaDisponible(segVuelo.getId(), cantidad);
+            int capAct = vueloRepository.findById(segVuelo.getId())
+                    .map(Vuelo::getCargaDisponible).orElse(segVuelo.getCargaDisponible() - cantidad);
+            redisCacheService.actualizarCargaDisponibleVuelo(segVuelo.getId(), capAct);
+        }
+
         SegmentoInfo primerSegmento = ruta.segmentos().get(0);
         Vuelo primerVuelo = vueloRepository.findById(primerSegmento.vueloId())
                 .orElseThrow(() -> new RuntimeException("Vuelo no encontrado: " + primerSegmento.vueloId()));
         NodoLogistico primerNodoOrigen = nodoRepository.findById(primerSegmento.nodoOrigenId())
                 .orElseThrow(() -> new RuntimeException("Nodo no encontrado: " + primerSegmento.nodoOrigenId()));
 
-        // Updates atómicos para evitar lost updates con SimulacionEnrutamientoService corriendo en paralelo
-        int cantidad = equipaje.getCantidad() != null ? equipaje.getCantidad() : 1;
-        vueloRepository.decrementarCargaDisponible(primerVuelo.getId(), cantidad);
         // Ocupación del nodo origen en el contexto de la operación día a día (no el global).
         ocupacionNodoService.ajustar(primerNodoOrigen.getId(), OcupacionNodoService.OPERACION, cantidad);
 
@@ -257,11 +280,8 @@ public class PlanificacionWorker {
         equipaje.setVueloActual(primerVuelo);
         equipajeRepository.save(equipaje);
 
-        int cargaActualizada = vueloRepository.findById(primerVuelo.getId())
-                .map(Vuelo::getCargaDisponible).orElse(primerVuelo.getCargaDisponible() - cantidad);
         int ocupacionActualizada = ocupacionNodoService.leer(
                 primerNodoOrigen.getId(), OcupacionNodoService.OPERACION);
-        redisCacheService.actualizarCargaDisponibleVuelo(primerVuelo.getId(), cargaActualizada);
         redisCacheService.actualizarOcupacionNodo(primerNodoOrigen.getId(), ocupacionActualizada);
 
         eventPublisher.publishEvent(new EquipajePlanificadoEvent(
