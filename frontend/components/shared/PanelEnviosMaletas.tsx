@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useReducer, useRef } from 'react';
-import { fetchEnviosPanel, fetchEnviosPanelSesion } from '@/lib/api';
-import type { EnvioPanelResponse } from '@/lib/types';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { Loader2, MapPin, Route } from 'lucide-react';
+import { fetchEnviosPanel, fetchEnviosPanelSesion, fetchPlanViaje } from '@/lib/api';
+import type { EnvioPanelResponse, SegmentoResponse } from '@/lib/types';
 
 type TabType = 'planificados' | 'en_vuelo' | 'entregados';
 
@@ -10,6 +11,8 @@ interface PanelEnviosMaletasProps {
   sesionId?: string;
   activo: boolean;
   nodos: { codigo_iata: string; nombre: string }[];
+  onSeguirEnMapa?: (vueloId: string) => void;
+  onMostrarRuta?: (segmentos: SegmentoResponse[]) => void;
 }
 
 type State = {
@@ -40,27 +43,63 @@ const TAB_LABELS: Record<TabType, string> = {
   entregados: 'Entregados (4h)',
 };
 
-export function PanelEnviosMaletas({ sesionId, activo, nodos }: PanelEnviosMaletasProps) {
+export function PanelEnviosMaletas({ sesionId, activo, nodos, onSeguirEnMapa, onMostrarRuta }: PanelEnviosMaletasProps) {
   const [tab, setTab] = useReducer((_: TabType, next: TabType) => next, 'planificados' as TabType);
   const [origen, setOrigen] = useReducer((_: string, next: string) => next, '');
   const [destino, setDestino] = useReducer((_: string, next: string) => next, '');
+  const [codigoEquipaje, setCodigoEquipaje] = useReducer((_: string, next: string) => next, '');
   const [{ data, loading, error }, dispatch] = useReducer(reducer, {
     data: null, loading: true, error: '',
   });
+  const [siguiendoId, setSiguiendoId] = useState<string | null>(null);
+  const [mostrandoRutaId, setMostrandoRutaId] = useState<string | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleSeguir = useCallback(async (id: string) => {
+    setSiguiendoId(id);
+    try {
+      const plan = await fetchPlanViaje(id);
+      if (plan.ubicacion_actual?.tipo === 'VUELO') {
+        onSeguirEnMapa?.(plan.ubicacion_actual.referencia_id);
+      } else {
+        alert('La maleta no está en un vuelo actualmente');
+      }
+    } catch {
+      alert('Error al obtener información de la maleta');
+    } finally {
+      setSiguiendoId(null);
+    }
+  }, [onSeguirEnMapa]);
+
+  const handleMostrarRuta = useCallback(async (id: string) => {
+    setMostrandoRutaId(id);
+    try {
+      const plan = await fetchPlanViaje(id);
+      if (plan.segmentos && plan.segmentos.length > 0) {
+        onMostrarRuta?.(plan.segmentos);
+      } else {
+        alert('El grupo de maletas no tiene un plan de viaje asignado');
+      }
+    } catch {
+      alert('Error al obtener información de la maleta');
+    } finally {
+      setMostrandoRutaId(null);
+    }
+  }, [onMostrarRuta]);
 
   const cargar = useCallback(async () => {
     dispatch({ type: 'FETCH_START' });
     try {
+      const ce = codigoEquipaje || undefined;
       const result = sesionId
-        ? await fetchEnviosPanelSesion(sesionId, tab, origen || undefined, destino || undefined)
-        : await fetchEnviosPanel(tab, origen || undefined, destino || undefined);
+        ? await fetchEnviosPanelSesion(sesionId, tab, origen || undefined, destino || undefined, ce)
+        : await fetchEnviosPanel(tab, origen || undefined, destino || undefined, ce);
       dispatch({ type: 'FETCH_SUCCESS', data: result });
     } catch (err: unknown) {
       const e = err as { mensaje?: string; message?: string };
       dispatch({ type: 'FETCH_ERROR', error: e.mensaje || e.message || 'Error al cargar envíos' });
     }
-  }, [sesionId, tab, origen, destino]);
+  }, [sesionId, tab, origen, destino, codigoEquipaje]);
 
   useEffect(() => {
     cargar();
@@ -124,6 +163,13 @@ export function PanelEnviosMaletas({ sesionId, activo, nodos }: PanelEnviosMalet
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
+          <input
+            type="text"
+            value={codigoEquipaje}
+            onChange={e => setCodigoEquipaje(e.target.value)}
+            placeholder="Código maleta"
+            className="flex-1 text-[11px] rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+          />
         </div>
       </div>
 
@@ -157,9 +203,39 @@ export function PanelEnviosMaletas({ sesionId, activo, nodos }: PanelEnviosMalet
                     <span className="text-slate-400 font-mono">{item.codigo_vuelo}</span>
                   )}
                 </div>
-                <span className="text-slate-500 shrink-0">
-                  {item.cantidad} maleta{item.cantidad !== 1 ? 's' : ''}
-                </span>
+                <div className="flex items-center gap-2 shrink-0">
+                  {tab === 'en_vuelo' && onSeguirEnMapa && (
+                    <button
+                      onClick={() => handleSeguir(item.equipaje_id)}
+                      disabled={siguiendoId === item.equipaje_id}
+                      className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 disabled:opacity-50 disabled:cursor-wait"
+                      title="Seguir en mapa"
+                    >
+                      {siguiendoId === item.equipaje_id ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <MapPin size={14} />
+                      )}
+                    </button>
+                  )}
+                  {tab === 'en_vuelo' && onMostrarRuta && (
+                    <button
+                      onClick={() => handleMostrarRuta(item.equipaje_id)}
+                      disabled={mostrandoRutaId === item.equipaje_id}
+                      className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-50 disabled:cursor-wait"
+                      title="Mostrar ruta en el mapa"
+                    >
+                      {mostrandoRutaId === item.equipaje_id ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Route size={14} />
+                      )}
+                    </button>
+                  )}
+                  <span className="text-slate-500">
+                    {item.cantidad} maleta{item.cantidad !== 1 ? 's' : ''}
+                  </span>
+                </div>
               </div>
             ))}
           </div>

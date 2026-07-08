@@ -32,4 +32,8 @@ public interface SegmentoPlanRepository extends JpaRepository<SegmentoPlan, UUID
     /** Equipajes (cualquier estado de segmento) cuyo plan contiene este vuelo. */
     @Query("SELECT DISTINCT sp.planViaje.equipaje FROM SegmentoPlan sp WHERE sp.vuelo.id = :vueloId")
     List<Equipaje> findEquipajesByVueloId(@Param("vueloId") UUID vueloId);
+
+    /** Segmentos de un equipaje ordenados por orden ascendente. */
+    @Query("SELECT sp FROM SegmentoPlan sp WHERE sp.planViaje.equipaje.id = :equipajeId ORDER BY sp.orden ASC")
+    List<SegmentoPlan> findByEquipajeId(@Param("equipajeId") UUID equipajeId);
 }

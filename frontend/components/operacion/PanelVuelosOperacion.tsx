@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { Upload, XCircle, Map as MapIcon, PlaneTakeoff, PlaneLanding, X, Copy, Check, Briefcase } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
-import { colorVueloPorEstado } from '@/lib/colors';
+import { colorVueloPorEstado, determinarColorSemaforo } from '@/lib/colors';
 import type { VueloTelemetria, Maleta } from '@/lib/types';
 import { formatearFechaHoraSeparado } from '@/lib/formatearHora';
 import { fetchMaletasVuelo } from '@/lib/api';
@@ -19,9 +19,12 @@ interface PanelVuelosOperacionProps {
   onCancelVuelo?: (id: string, codigo: string) => void;
   onVerEnMapa?: (id: string) => void;
   seguidoId?: string;
+  seleccionadoId?: string;
   origenFilter?: string;
   destinoFilter?: string;
   onFilterChange?: (filters: { origen: string; destino: string }) => void;
+  filtroColor?: string;
+  umbralesConfig?: { verdeMax: number; ambarMax: number };
 }
 
 // Tope de tarjetas montadas en el DOM. El filtrado opera sobre la lista
@@ -29,16 +32,14 @@ interface PanelVuelosOperacionProps {
 // pestaña cuando la telemetría trae muchos vuelos.
 const MAX_RENDER = 100;
 
-// Un vuelo PROGRAMADO aún no ha embarcado: la carga real se fija al despegar. La reserva que
-// el planificador hace por adelantado (baja carga_disponible) es transitoria y se re-ajusta
-// cada ciclo, así que no se muestra ocupación hasta que el vuelo está EN_RUTA/COMPLETADO.
-function cargaOcupada(v: VueloTelemetria): number {
-  if (v.estado === 'PROGRAMADO') return 0;
-  return Math.max(0, v.capacidad_carga - v.carga_disponible);
-}
-
-export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiesto, onCancelVuelo, onVerEnMapa, seguidoId, origenFilter = '', destinoFilter = '', onFilterChange }: PanelVuelosOperacionProps) {
+export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiesto, onCancelVuelo, onVerEnMapa, seguidoId, seleccionadoId, origenFilter = '', destinoFilter = '', onFilterChange, filtroColor, umbralesConfig }: PanelVuelosOperacionProps) {
   const [filtroCodigo, setFiltroCodigo] = useState('');
+  const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  useEffect(() => {
+    if (seleccionadoId && itemRefs.current[seleccionadoId]) {
+      itemRefs.current[seleccionadoId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [seleccionadoId]);
   const [orden, setOrden] = useState('');
 
   // Estado del modal "Ver Maletas"
@@ -109,9 +110,12 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
       if (filtroCodigo && !v.codigo_vuelo.toLowerCase().includes(filtroCodigo.toLowerCase())) return false;
       if (origenFilter && v.origen_iata !== origenFilter) return false;
       if (destinoFilter && v.destino_iata !== destinoFilter) return false;
+      if (filtroColor) {
+        if (determinarColorSemaforo(v.ocupacion_pct, umbralesConfig) !== filtroColor) return false;
+      }
       return true;
     });
-  }, [vuelos, filtroCodigo, origenFilter, destinoFilter]);
+  }, [vuelos, filtroCodigo, origenFilter, destinoFilter, filtroColor, umbralesConfig]);
 
   const opcionesOrden = [
     { value: '', label: 'Sin orden' },
@@ -127,10 +131,10 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
     const lista = [...vuelosFiltrados];
     switch (orden) {
       case 'ocupacion-asc':
-        lista.sort((a, b) => cargaOcupada(a) - cargaOcupada(b));
+        lista.sort((a, b) => (a.capacidad_carga - a.carga_disponible) - (b.capacidad_carga - b.carga_disponible));
         break;
       case 'ocupacion-desc':
-        lista.sort((a, b) => cargaOcupada(b) - cargaOcupada(a));
+        lista.sort((a, b) => (b.capacidad_carga - b.carga_disponible) - (a.capacidad_carga - a.carga_disponible));
         break;
       case 'hora-salida':
         lista.sort((a, b) => a.hora_salida.localeCompare(b.hora_salida));
@@ -230,13 +234,18 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
 
       <div className="space-y-2 max-h-56 overflow-y-auto">
         {vuelosVisibles.map(v => {
-          const ocupada = cargaOcupada(v);
+          const ocupada = v.capacidad_carga - v.carga_disponible;
           const pct = v.capacidad_carga > 0 ? (ocupada / v.capacidad_carga) * 100 : 0;
           const colorHex = colorVueloPorEstado(v.estado);
           return (
             <div
               key={v.id}
-              className="py-2.5 px-3 rounded-lg bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800/50 hover:border-slate-200 dark:hover:border-slate-700/50 transition-all duration-200 shadow-sm"
+              ref={el => { itemRefs.current[v.id] = el; }}
+              className={`py-2.5 px-3 rounded-lg bg-slate-50 dark:bg-slate-800/30 border ${
+                seleccionadoId === v.id
+                  ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-800'
+                  : 'border-slate-100 dark:border-slate-800/50'
+              } hover:border-slate-200 dark:hover:border-slate-700/50 transition-all duration-200 shadow-sm`}
             >
               <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-1.5">
@@ -330,15 +339,6 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
                       title="Ver en mapa"
                     >
                       <MapIcon size={12} />
-                    </button>
-                  )}
-                  {onCancelVuelo && (v.estado === 'PROGRAMADO' || v.estado === 'EN_RUTA') && (
-                    <button
-                      onClick={e => { e.stopPropagation(); onCancelVuelo(v.id, v.codigo_vuelo); }}
-                      className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 transition-colors cursor-pointer"
-                      title="Cancelar vuelo"
-                    >
-                      <XCircle size={12} />
                     </button>
                   )}
                 </div>

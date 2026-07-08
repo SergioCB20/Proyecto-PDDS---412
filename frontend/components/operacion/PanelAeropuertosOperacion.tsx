@@ -1,21 +1,32 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Map as MapIcon } from 'lucide-react';
 import type { AeropuertoTelemetria } from '@/lib/types';
 import { ciudadDe, paisDe } from '@/lib/aeropuertos';
+import { determinarColorSemaforo } from '@/lib/colors';
 
 interface PanelAeropuertosOperacionProps {
   aeropuertos: AeropuertoTelemetria[];
   onAeropuertoClick?: (id: string, codigo: string) => void;
   onVerEnMapa?: (id: string) => void;
   seguidoId?: string;
+  seleccionadoId?: string;
+  filtroColor?: string;
+  onFilterColorChange?: (color: string) => void;
+  umbralesConfig?: { verdeMax: number; ambarMax: number };
 }
 
-export function PanelAeropuertosOperacion({ aeropuertos, onAeropuertoClick, onVerEnMapa, seguidoId }: PanelAeropuertosOperacionProps) {
+export function PanelAeropuertosOperacion({ aeropuertos, onAeropuertoClick, onVerEnMapa, seguidoId, seleccionadoId, filtroColor, umbralesConfig }: PanelAeropuertosOperacionProps) {
   const [filtroCodigo, setFiltroCodigo] = useState('');
+  const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  useEffect(() => {
+    if (seleccionadoId && itemRefs.current[seleccionadoId]) {
+      itemRefs.current[seleccionadoId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [seleccionadoId]);
   const [filtroContinente, setFiltroContinente] = useState('');
   const [orden, setOrden] = useState('');
 
@@ -43,9 +54,12 @@ export function PanelAeropuertosOperacion({ aeropuertos, onAeropuertoClick, onVe
         const valor = n.continente || n.zona_horaria;
         if (valor !== filtroContinente) return false;
       }
+      if (filtroColor) {
+        if (determinarColorSemaforo(n.ocupacion_pct, umbralesConfig) !== filtroColor) return false;
+      }
       return true;
     });
-  }, [aeropuertos, filtroCodigo, filtroContinente]);
+  }, [aeropuertos, filtroCodigo, filtroContinente, filtroColor, umbralesConfig]);
 
   const aeropuertosOrdenados = useMemo(() => {
     const lista = [...aeropuertosFiltrados];
@@ -60,11 +74,12 @@ export function PanelAeropuertosOperacion({ aeropuertos, onAeropuertoClick, onVe
     return lista;
   }, [aeropuertosFiltrados, orden]);
 
-  const hayFiltrosActivos = filtroCodigo || filtroContinente;
+  const hayFiltrosActivos = filtroCodigo || filtroContinente || filtroColor;
 
   const limpiarFiltros = () => {
     setFiltroCodigo('');
     setFiltroContinente('');
+    if (filtroColor) onFilterColorChange?.('');
   };
 
   if (aeropuertos.length === 0) {
@@ -130,7 +145,12 @@ export function PanelAeropuertosOperacion({ aeropuertos, onAeropuertoClick, onVe
           return (
             <div
               key={n.id}
-              className={`py-2 px-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/60 ${onAeropuertoClick ? 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/70 hover:border-slate-200 dark:hover:border-slate-700 transition-colors' : ''}`}
+              ref={el => { itemRefs.current[n.codigo_iata] = el; }}
+              className={`py-2 px-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border ${
+                seleccionadoId === n.codigo_iata
+                  ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-800'
+                  : 'border-slate-100 dark:border-slate-800/60'
+              } ${onAeropuertoClick ? 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/70 hover:border-slate-200 dark:hover:border-slate-700 transition-colors' : ''}`}
               onClick={() => onAeropuertoClick?.(n.codigo_iata, n.codigo_iata)}
             >
               <div className="flex items-center justify-between mb-1.5">

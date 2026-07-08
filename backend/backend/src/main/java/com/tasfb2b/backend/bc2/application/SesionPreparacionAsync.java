@@ -1,5 +1,6 @@
 package com.tasfb2b.backend.bc2.application;
 
+import com.tasfb2b.backend.bc1.application.OcupacionNodoService;
 import com.tasfb2b.backend.bc1.application.VueloService;
 import com.tasfb2b.backend.bc2.domain.EstadoSesion;
 import com.tasfb2b.backend.bc2.domain.ReporteSesion;
@@ -26,17 +27,20 @@ public class SesionPreparacionAsync {
     private final ReporteSesionRepository reporteSesionRepository;
     private final SesionReadinessManager readinessManager;
     private final JdbcTemplate jdbcTemplate;
+    private final OcupacionNodoService ocupacionNodoService;
 
     public SesionPreparacionAsync(SesionRepository sesionRepository,
                                    VueloService vueloService,
                                    ReporteSesionRepository reporteSesionRepository,
                                    SesionReadinessManager readinessManager,
-                                   JdbcTemplate jdbcTemplate) {
+                                   JdbcTemplate jdbcTemplate,
+                                   OcupacionNodoService ocupacionNodoService) {
         this.sesionRepository = sesionRepository;
         this.vueloService = vueloService;
         this.reporteSesionRepository = reporteSesionRepository;
         this.readinessManager = readinessManager;
         this.jdbcTemplate = jdbcTemplate;
+        this.ocupacionNodoService = ocupacionNodoService;
     }
 
     public void preparar(UUID id) {
@@ -80,7 +84,9 @@ public class SesionPreparacionAsync {
                         "WHERE id IN (SELECT equipaje_id FROM planes_viaje)");
                     jdbcTemplate.update("DELETE FROM segmentos_plan");
                     int planes = jdbcTemplate.update("DELETE FROM planes_viaje");
-                    jdbcTemplate.update("UPDATE nodos_logisticos SET ocupacion_actual = 0");
+                    // Ocupación por contexto: limpia solo la de ESTA sesión (una sesión nueva ya
+                    // arranca en 0, no hereda la de otras sesiones ni la de la operación).
+                    ocupacionNodoService.reset(id);
                     log.info("Reset estado inicial sesion {}: {} equipajes a REGISTRADO, {} planes eliminados, nodos en 0",
                             id, eqReset, planes);
                 } catch (Exception e) {

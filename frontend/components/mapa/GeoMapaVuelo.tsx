@@ -18,11 +18,13 @@ interface GeoMapaVueloProps {
   seguido?: boolean;
   onSalirSeguimiento?: () => void;
   onSeguirVuelo?: (id: string) => void;
+  onVueloSeleccionado?: (id: string) => void;
+  destacado?: boolean;
 }
 
 function OcupacionBar({ ocupada, total, verdeMax, ambarMax }: { ocupada: number; total: number; verdeMax: number; ambarMax: number }) {
   const pct = total > 0 ? ((total - ocupada) / total) * 100 : 0;
-  const color = pct < verdeMax ? COLOR_AEROPUERTO.VERDE : pct < ambarMax ? COLOR_AEROPUERTO.AMBAR : COLOR_AEROPUERTO.ROJO;
+  const color = pct <= 0 ? COLOR_AEROPUERTO.VACIO : pct < verdeMax ? COLOR_AEROPUERTO.VERDE : pct < ambarMax ? COLOR_AEROPUERTO.AMBAR : COLOR_AEROPUERTO.ROJO;
   return (
     <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden mt-1">
       <div
@@ -38,6 +40,7 @@ function areEqual(prevProps: GeoMapaVueloProps, nextProps: GeoMapaVueloProps): b
   if (prevProps.animacionActiva !== nextProps.animacionActiva) return false;
   if (prevProps.k !== nextProps.k) return false;
   if (prevProps.seguido !== nextProps.seguido) return false;
+  if (prevProps.destacado !== nextProps.destacado) return false;
   if (prevProps.umbralesConfig?.verdeMax !== nextProps.umbralesConfig?.verdeMax) return false;
   if (prevProps.umbralesConfig?.ambarMax !== nextProps.umbralesConfig?.ambarMax) return false;
   const a = prevProps.vuelo;
@@ -52,7 +55,7 @@ function areEqual(prevProps: GeoMapaVueloProps, nextProps: GeoMapaVueloProps): b
   return true;
 }
 
-export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false, k = 120, umbralesConfig, seguido = false, onSalirSeguimiento, onSeguirVuelo }: GeoMapaVueloProps) {
+export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false, k = 120, umbralesConfig, seguido = false, onSalirSeguimiento, onSeguirVuelo, onVueloSeleccionado, destacado = false }: GeoMapaVueloProps) {
   const color = colorVueloPorEstado(vuelo.estado);
   const opacidadRuta = animacionActiva ? 0.5 : 0.2;
   const verdeMax = umbralesConfig?.verdeMax ?? 70;
@@ -79,8 +82,8 @@ export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false
           positions={puntosCurva}
           pathOptions={{
             color,
-            weight: 1,
-            opacity: 0.25,
+            weight: destacado ? 6 : 1,
+            opacity: destacado ? 0.8 : 0.25,
             dashArray: '6, 4',
           }}
         >
@@ -118,8 +121,10 @@ export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false
           k={k}
           umbralesConfig={umbralesConfig}
           seguido={seguido}
+          destacado={destacado}
           onSalir={onSalirSeguimiento}
           onSeguirVuelo={onSeguirVuelo}
+          onVueloSeleccionado={onVueloSeleccionado}
         />
       )}
     </>

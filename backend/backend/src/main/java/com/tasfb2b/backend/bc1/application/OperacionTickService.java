@@ -36,6 +36,7 @@ public class OperacionTickService {
     private final OperacionTelemetriaService operacionTelemetriaService;
     private final SesionRepository sesionRepository;
     private final JdbcTemplate jdbcTemplate;
+    private final OcupacionNodoService ocupacionNodoService;
 
     public OperacionTickService(VueloRepository vueloRepository,
                                  EquipajeRepository equipajeRepository,
@@ -44,7 +45,8 @@ public class OperacionTickService {
                                  VueloService vueloService,
                                  OperacionTelemetriaService operacionTelemetriaService,
                                  SesionRepository sesionRepository,
-                                 JdbcTemplate jdbcTemplate) {
+                                 JdbcTemplate jdbcTemplate,
+                                 OcupacionNodoService ocupacionNodoService) {
         this.vueloRepository = vueloRepository;
         this.equipajeRepository = equipajeRepository;
         this.segmentoPlanRepository = segmentoPlanRepository;
@@ -53,6 +55,7 @@ public class OperacionTickService {
         this.operacionTelemetriaService = operacionTelemetriaService;
         this.sesionRepository = sesionRepository;
         this.jdbcTemplate = jdbcTemplate;
+        this.ocupacionNodoService = ocupacionNodoService;
     }
 
     public String getEstado() { return activo ? "ACTIVO" : "INACTIVO"; }
@@ -104,7 +107,7 @@ public class OperacionTickService {
             "WHERE estado IN ('EN_VUELO', 'EN_ALMACEN') " +
             "AND id NOT IN (SELECT equipaje_id FROM planes_viaje WHERE sesion_id IS NOT NULL)"
         );
-        jdbcTemplate.update("UPDATE nodos_logisticos SET ocupacion_actual = 0");
+        ocupacionNodoService.reset(OcupacionNodoService.OPERACION);
         this.diaProcesado = null;
     }
 
@@ -201,11 +204,9 @@ public class OperacionTickService {
         segmentoPlanRepository.saveAll(segmentosActualizar);
         equipajeRepository.saveAll(equipajesActualizar);
 
+        // Al abordar, las maletas dejan el almacén de origen (contexto de operación día a día).
         for (Map.Entry<UUID, Integer> entry : nodosCarga.entrySet()) {
-            nodoRepository.findById(entry.getKey()).ifPresent(nodo -> {
-                nodo.setOcupacionActual(Math.max(0, nodo.getOcupacionActual() - entry.getValue()));
-                nodoRepository.save(nodo);
-            });
+            ocupacionNodoService.ajustar(entry.getKey(), OcupacionNodoService.OPERACION, -entry.getValue());
         }
     }
 
@@ -256,11 +257,9 @@ public class OperacionTickService {
         segmentoPlanRepository.saveAll(segmentosActualizar);
         equipajeRepository.saveAll(equipajesActualizar);
 
+        // Las maletas en tránsito (EN_ALMACEN) ocupan el almacén de destino (contexto de operación).
         for (Map.Entry<UUID, Integer> entry : nodosCarga.entrySet()) {
-            nodoRepository.findById(entry.getKey()).ifPresent(nodo -> {
-                nodo.setOcupacionActual(nodo.getOcupacionActual() + entry.getValue());
-                nodoRepository.save(nodo);
-            });
+            ocupacionNodoService.ajustar(entry.getKey(), OcupacionNodoService.OPERACION, entry.getValue());
         }
     }
 }

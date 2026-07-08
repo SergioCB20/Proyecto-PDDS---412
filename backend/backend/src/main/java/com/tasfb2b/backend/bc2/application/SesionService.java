@@ -1,6 +1,7 @@
 package com.tasfb2b.backend.bc2.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tasfb2b.backend.bc1.application.OcupacionNodoService;
 import com.tasfb2b.backend.bc1.application.VueloService;
 import com.tasfb2b.backend.bc1.domain.Equipaje;
 import com.tasfb2b.backend.bc1.domain.EstadoEquipaje;
@@ -65,6 +66,7 @@ public class SesionService {
     private final EventoCancelacionRepository eventoCancelacionRepository;
     private final ItemLoteRepository itemLoteRepository;
     private final VueloRepository vueloRepository;
+    private final OcupacionNodoService ocupacionNodoService;
 
     // Fecha del primer día de datos en los archivos _envios_*.txt
     private static final LocalDate FECHA_BASE_ARCHIVO = LocalDate.of(2026, 1, 2);
@@ -87,7 +89,8 @@ public class SesionService {
                          LoteReplanificacionRepository loteReplanificacionRepository,
                          EventoCancelacionRepository eventoCancelacionRepository,
                          ItemLoteRepository itemLoteRepository,
-                         VueloRepository vueloRepository) {
+                         VueloRepository vueloRepository,
+                         OcupacionNodoService ocupacionNodoService) {
         this.sesionRepository = sesionRepository;
         this.vueloService = vueloService;
         this.redisCacheService = redisCacheService;
@@ -107,6 +110,7 @@ public class SesionService {
         this.eventoCancelacionRepository = eventoCancelacionRepository;
         this.itemLoteRepository = itemLoteRepository;
         this.vueloRepository = vueloRepository;
+        this.ocupacionNodoService = ocupacionNodoService;
     }
 
     public SesionResponse crearSesion(CrearSesionRequest request) {
@@ -452,9 +456,10 @@ public class SesionService {
             log.warn("Error eliminando planes_viaje al detener sesion {}: {}", id, e.getMessage());
         }
 
-        log.info("Reseteando ocupacion de nodos a 0 para sesion {}", id);
+        log.info("Reseteando ocupacion de nodos de la sesion {}", id);
         try {
-            jdbcTemplate.update("UPDATE nodos_logisticos SET ocupacion_actual = 0");
+            // Solo la ocupación de ESTA sesión, no el global (que antes borraba también la operación).
+            ocupacionNodoService.reset(id);
         } catch (Exception e) {
             log.warn("Error reseteando ocupacion de nodos: {}", e.getMessage());
         }
@@ -588,7 +593,7 @@ public class SesionService {
             .toList();
     }
 
-    public List<EnvioPanelResponse> obtenerEnviosPanelSesion(UUID sesionId, String tipo, String origenIata, String destinoIata) {
+    public List<EnvioPanelResponse> obtenerEnviosPanelSesion(UUID sesionId, String tipo, String origenIata, String destinoIata, String codigoEquipaje) {
         sesionRepository.findById(sesionId)
             .orElseThrow(() -> new IllegalArgumentException("Sesion no encontrada: " + sesionId));
 
@@ -600,7 +605,8 @@ public class SesionService {
         };
         String o = (origenIata != null && !origenIata.isBlank()) ? origenIata : null;
         String d = (destinoIata != null && !destinoIata.isBlank()) ? destinoIata : null;
-        List<Equipaje> equipajes = equipajeRepository.findEnviosPanel(estados, o, d, PageRequest.of(0, 100));
+        String ce = (codigoEquipaje != null && !codigoEquipaje.isBlank()) ? "%" + codigoEquipaje + "%" : null;
+        List<Equipaje> equipajes = equipajeRepository.findEnviosPanel(estados, o, d, ce, PageRequest.of(0, 100));
         return equipajes.stream()
                 .filter(e -> e.getPlanViaje() != null && sesionId.equals(e.getPlanViaje().getSesionId()))
                 .map(e -> {

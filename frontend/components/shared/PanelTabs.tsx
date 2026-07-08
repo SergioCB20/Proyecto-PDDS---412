@@ -1,10 +1,10 @@
 'use client';
 
-import { useReducer } from 'react';
+import { useReducer, useEffect } from 'react';
 import { PanelAeropuertosOperacion } from '@/components/operacion/PanelAeropuertosOperacion';
 import { PanelVuelosOperacion } from '@/components/operacion/PanelVuelosOperacion';
 import { PanelEnviosMaletas } from '@/components/shared/PanelEnviosMaletas';
-import type { AeropuertoTelemetria, VueloTelemetria } from '@/lib/types';
+import type { AeropuertoTelemetria, VueloTelemetria, SegmentoResponse } from '@/lib/types';
 
 type TabName = 'aeropuertos' | 'vuelos' | 'envios';
 
@@ -20,12 +20,19 @@ interface PanelTabsProps {
   seguidoVueloId?: string;
   onAeropuertoVerEnMapa?: (id: string) => void;
   seguidoAeropuertoId?: string;
+  aeropuertoSeleccionadoId?: string;
+  vueloSeleccionadoId?: string;
   vueloFilterOrigen: string;
   vueloFilterDestino: string;
   onVueloFilterChange: (filters: { origen: string; destino: string }) => void;
   sesionId?: string;
   enviosActivo: boolean;
   nodos: { codigo_iata: string; nombre: string }[];
+  onSeguirEnMapa?: (vueloId: string) => void;
+  onMostrarRuta?: (segmentos: SegmentoResponse[]) => void;
+  filtroColor?: string;
+  onFilterColorChange?: (color: string) => void;
+  umbralesConfig?: { verdeMax: number; ambarMax: number };
 }
 
 const TAB_LABELS: Record<TabName, string> = {
@@ -46,14 +53,33 @@ export function PanelTabs({
   seguidoVueloId,
   onAeropuertoVerEnMapa,
   seguidoAeropuertoId,
+  aeropuertoSeleccionadoId,
+  vueloSeleccionadoId,
   vueloFilterOrigen,
   vueloFilterDestino,
   onVueloFilterChange,
   sesionId,
   enviosActivo,
   nodos,
+  onSeguirEnMapa,
+  onMostrarRuta,
+  filtroColor,
+  onFilterColorChange,
+  umbralesConfig,
 }: PanelTabsProps) {
   const [tab, setTab] = useReducer((_: TabName, next: TabName) => next, 'aeropuertos' as TabName);
+
+  useEffect(() => {
+    if (aeropuertoSeleccionadoId) {
+      setTab('aeropuertos');
+    }
+  }, [aeropuertoSeleccionadoId]);
+
+  useEffect(() => {
+    if (vueloSeleccionadoId) {
+      setTab('vuelos');
+    }
+  }, [vueloSeleccionadoId]);
 
   return (
     <div className="border-t border-slate-200 dark:border-slate-700">
@@ -79,6 +105,10 @@ export function PanelTabs({
           onAeropuertoClick={onAeropuertoClick}
           onVerEnMapa={onAeropuertoVerEnMapa}
           seguidoId={seguidoAeropuertoId}
+          seleccionadoId={aeropuertoSeleccionadoId}
+          filtroColor={filtroColor}
+          onFilterColorChange={onFilterColorChange}
+          umbralesConfig={umbralesConfig}
         />
       )}
 
@@ -90,9 +120,12 @@ export function PanelTabs({
           onCancelVuelo={onCancelVuelo}
           onVerEnMapa={onVerEnMapa}
           seguidoId={seguidoVueloId}
+          seleccionadoId={vueloSeleccionadoId}
           origenFilter={vueloFilterOrigen}
           destinoFilter={vueloFilterDestino}
           onFilterChange={onVueloFilterChange}
+          filtroColor={filtroColor}
+          umbralesConfig={umbralesConfig}
         />
       )}
 
@@ -101,6 +134,8 @@ export function PanelTabs({
           sesionId={sesionId}
           activo={enviosActivo}
           nodos={nodos}
+          onSeguirEnMapa={onSeguirEnMapa}
+          onMostrarRuta={onMostrarRuta}
         />
       )}
     </div>

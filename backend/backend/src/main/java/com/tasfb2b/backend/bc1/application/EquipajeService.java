@@ -29,6 +29,7 @@ public class EquipajeService {
     private final MaletaRepository maletaRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final RedisCacheService redisCacheService;
+    private final OcupacionNodoService ocupacionNodoService;
 
     public EquipajeService(EquipajeRepository equipajeRepository, PlanViajeRepository planViajeRepository,
                            SegmentoPlanRepository segmentoPlanRepository, VueloRepository vueloRepository,
@@ -36,7 +37,8 @@ public class EquipajeService {
                            ColaPlanificacionRepository colaRepository,
                            MaletaRepository maletaRepository,
                            ApplicationEventPublisher eventPublisher,
-                           RedisCacheService redisCacheService) {
+                           RedisCacheService redisCacheService,
+                           OcupacionNodoService ocupacionNodoService) {
         this.equipajeRepository = equipajeRepository;
         this.planViajeRepository = planViajeRepository;
         this.segmentoPlanRepository = segmentoPlanRepository;
@@ -46,6 +48,7 @@ public class EquipajeService {
         this.maletaRepository = maletaRepository;
         this.eventPublisher = eventPublisher;
         this.redisCacheService = redisCacheService;
+        this.ocupacionNodoService = ocupacionNodoService;
     }
 
     public record RegistrarEquipajeRequest(
@@ -103,7 +106,8 @@ public class EquipajeService {
         NodoLogistico nodoDestino = nodoRepository.findByCodigoIata(request.destino_iata())
                 .orElseThrow(() -> new ValidacionException("Destino IATA no existe: " + request.destino_iata()));
 
-        if (nodoOrigen.getOcupacionActual() >= nodoOrigen.getCapacidadAlmacen()) {
+        int capOrigen = nodoOrigen.getCapacidadAlmacen() != null ? nodoOrigen.getCapacidadAlmacen() : 0;
+        if (ocupacionNodoService.leer(nodoOrigen.getId(), OcupacionNodoService.OPERACION) >= capOrigen) {
             throw new ValidacionException("Capacidad del almacen superada en nodo " + nodoOrigen.getCodigoIata());
         }
 
@@ -199,20 +203,29 @@ public class EquipajeService {
 
     private void eliminarConEquipaje(Equipaje equipaje) {
         UUID equipajeId = equipaje.getId();
+        int cantidad = equipaje.getCantidad() != null ? equipaje.getCantidad() : 1;
 
         PlanViaje planViaje = planViajeRepository.findByEquipajeId(equipajeId)
                 .orElseThrow(() -> new ValidacionException("Plan de viaje no encontrado"));
 
         List<SegmentoPlan> segmentos = segmentoPlanRepository.findByPlanViajeIdOrderByOrdenAsc(planViaje.getId());
+
+        // Restaurar capacidad en TODOS los vuelos del plan, no solo vueloActual
+        Map<UUID, Integer> vuelosRestaurar = new java.util.HashMap<>();
+        for (SegmentoPlan seg : segmentos) {
+            if (seg.getVuelo() != null) {
+                vuelosRestaurar.merge(seg.getVuelo().getId(), cantidad, Integer::sum);
+            }
+        }
+        for (Map.Entry<UUID, Integer> entry : vuelosRestaurar.entrySet()) {
+            vueloRepository.findById(entry.getKey()).ifPresent(v -> {
+                v.setCargaDisponible(v.getCargaDisponible() + entry.getValue());
+                vueloRepository.save(v);
+            });
+        }
+
         segmentoPlanRepository.deleteAll(segmentos);
         planViajeRepository.delete(planViaje);
-
-        Vuelo vuelo = equipaje.getVueloActual();
-        if (vuelo != null) {
-            int cantidad = equipaje.getCantidad() != null ? equipaje.getCantidad() : 1;
-            vuelo.setCargaDisponible(vuelo.getCargaDisponible() + cantidad);
-            vueloRepository.save(vuelo);
-        }
 
         // Las maletas hijas se eliminan en cascada via FK ON DELETE CASCADE.
         equipajeRepository.delete(equipaje);
@@ -460,7 +473,7 @@ public class EquipajeService {
             Integer cantidad
     ) {}
 
-    public List<EnvioPanelResponse> obtenerEnviosPanel(String tipo, String origenIata, String destinoIata) {
+    public List<EnvioPanelResponse> obtenerEnviosPanel(String tipo, String origenIata, String destinoIata, String codigoEquipaje) {
         List<EstadoEquipaje> estados = switch (tipo) {
             case "planificados" -> List.of(EstadoEquipaje.ENRUTADO, EstadoEquipaje.EN_ALMACEN);
             case "en_vuelo" -> List.of(EstadoEquipaje.EN_VUELO);
@@ -469,7 +482,8 @@ public class EquipajeService {
         };
         String o = (origenIata != null && !origenIata.isBlank()) ? origenIata : null;
         String d = (destinoIata != null && !destinoIata.isBlank()) ? destinoIata : null;
-        List<Equipaje> equipajes = equipajeRepository.findEnviosPanel(estados, o, d, PageRequest.of(0, 100));
+        String ce = (codigoEquipaje != null && !codigoEquipaje.isBlank()) ? "%" + codigoEquipaje + "%" : null;
+        List<Equipaje> equipajes = equipajeRepository.findEnviosPanel(estados, o, d, ce, PageRequest.of(0, 100));
         return equipajes.stream()
                 .map(e -> {
                     String codigoVuelo = "";
