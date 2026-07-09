@@ -96,6 +96,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Probe TCP to SSH target
+        run: |
+          echo "Runner IP egress: $(curl -s https://api.ipify.org)"
+          HOST=${{ secrets.SSH_HOST }}
+          echo "Probing $HOST:22 ..."
+          timeout 15 nc -vz "$HOST" 22 2>&1 || echo "EXIT_22=$?"
+          echo "Probing $HOST:2222 ..."
+          timeout 15 nc -vz "$HOST" 2222 2>&1 || echo "EXIT_2222=$?"
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.0
         with:

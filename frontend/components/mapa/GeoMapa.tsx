@@ -93,11 +93,13 @@ interface GeoMapaProps {
   seguidoVueloId?: string;
   onSalirSeguimiento?: () => void;
   onSeguirVuelo?: (id: string) => void;
+  onVueloSeleccionado?: (id: string) => void;
   seguidoAeropuertoId?: string;
   onSalirSeguimientoAeropuerto?: () => void;
   rutaDestacada?: RutaDestacada | null;
   onLimpiarRuta?: () => void;
   filtroColor?: string;
+  onAeropuertoClick?: (codigoIata: string) => void;
 }
 
 // Gracia tras `cargando=false` para que los marcadores terminen de montarse
@@ -117,11 +119,13 @@ export default function GeoMapa({
   seguidoVueloId,
   onSalirSeguimiento,
   onSeguirVuelo,
+  onVueloSeleccionado,
   seguidoAeropuertoId,
   onSalirSeguimientoAeropuerto,
   rutaDestacada,
   onLimpiarRuta,
   filtroColor,
+  onAeropuertoClick,
 }: GeoMapaProps) {
   const [legendaVisible, setLegendaVisible] = useState(true);
 
@@ -194,7 +198,7 @@ export default function GeoMapa({
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
         />
         {aeropuertosFiltrados.map((aeropuerto) => (
-          <GeoMapaAeropuerto key={aeropuerto.codigo_iata} aeropuerto={aeropuerto} />
+          <GeoMapaAeropuerto key={aeropuerto.codigo_iata} aeropuerto={aeropuerto} onClick={onAeropuertoClick} />
         ))}
         {mostrarAviones && vuelosFiltrados.map((vuelo) => (
           <GeoMapaVuelo
@@ -206,6 +210,7 @@ export default function GeoMapa({
             seguido={vuelo.id === seguidoVueloId}
             onSalirSeguimiento={onSalirSeguimiento}
             onSeguirVuelo={onSeguirVuelo}
+            onVueloSeleccionado={onVueloSeleccionado}
             destacado={rutaDestacada?.vueloIds.includes(vuelo.codigo_vuelo) ?? false}
           />
         ))}

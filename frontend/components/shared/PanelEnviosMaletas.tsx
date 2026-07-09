@@ -29,11 +29,14 @@ type Action =
 function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'FETCH_START':
-      return { data: null, loading: true, error: '' };
+      // Stale-while-revalidate: conserva los datos anteriores mientras recarga, para no
+      // parpadear "Cargando…" en cada refresco de 5 s. Solo la 1ª carga tiene data === null.
+      return { ...state, loading: true, error: '' };
     case 'FETCH_SUCCESS':
       return { data: action.data, loading: false, error: '' };
     case 'FETCH_ERROR':
-      return { data: null, loading: false, error: action.error };
+      // Mantiene los últimos datos válidos si un refresco falla.
+      return { ...state, loading: false, error: action.error };
   }
 }
 
@@ -174,21 +177,21 @@ export function PanelEnviosMaletas({ sesionId, activo, nodos, onSeguirEnMapa, on
       </div>
 
       <div className="px-4 pb-4">
-        {loading && (
+        {loading && data === null && (
           <p className="text-xs text-slate-400 italic text-center py-2">Cargando envíos...</p>
         )}
 
-        {error && (
+        {error && data === null && (
           <div className="text-xs text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400 p-2 rounded">
             {error}
           </div>
         )}
 
-        {!loading && !error && data && data.length === 0 && (
+        {data && data.length === 0 && (
           <p className="text-xs text-slate-400 italic text-center py-2">Sin envíos</p>
         )}
 
-        {!loading && !error && data && data.length > 0 && (
+        {data && data.length > 0 && (
           <div className="space-y-1 max-h-56 overflow-y-auto">
             {data.map((item, i) => (
               <div

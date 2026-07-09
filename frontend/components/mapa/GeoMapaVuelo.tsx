@@ -18,6 +18,7 @@ interface GeoMapaVueloProps {
   seguido?: boolean;
   onSalirSeguimiento?: () => void;
   onSeguirVuelo?: (id: string) => void;
+  onVueloSeleccionado?: (id: string) => void;
   destacado?: boolean;
 }
 
@@ -54,7 +55,7 @@ function areEqual(prevProps: GeoMapaVueloProps, nextProps: GeoMapaVueloProps): b
   return true;
 }
 
-export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false, k = 120, umbralesConfig, seguido = false, onSalirSeguimiento, onSeguirVuelo, destacado = false }: GeoMapaVueloProps) {
+export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false, k = 120, umbralesConfig, seguido = false, onSalirSeguimiento, onSeguirVuelo, onVueloSeleccionado, destacado = false }: GeoMapaVueloProps) {
   const color = colorVueloPorEstado(vuelo.estado);
   const opacidadRuta = animacionActiva ? 0.5 : 0.2;
   const verdeMax = umbralesConfig?.verdeMax ?? 70;
@@ -123,6 +124,7 @@ export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false
           destacado={destacado}
           onSalir={onSalirSeguimiento}
           onSeguirVuelo={onSeguirVuelo}
+          onVueloSeleccionado={onVueloSeleccionado}
         />
       )}
     </>

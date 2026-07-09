@@ -8,6 +8,7 @@ import { ciudadDe, paisDe } from '@/lib/aeropuertos';
 
 interface GeoMapaAeropuertoProps {
   aeropuerto: AeropuertoEnMapa;
+  onClick?: (codigoIata: string) => void;
 }
 
 /**
@@ -32,7 +33,7 @@ function crearIconoAeropuerto(color: string, size: number = 22) {
   });
 }
 
-export default function GeoMapaAeropuerto({ aeropuerto }: GeoMapaAeropuertoProps) {
+export default function GeoMapaAeropuerto({ aeropuerto, onClick }: GeoMapaAeropuertoProps) {
   const icono = useMemo(
     () => crearIconoAeropuerto(aeropuerto.color),
     [aeropuerto.color]
@@ -42,6 +43,7 @@ export default function GeoMapaAeropuerto({ aeropuerto }: GeoMapaAeropuertoProps
     <Marker
       position={[aeropuerto.latitud, aeropuerto.longitud]}
       icon={icono}
+      eventHandlers={{ click: () => onClick?.(aeropuerto.codigo_iata) }}
     >
       <Tooltip direction="top" offset={[0, -16]} className="aeropuerto-label">
         <div className="text-center">
