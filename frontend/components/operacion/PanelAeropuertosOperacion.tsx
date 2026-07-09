@@ -17,9 +17,23 @@ interface PanelAeropuertosOperacionProps {
   filtroColor?: string;
   onFilterColorChange?: (color: string) => void;
   umbralesConfig?: { verdeMax: number; ambarMax: number };
+  /** Filtro por continente controlado por el padre (también mueve el mapa). */
+  filtroContinente?: string;
+  onFiltroContinenteChange?: (continente: string) => void;
 }
 
-export function PanelAeropuertosOperacion({ aeropuertos, onAeropuertoClick, onVerEnMapa, seguidoId, seleccionadoId, filtroColor, umbralesConfig }: PanelAeropuertosOperacionProps) {
+export function PanelAeropuertosOperacion({
+  aeropuertos,
+  onAeropuertoClick,
+  onVerEnMapa,
+  seguidoId,
+  seleccionadoId,
+  filtroColor,
+  onFilterColorChange,
+  umbralesConfig,
+  filtroContinente,
+  onFiltroContinenteChange,
+}: PanelAeropuertosOperacionProps) {
   const [filtroCodigo, setFiltroCodigo] = useState('');
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
   useEffect(() => {
@@ -27,8 +41,19 @@ export function PanelAeropuertosOperacion({ aeropuertos, onAeropuertoClick, onVe
       itemRefs.current[seleccionadoId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }, [seleccionadoId]);
-  const [filtroContinente, setFiltroContinente] = useState('');
   const [orden, setOrden] = useState('');
+
+  // Default al state interno si el padre no controla el filtro. Asi el componente
+  // sigue utilisable en aislamiento, pero las vistas del dashboard siempre pasan props.
+  const [filtroContinenteInterno, setFiltroContinenteInterno] = useState('');
+  const continenteActual = filtroContinente ?? filtroContinenteInterno;
+  const onContinenteChange = (v: string) => {
+    if (onFiltroContinenteChange) {
+      onFiltroContinenteChange(v);
+    } else {
+      setFiltroContinenteInterno(v);
+    }
+  };
 
   const opcionesContinente = useMemo(() => {
     const set = new Set(aeropuertos.map(n => n.continente || n.zona_horaria).filter(Boolean));
@@ -50,16 +75,16 @@ export function PanelAeropuertosOperacion({ aeropuertos, onAeropuertoClick, onVe
           || paisDe(n.codigo_iata).toLowerCase().includes(q);
         if (!coincide) return false;
       }
-      if (filtroContinente) {
+      if (continenteActual) {
         const valor = n.continente || n.zona_horaria;
-        if (valor !== filtroContinente) return false;
+        if (valor !== continenteActual) return false;
       }
       if (filtroColor) {
         if (determinarColorSemaforo(n.ocupacion_pct, umbralesConfig) !== filtroColor) return false;
       }
       return true;
     });
-  }, [aeropuertos, filtroCodigo, filtroContinente, filtroColor, umbralesConfig]);
+  }, [aeropuertos, filtroCodigo, continenteActual, filtroColor, umbralesConfig]);
 
   const aeropuertosOrdenados = useMemo(() => {
     const lista = [...aeropuertosFiltrados];
@@ -74,11 +99,11 @@ export function PanelAeropuertosOperacion({ aeropuertos, onAeropuertoClick, onVe
     return lista;
   }, [aeropuertosFiltrados, orden]);
 
-  const hayFiltrosActivos = filtroCodigo || filtroContinente || filtroColor;
+  const hayFiltrosActivos = filtroCodigo || continenteActual || filtroColor;
 
   const limpiarFiltros = () => {
     setFiltroCodigo('');
-    setFiltroContinente('');
+    onContinenteChange('');
     if (filtroColor) onFilterColorChange?.('');
   };
 
@@ -112,8 +137,8 @@ export function PanelAeropuertosOperacion({ aeropuertos, onAeropuertoClick, onVe
           <Select
             placeholder="Continente"
             options={opcionesContinente}
-            value={filtroContinente}
-            onChange={e => setFiltroContinente(e.target.value)}
+            value={continenteActual}
+            onChange={e => onContinenteChange(e.target.value)}
           />
         </div>
       </div>

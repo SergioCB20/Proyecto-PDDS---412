@@ -36,6 +36,7 @@ import { Card } from "@/components/ui/Card";
 import { PanelEnviosOperacion } from "@/components/operacion/PanelEnviosOperacion";
 import { PanelEnvios } from "@/components/simulacion/PanelEnvios";
 import { PanelReporte } from "@/components/simulacion/PanelReporte";
+import { SeccionCancelacion } from "@/components/simulacion/SeccionCancelacion";
 import { SimulacionLoadingOverlay } from "@/components/simulacion/SimulacionLoadingOverlay";
 import { PanelTabs } from "@/components/shared/PanelTabs";
 import {
@@ -62,6 +63,7 @@ import type {
   ReporteSesion,
   RutaDestacada,
   SegmentoResponse,
+  PlantillaResumen,
 } from "@/lib/types";
 
 interface CancelResultEquipaje {
@@ -289,6 +291,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   );
   const [rutaDestacadaOp, setRutaDestacadaOp] = useState<RutaDestacada | null>(null);
   const [filtroColor, setFiltroColor] = useState<'' | ColorSemaforo>('');
+  const [filtroContinenteOp, setFiltroContinenteOp] = useState<string>('');
   const [aeroSeleccionado, setAeroSeleccionado] = useState<string | null>(null);
   const [vueloSeleccionadoOp, setVueloSeleccionadoOp] = useState<string | null>(null);
 
@@ -639,6 +642,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
           filtroColor={filtroColor}
           onAeropuertoClick={handleAeropuertoClickOp}
           onVueloSeleccionado={handleVueloSeleccionadoOp}
+          continenteFiltro={filtroContinenteOp || undefined}
         >
           <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
             <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
@@ -989,6 +993,8 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               filtroColor={filtroColor}
               onFilterColorChange={setFiltroColor}
               umbralesConfig={configUmbrales}
+              filtroContinente={filtroContinenteOp}
+              onFiltroContinenteChange={setFiltroContinenteOp}
             />
 
             {selectedEnvio && (
@@ -1277,6 +1283,8 @@ function SimulacionView({
   const [rutaDestacadaSim, setRutaDestacadaSim] = useState<RutaDestacada | null>(null);
   const [aeroSeleccionadoSim, setAeroSeleccionadoSim] = useState<string | null>(null);
   const [vueloSeleccionadoSim, setVueloSeleccionadoSim] = useState<string | null>(null);
+  const [filtroContinenteSim, setFiltroContinenteSim] = useState<string>('');
+  const [plantillas, setPlantillas] = useState<PlantillaResumen[]>([]);
 
   const [metricasPoll, setMetricasPoll] = useState<MetricasSimulacion>({
     sesion_id: "",
@@ -1295,6 +1303,32 @@ function SimulacionView({
 
   const metricas = telemetria?.metricas_sesion ?? metricasPoll;
   const hora = useReloj();
+
+  // Plantillas: una fila por codigo_vuelo. Solo se cargan cuando la sesion ya esta
+  // en movimiento (no en CONFIGURADA), porque la regla hoy/mañana requiere el reloj
+  // virtual que solo existe una vez arrancada.
+  useEffect(() => {
+    if (!sesionId || estadoSesion === "CONFIGURADA" || estadoSesion === "FINALIZADA") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPlantillas([]);
+      return;
+    }
+    api
+      .get<VueloPageResponse>("/vuelos?es_plantilla=true&size=500")
+      .then((r) => {
+        setPlantillas(
+          r.content.map((v) => ({
+            id: v.id,
+            codigo_vuelo: v.codigo_vuelo,
+            origen_iata: v.origen.codigo_iata,
+            destino_iata: v.destino.codigo_iata,
+            hora_salida: v.hora_salida,
+            hora_llegada: v.hora_llegada,
+          })),
+        );
+      })
+      .catch(() => setPlantillas([]));
+  }, [sesionId, estadoSesion]);
 
   const [simReady, setSimReady] = useState(false);
   useEffect(() => {
@@ -1431,6 +1465,7 @@ function SimulacionView({
             ambarMax: configUmbrales.ambarMax,
           }),
           ocupacionPorcentaje: n.ocupacion_pct,
+          continente: n.continente,
         }))
       : initialAeropuertos;
 
@@ -1706,6 +1741,7 @@ function SimulacionView({
           onLimpiarRuta={() => setRutaDestacadaSim(null)}
           onAeropuertoClick={handleAeropuertoClickSim}
           onVueloSeleccionado={handleVueloSeleccionadoSim}
+          continenteFiltro={filtroContinenteSim || undefined}
         >
           <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
             <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
@@ -2152,6 +2188,8 @@ function SimulacionView({
                 }))}
                 onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
                 onMostrarRuta={handleMostrarRutaSim}
+                filtroContinente={filtroContinenteSim}
+                onFiltroContinenteChange={setFiltroContinenteSim}
               />
             )}
 
@@ -2223,6 +2261,14 @@ function SimulacionView({
                 )}
               </Modal>
             )}
+
+            {sesionId && estadoSesion !== "CONFIGURADA" && estadoSesion !== "FINALIZADA" && (
+              <SeccionCancelacion
+                plantillas={plantillas}
+                sesionId={sesionId}
+                momentoVirtual={metricas?.dia_hora_virtual ?? null}
+              />
+            )}
           </>
         )}
       </div>
@@ -2270,6 +2316,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   );
   const [rutaDestacadaCol, setRutaDestacadaCol] = useState<RutaDestacada | null>(null);
   const [aeroSeleccionadoCol, setAeroSeleccionadoCol] = useState<string | null>(null);
+  const [filtroContinenteCol, setFiltroContinenteCol] = useState<string>('');
   const [vueloSeleccionadoCol, setVueloSeleccionadoCol] = useState<string | null>(null);
 
   const [metricasPoll, setMetricasPoll] = useState<MetricasSimulacion>({
@@ -2417,6 +2464,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
             ambarMax: configUmbrales.ambarMax,
           }),
           ocupacionPorcentaje: n.ocupacion_pct,
+          continente: n.continente,
         }))
       : initialAeropuertos;
 
@@ -2703,6 +2751,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
           onLimpiarRuta={() => setRutaDestacadaCol(null)}
           onAeropuertoClick={handleAeropuertoClickCol}
           onVueloSeleccionado={handleVueloSeleccionadoCol}
+          continenteFiltro={filtroContinenteCol || undefined}
         >
           <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
             <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
@@ -3191,6 +3240,8 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                   }))}
                   onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
                   onMostrarRuta={handleMostrarRutaCol}
+                  filtroContinente={filtroContinenteCol}
+                  onFiltroContinenteChange={setFiltroContinenteCol}
                 />
               )}
 

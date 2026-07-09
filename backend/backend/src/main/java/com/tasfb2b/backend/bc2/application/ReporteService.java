@@ -9,6 +9,11 @@ import com.tasfb2b.backend.bc1.infrastructure.PlanViajeRepository;
 import com.tasfb2b.backend.bc1.infrastructure.SegmentoPlanRepository;
 import com.tasfb2b.backend.bc2.domain.*;
 import com.tasfb2b.backend.bc2.domain.SesionEjecucion;
+import com.tasfb2b.backend.bc2.infrastructure.ItemLoteRepository;
+import com.tasfb2b.backend.bc2.infrastructure.LoteReplanificacionRepository;
+import com.tasfb2b.backend.bc2.infrastructure.EventoCancelacionRepository;
+import com.tasfb2b.backend.bc2.infrastructure.ItemLoteRepository;
+import com.tasfb2b.backend.bc2.infrastructure.LoteReplanificacionRepository;
 import com.tasfb2b.backend.bc2.infrastructure.PuntoSLARepository;
 import com.tasfb2b.backend.bc2.infrastructure.ReporteSesionRepository;
 import com.tasfb2b.backend.bc2.infrastructure.SesionRepository;
@@ -44,7 +49,13 @@ public class ReporteService {
     private final PlanViajeRepository planViajeRepository;
     private final SegmentoPlanRepository segmentoPlanRepository;
     private final SesionRepository sesionRepository;
+    private final LoteReplanificacionRepository loteRepository;
+    private final ItemLoteRepository itemLoteRepository;
+    private final EventoCancelacionRepository eventoCancelacionRepository;
     private final String rutaReportesDir;
+
+    /** Ventana de "ultimas maletas replanificadas" en horas de tiempo virtual. */
+    private static final int HORAS_REPLANIFICADAS_RECIENTES = 4;
 
     public ReporteService(EquipajeRepository equipajeRepository,
                           ReporteSesionRepository reporteRepository,
@@ -52,6 +63,9 @@ public class ReporteService {
                           PlanViajeRepository planViajeRepository,
                           SegmentoPlanRepository segmentoPlanRepository,
                           SesionRepository sesionRepository,
+                          LoteReplanificacionRepository loteRepository,
+                          ItemLoteRepository itemLoteRepository,
+                          EventoCancelacionRepository eventoCancelacionRepository,
                           @Value("${app.reportes.ruta-archivos:data/reportes}") String rutaReportesDir) {
         this.equipajeRepository = equipajeRepository;
         this.reporteRepository = reporteRepository;
@@ -59,6 +73,9 @@ public class ReporteService {
         this.planViajeRepository = planViajeRepository;
         this.segmentoPlanRepository = segmentoPlanRepository;
         this.sesionRepository = sesionRepository;
+        this.loteRepository = loteRepository;
+        this.itemLoteRepository = itemLoteRepository;
+        this.eventoCancelacionRepository = eventoCancelacionRepository;
         this.rutaReportesDir = rutaReportesDir;
     }
 
@@ -131,7 +148,28 @@ public class ReporteService {
 
     @Transactional(readOnly = true)
     public String generarCsvRutas(UUID sesionId) {
-        List<PlanViaje> planes = planViajeRepository.findBySesionIdWithEquipaje(sesionId);
+        Map<UUID, OffsetDateTime> fechaReplanPorEquipaje = equipajesReplanificadosRecientes(
+                sesionId, HORAS_REPLANIFICADAS_RECIENTES);
+
+        if (fechaReplanPorEquipaje.isEmpty()) {
+            // Sin replanificados recientes -> CSV solo con cabecera, sin filas.
+            StringBuilder vacio = new StringBuilder();
+            vacio.append("equipaje_id,origen_iata,destino_iata,sla_comprometido,")
+                 .append("segmento_orden,vuelo_codigo,nodo_origen_iata,nodo_destino_iata,")
+                 .append("hora_salida,hora_llegada,fecha_replanificacion_virtual\n");
+            return vacio.toString();
+        }
+
+        List<PlanViaje> todosPlanes = planViajeRepository.findBySesionIdWithEquipaje(sesionId);
+
+        // Filtrar planes cuya eq.id esta en el set de replanificados recientes. Tras una
+        // replan, el segmento anterior se borra y se recrea uno nuevo con el mismo
+        // equipajeId, asi que filtrando por equipaje.id capturamos solo el plan
+        // POST-replan.
+        List<PlanViaje> planes = todosPlanes.stream()
+                .filter(p -> p.getEquipaje() != null
+                        && fechaReplanPorEquipaje.containsKey(p.getEquipaje().getId()))
+                .toList();
         if (planes.isEmpty()) return "";
 
         List<UUID> planIds = planes.stream().map(PlanViaje::getId).toList();
@@ -142,7 +180,7 @@ public class ReporteService {
         StringBuilder csv = new StringBuilder();
         csv.append("equipaje_id,origen_iata,destino_iata,sla_comprometido,")
            .append("segmento_orden,vuelo_codigo,nodo_origen_iata,nodo_destino_iata,")
-           .append("hora_salida,hora_llegada\n");
+           .append("hora_salida,hora_llegada,fecha_replanificacion_virtual\n");
 
         for (PlanViaje plan : planes) {
             Equipaje eq = plan.getEquipaje();
@@ -150,12 +188,14 @@ public class ReporteService {
             String origen = eq.getOrigenIata();
             String destino = eq.getDestinoIata();
             String sla = eq.getSlaComprometido() != null ? eq.getSlaComprometido().toString() : "";
+            OffsetDateTime fechaReplan = fechaReplanPorEquipaje.get(eq.getId());
+            String fechaReplanStr = fechaReplan != null ? fechaReplan.toString() : "";
 
             List<SegmentoPlan> segs = segmentosPorPlan.getOrDefault(plan.getId(), List.of());
             if (segs.isEmpty()) {
-                // 6 campos de segmento vacios para cuadrar con la cabecera (10 columnas).
+                // 7 campos de segmento vacios para cuadrar con la cabecera (11 columnas).
                 csv.append(eqId).append(",").append(origen).append(",").append(destino).append(",").append(sla)
-                   .append(",,,,,,\n");
+                   .append(",,,,,,").append(fechaReplanStr).append("\n");
             } else {
                 for (SegmentoPlan seg : segs) {
                     String vueloCodigo = seg.getVuelo() != null ? nullSafe(seg.getVuelo().getCodigoVuelo()) : "";
@@ -174,7 +214,8 @@ public class ReporteService {
                        .append(nodoOri).append(",")
                        .append(nodoDes).append(",")
                        .append(horaSal).append(",")
-                       .append(horaLlegada)
+                       .append(horaLlegada).append(",")
+                       .append(fechaReplanStr)
                        .append("\n");
                 }
             }
@@ -182,22 +223,86 @@ public class ReporteService {
         return csv.toString();
     }
 
+    /**
+     * Devuelve equipajeId -> OffsetDateTime (ocurridoEnVirtual) de las maletas
+     * replanificadas en las ultimas `horas` horas de tiempo virtual de la sesion.
+     * Si una misma maleta fue replanificada varias veces dentro de la ventana,
+     * gana la fecha MAS RECIENTE (es la replan activa).
+     *
+     * Replica el patron de SesionService.obtenerEntregadosRecientes():
+     * usa `sesion.getDiaHoraVirtual()` como "ahora virtual" y
+     * `EventoCancelacion.ocurriendoEnVirtual` como timestamp del evento,
+     * NO el reloj real.
+     */
+    Map<UUID, OffsetDateTime> equipajesReplanificadosRecientes(UUID sesionId, int horas) {
+        if (eventoCancelacionRepository == null || loteRepository == null || itemLoteRepository == null) {
+            return java.util.Collections.emptyMap();
+        }
+        SesionEjecucion sesion = sesionRepository.findById(sesionId).orElse(null);
+        if (sesion == null || sesion.getDiaHoraVirtual() == null) {
+            return java.util.Collections.emptyMap();
+        }
+
+        OffsetDateTime hasta = sesion.getDiaHoraVirtual();
+        OffsetDateTime desde = hasta.minusHours(horas);
+
+        List<EventoCancelacion> eventosVentana = eventoCancelacionRepository.findBySesionId(sesionId).stream()
+                .filter(e -> e.getOcurridoEnVirtual() != null
+                        && !e.getOcurridoEnVirtual().isBefore(desde)
+                        && !e.getOcurridoEnVirtual().isAfter(hasta))
+                .toList();
+        if (eventosVentana.isEmpty()) {
+            return java.util.Collections.emptyMap();
+        }
+
+        java.util.Map<UUID, OffsetDateTime> eventoAFecha = eventosVentana.stream()
+                .collect(Collectors.toMap(EventoCancelacion::getId, EventoCancelacion::getOcurridoEnVirtual));
+
+        java.util.Set<UUID> eventoIds = eventoAFecha.keySet();
+        List<LoteReplanificacion> lotes = loteRepository.findBySesionId(sesionId).stream()
+                .filter(l -> eventoIds.contains(l.getEventoId()))
+                .toList();
+        if (lotes.isEmpty()) {
+            return java.util.Collections.emptyMap();
+        }
+
+        List<UUID> loteIds = lotes.stream().map(LoteReplanificacion::getId).toList();
+        List<ItemLote> items = itemLoteRepository.findByLoteIdIn(loteIds);
+
+        java.util.Map<UUID, OffsetDateTime> resultado = new java.util.HashMap<>();
+        for (ItemLote item : items) {
+            UUID equipajeId = item.getEquipajeRefId();
+            UUID loteId = item.getLoteId();
+            LoteReplanificacion lote = lotes.stream()
+                    .filter(l -> l.getId().equals(loteId))
+                    .findFirst().orElse(null);
+            if (lote == null) continue;
+            OffsetDateTime fechaEvento = eventoAFecha.get(lote.getEventoId());
+            if (fechaEvento == null) continue;
+            OffsetDateTime existente = resultado.get(equipajeId);
+            if (existente == null || fechaEvento.isAfter(existente)) {
+                resultado.put(equipajeId, fechaEvento);
+            }
+        }
+        return resultado;
+    }
+
     public void exportarCsvRutas(UUID sesionId) {
         String csv = generarCsvRutas(sesionId);
         // No sobrescribir un CSV ya generado (con datos) con uno vacío: detenerSesion lo exporta
         // antes de borrar los planes, y el evento async vuelve a entrar ya sin planes.
         if (csv == null || csv.isBlank()) {
-            log.info("CSV de rutas vacío para sesion {} (sin planes); no se sobrescribe", sesionId);
+            log.info("CSV de replanificados (4h) vacío para sesion {} (sin planes o sin replan en ventana); no se sobrescribe", sesionId);
             return;
         }
         try {
             Path dir = Paths.get(rutaReportesDir);
             Files.createDirectories(dir);
-            Path archivo = dir.resolve("rutas_sesion_" + sesionId.toString().replace("-", "_") + ".csv");
+            Path archivo = dir.resolve("replanificados_sesion_" + sesionId.toString().replace("-", "_") + ".csv");
             Files.writeString(archivo, csv, StandardCharsets.UTF_8);
-            log.info("CSV de rutas exportado: {}", archivo.toAbsolutePath());
+            log.info("CSV de replanificados (4h) exportado: {}", archivo.toAbsolutePath());
         } catch (Exception e) {
-            log.error("Error exportando CSV de rutas para sesion {}: {}", sesionId, e.getMessage());
+            log.error("Error exportando CSV de replanificados para sesion {}: {}", sesionId, e.getMessage());
         }
     }
 

@@ -20,9 +20,21 @@ interface MapControllerProps {
   onSalirSeguimientoAeropuerto?: () => void;
   rutaDestacada?: RutaDestacada | null;
   onLimpiarRuta?: () => void;
+  /** Si no es vacio, hace fitBounds a los aeropuerts cuyo continente coincida. */
+  continenteFiltro?: string;
 }
 
-function MapController({ aeropuertos, vuelos, seguidoVueloId, seguidoAeropuertoId, onSalirSeguimiento, onSalirSeguimientoAeropuerto, rutaDestacada, onLimpiarRuta }: MapControllerProps) {
+function MapController({
+  aeropuertos,
+  vuelos,
+  seguidoVueloId,
+  seguidoAeropuertoId,
+  onSalirSeguimiento,
+  onSalirSeguimientoAeropuerto,
+  rutaDestacada,
+  onLimpiarRuta,
+  continenteFiltro,
+}: MapControllerProps) {
   const map = useMap();
   const siguiendo = !!(seguidoVueloId || seguidoAeropuertoId);
   const previous = useRef<{ tipo: 'vuelo' | 'aero' | null; id: string | null }>({ tipo: null, id: null });
@@ -72,6 +84,37 @@ function MapController({ aeropuertos, vuelos, seguidoVueloId, seguidoAeropuertoI
     }
   }, [rutaDestacada, map]);
 
+  // Filtro por continente: mueve la camara para encuadrar todos los aeropuerts del
+  // continente seleccionado. Si el filtro queda vacio y antes habia uno aplicado,
+  // vuelve al centro del mundo (mismo destino al que ESC lleva cuando se sale del
+  // seguimiento). Gana siempre sobre el seguimiento activo: la accion del usuario
+  // al elegir continente debe reubicar la camara.
+  const previousContinente = useRef<string | null>(null);
+  useEffect(() => {
+    const previo = previousContinente.current;
+    if (previo === continenteFiltro) return;
+
+    if (continenteFiltro) {
+      const coords = aeropuertos
+        .filter(
+          (a) => (a.continente || a.zona_horaria) === continenteFiltro,
+        )
+        .map<[number, number]>((a) => [a.latitud, a.longitud]);
+      if (coords.length === 1) {
+        // Un solo aeropuert: fitBounds sobre-zoomea hasta maxZoom=18. Fallback a
+        // flyTo con zoom 7, mismo nivel que el click-marker (Precedent en L63).
+        map.flyTo(coords[0], 7, { duration: 1 });
+      } else if (coords.length > 1) {
+        map.fitBounds(coords, { padding: [50, 50], duration: 1 });
+      }
+    } else if (previo) {
+      // Filtro limpiado: volver a la vista global del mundo (mismo flyTo que ESC).
+      map.flyTo(CENTRO, ZOOM, { duration: 0.8 });
+    }
+
+    previousContinente.current = continenteFiltro ?? null;
+  }, [continenteFiltro, aeropuertos, map]);
+
   return null;
 }
 
@@ -100,6 +143,8 @@ interface GeoMapaProps {
   onLimpiarRuta?: () => void;
   filtroColor?: string;
   onAeropuertoClick?: (codigoIata: string) => void;
+  /** Filtro por continente que se representa en el mapa con fitBounds. */
+  continenteFiltro?: string;
 }
 
 // Gracia tras `cargando=false` para que los marcadores terminen de montarse
@@ -126,6 +171,7 @@ export default function GeoMapa({
   onLimpiarRuta,
   filtroColor,
   onAeropuertoClick,
+  continenteFiltro,
 }: GeoMapaProps) {
   const [legendaVisible, setLegendaVisible] = useState(true);
 
@@ -230,6 +276,7 @@ export default function GeoMapa({
           onSalirSeguimientoAeropuerto={onSalirSeguimientoAeropuerto}
           rutaDestacada={rutaDestacada}
           onLimpiarRuta={onLimpiarRuta}
+          continenteFiltro={continenteFiltro}
         />
         {legendaVisible && <GeoMapaLeyenda umbralesConfig={umbralesConfig} onClose={() => setLegendaVisible(false)} />}
         {children}
