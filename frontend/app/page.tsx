@@ -2190,6 +2190,8 @@ function SimulacionView({
                 onMostrarRuta={handleMostrarRutaSim}
                 filtroContinente={filtroContinenteSim}
                 onFiltroContinenteChange={setFiltroContinenteSim}
+                plantillas={plantillas}
+                fechaVirtual={metricas?.dia_hora_virtual ?? null}
               />
             )}
 
@@ -2260,14 +2262,6 @@ function SimulacionView({
                   </div>
                 )}
               </Modal>
-            )}
-
-            {sesionId && estadoSesion !== "CONFIGURADA" && estadoSesion !== "FINALIZADA" && (
-              <SeccionCancelacion
-                plantillas={plantillas}
-                sesionId={sesionId}
-                momentoVirtual={metricas?.dia_hora_virtual ?? null}
-              />
             )}
           </>
         )}

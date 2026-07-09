@@ -4,7 +4,8 @@ import { useReducer, useEffect } from 'react';
 import { PanelAeropuertosOperacion } from '@/components/operacion/PanelAeropuertosOperacion';
 import { PanelVuelosOperacion } from '@/components/operacion/PanelVuelosOperacion';
 import { PanelEnviosMaletas } from '@/components/shared/PanelEnviosMaletas';
-import type { AeropuertoTelemetria, VueloTelemetria, SegmentoResponse } from '@/lib/types';
+import { SeccionCancelacion } from '@/components/simulacion/SeccionCancelacion';
+import type { AeropuertoTelemetria, VueloTelemetria, SegmentoResponse, PlantillaResumen } from '@/lib/types';
 
 type TabName = 'aeropuertos' | 'vuelos' | 'envios';
 
@@ -35,6 +36,8 @@ interface PanelTabsProps {
   umbralesConfig?: { verdeMax: number; ambarMax: number };
   filtroContinente?: string;
   onFiltroContinenteChange?: (continente: string) => void;
+  plantillas?: PlantillaResumen[];
+  fechaVirtual?: string | null;
 }
 
 const TAB_LABELS: Record<TabName, string> = {
@@ -70,6 +73,8 @@ export function PanelTabs({
   umbralesConfig,
   filtroContinente,
   onFiltroContinenteChange,
+  plantillas,
+  fechaVirtual,
 }: PanelTabsProps) {
   const [tab, setTab] = useReducer((_: TabName, next: TabName) => next, 'aeropuertos' as TabName);
 
@@ -119,22 +124,29 @@ export function PanelTabs({
       )}
 
       {tab === 'vuelos' && (
-        <PanelVuelosOperacion
-          vuelos={vuelos}
-          onVueloClick={onVueloClick}
-          onDownloadManifiesto={onDownloadManifiesto}
-          onCancelVuelo={onCancelVuelo}
-          onVerEnMapa={onVerEnMapa}
-          seguidoId={seguidoVueloId}
-          seleccionadoId={vueloSeleccionadoId}
-          origenFilter={vueloFilterOrigen}
-          destinoFilter={vueloFilterDestino}
-          onFilterChange={onVueloFilterChange}
-          filtroColor={filtroColor}
-          umbralesConfig={umbralesConfig}
-        />
-      )}
-
+        <>
+          <PanelVuelosOperacion
+            vuelos={vuelos}
+            onVueloClick={onVueloClick}
+            onDownloadManifiesto={onDownloadManifiesto}
+            onCancelVuelo={onCancelVuelo}
+            onVerEnMapa={onVerEnMapa}
+            seguidoId={seguidoVueloId}
+            seleccionadoId={vueloSeleccionadoId}
+            origenFilter={vueloFilterOrigen}
+            destinoFilter={vueloFilterDestino}
+            onFilterChange={onVueloFilterChange}
+            filtroColor={filtroColor}
+            umbralesConfig={umbralesConfig}
+          />
+          {sesionId && plantillas && (
+            <SeccionCancelacion
+              plantillas={plantillas}
+              sesionId={sesionId}
+              momentoVirtual={fechaVirtual ?? null}
+            />
+          )}
+        </>)}
       {tab === 'envios' && (
         <PanelEnviosMaletas
           sesionId={sesionId}

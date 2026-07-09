@@ -47,7 +47,7 @@ export function PanelEnviosMaletas({ sesionId, activo, nodos, onSeguirEnMapa, on
   const [tab, setTab] = useReducer((_: TabType, next: TabType) => next, 'planificados' as TabType);
   const [origen, setOrigen] = useReducer((_: string, next: string) => next, '');
   const [destino, setDestino] = useReducer((_: string, next: string) => next, '');
-  const [codigoEquipaje, setCodigoEquipaje] = useReducer((_: string, next: string) => next, '');
+  const [codigoMaleta, setCodigoMaleta] = useReducer((_: string, next: string) => next, '');
   const [{ data, loading, error }, dispatch] = useReducer(reducer, {
     data: null, loading: true, error: '',
   });
@@ -90,24 +90,24 @@ export function PanelEnviosMaletas({ sesionId, activo, nodos, onSeguirEnMapa, on
   const limpiar = useCallback(() => {
     setOrigen('');
     setDestino('');
-    setCodigoEquipaje('');
+    setCodigoMaleta('');
   }, []);
 
-  const hayFiltrosActivos = !!origen || !!destino || !!codigoEquipaje;
+  const hayFiltrosActivos = !!origen || !!destino || !!codigoMaleta;
 
   const cargar = useCallback(async () => {
     dispatch({ type: 'FETCH_START' });
     try {
-      const ce = codigoEquipaje || undefined;
+      const cm = codigoMaleta || undefined;
       const result = sesionId
-        ? await fetchEnviosPanelSesion(sesionId, tab, origen || undefined, destino || undefined, ce)
-        : await fetchEnviosPanel(tab, origen || undefined, destino || undefined, ce);
+        ? await fetchEnviosPanelSesion(sesionId, tab, origen || undefined, destino || undefined, cm)
+        : await fetchEnviosPanel(tab, origen || undefined, destino || undefined, cm);
       dispatch({ type: 'FETCH_SUCCESS', data: result });
     } catch (err: unknown) {
       const e = err as { mensaje?: string; message?: string };
       dispatch({ type: 'FETCH_ERROR', error: e.mensaje || e.message || 'Error al cargar envíos' });
     }
-  }, [sesionId, tab, origen, destino, codigoEquipaje]);
+  }, [sesionId, tab, origen, destino, codigoMaleta]);
 
   useEffect(() => {
     cargar();
@@ -175,9 +175,9 @@ export function PanelEnviosMaletas({ sesionId, activo, nodos, onSeguirEnMapa, on
         <div className="flex gap-2 mb-2 items-center">
           <input
             type="text"
-            value={codigoEquipaje}
-            onChange={e => setCodigoEquipaje(e.target.value)}
-            placeholder="Código envío (ENV-...)"
+            value={codigoMaleta}
+            onChange={e => setCodigoMaleta(e.target.value)}
+            placeholder="Código maleta (MAL-...)"
             className="flex-1 text-[11px] rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
           />
           {hayFiltrosActivos && (
