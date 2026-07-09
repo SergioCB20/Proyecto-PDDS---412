@@ -87,6 +87,14 @@ export function PanelEnviosMaletas({ sesionId, activo, nodos, onSeguirEnMapa, on
     }
   }, [onMostrarRuta]);
 
+  const limpiar = useCallback(() => {
+    setOrigen('');
+    setDestino('');
+    setCodigoEquipaje('');
+  }, []);
+
+  const hayFiltrosActivos = !!origen || !!destino || !!codigoEquipaje;
+
   const cargar = useCallback(async () => {
     dispatch({ type: 'FETCH_START' });
     try {
@@ -144,7 +152,7 @@ export function PanelEnviosMaletas({ sesionId, activo, nodos, onSeguirEnMapa, on
           ))}
         </div>
 
-        <div className="flex gap-2 mb-2">
+        <div className="flex gap-2 mb-1.5">
           <select
             value={origen}
             onChange={e => setOrigen(e.target.value)}
@@ -163,13 +171,24 @@ export function PanelEnviosMaletas({ sesionId, activo, nodos, onSeguirEnMapa, on
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
+        </div>
+        <div className="flex gap-2 mb-2 items-center">
           <input
             type="text"
             value={codigoEquipaje}
             onChange={e => setCodigoEquipaje(e.target.value)}
-            placeholder="Código maleta"
+            placeholder="Código envío (ENV-...)"
             className="flex-1 text-[11px] rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
           />
+          {hayFiltrosActivos && (
+            <button
+              type="button"
+              onClick={limpiar}
+              className="text-[10px] text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline whitespace-nowrap"
+            >
+              Limpiar
+            </button>
+          )}
         </div>
       </div>
 

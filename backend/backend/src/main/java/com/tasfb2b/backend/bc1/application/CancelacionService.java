@@ -238,7 +238,17 @@ public class CancelacionService {
         ReentrantLock lock = lockManager.obtener(sesionId);
         lock.lock();
         try {
-            long minutosHastaSalida = Duration.between(virtual, plantilla.getHoraSalida()).toMinutes();
+            // Re-anclar la hora de la plantilla al día virtual actual. La columna
+            // vuelos.hora_salida en las plantillas es un TIMESTAMPTZ absoluto que
+            // apunta al día 1 de la migración V20 (2026-01-15 / 2026-01-16). Para
+            // comparar correctamente con el reloj virtual cuando han pasado varios
+            // días virtuales, tomamos la hora-del-día de la plantilla y la ponemos
+            // sobre la fecha virtual actual antes de medir la diferencia.
+            OffsetDateTime plantillaEnHoy = OffsetDateTime.of(
+                    virtual.toLocalDate(),
+                    plantilla.getHoraSalida().toLocalTime(),
+                    plantilla.getHoraSalida().getOffset());
+            long minutosHastaSalida = Duration.between(virtual, plantillaEnHoy).toMinutes();
 
             if (minutosHastaSalida > 60) {
                 // Caso FRIO: cancelar la instancia de hoy + replan (comportamiento existente).

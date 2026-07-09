@@ -8,8 +8,10 @@ import {
   type ResultadoCancelacion,
   type CancelResultResponse,
 } from "@/lib/types";
+import { minutosHastaSalidaPlantilla } from "@/lib/horasVirtuales";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 
 interface SeccionCancelacionProps {
   plantillas: PlantillaResumen[];
@@ -41,14 +43,35 @@ export function SeccionCancelacion({
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resultado, setResultado] = useState<ResultadoCancelacion | null>(null);
+  const [filtroCodigo, setFiltroCodigo] = useState("");
+  const [filtroFechaDesde, setFiltroFechaDesde] = useState("");
+  const [filtroFechaHasta, setFiltroFechaHasta] = useState("");
 
+  // Re-anchora la hora de la plantilla al día virtual actual antes de medir la
+  // diferencia. Ver `lib/horasVirtuales.ts` para el razonamiento.
   const minutosHastaSalida = (p: PlantillaResumen): number | null => {
     if (!momentoVirtual) return null;
-    const mv = new Date(momentoVirtual).getTime();
-    const hs = new Date(p.hora_salida).getTime();
-    if (isNaN(mv) || isNaN(hs)) return null;
-    return Math.floor((hs - mv) / 60000);
+    return minutosHastaSalidaPlantilla(p.hora_salida, momentoVirtual);
   };
+
+  const plantillasFiltradas = (() => {
+    const q = filtroCodigo.trim().toLowerCase();
+    return plantillas.filter(p => {
+      if (q && !p.codigo_vuelo.toLowerCase().includes(q)) return false;
+      if (filtroFechaDesde || filtroFechaHasta) {
+        // Comparamos por la fecha virtual "anclada" de la plantilla: como las
+        // plantillas vienen con hora_salida absoluta del dia 1 (V20, 2026-01-15),
+        // el dia virtual del panel es lo que el usuario ve al filtrar. Si quiere
+        // ver las que salen entre el 5 y el 7 del mes, leemos ese patron.
+        const d = new Date(p.hora_salida);
+        if (isNaN(d.getTime())) return true;
+        const mes = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+        if (filtroFechaDesde && mes < filtroFechaDesde) return false;
+        if (filtroFechaHasta && mes > filtroFechaHasta) return false;
+      }
+      return true;
+    });
+  })();
 
   async function handleCancelar(p: PlantillaResumen) {
     if (!momentoVirtual) {
@@ -97,7 +120,7 @@ export function SeccionCancelacion({
             Cancelación (plantillas)
           </span>
           <span className="text-[10px] text-slate-500">
-            {plantillas.length} vuelo{plantillas.length !== 1 ? "s" : ""}
+            {plantillasFiltradas.length} / {plantillas.length} vuelo{plantillas.length !== 1 ? "s" : ""}
           </span>
         </span>
         <span className="text-[11px] text-slate-400">{open ? "▾" : "▸"}</span>
@@ -119,6 +142,48 @@ export function SeccionCancelacion({
             </div>
           )}
 
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex-1 min-w-[120px]">
+              <Input
+                placeholder="Código de vuelo (ej. TAS0001)..."
+                value={filtroCodigo}
+                onChange={e => setFiltroCodigo(e.target.value)}
+                className="text-[11px]"
+              />
+            </div>
+            <div className="flex items-end gap-1.5">
+              <Input
+                type="date"
+                aria-label="Fecha de salida desde"
+                value={filtroFechaDesde}
+                onChange={e => setFiltroFechaDesde(e.target.value)}
+                className="text-[11px] w-[130px]"
+                title="Salida desde (fecha virtual del reloj)"
+              />
+              <span className="text-[10px] text-slate-400 pb-1.5">→</span>
+              <Input
+                type="date"
+                aria-label="Fecha de salida hasta"
+                value={filtroFechaHasta}
+                onChange={e => setFiltroFechaHasta(e.target.value)}
+                className="text-[11px] w-[130px]"
+                title="Salida hasta (fecha virtual del reloj)"
+              />
+            </div>
+            {(filtroCodigo || filtroFechaDesde || filtroFechaHasta) && (
+              <button
+                onClick={() => {
+                  setFiltroCodigo("");
+                  setFiltroFechaDesde("");
+                  setFiltroFechaHasta("");
+                }}
+                className="text-[10px] text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline pb-1.5"
+              >
+                Limpiar
+              </button>
+            )}
+          </div>
+
           <div className="max-h-96 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700">
             <table className="w-full text-[11px]">
               <thead className="bg-slate-50 dark:bg-slate-800/50 sticky top-0">
@@ -131,7 +196,7 @@ export function SeccionCancelacion({
                 </tr>
               </thead>
               <tbody>
-                {plantillas.map((p) => {
+                {plantillasFiltradas.map((p) => {
                   const min = minutosHastaSalida(p);
                   const caliente = min !== null && min <= 60;
                   const deshabilitado = loadingId === p.id || !momentoVirtual;
@@ -174,6 +239,13 @@ export function SeccionCancelacion({
                     </tr>
                   );
                 })}
+                {plantillasFiltradas.length === 0 && plantillas.length > 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-2 py-3 text-center text-slate-400">
+                      Ningún vuelo coincide con los filtros.
+                    </td>
+                  </tr>
+                )}
                 {plantillas.length === 0 && (
                   <tr>
                     <td colSpan={5} className="px-2 py-3 text-center text-slate-400">
@@ -188,6 +260,7 @@ export function SeccionCancelacion({
           <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
             <strong>Regla:</strong> &gt;1h antes de la salida → cancela hoy y replanifica.
             ≤1h antes (o ya despegado) → cancela la instancia del día siguiente sin replan.
+            Filtra por código o por rango de fechas de salida para acotar la lista.
           </p>
         </div>
       )}

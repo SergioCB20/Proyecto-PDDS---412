@@ -23,7 +23,7 @@ function calcularTamaño(zoom: number): number {
 // Tope de velocidad visual: un avión nunca recorre su ruta completa en menos de
 // este tiempo real (ms). Evita los "meteoros" cuando un vuelo tiene una duración
 // programada minúscula (datos cruzando medianoche) o cuando k es muy alto.
-const MIN_TRAVESIA_MS = 8000;
+const MIN_TRAVESIA_MS = 1000;
 const MAX_VEL = 1 / MIN_TRAVESIA_MS; // progreso por ms real
 
 // SVG airplane pointing NORTH (up). rotacion = geographic bearing (0=N, 90=E …)
