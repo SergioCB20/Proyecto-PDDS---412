@@ -152,7 +152,7 @@ export function PanelReporte({
           className="w-full flex items-center justify-center gap-2 p-2.5 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm text-slate-700 dark:text-slate-300"
         >
           <Download size={14} />
-          Descargar CSV de replanificados (4h)
+          Descargar CSV de replanificados
         </button>
       </div>
     </div>

@@ -20,11 +20,8 @@ function calcularTamaño(zoom: number): number {
   return Math.max(10, Math.min(32, Math.round(zoom * 1.8 + 6)));
 }
 
-// Tope de velocidad visual: un avión nunca recorre su ruta completa en menos de
-// este tiempo real (ms). Evita los "meteoros" cuando un vuelo tiene una duración
-// programada minúscula (datos cruzando medianoche) o cuando k es muy alto.
-const MIN_TRAVESIA_MS = 1000;
-const MAX_VEL = 1 / MIN_TRAVESIA_MS; // progreso por ms real
+// No artificial speed cap — each flight moves at its own virtual velocity
+// (k / virtual_duration). target is computed from the server extrapolation.
 
 // SVG airplane pointing NORTH (up). rotacion = geographic bearing (0=N, 90=E …)
 // `seguido`: vuelo en modo "seguir" -> borde dorado brillante para ubicarlo facil.
@@ -317,14 +314,9 @@ const AvionAnimado = React.memo(function AvionAnimado({
         );
       }
 
-      // El avión avanza hacia la verdad pero con paso acotado por MAX_VEL, de modo
-      // que ningún vuelo cruce más rápido que MIN_TRAVESIA_MS. Para vuelos normales
-      // target≈displayed y el tope no tiene efecto; para datos degenerados (duración
-      // minúscula → "meteoro") el avance se suaviza en vez de teletransportarse.
-      const maxStep = MAX_VEL * frameDt;
-      let displayed = ref.displayed;
-      const delta = target - displayed;
-      displayed = delta > 0 ? displayed + Math.min(delta, maxStep) : target;
+      // Display exact virtual position — each flight moves at its own speed
+      // (k / virtual_duration). No artificial smoothing cap.
+      let displayed = target;
       displayed = Math.min(Math.max(displayed, 0), 1);
       ref.displayed = displayed;
       const t = displayed;
