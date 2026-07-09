@@ -1642,7 +1642,7 @@ function SimulacionView({
             estadoSesion === "EN_CURSO" || estadoSesion === "PAUSADA"
               ? vuelosMapa.filter(
                   (v) =>
-                    v.estado === "EN_RUTA" &&
+                    (v.estado === "EN_RUTA" || v.estado === "PROGRAMADO") &&
                     (!vueloFilterOrigen ||
                       v.origen.codigo_iata === vueloFilterOrigen) &&
                     (!vueloFilterDestino ||
@@ -2623,7 +2623,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
             estadoSesion === "EN_CURSO" || estadoSesion === "PAUSADA"
               ? vuelosMapa.filter(
                   (v) =>
-                    v.estado === "EN_RUTA" &&
+                    (v.estado === "EN_RUTA" || v.estado === "PROGRAMADO") &&
                     (!vueloFilterOrigen ||
                       v.origen.codigo_iata === vueloFilterOrigen) &&
                     (!vueloFilterDestino ||

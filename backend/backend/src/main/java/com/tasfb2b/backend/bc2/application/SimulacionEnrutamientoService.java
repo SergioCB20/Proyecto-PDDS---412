@@ -182,11 +182,13 @@ public class SimulacionEnrutamientoService {
                 todosEnrutados.add(eq.getId());
                 enrutados++;
 
-                if (primerVuelo != null) {
-                    int cantidad = eq.getCantidad() != null ? eq.getCantidad() : 1;
-                    vuelosActualizar.merge(primerVuelo.getId(), cantidad, Integer::sum);
-                }
                 int cantidad = eq.getCantidad() != null ? eq.getCantidad() : 1;
+                for (SegmentoInfo segInfo : ruta.segmentos()) {
+                    Vuelo segVuelo = vuelosMap.get(segInfo.vueloId());
+                    if (segVuelo != null) {
+                        vuelosActualizar.merge(segVuelo.getId(), cantidad, Integer::sum);
+                    }
+                }
                 nodosActualizar.merge(primerSeg.nodoOrigenId(), cantidad, Integer::sum);
             }
 
@@ -226,10 +228,31 @@ public class SimulacionEnrutamientoService {
                 colapso ? primerSinRutaGlobal : null, todosEnrutados);
     }
 
-    /** Borra plan_viaje + segmentos_plan preexistentes de las maletas dadas (anti duplicate-key). */
+    /** Borra plan_viaje + segmentos_plan preexistentes de las maletas dadas (anti duplicate-key).
+     *  Antes de borrar, restaura carga_disponible en todos los vuelos que tenían capacidad reservada. */
     private void eliminarPlanesPrevios(List<UUID> equipajeIds) {
         if (equipajeIds == null || equipajeIds.isEmpty()) return;
         UUID[] idArray = equipajeIds.toArray(new UUID[0]);
+
+        // Restaurar capacidad en todos los vuelos de los segmentos existentes
+        List<Object[]> vuelos = jdbcTemplate.query(
+            "SELECT sp.vuelo_id, SUM(COALESCE(eq.cantidad, 1)) AS total " +
+            "FROM segmentos_plan sp " +
+            "JOIN planes_viaje pv ON pv.id = sp.plan_viaje_id " +
+            "JOIN equipajes eq ON eq.id = pv.equipaje_id " +
+            "WHERE pv.equipaje_id = ANY(?) " +
+            "GROUP BY sp.vuelo_id",
+            (java.sql.ResultSet rs, int rowNum) -> new Object[]{
+                rs.getObject("vuelo_id", UUID.class),
+                rs.getInt("total")
+            },
+            (Object) idArray);
+        for (Object[] fila : vuelos) {
+            jdbcTemplate.update(
+                "UPDATE vuelos SET carga_disponible = carga_disponible + ? WHERE id = ?",
+                fila[1], fila[0]);
+        }
+
         jdbcTemplate.update(
                 "DELETE FROM segmentos_plan WHERE plan_viaje_id IN " +
                 "(SELECT id FROM planes_viaje WHERE equipaje_id = ANY(?))", (Object) idArray);

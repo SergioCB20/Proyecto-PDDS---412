@@ -91,6 +91,24 @@ public class ReplanificacionService {
         loteRepository.save(lote);
 
         for (Equipaje eq : afectados) {
+            // Restaurar capacidad en todos los vuelos del plan anterior antes de borrarlo
+            List<SegmentoPlan> segmentosPrevios = segmentoPlanRepository.findByEquipajeId(eq.getId());
+            if (!segmentosPrevios.isEmpty()) {
+                Map<UUID, Integer> vuelosRestaurar = new java.util.HashMap<>();
+                for (SegmentoPlan sp : segmentosPrevios) {
+                    if (sp.getVuelo() != null) {
+                        vuelosRestaurar.merge(sp.getVuelo().getId(),
+                            eq.getCantidad() != null ? eq.getCantidad() : 1, Integer::sum);
+                    }
+                }
+                for (Map.Entry<UUID, Integer> entry : vuelosRestaurar.entrySet()) {
+                    Vuelo v = vueloRepository.findById(entry.getKey()).orElse(null);
+                    if (v != null) {
+                        v.setCargaDisponible(v.getCargaDisponible() + entry.getValue());
+                        vueloRepository.save(v);
+                    }
+                }
+            }
             segmentoPlanRepository.deleteByEquipajeId(eq.getId());
             planViajeRepository.deleteByEquipajeId(eq.getId());
             eq.setEstado(EstadoEquipaje.REGISTRADO);
@@ -108,7 +126,6 @@ public class ReplanificacionService {
 
         List<PlanViaje> planesNuevos = new ArrayList<>();
         List<SegmentoPlan> segmentosNuevos = new ArrayList<>();
-        List<EquipajeEnRuta> enRutaBatch = new ArrayList<>();
         List<EquipajeReplanInfo> replanInfos = new ArrayList<>();
 
         for (int i = 0; i < afectados.size(); i++) {
@@ -172,7 +189,6 @@ public class ReplanificacionService {
             }
 
             planesNuevos.add(plan);
-            enRutaBatch.add(new EquipajeEnRuta(eq, primerVuelo));
 
             replanInfos.add(new EquipajeReplanInfo(eq.getId(),
                     eq.getIdExterno() != null ? eq.getIdExterno() : eq.getId().toString(),
@@ -184,16 +200,22 @@ public class ReplanificacionService {
         if (!planesNuevos.isEmpty()) {
             planViajeRepository.saveAll(planesNuevos);
             segmentoPlanRepository.saveAll(segmentosNuevos);
-            for (EquipajeEnRuta par : enRutaBatch) {
-                int cantidad = par.eq.getCantidad() != null ? par.eq.getCantidad() : 1;
-                Vuelo v = par.primerVuelo;
-                if (v != null) {
-                    v.setCargaDisponible(v.getCargaDisponible() - cantidad);
-                    vueloRepository.save(v);
+            for (PlanViaje plan : planesNuevos) {
+                if (plan.getEquipaje() == null || plan.getSegmentos() == null) continue;
+                Equipaje eq = plan.getEquipaje();
+                int cantidad = eq.getCantidad() != null ? eq.getCantidad() : 1;
+                Vuelo primerVuelo = null;
+                for (SegmentoPlan seg : plan.getSegmentos()) {
+                    if (seg.getVuelo() != null) {
+                        seg.getVuelo().setCargaDisponible(
+                            seg.getVuelo().getCargaDisponible() - cantidad);
+                        vueloRepository.save(seg.getVuelo());
+                        if (primerVuelo == null) primerVuelo = seg.getVuelo();
+                    }
                 }
-                par.eq.setEstado(EstadoEquipaje.ENRUTADO);
-                par.eq.setVueloActual(v);
-                equipajeRepository.save(par.eq);
+                eq.setEstado(EstadoEquipaje.ENRUTADO);
+                eq.setVueloActual(primerVuelo);
+                equipajeRepository.save(eq);
             }
         }
 
@@ -230,5 +252,4 @@ public class ReplanificacionService {
         log.info("VueloCanceladoEvent: vuelo={}, equipajes encolados={}", event.vueloId(), afectados.size());
     }
 
-    private record EquipajeEnRuta(Equipaje eq, Vuelo primerVuelo) {}
 }
