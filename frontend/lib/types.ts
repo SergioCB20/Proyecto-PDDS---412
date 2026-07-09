@@ -47,6 +47,41 @@ export interface VueloPageResponse {
   totalPages: number;
 }
 
+export interface PlantillaResumen {
+  id: string;
+  codigo_vuelo: string;
+  origen_iata: string;
+  destino_iata: string;
+  hora_salida: string;
+  hora_llegada: string;
+}
+
+export interface ResultadoCancelacion {
+  vuelo_solicitado_id: string;
+  vuelo_cancelado_id: string;
+  fue_diferido: boolean;
+  fecha_operacion_cancelada: string | null;
+  hora_salida_cancelada: string | null;
+  estado_nuevo: string;
+  equipajes_afectados: number;
+  lote_replanificacion_id: string | null;
+}
+
+export interface CancelResultResponse {
+  vuelo_id: string;
+  estado_nuevo: string;
+  equipajes_afectados: number;
+  lote_replanificacion_id: string | null;
+  equipajes: Array<{
+    id: string;
+    codigo: string;
+    origen_iata: string;
+    destino_iata: string;
+  }>;
+  fecha_operacion?: string | null;
+  hora_salida_cancelada?: string | null;
+}
+
 export interface SegmentoResponse {
   orden: number;
   vuelo_codigo: string;

@@ -33,6 +33,8 @@ interface PanelTabsProps {
   filtroColor?: string;
   onFilterColorChange?: (color: string) => void;
   umbralesConfig?: { verdeMax: number; ambarMax: number };
+  filtroContinente?: string;
+  onFiltroContinenteChange?: (continente: string) => void;
 }
 
 const TAB_LABELS: Record<TabName, string> = {
@@ -66,6 +68,8 @@ export function PanelTabs({
   filtroColor,
   onFilterColorChange,
   umbralesConfig,
+  filtroContinente,
+  onFiltroContinenteChange,
 }: PanelTabsProps) {
   const [tab, setTab] = useReducer((_: TabName, next: TabName) => next, 'aeropuertos' as TabName);
 
@@ -109,6 +113,8 @@ export function PanelTabs({
           filtroColor={filtroColor}
           onFilterColorChange={onFilterColorChange}
           umbralesConfig={umbralesConfig}
+          filtroContinente={filtroContinente}
+          onFiltroContinenteChange={onFiltroContinenteChange}
         />
       )}
 

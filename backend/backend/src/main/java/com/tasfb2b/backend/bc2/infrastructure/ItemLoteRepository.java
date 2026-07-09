@@ -10,4 +10,6 @@ import java.util.UUID;
 @Repository
 public interface ItemLoteRepository extends JpaRepository<ItemLote, UUID> {
     List<ItemLote> findByLoteId(UUID loteId);
+
+    List<ItemLote> findByLoteIdIn(List<UUID> loteIds);
 }

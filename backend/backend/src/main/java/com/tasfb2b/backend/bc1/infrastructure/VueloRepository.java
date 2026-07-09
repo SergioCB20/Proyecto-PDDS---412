@@ -13,6 +13,7 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -66,6 +67,9 @@ public interface VueloRepository extends JpaRepository<Vuelo, UUID>, JpaSpecific
     boolean existsByFechaOperacionAndEsPlantilla(LocalDate fechaOperacion, Boolean esPlantilla);
     boolean existsByFechaOperacionAndEstadoInAndEsPlantilla(LocalDate fechaOperacion, List<EstadoVuelo> estados, Boolean esPlantilla);
     long countByFechaOperacionAndEsPlantilla(LocalDate fechaOperacion, Boolean esPlantilla);
+
+    Optional<Vuelo> findFirstByCodigoVueloAndEsPlantillaFalseAndFechaOperacion(
+            String codigoVuelo, LocalDate fechaOperacion);
 
     @Modifying
     @Query("UPDATE Vuelo v SET v.cargaDisponible = v.cargaDisponible - :cantidad WHERE v.id = :id AND v.cargaDisponible >= :cantidad")
