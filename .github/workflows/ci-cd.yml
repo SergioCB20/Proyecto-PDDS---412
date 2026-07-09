@@ -13,7 +13,7 @@ env:
 jobs:
   backend-ci:
     name: Backend - Build & Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16
@@ -65,7 +65,7 @@ jobs:
 
   frontend-ci:
     name: Frontend - Build & Lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: ${{ env.FRONTEND_DIR }}
@@ -92,7 +92,7 @@ jobs:
     name: Deploy to Server PUCP
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: [backend-ci, frontend-ci]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
