@@ -100,7 +100,7 @@ export function PanelAeropuertos({ aeropuertos, vuelos, onAeropuertoClick, onVer
     return (
       <div className="p-4 border-t border-slate-200 dark:border-slate-700">
         <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Aeropuertos</h3>
-        <p className="text-xs text-slate-400 italic text-center py-2">Sin datos de aeropuertos</p>
+        <p className="text-xs text-slate-600 italic text-center py-2">Sin datos de aeropuertos</p>
       </div>
     );
   }
@@ -109,7 +109,7 @@ export function PanelAeropuertos({ aeropuertos, vuelos, onAeropuertoClick, onVer
     <div className="p-4 border-t border-slate-200 dark:border-slate-700">
       <div className="flex items-center justify-between mb-1">
         <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Aeropuertos</h3>
-        <span className="text-xs text-slate-400">
+        <span className="text-xs text-slate-600">
           Mostrando {aeropuertosOrdenados.length} de {aeropuertos.length} aeropuertos
         </span>
       </div>
@@ -168,12 +168,12 @@ export function PanelAeropuertos({ aeropuertos, vuelos, onAeropuertoClick, onVer
                   <span className="w-2 h-2 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: n.color }} />
                   <span className="font-semibold text-sm text-slate-800 dark:text-slate-200">{n.codigo_iata}</span>
                   {continenteLabel && (
-                    <span className="text-[10px] text-slate-400 truncate hidden sm:inline">{continenteLabel}</span>
+                    <span className="text-xs text-slate-600 truncate hidden sm:inline">{continenteLabel}</span>
                   )}
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   {seguidoId === n.codigo_iata ? (
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-medium whitespace-nowrap">
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-medium whitespace-nowrap">
                       Salir mapa [ESC]
                     </span>
                   ) : (
@@ -191,28 +191,28 @@ export function PanelAeropuertos({ aeropuertos, vuelos, onAeropuertoClick, onVer
               </div>
               <div className="grid grid-cols-2 gap-1.5 mb-1.5">
                 <div className="flex items-center gap-1 rounded bg-white/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-700/50 px-1.5 py-1">
-                  <PlaneTakeoff size={10} className="text-slate-400 dark:text-slate-500 shrink-0" />
+                  <PlaneTakeoff size={10} className="text-slate-600 dark:text-slate-400 shrink-0" />
                   <div className="flex flex-col leading-tight min-w-0">
-                    <span className="text-[9px] uppercase tracking-wide text-slate-400 dark:text-slate-500">Sale</span>
-                    <span className="font-mono text-[11px] font-semibold text-slate-700 dark:text-slate-200 truncate">
+                    <span className="text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">Sale</span>
+                    <span className="font-mono text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">
                       {fmtSalida.hora}
-                      <span className="text-slate-400 dark:text-slate-500 font-normal"> · {fmtSalida.fecha}</span>
+                      <span className="text-slate-600 dark:text-slate-400 font-normal"> · {fmtSalida.fecha}</span>
                     </span>
                   </div>
                 </div>
                 <div className="flex items-center gap-1 rounded bg-white/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-700/50 px-1.5 py-1">
-                  <PlaneLanding size={10} className="text-slate-400 dark:text-slate-500 shrink-0" />
+                  <PlaneLanding size={10} className="text-slate-600 dark:text-slate-400 shrink-0" />
                   <div className="flex flex-col leading-tight min-w-0">
-                    <span className="text-[9px] uppercase tracking-wide text-slate-400 dark:text-slate-500">Llega</span>
-                    <span className="font-mono text-[11px] font-semibold text-slate-700 dark:text-slate-200 truncate">
+                    <span className="text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">Llega</span>
+                    <span className="font-mono text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">
                       {fmtLlegada.hora}
-                      <span className="text-slate-400 dark:text-slate-500 font-normal"> · {fmtLlegada.fecha}</span>
+                      <span className="text-slate-600 dark:text-slate-400 font-normal"> · {fmtLlegada.fecha}</span>
                     </span>
                   </div>
                 </div>
               </div>
-              <div className="flex items-center justify-between text-[10px]">
-                <span className="text-slate-500 dark:text-slate-400">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-600 dark:text-slate-300">
                   {n.ocupacion_actual}/{n.capacidad_almacen}
                 </span>
                 <span className="font-bold" style={{ color: n.color }}>
@@ -223,7 +223,7 @@ export function PanelAeropuertos({ aeropuertos, vuelos, onAeropuertoClick, onVer
           );
         })}
         {aeropuertosOrdenados.length === 0 && (
-          <p className="text-xs text-slate-400 italic text-center py-2">
+          <p className="text-xs text-slate-600 italic text-center py-2">
             Ningún aeropuerto coincide con los filtros
           </p>
         )}

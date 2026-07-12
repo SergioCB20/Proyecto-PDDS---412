@@ -28,19 +28,26 @@ function calcularTamaño(zoom: number): number {
 // `destacado`: vuelo en ruta destacada -> borde azul con glow.
 function crearIconoAvion(color: string, rotacion: number = 0, size: number = 22, seguido: boolean = false, destacado: boolean = false) {
   const half = Math.round(size / 2);
-  const border = Math.max(1, Math.round(size * 0.09));
   const svgSize = Math.round(size * 0.62);
-  let borde: string;
+  let estilo: string;
+  let stroke: string;
+  let strokeWidth: number;
   if (seguido) {
-    borde = `border:${Math.max(2, border)}px solid #f5c518;box-shadow:0 0 0 3px rgba(245,197,24,0.55),0 0 14px 5px rgba(245,197,24,0.85)`;
+    estilo = 'filter:drop-shadow(0 0 6px rgba(245,197,24,0.7)) drop-shadow(0 0 14px rgba(245,197,24,0.4))';
+    stroke = '#f5c518';
+    strokeWidth = 2;
   } else if (destacado) {
-    borde = `border:${Math.max(2, border)}px solid #2563eb;box-shadow:0 0 0 3px rgba(37,99,235,0.55),0 0 14px 5px rgba(37,99,235,0.85)`;
+    estilo = 'filter:drop-shadow(0 0 6px rgba(37,99,235,0.7)) drop-shadow(0 0 14px rgba(37,99,235,0.4))';
+    stroke = '#2563eb';
+    strokeWidth = 2;
   } else {
-    borde = `border:${border}px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.35)`;
+    estilo = 'filter:drop-shadow(0 1px 2px rgba(0,0,0,0.35))';
+    stroke = 'none';
+    strokeWidth = 0;
   }
   return L.divIcon({
     className: 'avion-icon',
-    html: `<div style="width:${size}px;height:${size}px;background:${color};border-radius:50%;${borde};display:flex;align-items:center;justify-content:center;transform:rotate(${rotacion}deg)"><svg viewBox="0 0 24 24" width="${svgSize}" height="${svgSize}" fill="white" xmlns="http://www.w3.org/2000/svg"><path d="M12 2 L8 10 L3 12 L3 13.5 L8 12 L9.5 11.5 L9.5 19 L10 19 L8.5 22 L9.5 22.5 L12 21.5 L14.5 22.5 L15.5 22 L14 19 L14.5 19 L14.5 11.5 L16 12 L21 13.5 L21 12 L16 10 Z"/></svg></div>`,
+    html: `<div style="width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;transform:rotate(${rotacion}deg);${estilo}"><svg viewBox="0 0 344.851 344.851" width="${svgSize}" height="${svgSize}" fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" xmlns="http://www.w3.org/2000/svg"><path d="M335.091,9.768c-13.015-13.015-34.115-13.014-47.13,0l-70.51,70.509L103.332,41.452c-1.577-0.537-3.293-0.5-4.846,0.104l-52.2,20.283c-1.066,0.328-2.07,0.916-2.915,1.759c-2.748,2.748-2.765,7.191-0.054,9.961c0.021,0.022,0.044,0.044,0.066,0.066c0.33,0.33,0.695,0.63,1.094,0.895l107.464,71.266L79.17,218.558l-45.602-15.514c-0.853-0.29-1.781-0.271-2.622,0.056L2.785,214.042c-0.752,0.342-1.184,0.598-1.663,1.078c-1.493,1.492-1.497,3.812-0.01,5.309c0.007,0.008,0.015,0.016,0.022,0.021c0.178,0.18,0.376,0.342,0.592,0.483l54.014,35.821c0.231,8.211,3.471,16.354,9.739,22.622c6.267,6.267,14.41,9.507,22.621,9.737l35.821,54.015c0.791,1.19,2.181,1.845,3.604,1.691c1.423-0.153,2.642-1.088,3.16-2.422l11.07-28.489c0.327-0.84,0.346-1.77,0.056-2.623l-15.514-45.602l72.771-72.771l71.268,107.464c1.463,2.204,4.031,3.411,6.662,3.127c2.63-0.284,4.883-2.011,5.841-4.476l20.461-52.66c0.603-1.553,0.64-3.269,0.103-4.846l-38.824-114.12l70.509-70.509C348.104,43.884,348.104,22.783,335.091,9.768z"/></svg></div>`,
     iconSize: [size, size],
     iconAnchor: [half, half],
   });
@@ -410,7 +417,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
         <Tooltip permanent direction="bottom" offset={[0, 10]} className="salir-vuelo-tooltip">
           <button
             onClick={e => { e.stopPropagation(); salirYAlejar(); }}
-            className="px-2 py-0.5 text-[10px] font-medium bg-amber-400 text-amber-900 rounded-full shadow-md whitespace-nowrap hover:bg-amber-500 transition-colors"
+            className="px-2 py-0.5 text-xs font-medium bg-amber-400 text-amber-900 rounded-full shadow-md whitespace-nowrap hover:bg-amber-500 transition-colors"
           >
             Salir del vuelo [ESC]
           </button>
@@ -420,10 +427,10 @@ const AvionAnimado = React.memo(function AvionAnimado({
       <Tooltip direction="top" offset={[0, -14]} className="avion-carga-tooltip">
         <div className="text-center min-w-[120px]">
           <div className="font-bold text-xs">{vuelo.codigo_vuelo}</div>
-          <div className="text-[10px] text-slate-600">
+          <div className="text-xs text-slate-600">
             {ciudadDe(vuelo.origen.codigo_iata)} → {ciudadDe(vuelo.destino.codigo_iata)}
           </div>
-          <div className="text-[10px] text-slate-500 mt-0.5 font-mono leading-tight">
+          <div className="text-xs text-slate-600 mt-0.5 font-mono leading-tight">
             {(() => {
               const s = formatearFechaHoraSeparado(vuelo.hora_salida);
               const l = formatearFechaHoraSeparado(vuelo.hora_llegada);
@@ -435,8 +442,8 @@ const AvionAnimado = React.memo(function AvionAnimado({
               );
             })()}
           </div>
-          <div className="text-[11px] mt-0.5">
-            <span className="text-slate-500">Carga: </span>
+          <div className="text-sm mt-0.5">
+            <span className="text-slate-600">Carga: </span>
             <span className="font-bold">{ocupada}/{vuelo.capacidad_carga}</span>
           </div>
           <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden mt-0.5">
@@ -456,7 +463,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
           <div className="text-xs text-slate-600 mb-2">
             {ciudadDe(vuelo.origen.codigo_iata)} → {ciudadDe(vuelo.destino.codigo_iata)}
           </div>
-          <div className="text-[11px] text-slate-500 mb-2 font-mono leading-tight">
+          <div className="text-sm text-slate-600 mb-2 font-mono leading-tight">
             {(() => {
               const s = formatearFechaHoraSeparado(vuelo.hora_salida);
               const l = formatearFechaHoraSeparado(vuelo.hora_llegada);
@@ -469,15 +476,15 @@ const AvionAnimado = React.memo(function AvionAnimado({
             })()}
           </div>
           <div className="text-sm mb-1">
-            <span className="text-slate-500">Capacidad: </span>
+            <span className="text-slate-600">Capacidad: </span>
             <span className="font-semibold">{vuelo.capacidad_carga}</span>
           </div>
           <div className="text-sm mb-1">
-            <span className="text-slate-500">Ocupado: </span>
+            <span className="text-slate-600">Ocupado: </span>
             <span className="font-semibold">{ocupada}</span>
           </div>
           <div className="text-sm mb-2">
-            <span className="text-slate-500">Disponible: </span>
+            <span className="text-slate-600">Disponible: </span>
             <span className="font-semibold">{vuelo.carga_disponible}</span>
           </div>
           <div

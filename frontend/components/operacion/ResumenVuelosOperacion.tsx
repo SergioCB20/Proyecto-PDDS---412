@@ -32,12 +32,12 @@ export function ResumenVuelosOperacion({ vuelos }: ResumenVuelosOperacionProps) 
       <div className="flex gap-2 mb-3">
         <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg bg-green-50 dark:bg-green-900/20">
           <div className="w-2 h-2 rounded-full bg-green-500" />
-          <span className="text-xs text-slate-500">Activos</span>
+          <span className="text-xs text-slate-600">Activos</span>
           <span className="ml-auto text-lg font-bold text-green-600">{activos}</span>
         </div>
         <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/20">
           <div className="w-2 h-2 rounded-full bg-blue-500" />
-          <span className="text-xs text-slate-500">Prog.</span>
+          <span className="text-xs text-slate-600">Prog.</span>
           <span className="ml-auto text-lg font-bold text-blue-600">{programados}</span>
         </div>
       </div>
@@ -46,7 +46,7 @@ export function ResumenVuelosOperacion({ vuelos }: ResumenVuelosOperacionProps) 
           <div key={iata} className="flex items-center justify-between py-1.5 px-2 rounded bg-slate-50 dark:bg-slate-800/50">
             <span className="font-medium text-slate-700 dark:text-slate-300 truncate flex items-center gap-1.5 min-w-0" title={iata}>
               <span className="truncate">{ciudadDe(iata)}</span>
-              <span className="text-[10px] font-mono text-slate-400 shrink-0">{iata}</span>
+              <span className="text-xs font-mono text-slate-600 shrink-0">{iata}</span>
             </span>
             <div className="flex items-center gap-2 text-xs">
               <span className="flex items-center gap-1">
@@ -62,7 +62,7 @@ export function ResumenVuelosOperacion({ vuelos }: ResumenVuelosOperacionProps) 
           </div>
         ))}
         {porAeropuerto.length === 0 && (
-          <p className="text-xs text-slate-400 italic text-center py-2">Sin datos de vuelos</p>
+          <p className="text-xs text-slate-600 italic text-center py-2">Sin datos de vuelos</p>
         )}
       </div>
     </div>

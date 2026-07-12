@@ -96,6 +96,39 @@ export function formatDuracionHHMMSS(segundos: number | null | undefined): strin
   return `${pad(h)}:${pad(m)}:${pad(s)}`;
 }
 
+/**
+ * HH:MM sin segundos. "-" si vacio o invalido.
+ */
+export function formatearHoraSinSeg(iso: string | null | undefined): string {
+  const d = parseOrNull(iso);
+  if (!d) return '-';
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/**
+ * DD/MM/YYYY HH:MM sin segundos. "-" si vacio o invalido.
+ */
+export function formatearFechaHoraSinSeg(iso: string | null | undefined): string {
+  const d = parseOrNull(iso);
+  if (!d) return '-';
+  return `${formatDate(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/**
+ * "#d hh:mm" — dia simulado (1-based desde inicio) + hora actual simulada.
+ * inicioStr debe ser ISO valido (YYYY-MM-DDTHH:mm:ss).
+ * actualStr puede ser ISO o null.
+ */
+export function formatearDiaYHora(inicioStr: string, actualStr: string | null | undefined): string {
+  if (!actualStr) return '-';
+  const inicio = new Date(inicioStr);
+  const actual = new Date(actualStr);
+  if (isNaN(inicio.getTime()) || isNaN(actual.getTime())) return '-';
+  const diffMs = actual.getTime() - inicio.getTime();
+  const dia = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24))) + 1;
+  return `${dia} ${pad(actual.getHours())}:${pad(actual.getMinutes())}`;
+}
+
 // Aliases legacy (referencias historicas) — todos producen el mismo formato canonico.
 export const formatearHoraLocal = formatearFechaHora;
 export const formatearHoraLocalCorta = formatearFechaHoraLima;

@@ -27,10 +27,10 @@ export function ConfigUmbrales({ config, onConfigChange, onClose }: ConfigUmbral
       </div>
       <div className="p-4 space-y-4">
         <div>
-          <p className="text-xs font-medium text-slate-500 mb-2">VERDE</p>
+          <p className="text-xs font-medium text-slate-600 mb-2">VERDE</p>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-xs text-slate-600 dark:text-slate-400">Máx %</label>
+              <label className="text-xs text-slate-600 dark:text-slate-300">Máx %</label>
               <input type="number" min={0} max={100} value={config.verdeMax}
                 onChange={e => set('verdeMax', Number(e.target.value))}
                 className="w-full mt-1 px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs" />
@@ -38,10 +38,10 @@ export function ConfigUmbrales({ config, onConfigChange, onClose }: ConfigUmbral
           </div>
         </div>
         <div>
-          <p className="text-xs font-medium text-slate-500 mb-2">ÁMBAR</p>
+          <p className="text-xs font-medium text-slate-600 mb-2">ÁMBAR</p>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-xs text-slate-600 dark:text-slate-400">Máx %</label>
+              <label className="text-xs text-slate-600 dark:text-slate-300">Máx %</label>
               <input type="number" min={0} max={100} value={config.ambarMax}
                 onChange={e => set('ambarMax', Number(e.target.value))}
                 className="w-full mt-1 px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs" />

@@ -78,7 +78,7 @@ export function PanelEntregados({ sesionId, activo }: PanelEntregadosProps) {
       </div>
 
       {loading && (
-        <p className="text-xs text-slate-400 italic text-center py-2">Cargando entregados...</p>
+        <p className="text-xs text-slate-600 italic text-center py-2">Cargando entregados...</p>
       )}
 
       {error && (
@@ -88,7 +88,7 @@ export function PanelEntregados({ sesionId, activo }: PanelEntregadosProps) {
       )}
 
       {!loading && !error && data && data.length === 0 && (
-        <p className="text-xs text-slate-400 italic text-center py-2">Sin entregas recientes</p>
+        <p className="text-xs text-slate-600 italic text-center py-2">Sin entregas recientes</p>
       )}
 
       {!loading && !error && data && data.length > 0 && (
@@ -100,11 +100,11 @@ export function PanelEntregados({ sesionId, activo }: PanelEntregadosProps) {
             >
               <div className="flex items-center gap-3 min-w-0">
                 <span className="font-medium text-slate-700 dark:text-slate-300">{item.codigo_vuelo}</span>
-                <span className="text-slate-400">
+                <span className="text-slate-600">
                   {item.origen_iata}&rarr;{item.destino_iata}
                 </span>
               </div>
-              <span className="text-slate-500 shrink-0">{item.cantidad} maleta{item.cantidad !== 1 ? 's' : ''}</span>
+              <span className="text-slate-600 shrink-0">{item.cantidad} maleta{item.cantidad !== 1 ? 's' : ''}</span>
             </div>
           ))}
         </div>

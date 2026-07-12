@@ -121,6 +121,7 @@ function MapController({
 const GeoMapaAeropuerto = dynamic(() => import('./GeoMapaAeropuerto'), { ssr: false });
 const GeoMapaVuelo = dynamic(() => import('./GeoMapaVuelo'), { ssr: false });
 const GeoMapaLeyenda = dynamic(() => import('./GeoMapaLeyenda'), { ssr: false });
+const GeoMapaEtiquetasPaises = dynamic(() => import('./GeoMapaEtiquetasPaises'), { ssr: false });
 
 interface GeoMapaProps {
   aeropuertos: AeropuertoEnMapa[];
@@ -243,6 +244,7 @@ export default function GeoMapa({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
         />
+        <GeoMapaEtiquetasPaises />
         {aeropuertosFiltrados.map((aeropuerto) => (
           <GeoMapaAeropuerto key={aeropuerto.codigo_iata} aeropuerto={aeropuerto} onClick={onAeropuertoClick} />
         ))}
@@ -289,14 +291,14 @@ export default function GeoMapa({
           className="absolute bottom-4 right-4 z-40 p-2 rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
           title="Mostrar leyenda"
         >
-          <EyeOff size={16} className="text-slate-500 dark:text-slate-400" />
+          <EyeOff size={16} className="text-slate-600 dark:text-slate-300" />
         </button>
       )}
 
       {/* Contenido flotante (filtros desde el padre via children + seguido overlay) */}
       {rutaDestacada && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 pointer-events-none">
-          <div className="pointer-events-auto inline-flex items-center gap-2 rounded-xl bg-blue-600/90 backdrop-blur-sm px-3 py-1.5 text-[11px] font-medium text-white shadow-lg">
+          <div className="pointer-events-auto inline-flex items-center gap-2 rounded-xl bg-blue-600/90 backdrop-blur-sm px-3 py-1.5 text-sm font-medium text-white shadow-lg">
             <span>Ruta destacada</span>
             <button
               onClick={() => onLimpiarRuta?.()}
@@ -310,7 +312,7 @@ export default function GeoMapa({
       )}
       {siguiendo && (
         <div className="absolute top-4 left-4 z-40 pointer-events-none">
-          <div className="pointer-events-auto rounded-xl bg-blue-100/90 dark:bg-blue-900/40 backdrop-blur-sm px-3 py-1.5 text-[11px] font-medium text-blue-700 dark:text-blue-300 shadow-lg border border-blue-200 dark:border-blue-800">
+          <div className="pointer-events-auto rounded-xl bg-blue-100/90 dark:bg-blue-900/40 backdrop-blur-sm px-3 py-1.5 text-sm font-medium text-blue-700 dark:text-blue-300 shadow-lg border border-blue-200 dark:border-blue-800">
             Siguiendo elemento — ESC para salir
           </div>
         </div>

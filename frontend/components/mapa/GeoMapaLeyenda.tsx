@@ -17,32 +17,32 @@ export default function GeoMapaLeyenda({ umbralesConfig, onClose }: Props) {
       <div className="flex items-center justify-between mb-2">
         <span className="font-semibold text-slate-700 dark:text-slate-300">Ocupación</span>
         {onClose && (
-          <button onClick={onClose} className="p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+          <button onClick={onClose} className="p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 hover:text-slate-600 dark:hover:text-slate-300">
             <X size={12} />
           </button>
         )}
       </div>
       <div className="flex items-center gap-2 mb-1">
         <span className="w-3 h-3 rounded-full bg-green-500 inline-block"></span>
-        <span className="text-slate-600 dark:text-slate-400">&lt; {vm}%</span>
+        <span className="text-slate-600 dark:text-slate-300">&lt; {vm}%</span>
       </div>
       <div className="flex items-center gap-2 mb-1">
         <span className="w-3 h-3 rounded-full bg-yellow-500 inline-block"></span>
-        <span className="text-slate-600 dark:text-slate-400">{vm}–{am}%</span>
+        <span className="text-slate-600 dark:text-slate-300">{vm}–{am}%</span>
       </div>
       <div className="flex items-center gap-2 mb-1">
         <span className="w-3 h-3 rounded-full bg-red-500 inline-block"></span>
-        <span className="text-slate-600 dark:text-slate-400">&gt; {am}%</span>
+        <span className="text-slate-600 dark:text-slate-300">&gt; {am}%</span>
       </div>
       <div className="border-t border-slate-200 dark:border-slate-700 mt-2 pt-2">
         <div className="font-semibold text-slate-700 dark:text-slate-300 mb-2">Estado Vuelos</div>
         <div className="flex items-center gap-2 mb-1">
           <span className="w-3 h-0.5 bg-blue-500 inline-block"></span>
-          <span className="text-slate-600 dark:text-slate-400">Programado</span>
+          <span className="text-slate-600 dark:text-slate-300">Programado</span>
         </div>
         <div className="flex items-center gap-2 mb-1">
           <span className="w-3 h-0.5 bg-green-500 inline-block"></span>
-          <span className="text-slate-600 dark:text-slate-400">En ruta</span>
+          <span className="text-slate-600 dark:text-slate-300">En ruta</span>
         </div>
       </div>
     </div>

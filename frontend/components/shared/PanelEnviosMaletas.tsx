@@ -141,10 +141,10 @@ export function PanelEnviosMaletas({ sesionId, activo, nodos, onSeguirEnMapa, on
             <button
               key={key}
               onClick={() => setTab(key)}
-              className={`flex-1 text-[11px] font-medium py-1.5 px-1 rounded-md transition-colors ${
+              className={`flex-1 text-sm font-medium py-1.5 px-1 rounded-md transition-colors ${
                 tab === key
                   ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 hover:text-slate-700 dark:hover:text-slate-300'
               }`}
             >
               {label}
@@ -156,7 +156,7 @@ export function PanelEnviosMaletas({ sesionId, activo, nodos, onSeguirEnMapa, on
           <select
             value={origen}
             onChange={e => setOrigen(e.target.value)}
-            className="flex-1 text-[11px] rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+            className="flex-1 text-sm rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
           >
             {nodoOptions.map(o => (
               <option key={o.value} value={o.value}>{o.label}</option>
@@ -165,7 +165,7 @@ export function PanelEnviosMaletas({ sesionId, activo, nodos, onSeguirEnMapa, on
           <select
             value={destino}
             onChange={e => setDestino(e.target.value)}
-            className="flex-1 text-[11px] rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+            className="flex-1 text-sm rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
           >
             {nodoOptions.map(o => (
               <option key={o.value} value={o.value}>{o.label}</option>
@@ -178,13 +178,13 @@ export function PanelEnviosMaletas({ sesionId, activo, nodos, onSeguirEnMapa, on
             value={codigoMaleta}
             onChange={e => setCodigoMaleta(e.target.value)}
             placeholder="Código maleta (MAL-...)"
-            className="flex-1 text-[11px] rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+            className="flex-1 text-sm rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
           />
           {hayFiltrosActivos && (
             <button
               type="button"
               onClick={limpiar}
-              className="text-[10px] text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline whitespace-nowrap"
+              className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline whitespace-nowrap"
             >
               Limpiar
             </button>
@@ -194,7 +194,7 @@ export function PanelEnviosMaletas({ sesionId, activo, nodos, onSeguirEnMapa, on
 
       <div className="px-4 pb-4">
         {loading && (
-          <p className="text-xs text-slate-400 italic text-center py-2">Cargando envíos...</p>
+          <p className="text-xs text-slate-600 italic text-center py-2">Cargando envíos...</p>
         )}
 
         {error && (
@@ -204,7 +204,7 @@ export function PanelEnviosMaletas({ sesionId, activo, nodos, onSeguirEnMapa, on
         )}
 
         {!loading && !error && data && data.length === 0 && (
-          <p className="text-xs text-slate-400 italic text-center py-2">Sin envíos</p>
+          <p className="text-xs text-slate-600 italic text-center py-2">Sin envíos</p>
         )}
 
         {!loading && !error && data && data.length > 0 && (
@@ -219,7 +219,7 @@ export function PanelEnviosMaletas({ sesionId, activo, nodos, onSeguirEnMapa, on
                     {item.origen_iata}&rarr;{item.destino_iata}
                   </span>
                   {item.codigo_vuelo && (
-                    <span className="text-slate-400 font-mono">{item.codigo_vuelo}</span>
+                    <span className="text-slate-600 font-mono">{item.codigo_vuelo}</span>
                   )}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -227,7 +227,7 @@ export function PanelEnviosMaletas({ sesionId, activo, nodos, onSeguirEnMapa, on
                     <button
                       onClick={() => handleSeguir(item.equipaje_id)}
                       disabled={siguiendoId === item.equipaje_id}
-                      className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 disabled:opacity-50 disabled:cursor-wait"
+                      className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 hover:text-emerald-600 dark:hover:text-emerald-400 disabled:opacity-50 disabled:cursor-wait"
                       title="Seguir en mapa"
                     >
                       {siguiendoId === item.equipaje_id ? (
@@ -241,7 +241,7 @@ export function PanelEnviosMaletas({ sesionId, activo, nodos, onSeguirEnMapa, on
                     <button
                       onClick={() => handleMostrarRuta(item.equipaje_id)}
                       disabled={mostrandoRutaId === item.equipaje_id}
-                      className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-50 disabled:cursor-wait"
+                      className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-50 disabled:cursor-wait"
                       title="Mostrar ruta en el mapa"
                     >
                       {mostrandoRutaId === item.equipaje_id ? (
@@ -251,7 +251,7 @@ export function PanelEnviosMaletas({ sesionId, activo, nodos, onSeguirEnMapa, on
                       )}
                     </button>
                   )}
-                  <span className="text-slate-500">
+                  <span className="text-slate-600">
                     {item.cantidad} maleta{item.cantidad !== 1 ? 's' : ''}
                   </span>
                 </div>

@@ -119,24 +119,24 @@ export function SeccionCancelacion({
           <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
             Cancelación (plantillas)
           </span>
-          <span className="text-[10px] text-slate-500">
+          <span className="text-xs text-slate-600">
             {plantillasFiltradas.length} / {plantillas.length} vuelo{plantillas.length !== 1 ? "s" : ""}
           </span>
         </span>
-        <span className="text-[11px] text-slate-400">{open ? "▾" : "▸"}</span>
+        <span className="text-sm text-slate-600">{open ? "▾" : "▸"}</span>
       </button>
 
       {open && (
         <div className="px-4 pb-4 space-y-2">
           {!momentoVirtual && (
-            <div className="flex items-center gap-2 p-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-700 dark:text-amber-300">
+            <div className="flex items-center gap-2 p-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-sm text-amber-700 dark:text-amber-300">
               <AlertTriangle size={12} />
               <span>Sin reloj virtual. Inicia la sesión para habilitar la cancelación.</span>
             </div>
           )}
 
           {error && (
-            <div className="flex items-center gap-2 p-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-[11px] text-red-700 dark:text-red-300">
+            <div className="flex items-center gap-2 p-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-300">
               <XCircle size={12} />
               <span>{error}</span>
             </div>
@@ -148,7 +148,7 @@ export function SeccionCancelacion({
                 placeholder="Código de vuelo (ej. TAS0001)..."
                 value={filtroCodigo}
                 onChange={e => setFiltroCodigo(e.target.value)}
-                className="text-[11px]"
+                className="text-sm"
               />
             </div>
             <div className="flex items-end gap-1.5">
@@ -157,16 +157,16 @@ export function SeccionCancelacion({
                 aria-label="Fecha de salida desde"
                 value={filtroFechaDesde}
                 onChange={e => setFiltroFechaDesde(e.target.value)}
-                className="text-[11px] w-[130px]"
+                className="text-sm w-[130px]"
                 title="Salida desde (fecha virtual del reloj)"
               />
-              <span className="text-[10px] text-slate-400 pb-1.5">→</span>
+              <span className="text-xs text-slate-600 pb-1.5">→</span>
               <Input
                 type="date"
                 aria-label="Fecha de salida hasta"
                 value={filtroFechaHasta}
                 onChange={e => setFiltroFechaHasta(e.target.value)}
-                className="text-[11px] w-[130px]"
+                className="text-sm w-[130px]"
                 title="Salida hasta (fecha virtual del reloj)"
               />
             </div>
@@ -177,7 +177,7 @@ export function SeccionCancelacion({
                   setFiltroFechaDesde("");
                   setFiltroFechaHasta("");
                 }}
-                className="text-[10px] text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline pb-1.5"
+                className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline pb-1.5"
               >
                 Limpiar
               </button>
@@ -185,14 +185,14 @@ export function SeccionCancelacion({
           </div>
 
           <div className="max-h-96 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700">
-            <table className="w-full text-[11px]">
+            <table className="w-full text-sm">
               <thead className="bg-slate-50 dark:bg-slate-800/50 sticky top-0">
                 <tr>
-                  <th className="text-left px-2 py-1.5 font-medium text-slate-500">Código</th>
-                  <th className="text-left px-2 py-1.5 font-medium text-slate-500">Ruta</th>
-                  <th className="text-left px-2 py-1.5 font-medium text-slate-500">Salida</th>
-                  <th className="text-left px-2 py-1.5 font-medium text-slate-500">Llegada</th>
-                  <th className="text-left px-2 py-1.5 font-medium text-slate-500">Acción</th>
+                  <th className="text-left px-2 py-1.5 font-medium text-slate-600">Código</th>
+                  <th className="text-left px-2 py-1.5 font-medium text-slate-600">Ruta</th>
+                  <th className="text-left px-2 py-1.5 font-medium text-slate-600">Salida</th>
+                  <th className="text-left px-2 py-1.5 font-medium text-slate-600">Llegada</th>
+                  <th className="text-left px-2 py-1.5 font-medium text-slate-600">Acción</th>
                 </tr>
               </thead>
               <tbody>
@@ -226,7 +226,7 @@ export function SeccionCancelacion({
                           size="sm"
                           disabled={deshabilitado}
                           onClick={() => handleCancelar(p)}
-                          className="text-[10px] px-2 py-0.5"
+                          className="text-xs px-2 py-0.5"
                           title={
                             caliente
                               ? "Faltan ≤ 60 min: se cancelará la instancia del día siguiente"
@@ -241,14 +241,14 @@ export function SeccionCancelacion({
                 })}
                 {plantillasFiltradas.length === 0 && plantillas.length > 0 && (
                   <tr>
-                    <td colSpan={5} className="px-2 py-3 text-center text-slate-400">
+                    <td colSpan={5} className="px-2 py-3 text-center text-slate-600">
                       Ningún vuelo coincide con los filtros.
                     </td>
                   </tr>
                 )}
                 {plantillas.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-2 py-3 text-center text-slate-400">
+                    <td colSpan={5} className="px-2 py-3 text-center text-slate-600">
                       No hay plantillas registradas.
                     </td>
                   </tr>
@@ -257,7 +257,7 @@ export function SeccionCancelacion({
             </table>
           </div>
 
-          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+          <p className="text-xs text-slate-600 dark:text-slate-300 leading-tight">
             <strong>Regla:</strong> &gt;1h antes de la salida → cancela hoy y replanifica.
             ≤1h antes (o ya despegado) → cancela la instancia del día siguiente sin replan.
             Filtra por código o por rango de fechas de salida para acotar la lista.
@@ -325,7 +325,7 @@ export function SeccionCancelacion({
                       {resultado.equipajes_afectados !== 1 ? "s" : ""}.
                     </p>
                     {resultado.lote_replanificacion_id && (
-                      <p className="text-green-700 dark:text-green-400 font-mono text-[10px]">
+                      <p className="text-green-700 dark:text-green-400 font-mono text-xs">
                         Lote: {resultado.lote_replanificacion_id.slice(0, 8)}
                       </p>
                     )}

@@ -52,7 +52,7 @@ export default function ControlZoom() {
         <button
           onClick={handleZoomOut}
           disabled={display <= SLIDER_MIN}
-          className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-600 dark:text-slate-400"
+          className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-600 dark:text-slate-300"
         >
           <Minus size={14} />
         </button>
@@ -68,7 +68,7 @@ export default function ControlZoom() {
         <button
           onClick={handleZoomIn}
           disabled={display >= SLIDER_MAX}
-          className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-600 dark:text-slate-400"
+          className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-600 dark:text-slate-300"
         >
           <Plus size={14} />
         </button>

@@ -110,14 +110,14 @@ export function PanelEnviosOperacion({ selectedEnvio, onClose, onSeguirEnMapa, o
         <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{titulo}</h3>
         <button
           onClick={onClose}
-          className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+          className="text-xs text-slate-600 hover:text-slate-600 dark:hover:text-slate-300"
         >
           Cerrar
         </button>
       </div>
 
       {loading && (
-        <p className="text-xs text-slate-400 italic text-center py-2">Cargando envíos...</p>
+        <p className="text-xs text-slate-600 italic text-center py-2">Cargando envíos...</p>
       )}
 
       {error && (
@@ -127,7 +127,7 @@ export function PanelEnviosOperacion({ selectedEnvio, onClose, onSeguirEnMapa, o
       )}
 
       {!loading && !error && data && data.length === 0 && (
-        <p className="text-xs text-slate-400 italic text-center py-2">Sin envíos</p>
+        <p className="text-xs text-slate-600 italic text-center py-2">Sin envíos</p>
       )}
 
       {!loading && !error && data && data.length > 0 && (
@@ -139,7 +139,7 @@ export function PanelEnviosOperacion({ selectedEnvio, onClose, onSeguirEnMapa, o
             >
               <div className="flex items-center gap-3 min-w-0">
                 <span className="font-medium text-slate-700 dark:text-slate-300">{item.codigo_equipaje}</span>
-                <span className="text-slate-400">
+                <span className="text-slate-600">
                   {item.origen_iata}→{item.destino_iata}
                 </span>
               </div>
@@ -148,7 +148,7 @@ export function PanelEnviosOperacion({ selectedEnvio, onClose, onSeguirEnMapa, o
                   <button
                     onClick={() => handleSeguir(item.id)}
                     disabled={siguiendoId === item.id}
-                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 disabled:opacity-50 disabled:cursor-wait"
+                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 hover:text-emerald-600 dark:hover:text-emerald-400 disabled:opacity-50 disabled:cursor-wait"
                     title="Seguir en mapa"
                   >
                     {siguiendoId === item.id ? (
@@ -162,7 +162,7 @@ export function PanelEnviosOperacion({ selectedEnvio, onClose, onSeguirEnMapa, o
                   <button
                     onClick={() => handleMostrarRuta(item.id)}
                     disabled={mostrandoRutaId === item.id}
-                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-50 disabled:cursor-wait"
+                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-50 disabled:cursor-wait"
                     title="Mostrar ruta en el mapa"
                   >
                     {mostrandoRutaId === item.id ? (
@@ -174,12 +174,12 @@ export function PanelEnviosOperacion({ selectedEnvio, onClose, onSeguirEnMapa, o
                 )}
                 <button
                   onClick={() => descargarPlanViajePdf(item.id).catch(() => alert('Error al descargar plan de viaje'))}
-                  className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                  className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 hover:text-slate-600 dark:hover:text-slate-300"
                   title="Descargar plan de viaje"
                 >
                   <FileDown size={14} />
                 </button>
-                <span className="text-slate-500">{item.cantidad} maleta{item.cantidad !== 1 ? 's' : ''}</span>
+                <span className="text-slate-600">{item.cantidad} maleta{item.cantidad !== 1 ? 's' : ''}</span>
               </div>
             </div>
           ))}

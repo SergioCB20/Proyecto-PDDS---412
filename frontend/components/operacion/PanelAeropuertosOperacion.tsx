@@ -111,7 +111,7 @@ export function PanelAeropuertosOperacion({
     return (
       <div className="p-4 border-t border-slate-200 dark:border-slate-700">
         <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Aeropuertos</h3>
-        <p className="text-xs text-slate-400 italic text-center py-2">Sin datos de aeropuertos</p>
+        <p className="text-xs text-slate-600 italic text-center py-2">Sin datos de aeropuertos</p>
       </div>
     );
   }
@@ -120,7 +120,7 @@ export function PanelAeropuertosOperacion({
     <div className="p-4 border-t border-slate-200 dark:border-slate-700">
       <div className="flex items-center justify-between mb-1">
         <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Aeropuertos</h3>
-        <span className="text-xs text-slate-400">
+        <span className="text-xs text-slate-600">
           Mostrando {aeropuertosOrdenados.length} de {aeropuertos.length} aeropuertos
         </span>
       </div>
@@ -186,16 +186,16 @@ export function PanelAeropuertosOperacion({
                       {ciudad && ciudad !== n.codigo_iata && (
                         <span className="font-semibold text-sm text-slate-800 dark:text-slate-200 truncate">{ciudad}</span>
                       )}
-                      <span className="text-[10px] font-mono text-slate-400 shrink-0">{n.codigo_iata}</span>
+                      <span className="text-xs font-mono text-slate-600 shrink-0">{n.codigo_iata}</span>
                     </div>
                     {ubicacion && (
-                      <span className="text-[10px] text-slate-400 truncate">{ubicacion}</span>
+                      <span className="text-xs text-slate-600 truncate">{ubicacion}</span>
                     )}
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   {seguidoId === n.codigo_iata ? (
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-medium whitespace-nowrap">
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-medium whitespace-nowrap">
                       Salir mapa [ESC]
                     </span>
                   ) : (
@@ -211,8 +211,8 @@ export function PanelAeropuertosOperacion({
                   )}
                 </div>
               </div>
-              <div className="flex items-center justify-between text-[10px]">
-                <span className="text-slate-500 dark:text-slate-400">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-600 dark:text-slate-300">
                   {n.ocupacion_actual}/{n.capacidad_almacen}
                 </span>
                 <span className="font-bold" style={{ color: n.color }}>
@@ -223,7 +223,7 @@ export function PanelAeropuertosOperacion({
           );
         })}
         {aeropuertosOrdenados.length === 0 && (
-          <p className="text-xs text-slate-400 italic text-center py-2">
+          <p className="text-xs text-slate-600 italic text-center py-2">
             Ningún aeropuerto coincide con los filtros
           </p>
         )}

@@ -21,6 +21,9 @@ import {
   Settings,
   Activity,
   Luggage,
+  Warehouse,
+  FileText,
+  Filter,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { api, fetchReporte } from "@/lib/api";
@@ -44,11 +47,11 @@ import {
   type UmbralesConfig,
 } from "@/components/mapa/ConfigUmbrales";
 import type { SelectedEnvioOperacion } from "@/components/operacion/PanelEnviosOperacion";
-import {
-  formatearFechaHora,
-  formatearFechaHoraLima,
-  formatDuracionHHMMSS,
-} from "@/lib/formatearHora";
+import DockIconos from "@/components/mapa/DockIconos";
+import PanelFlotante from "@/components/mapa/PanelFlotante";
+import BarraMetricasCompacta from "@/components/mapa/BarraMetricasCompacta";
+import TiemposInfo from "@/components/mapa/TiemposInfo";
+import { formatearFechaHora } from "@/lib/formatearHora";
 import type { SelectedEnvio } from "@/components/simulacion/PanelEnvios";
 import type {
   Aeropuerto,
@@ -92,7 +95,7 @@ const GeoMapa = dynamic(() => import("@/components/mapa/GeoMapa"), {
   ssr: false,
   loading: () => (
     <div className="bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center h-full">
-      <span className="text-slate-400 text-sm">Cargando mapa...</span>
+      <span className="text-slate-600 text-sm">Cargando mapa...</span>
     </div>
   ),
 });
@@ -154,6 +157,7 @@ export default function DashboardPage() {
     return { verdeMax: 70, ambarMax: 90 };
   });
   const [configOpen, setConfigOpen] = useState(false);
+  const [modeBarVisible, setModeBarVisible] = useState(true);
 
   useEffect(() => {
     localStorage.setItem("umbrales-config", JSON.stringify(configUmbrales));
@@ -162,42 +166,66 @@ export default function DashboardPage() {
   return (
     <div className="flex h-[calc(100vh-3.5rem)]">
       <div className="flex-1 flex flex-col">
-        <div className="flex items-center gap-1 px-4 pt-2 pb-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
-          <button
-            onClick={() => setMode("operacion")}
-            className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
-              mode === "operacion"
-                ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-b-2 border-blue-500"
-                : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-            }`}
-          >
-            <Plane size={14} className="inline mr-1.5" />
-            Operación
-          </button>
-          <button
-            onClick={() => setMode("simulacion")}
-            className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
-              mode === "simulacion"
-                ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-b-2 border-blue-500"
-                : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-            }`}
-          >
-            <Settings size={14} className="inline mr-1.5" />
-            Simulación
-          </button>
-          <button
-            onClick={() => setMode("colapso")}
-            className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
-              mode === "colapso"
-                ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-b-2 border-blue-500"
-                : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-            }`}
-          >
-            <AlertTriangle size={14} className="inline mr-1.5" />
-            Colapso
-          </button>
-          <div className="flex-1" />
+        <div
+          className={`overflow-hidden transition-all duration-300 ${
+            modeBarVisible ? "max-h-16 opacity-100" : "max-h-0 opacity-0"
+          }`}
+        >
+          <div className="flex items-center gap-1 px-4 pt-2 pb-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
+            <button
+              onClick={() => setMode("operacion")}
+              className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                mode === "operacion"
+                  ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-b-2 border-blue-500"
+                  : "text-slate-600 hover:text-slate-700 dark:hover:text-slate-300"
+              }`}
+            >
+              <Plane size={14} className="inline mr-1.5" />
+              Operación
+            </button>
+            <button
+              onClick={() => setMode("simulacion")}
+              className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                mode === "simulacion"
+                  ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-b-2 border-blue-500"
+                  : "text-slate-600 hover:text-slate-700 dark:hover:text-slate-300"
+              }`}
+            >
+              <Settings size={14} className="inline mr-1.5" />
+              Simulación
+            </button>
+            <button
+              onClick={() => setMode("colapso")}
+              className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                mode === "colapso"
+                  ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-b-2 border-blue-500"
+                  : "text-slate-600 hover:text-slate-700 dark:hover:text-slate-300"
+              }`}
+            >
+              <AlertTriangle size={14} className="inline mr-1.5" />
+              Colapso
+            </button>
+            <div className="flex-1" />
+            <button
+              onClick={() => setModeBarVisible(false)}
+              className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-600"
+              title="Ocultar barra de modos"
+            >
+              <ChevronUp size={16} />
+            </button>
+          </div>
         </div>
+        {!modeBarVisible && (
+          <div className="flex justify-center bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
+            <button
+              onClick={() => setModeBarVisible(true)}
+              className="py-0.5 px-4 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-600 rounded"
+              title="Mostrar barra de modos"
+            >
+              <ChevronDown size={16} />
+            </button>
+          </div>
+        )}
         <div className="flex-1 relative min-h-0">
           {mode === "operacion" ? (
             <OperacionView configUmbrales={configUmbrales} />
@@ -277,7 +305,8 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     wsConnected &&
     (telemetria?.vuelos?.some((v) => v.estado === "EN_RUTA") ?? false);
 
-  const [isCollapsed, setIsCollapsed] = useState(true);
+  const [dockAbiertas, setDockAbiertas] = useState<Set<string>>(new Set());
+  const [dockCollapsed, setDockCollapsed] = useState(false);
   const [selectedEnvio, setSelectedEnvio] =
     useState<SelectedEnvioOperacion | null>(null);
   const [vueloFilterOrigen, setVueloFilterOrigen] = useState("");
@@ -614,16 +643,24 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     return lista;
   }, [vuelosMapaFiltrados, equipajeFilter]);
 
+  const toggleDockOp = useCallback((id: string) => {
+    setDockAbiertas((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
   return (
-    <div className="flex h-full">
-      <div className="flex-1 p-4 relative">
-        <GeoMapa
+    <div className="relative h-full overflow-hidden">
+      <GeoMapa
           aeropuertos={aeropuertos}
           vuelos={vuelosFiltradosMapa}
           mostrarAviones={true}
           animacionActiva={animacionActiva}
           k={k}
-          className="h-full"
+          className="h-full w-full"
           umbralesConfig={configUmbrales}
           cargando={aeropuertos.length === 0}
           seguidoVueloId={seguidoVueloId ?? undefined}
@@ -644,596 +681,307 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
           onVueloSeleccionado={handleVueloSeleccionadoOp}
           continenteFiltro={filtroContinenteOp || undefined}
         >
-          <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
-            <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
-              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
-                <Activity size={12} className="text-blue-600" />
-                <span className="text-[10px] text-slate-500">SLA</span>
-                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                  {(metricasOpSim?.sla_acumulado_pct ?? 0).toFixed(1)}%
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
-                <XCircle size={12} className="text-red-600" />
-                <span className="text-[10px] text-slate-500">Cancel</span>
-                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                  {metricasOpSim?.vuelos_cancelados ?? 0}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
-                <RefreshCw size={12} className="text-amber-600" />
-                <span className="text-[10px] text-slate-500">Replan</span>
-                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                  {metricasOpSim?.maletas_replanificadas ?? 0}
-                </span>
-              </div>
-            </div>
-            <div className="pointer-events-auto mt-1.5 p-2 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
-              <div className="flex items-center justify-between mb-0.5">
-                <span className="text-[10px] text-slate-500">
-                  Ocupación global
-                </span>
-                <span
-                  className="text-xs font-bold"
-                  style={{
-                    color:
-                      ocupacionGlobal < configUmbrales.verdeMax
-                        ? "#22c55e"
-                        : ocupacionGlobal < configUmbrales.ambarMax
-                          ? "#eab308"
-                          : "#ef4444",
-                  }}
-                >
-                  {ocupacionGlobal.toFixed(1)}%
-                </span>
-              </div>
-              <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${Math.min(ocupacionGlobal, 100)}%`,
-                    backgroundColor:
-                      ocupacionGlobal < configUmbrales.verdeMax
-                        ? "#22c55e"
-                        : ocupacionGlobal < configUmbrales.ambarMax
-                          ? "#eab308"
-                          : "#ef4444",
-                  }}
-                />
-              </div>
-            </div>
-            <div className="pointer-events-auto mt-1.5 p-2 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-slate-500">
-                  Vuelos activos
-                </span>
-                <span className="text-xs font-bold text-green-600">
-                  {vuelosActivosOp}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-slate-500">
-                  Vuelos programados
-                </span>
-                <span className="text-xs font-bold text-blue-600">
-                  {vuelosProgramadosOp}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-slate-500">
-                  Últimos Vuelos Entregados
-                </span>
-                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                  {vuelosEntregadosOp}
-                </span>
-              </div>
-            </div>
-            <div className="pointer-events-auto mt-1.5 p-2 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
-              <div className="flex items-center gap-1">
-                <Luggage
-                  size={14}
-                  className="text-slate-500 dark:text-slate-400"
-                />
-                {(["todos", "con_equipaje", "sin_equipaje"] as const).map(
-                  (opt) => (
-                    <button
-                      key={opt}
-                      onClick={() => setEquipajeFilter(opt)}
-                      className={`px-2 py-0.5 text-[11px] font-medium rounded-md transition-colors ${
-                        equipajeFilter === opt
-                          ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
-                          : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-                      }`}
-                    >
-                      {opt === "todos"
-                        ? "Todos"
-                        : opt === "con_equipaje"
-                          ? "Con equipaje"
-                          : "Sin equipaje"}
-                    </button>
-                  ),
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="absolute top-4 right-4 z-[1001] pointer-events-none max-w-[320px]">
-            <div className="pointer-events-auto p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 space-y-1 text-[11px] text-slate-600 dark:text-slate-400 min-w-[190px]">
+          <BarraMetricasCompacta
+            sla={metricasOpSim?.sla_acumulado_pct ?? 100}
+            cancelados={metricasOpSim?.vuelos_cancelados ?? 0}
+            replanificadas={metricasOpSim?.maletas_replanificadas ?? 0}
+            ocupacionGlobal={ocupacionGlobal}
+            verdeMax={configUmbrales.verdeMax}
+            ambarMax={configUmbrales.ambarMax}
+            vuelosActivos={vuelosActivosOp}
+            vuelosProgramados={vuelosProgramadosOp}
+            equipajeFilter={equipajeFilter}
+            onEquipajeFilterChange={setEquipajeFilter}
+          />
+          <div className="absolute top-4 right-4 z-[1001] pointer-events-none">
+            <div className="pointer-events-auto p-2 rounded-lg bg-white/85 dark:bg-slate-900/85 backdrop-blur-sm shadow border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 min-w-[150px]">
               <div className="flex items-center gap-1.5 mb-1 pb-1 border-b border-slate-200 dark:border-slate-600">
                 <Clock size={11} />
-                <span className="font-semibold text-slate-900 dark:text-slate-100">
+                <span className="font-semibold text-slate-900 dark:text-slate-100 text-sm">
                   {formatearFechaHora(hora.toISOString())}
                 </span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between gap-2">
                 <span>Estado:</span>
-                <span
-                  className={`font-mono font-medium ${estadoOperacion === "ACTIVO" ? "text-green-600" : estadoOperacion === "PAUSADO" ? "text-amber-600" : "text-slate-400"}`}
-                >
+                <span className={`font-mono font-medium ${estadoOperacion === "ACTIVO" ? "text-green-600" : estadoOperacion === "PAUSADO" ? "text-amber-600" : "text-slate-600"}`}>
                   {estadoOperacion}
                 </span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between gap-2">
                 <span>WS:</span>
-                <span
-                  className={`font-mono font-medium ${wsConnected ? "text-green-600" : "text-red-500"}`}
-                >
+                <span className={`font-mono font-medium ${wsConnected ? "text-green-600" : "text-red-500"}`}>
                   {wsConnected ? "Conectado" : "Desconectado"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span>Vuelos:</span>
-                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
-                  {vuelosMapaFiltrados.length}
                 </span>
               </div>
             </div>
           </div>
         </GeoMapa>
-      </div>
 
-      <div
-        className={`border-l border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col overflow-y-auto transition-all duration-300 ${isCollapsed ? "w-12" : "w-80"}`}
-      >
-        <div className="p-2 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-          {!isCollapsed && (
-            <h2 className="font-semibold text-slate-900 dark:text-slate-100 text-sm truncate">
-              Operación
-            </h2>
-          )}
-          <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          >
-            {isCollapsed ? <Menu size={18} /> : <ChevronLeft size={18} />}
-          </button>
+
+      <div className="absolute left-2 top-1/2 -translate-y-1/2 z-[1002] flex flex-col bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 rounded-xl">
+          <DockIconos
+            secciones={[
+              { id: 'datos', icon: Plane, label: 'Aeropuertos, Vuelos, Envíos' },
+              { id: 'control', icon: Activity, label: 'Control' },
+              { id: 'registro', icon: Package, label: 'Registro Equipaje' },
+              { id: 'filtro', icon: Filter, label: 'Filtro Ocupación' },
+            ]}
+            abiertas={dockAbiertas}
+            onToggle={toggleDockOp}
+            collapsed={dockCollapsed}
+            onToggleCollapse={() => setDockCollapsed(!dockCollapsed)}
+          />
         </div>
 
-        {isCollapsed ? (
-          <div className="flex flex-col items-center gap-3 py-4 px-1">
-            <span
-              className={`w-2 h-2 rounded-full ${wsConnected ? "bg-green-500" : "bg-red-500"}`}
-            />
-          </div>
-        ) : (
-          <>
-            <div className="p-4 border-b border-slate-200 dark:border-slate-700">
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="font-semibold text-slate-900 dark:text-slate-100">
-                  Operación en Vivo
-                </h2>
-                <button
-                  onClick={fetchData}
-                  disabled={loading}
-                  className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 disabled:opacity-50"
-                >
-                  <RefreshCw
-                    size={16}
-                    className={loading ? "animate-spin" : ""}
-                  />
-                </button>
-              </div>
-              <div className="flex items-center gap-2 mb-2">
-                <span
-                  className={`w-2 h-2 rounded-full ${wsConnected ? "bg-green-500" : "bg-red-500"}`}
-                />
-                <span className="text-xs text-slate-500">
-                  WS {wsConnected ? "conectado" : "desconectado"}
-                </span>
-              </div>
-              {estadoOperacion === "ACTIVO" ? (
-                <div className="flex gap-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={handlePausar}
-                    disabled={operacionLoading}
-                    className="flex-1"
-                  >
-                    <Pause size={14} className="mr-1" />
-                    {operacionLoading ? "..." : "Pausar"}
-                  </Button>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={handleDetener}
-                    disabled={operacionLoading}
-                    className="flex-1"
-                  >
-                    <Square size={14} className="mr-1" />
-                    {operacionLoading ? "..." : "Detener"}
-                  </Button>
-                </div>
-              ) : estadoOperacion === "PAUSADO" ? (
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    onClick={handleReanudar}
-                    disabled={operacionLoading}
-                    className="flex-1"
-                  >
-                    <Play size={14} className="mr-1" />
-                    {operacionLoading ? "..." : "Reanudar"}
-                  </Button>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={handleDetener}
-                    disabled={operacionLoading}
-                    className="flex-1"
-                  >
-                    <Square size={14} className="mr-1" />
-                    {operacionLoading ? "..." : "Detener"}
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  size="sm"
-                  onClick={handleIniciar}
-                  disabled={operacionLoading}
-                  className="w-full"
-                >
-                  <Play size={14} className="mr-1" />
-                  {operacionLoading ? "..." : "Iniciar Operación"}
-                </Button>
-              )}
-              {apiError && (
-                <div className="flex items-center gap-2 p-2 mt-2 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
-                  <XCircle
-                    size={14}
-                    className="text-red-600 dark:text-red-400 flex-shrink-0"
-                  />
-                  <span className="text-xs text-red-700 dark:text-red-300">
-                    {apiError}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Filtro por Ocupación */}
-            <div className="p-4 border-b border-slate-200 dark:border-slate-700">
-              <h4 className="text-xs font-semibold text-slate-900 dark:text-slate-100 mb-2">
-                Filtro por Ocupación
-              </h4>
-              <div className="flex items-center gap-1">
-                {(['', 'VACIO', 'VERDE', 'AMBAR', 'ROJO'] as const).map((opt) => (
-                  <button
-                    key={opt}
-                    onClick={() => setFiltroColor(opt)}
-                    className={`px-2 py-1 text-[11px] font-medium rounded-md transition-colors flex items-center gap-1 ${
-                      filtroColor === opt
-                        ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
-                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-                    }`}
-                  >
-                    {opt === '' ? 'Todos' : (
-                      <span
-                        className="w-3 h-3 rounded-full inline-block"
-                        style={{
-                          backgroundColor:
-                            opt === 'VACIO' ? '#9ca3af' : opt === 'VERDE' ? '#22c55e' : opt === 'AMBAR' ? '#eab308' : '#ef4444',
-                        }}
-                      />
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <PanelTabs
-              aeropuertos={telemetria?.nodos ?? []}
-              vuelosAeropuerto={telemetria?.vuelos ?? []}
-              onAeropuertoClick={(id, codigo) =>
-                setSelectedEnvio({ tipo: "nodo", id, codigo })
-              }
-              vuelos={telemetria?.vuelos ?? []}
-              onVueloClick={(id, codigo) =>
-                setSelectedEnvio({ tipo: "vuelo", id, codigo })
-              }
-              onVerEnMapa={(id) => {
-                setSeguidoVueloId(id);
-                setSeguidoAeropuertoId(null);
-              }}
-              seguidoVueloId={seguidoVueloId ?? undefined}
-              onAeropuertoVerEnMapa={(id) => {
-                setSeguidoAeropuertoId(id);
-                setSeguidoVueloId(null);
-              }}
-              seguidoAeropuertoId={seguidoAeropuertoId ?? undefined}
-              aeropuertoSeleccionadoId={aeroSeleccionado ?? undefined}
-              vueloSeleccionadoId={vueloSeleccionadoOp ?? undefined}
-              onDownloadManifiesto={async (id, codigo) => {
-                try {
-                  const blob = await api.downloadBlob(`/manifiestos/${id}`);
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = `manifiesto_${codigo}_${new Date().toISOString().split("T")[0]}.pdf`;
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                  URL.revokeObjectURL(url);
-                } catch {
-                  alert("Error al descargar manifiesto");
+        <div className="absolute left-16 top-4 z-[1001] flex flex-col gap-2 max-h-[calc(100vh-8rem)] overflow-y-auto pointer-events-none">
+          {dockAbiertas.has('datos') && (
+            <PanelFlotante
+              title="Aeropuertos, Vuelos, Envíos"
+              onClose={() => toggleDockOp('datos')}
+              className="w-80 shrink-0 pointer-events-auto"
+            >
+              <PanelTabs
+                aeropuertos={telemetria?.nodos ?? []}
+                vuelosAeropuerto={telemetria?.vuelos ?? []}
+                onAeropuertoClick={(id, codigo) =>
+                  setSelectedEnvio({ tipo: "nodo", id, codigo })
                 }
-              }}
-              onCancelVuelo={handleCancelarVuelo}
-              vueloFilterOrigen={vueloFilterOrigen}
-              vueloFilterDestino={vueloFilterDestino}
-              onVueloFilterChange={({ origen, destino }) => {
-                setVueloFilterOrigen(origen);
-                setVueloFilterDestino(destino);
-              }}
-              enviosActivo={estadoOperacion === "ACTIVO"}
-              nodos={aeropuertos.map((n) => ({
-                codigo_iata: n.codigo_iata,
-                nombre: n.nombre,
-              }))}
-              onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
-              onMostrarRuta={handleMostrarRutaOp}
-              filtroColor={filtroColor}
-              onFilterColorChange={setFiltroColor}
-              umbralesConfig={configUmbrales}
-              filtroContinente={filtroContinenteOp}
-              onFiltroContinenteChange={setFiltroContinenteOp}
-            />
-
-            {selectedEnvio && (
-              <PanelEnviosOperacion
-                selectedEnvio={selectedEnvio}
-                onClose={() => setSelectedEnvio(null)}
+                vuelos={telemetria?.vuelos ?? []}
+                onVueloClick={(id, codigo) =>
+                  setSelectedEnvio({ tipo: "vuelo", id, codigo })
+                }
+                onVerEnMapa={(id) => {
+                  setSeguidoVueloId(id);
+                  setSeguidoAeropuertoId(null);
+                }}
+                seguidoVueloId={seguidoVueloId ?? undefined}
+                onAeropuertoVerEnMapa={(id) => {
+                  setSeguidoAeropuertoId(id);
+                  setSeguidoVueloId(null);
+                }}
+                seguidoAeropuertoId={seguidoAeropuertoId ?? undefined}
+                aeropuertoSeleccionadoId={aeroSeleccionado ?? undefined}
+                vueloSeleccionadoId={vueloSeleccionadoOp ?? undefined}
+                onDownloadManifiesto={async (id, codigo) => {
+                  try {
+                    const blob = await api.downloadBlob(`/manifiestos/${id}`);
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `manifiesto_${codigo}_${new Date().toISOString().split("T")[0]}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  } catch {
+                    alert("Error al descargar manifiesto");
+                  }
+                }}
+                onCancelVuelo={handleCancelarVuelo}
+                vueloFilterOrigen={vueloFilterOrigen}
+                vueloFilterDestino={vueloFilterDestino}
+                onVueloFilterChange={({ origen, destino }) => {
+                  setVueloFilterOrigen(origen);
+                  setVueloFilterDestino(destino);
+                }}
+                enviosActivo={estadoOperacion === "ACTIVO"}
+                nodos={aeropuertos.map((n) => ({
+                  codigo_iata: n.codigo_iata,
+                  nombre: n.nombre,
+                }))}
                 onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
                 onMostrarRuta={handleMostrarRutaOp}
+                filtroColor={filtroColor}
+                onFilterColorChange={setFiltroColor}
+                umbralesConfig={configUmbrales}
+                filtroContinente={filtroContinenteOp}
+                onFiltroContinenteChange={setFiltroContinenteOp}
               />
-            )}
-
-            <div className="p-4 border-t border-slate-200 dark:border-slate-700">
-              <div className="flex gap-2 mb-3">
-                <button
-                  onClick={() => setFormOpen(!formOpen)}
-                  className="flex-1 flex items-center justify-between p-3 rounded-lg bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    <Package
-                      size={16}
-                      className="text-blue-600 dark:text-blue-400"
-                    />
-                    <span className="font-medium text-sm text-blue-900 dark:text-blue-100">
-                      Individual
-                    </span>
-                  </div>
-                  {formOpen ? (
-                    <ChevronUp
-                      size={16}
-                      className="text-blue-600 dark:text-blue-400"
-                    />
-                  ) : (
-                    <ChevronDown
-                      size={16}
-                      className="text-blue-600 dark:text-blue-400"
-                    />
-                  )}
-                </button>
-                <button
-                  onClick={() => setCargaMasivaOpen(true)}
-                  className="flex-1 flex items-center justify-center gap-2 p-3 rounded-lg bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors"
-                >
-                  <FileSpreadsheet
-                    size={16}
-                    className="text-green-600 dark:text-green-400"
-                  />
-                  <span className="font-medium text-sm text-green-900 dark:text-green-100">
-                    Carga Masiva
-                  </span>
-                </button>
-              </div>
-
-              {formOpen && (
-                <form
-                  onSubmit={handleSubmit}
-                  className="space-y-3 mb-4 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700"
-                >
-                  <Select
-                    label="Aeropuerto Origen"
-                    placeholder={
-                      aeropuertos.length === 0
-                        ? "No hay aeropuertos"
-                        : "Seleccionar aeropuerto origen"
-                    }
-                    options={destinoOptions}
-                    value={formData.origenIata}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        origenIata: e.target.value,
-                      }))
-                    }
-                    disabled={aeropuertos.length === 0}
-                  />
-                  <Select
-                    label="Destino IATA"
-                    placeholder={
-                      aeropuertos.length === 0
-                        ? "No hay destinos"
-                        : "Seleccionar destino"
-                    }
-                    options={destinoOptions}
-                    value={formData.destinoIata}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        destinoIata: e.target.value,
-                      }))
-                    }
-                    disabled={aeropuertos.length === 0}
-                  />
-                  <Input
-                    label="Número de Maletas"
-                    type="number"
-                    min="1"
-                    value={formData.cantidad}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        cantidad: Math.max(1, parseInt(e.target.value) || 1),
-                      }))
-                    }
-                  />
-                  {formError && (
-                    <div className="flex items-center gap-2 p-2 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
-                      <XCircle
-                        size={14}
-                        className="text-red-600 dark:text-red-400"
-                      />
-                      <span className="text-xs text-red-700 dark:text-red-300">
-                        {formError}
-                      </span>
-                    </div>
-                  )}
-                  <Button
-                    type="submit"
-                    disabled={formLoading}
-                    className="w-full"
+            </PanelFlotante>
+          )}
+          {dockAbiertas.has('control') && (
+            <PanelFlotante
+              title="Control"
+              onClose={() => toggleDockOp('control')}
+              className="w-80 shrink-0 pointer-events-auto"
+            >
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="font-semibold text-slate-900 dark:text-slate-100 text-sm">
+                    Operación en Vivo
+                  </h2>
+                  <button
+                    onClick={fetchData}
+                    disabled={loading}
+                    className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 disabled:opacity-50"
                   >
-                    {formLoading ? "Registrando..." : "Registrar"}
-                  </Button>
-                </form>
-              )}
-
-              {formSuccess && (
-                <div className="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800">
-                  <div className="flex items-center gap-2 mb-2">
-                    <CheckCircle
-                      size={16}
-                      className="text-green-600 dark:text-green-400"
-                    />
-                    <span className="font-medium text-sm text-green-900 dark:text-green-100">
-                      Equipaje registrado
-                    </span>
-                  </div>
-                  <div className="space-y-1 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-slate-600 dark:text-slate-400">
-                        Código:
-                      </span>
-                      <span className="font-medium text-slate-900 dark:text-slate-100">
-                        {formSuccess.id_externo || formSuccess.id.slice(0, 8)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-600 dark:text-slate-400">
-                        Estado:
-                      </span>
-                      <Badge variant="green">{formSuccess.estado}</Badge>
-                    </div>
-                  </div>
+                    <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+                  </button>
                 </div>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-
-      <Modal
-        open={cargaMasivaOpen}
-        onClose={() => {
-          setCargaMasivaOpen(false);
-          setCsvFile(null);
-          setCsvPreview(null);
-          setCsvError(null);
-        }}
-        title="Carga Masiva de Equipaje"
-        footer={
-          <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setCargaMasivaOpen(false);
-                setCsvFile(null);
-                setCsvPreview(null);
-                setCsvError(null);
-              }}
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleConfirmarCargaMasiva}
-              disabled={
-                !csvPreview || csvPreview.validos === 0 || csvConfirmLoading
-              }
-            >
-              {csvConfirmLoading
-                ? "Confirmando..."
-                : `Confirmar (${csvPreview?.validos || 0})`}
-            </Button>
-          </div>
-        }
-      >
-        <div className="space-y-4">
-          <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-6 text-center">
-            <input
-              type="file"
-              accept=".csv"
-              onChange={handleFileChange}
-              className="hidden"
-              id="csv-upload"
-            />
-            <label htmlFor="csv-upload" className="cursor-pointer">
-              <Upload size={32} className="mx-auto text-slate-400 mb-2" />
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                {csvFile ? csvFile.name : "Subir archivo CSV"}
-              </p>
-            </label>
-          </div>
-          {csvLoading && (
-            <div className="text-center text-sm text-slate-500">
-              Procesando...
-            </div>
-          )}
-          {csvError && (
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
-              <AlertTriangle size={16} />
-              <span className="text-sm text-red-700 dark:text-red-300">
-                {csvError}
-              </span>
-            </div>
-          )}
-          {csvPreview && (
-            <div className="space-y-3">
-              <div className="flex gap-4 text-sm">
-                <span className="text-slate-600 dark:text-slate-400">
-                  Total: {csvPreview.total}
-                </span>
-                <span className="text-green-700 dark:text-green-400">
-                  Válidos: {csvPreview.validos}
-                </span>
-                <span className="text-yellow-700 dark:text-yellow-400">
-                  Revisión: {csvPreview.con_revision}
-                </span>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`w-2 h-2 rounded-full ${wsConnected ? "bg-green-500" : "bg-red-500"}`} />
+                  <span className="text-xs text-slate-600">WS {wsConnected ? "conectado" : "desconectado"}</span>
+                </div>
+                {estadoOperacion === "ACTIVO" ? (
+                  <div className="flex gap-2">
+                    <Button variant="secondary" size="sm" onClick={handlePausar} disabled={operacionLoading} className="flex-1">
+                      <Pause size={14} className="mr-1" />{operacionLoading ? "..." : "Pausar"}
+                    </Button>
+                    <Button variant="danger" size="sm" onClick={handleDetener} disabled={operacionLoading} className="flex-1">
+                      <Square size={14} className="mr-1" />{operacionLoading ? "..." : "Detener"}
+                    </Button>
+                  </div>
+                ) : estadoOperacion === "PAUSADO" ? (
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={handleReanudar} disabled={operacionLoading} className="flex-1">
+                      <Play size={14} className="mr-1" />{operacionLoading ? "..." : "Reanudar"}
+                    </Button>
+                    <Button variant="danger" size="sm" onClick={handleDetener} disabled={operacionLoading} className="flex-1">
+                      <Square size={14} className="mr-1" />{operacionLoading ? "..." : "Detener"}
+                    </Button>
+                  </div>
+                ) : (
+                  <Button size="sm" onClick={handleIniciar} disabled={operacionLoading} className="w-full">
+                    <Play size={14} className="mr-1" />{operacionLoading ? "..." : "Iniciar Operación"}
+                  </Button>
+                )}
+                {apiError && (
+                  <div className="flex items-center gap-2 p-2 mt-2 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
+                    <XCircle size={14} className="text-red-600 dark:text-red-400 flex-shrink-0" />
+                    <span className="text-xs text-red-700 dark:text-red-300">{apiError}</span>
+                  </div>
+                )}
               </div>
-            </div>
+            </PanelFlotante>
+          )}
+          {dockAbiertas.has('registro') && (
+            <PanelFlotante
+              title="Registro de Equipaje"
+              onClose={() => toggleDockOp('registro')}
+              className="w-80 shrink-0 pointer-events-auto"
+            >
+              <div className="p-4">
+                <div className="flex gap-2 mb-3">
+                  <button onClick={() => setFormOpen(!formOpen)} className="flex-1 flex items-center justify-between p-3 rounded-lg bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">
+                    <div className="flex items-center gap-2">
+                      <Package size={16} className="text-blue-600 dark:text-blue-400" />
+                      <span className="font-medium text-sm text-blue-900 dark:text-blue-100">Individual</span>
+                    </div>
+                    {formOpen ? <ChevronUp size={16} className="text-blue-600 dark:text-blue-400" /> : <ChevronDown size={16} className="text-blue-600 dark:text-blue-400" />}
+                  </button>
+                  <button onClick={() => setCargaMasivaOpen(true)} className="flex-1 flex items-center justify-center gap-2 p-3 rounded-lg bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors">
+                    <FileSpreadsheet size={16} className="text-green-600 dark:text-green-400" />
+                    <span className="font-medium text-sm text-green-900 dark:text-green-100">Carga Masiva</span>
+                  </button>
+                </div>
+                {formOpen && (
+                  <form onSubmit={handleSubmit} className="space-y-3 mb-4 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                    <Select label="Aeropuerto Origen" placeholder={aeropuertos.length === 0 ? "No hay aeropuertos" : "Seleccionar aeropuerto origen"}
+                      options={destinoOptions} value={formData.origenIata}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, origenIata: e.target.value }))}
+                      disabled={aeropuertos.length === 0}
+                    />
+                    <Select label="Destino IATA" placeholder={aeropuertos.length === 0 ? "No hay destinos" : "Seleccionar destino"}
+                      options={destinoOptions} value={formData.destinoIata}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, destinoIata: e.target.value }))}
+                      disabled={aeropuertos.length === 0}
+                    />
+                    <Input label="Número de Maletas" type="number" min="1" value={formData.cantidad}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, cantidad: Math.max(1, parseInt(e.target.value) || 1) }))}
+                    />
+                    {formError && (<div className="flex items-center gap-2 p-2 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800"><XCircle size={14} className="text-red-600 dark:text-red-400" /><span className="text-xs text-red-700 dark:text-red-300">{formError}</span></div>)}
+                    <Button type="submit" disabled={formLoading} className="w-full">{formLoading ? "Registrando..." : "Registrar"}</Button>
+                  </form>
+                )}
+                {formSuccess && (
+                  <div className="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800">
+                    <div className="flex items-center gap-2 mb-2"><CheckCircle size={16} className="text-green-600 dark:text-green-400" /><span className="font-medium text-sm text-green-900 dark:text-green-100">Equipaje registrado</span></div>
+                    <div className="space-y-1 text-xs">
+                      <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-300">Código:</span><span className="font-medium text-slate-900 dark:text-slate-100">{formSuccess.id_externo || formSuccess.id.slice(0, 8)}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-300">Estado:</span><Badge variant="green">{formSuccess.estado}</Badge></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </PanelFlotante>
+          )}
+          {dockAbiertas.has('filtro') && (
+            <PanelFlotante
+              title="Filtro por Ocupación"
+              onClose={() => toggleDockOp('filtro')}
+              className="w-80 shrink-0 pointer-events-auto"
+            >
+              <div className="p-4">
+                <div className="flex items-center gap-1 flex-wrap">
+                  {(['', 'VACIO', 'VERDE', 'AMBAR', 'ROJO'] as const).map((opt) => (
+                    <button key={opt} onClick={() => setFiltroColor(opt)}
+                      className={`px-2 py-1 text-sm font-medium rounded-md transition-colors flex items-center gap-1 ${
+                        filtroColor === opt
+                          ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                          : 'text-slate-600 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      {opt === '' ? 'Todos' : (
+                        <span className="w-3 h-3 rounded-full inline-block"
+                          style={{ backgroundColor: opt === 'VACIO' ? '#9ca3af' : opt === 'VERDE' ? '#22c55e' : opt === 'AMBAR' ? '#eab308' : '#ef4444' }}
+                        />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </PanelFlotante>
           )}
         </div>
-      </Modal>
+
+        {selectedEnvio && (
+          <div className="absolute left-16 bottom-4 z-[1001]">
+            <PanelFlotante title="Detalle de Envío" onClose={() => setSelectedEnvio(null)} className="w-80 pointer-events-auto">
+              <PanelEnviosOperacion selectedEnvio={selectedEnvio} onClose={() => setSelectedEnvio(null)}
+                onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)} onMostrarRuta={handleMostrarRutaOp}
+              />
+            </PanelFlotante>
+          </div>
+        )}
+
+        <Modal open={cargaMasivaOpen}
+          onClose={() => { setCargaMasivaOpen(false); setCsvFile(null); setCsvPreview(null); setCsvError(null); }}
+          title="Carga Masiva de Equipaje"
+          footer={
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => { setCargaMasivaOpen(false); setCsvFile(null); setCsvPreview(null); setCsvError(null); }}>Cancelar</Button>
+              <Button onClick={handleConfirmarCargaMasiva} disabled={!csvPreview || csvPreview.validos === 0 || csvConfirmLoading}>
+                {csvConfirmLoading ? "Confirmando..." : `Confirmar (${csvPreview?.validos || 0})`}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-6 text-center">
+              <input type="file" accept=".csv" onChange={handleFileChange} className="hidden" id="csv-upload" />
+              <label htmlFor="csv-upload" className="cursor-pointer">
+                <Upload size={32} className="mx-auto text-slate-600 mb-2" />
+                <p className="text-sm text-slate-600 dark:text-slate-300">{csvFile ? csvFile.name : "Subir archivo CSV"}</p>
+              </label>
+            </div>
+            {csvLoading && <div className="text-center text-sm text-slate-600">Procesando...</div>}
+            {csvError && (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
+                <AlertTriangle size={16} />
+                <span className="text-sm text-red-700 dark:text-red-300">{csvError}</span>
+              </div>
+            )}
+            {csvPreview && (
+              <div className="space-y-3">
+                <div className="flex gap-4 text-sm">
+                  <span className="text-slate-600 dark:text-slate-300">Total: {csvPreview.total}</span>
+                  <span className="text-green-700 dark:text-green-400">Válidos: {csvPreview.validos}</span>
+                  <span className="text-yellow-700 dark:text-yellow-400">Revisión: {csvPreview.con_revision}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </Modal>
     </div>
   );
 }
@@ -1253,7 +1001,8 @@ function SimulacionView({
   const [error, setError] = useState("");
   const [sesionesActivas, setSesionesActivas] = useState<SesionListaItem[]>([]);
   const [finalizandoId, setFinalizandoId] = useState<string | null>(null);
-  const [isCollapsed, setIsCollapsed] = useState(true);
+  const [dockAbiertas, setDockAbiertas] = useState<Set<string>>(new Set());
+  const [dockCollapsed, setDockCollapsed] = useState(false);
   const [reporte, setReporte] = useState<ReporteSesion | null>(null);
 
   const [simulacionConfig, setSimulacionConfig] = useState({
@@ -1696,10 +1445,18 @@ function SimulacionView({
     return sumCap > 0 ? (sumOcup / sumCap) * 100 : 0;
   }, [aeropuertosMapa]);
 
+  const toggleDock = useCallback((id: string) => {
+    setDockAbiertas((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
   return (
-    <div className="flex h-full">
-      <div className="flex-1 p-4 relative">
-        <GeoMapa
+    <div className="relative h-full overflow-hidden">
+      <GeoMapa
           aeropuertos={aeropuertosMapa}
           vuelos={
             estadoSesion === "EN_CURSO" || estadoSesion === "PAUSADA"
@@ -1720,7 +1477,7 @@ function SimulacionView({
           mostrarAviones={true}
           animacionActiva={animacionActiva}
           k={k}
-          className="h-full"
+          className="h-full w-full"
           umbralesConfig={configUmbrales}
           cargando={
             (!!sesionId || estadoSesion === "EN_CURSO") &&
@@ -1743,459 +1500,291 @@ function SimulacionView({
           onVueloSeleccionado={handleVueloSeleccionadoSim}
           continenteFiltro={filtroContinenteSim || undefined}
         >
-          <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
-            <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
-              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
-                <Activity size={12} className="text-blue-600" />
-                <span className="text-[10px] text-slate-500">SLA</span>
-                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                  {(metricas.sla_acumulado_pct ?? 0).toFixed(1)}%
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
-                <XCircle size={12} className="text-red-600" />
-                <span className="text-[10px] text-slate-500">Cancel</span>
-                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                  {metricas.vuelos_cancelados}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
-                <RefreshCw size={12} className="text-amber-600" />
-                <span className="text-[10px] text-slate-500">Replan</span>
-                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                  {metricas.maletas_replanificadas}
-                </span>
-              </div>
-            </div>
-            <div className="pointer-events-auto mt-1.5 p-2 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
-              <div className="flex items-center justify-between mb-0.5">
-                <span className="text-[10px] text-slate-500">
-                  Ocupación global
-                </span>
-                <span
-                  className="text-xs font-bold"
-                  style={{
-                    color:
-                      ocupacionGlobal < configUmbrales.verdeMax
-                        ? "#22c55e"
-                        : ocupacionGlobal < configUmbrales.ambarMax
-                          ? "#eab308"
-                          : "#ef4444",
-                  }}
-                >
-                  {ocupacionGlobal.toFixed(1)}%
-                </span>
-              </div>
-              <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${Math.min(ocupacionGlobal, 100)}%`,
-                    backgroundColor:
-                      ocupacionGlobal < configUmbrales.verdeMax
-                        ? "#22c55e"
-                        : ocupacionGlobal < configUmbrales.ambarMax
-                          ? "#eab308"
-                          : "#ef4444",
-                  }}
-                />
-              </div>
-            </div>
-            <div className="pointer-events-auto mt-1.5 p-2 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-slate-500">
-                  Vuelos activos
-                </span>
-                <span className="text-xs font-bold text-green-600">
-                  {vuelosSimActivos}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-slate-500">
-                  Vuelos programados
-                </span>
-                <span className="text-xs font-bold text-blue-600">
-                  {vuelosSimProgramados}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-slate-500">
-                  Últimas Maletas Entregadas
-                </span>
-                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                  {metricas.maletas_entregadas ?? 0}
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="absolute top-4 right-4 z-[1001] pointer-events-none max-w-[320px] flex flex-col gap-1.5">
-            <div className="pointer-events-auto p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 space-y-1 text-[11px] text-slate-600 dark:text-slate-400 min-w-[220px]">
-              <div className="flex justify-between">
-                <span>Inicio Real:</span>
-                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
-                  {inicioRealMs > 0
-                    ? formatearFechaHora(
-                        new Date(inicioRealMs).toISOString(),
-                      )
-                    : "-"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span>Inicio Virtual:</span>
-                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
-                  {simulacionConfig.fecha_inicio_virtual}{" "}
-                  {simulacionConfig.hora_inicio_virtual}:00
-                </span>
-              </div>
-              <div className="border-t border-slate-200 dark:border-slate-600 my-1" />
-              <div className="flex justify-between">
-                <span>Actual Real:</span>
-                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
-                  {inicioRealMs > 0
-                    ? formatearFechaHora(
-                        new Date(inicioRealMs).toISOString(),
-                      )
-                    : "-"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span>Actual Virtual:</span>
-                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
-                  {formatearFechaHoraLima(metricas.dia_hora_virtual)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span>Transcurrido:</span>
-                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
-                  {formatDuracionHHMMSS(
-                    metricas.segundos_reales_transcurridos ?? 0,
-                  )}
-                </span>
-              </div>
-            </div>
-            <div className="pointer-events-auto p-2 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
-              <div className="flex items-center gap-1">
-                <Luggage
-                  size={14}
-                  className="text-slate-500 dark:text-slate-400"
-                />
-                {(["todos", "con_equipaje", "sin_equipaje"] as const).map(
-                  (opt) => (
-                    <button
-                      key={opt}
-                      onClick={() => setEquipajeFilter(opt)}
-                      className={`px-2 py-0.5 text-[11px] font-medium rounded-md transition-colors ${
-                        equipajeFilter === opt
-                          ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
-                          : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-                      }`}
-                    >
-                      {opt === "todos"
-                        ? "Todos"
-                        : opt === "con_equipaje"
-                          ? "Con equipaje"
-                          : "Sin equipaje"}
-                    </button>
-                  ),
-                )}
-              </div>
-            </div>
+          <BarraMetricasCompacta
+            sla={metricas.sla_acumulado_pct ?? 100}
+            cancelados={metricas.vuelos_cancelados}
+            replanificadas={metricas.maletas_replanificadas}
+            ocupacionGlobal={ocupacionGlobal}
+            verdeMax={configUmbrales.verdeMax}
+            ambarMax={configUmbrales.ambarMax}
+            vuelosActivos={vuelosSimActivos}
+            vuelosProgramados={vuelosSimProgramados}
+            maletasEntregadas={metricas.maletas_entregadas}
+            equipajeFilter={equipajeFilter}
+            onEquipajeFilterChange={setEquipajeFilter}
+          />
+          <div className="absolute top-4 right-4 z-[1001] pointer-events-none">
+            <TiemposInfo
+              inicioRealMs={inicioRealMs}
+              inicioSimuladoISO={`${simulacionConfig.fecha_inicio_virtual}T${simulacionConfig.hora_inicio_virtual}:00`}
+              actualSimulado={metricas?.dia_hora_virtual ?? null}
+            />
           </div>
         </GeoMapa>
         {sesionId && estadoSesion === "EN_CURSO" && !simReady && (
-          <SimulacionLoadingOverlay visible={true} />
+          <div className="absolute inset-0 z-50">
+            <SimulacionLoadingOverlay visible={true} />
+          </div>
         )}
-      </div>
 
-      <div
-        className={`border-l border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col overflow-y-auto transition-all duration-300 ${isCollapsed ? "w-12" : "w-80"}`}
-      >
-        <div className="p-2 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-          {!isCollapsed && (
-            <h2 className="font-semibold text-slate-900 dark:text-slate-100 text-sm truncate">
-              Simulación
-            </h2>
-          )}
-          <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          >
-            {isCollapsed ? <Menu size={18} /> : <ChevronLeft size={18} />}
-          </button>
+        <div className="absolute left-2 top-1/2 -translate-y-1/2 z-[1002] flex flex-col bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 rounded-xl">
+          <DockIconos
+            secciones={[
+              { id: 'aeropuertos', icon: Warehouse, label: 'Aeropuertos' },
+              { id: 'vuelos', icon: Plane, label: 'Vuelos' },
+              { id: 'envios', icon: Luggage, label: 'Envíos' },
+              { id: 'sesion', icon: Settings, label: 'Sesión' },
+              { id: 'reportes', icon: FileText, label: 'Reportes' },
+            ]}
+            abiertas={dockAbiertas}
+            onToggle={toggleDock}
+            collapsed={dockCollapsed}
+            onToggleCollapse={() => setDockCollapsed(!dockCollapsed)}
+          />
         </div>
 
-        {isCollapsed ? (
-          <div className="flex flex-col items-center gap-3 py-4 px-1">
-            <span
-              className={`w-2 h-2 rounded-full ${wsConnected ? "bg-green-500" : "bg-red-500"}`}
-            />
-          </div>
-        ) : (
-          <>
-            <div className="p-4 border-b border-slate-200 dark:border-slate-700">
-              <div className="flex items-center justify-between mb-1">
-                <h2 className="font-semibold text-slate-900 dark:text-slate-100">
-                  Simulación
-                </h2>
-              </div>
-              <div className="flex items-center gap-2 mb-1">
-                <span
-                  className={`w-2 h-2 rounded-full ${wsConnected ? "bg-green-500" : "bg-red-500"}`}
-                />
-                <span className="text-xs text-slate-500">
-                  WS {wsConnected ? "conectado" : "desconectado"}
-                </span>
-              </div>
-
-              {sesionEnCurso && (
-                <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
-                  <span className="text-xs text-blue-600 font-medium">
-                    Activa: {sesionEnCurso.fecha_inicio_virtual}
-                  </span>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    disabled={finalizandoId === sesionEnCurso.id}
-                    onClick={() => handleDetener(sesionEnCurso.id)}
-                  >
-                    <Square size={12} className="mr-1" />
-                    {finalizandoId === sesionEnCurso.id ? "..." : "Detener"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setSesionId(sesionEnCurso.id);
-                      setEstadoSesion("EN_CURSO");
+        <div className="absolute left-16 top-4 z-[1001] flex flex-col gap-2 max-h-[calc(100vh-8rem)] overflow-y-auto pointer-events-none">
+          {dockAbiertas.has('aeropuertos') && (
+            <PanelFlotante
+              title="Aeropuertos"
+              onClose={() => toggleDock('aeropuertos')}
+              className="w-80 shrink-0 pointer-events-auto"
+            >
+              {sesionId && estadoSesion !== "FINALIZADA" ? (
+                <div className="p-4">
+                  <PanelAeropuertosOperacion
+                    aeropuertos={telemetria?.nodos ?? []}
+                    onAeropuertoClick={(id, codigo) =>
+                      setSelectedEnvio({ tipo: "nodo", id, codigo })
+                    }
+                    onVerEnMapa={(id) => {
+                      setSeguidoAeropuertoId(id);
+                      setSeguidoVueloId(null);
                     }}
-                  >
-                    <Play size={12} className="mr-1" />
-                    Reanudar
-                  </Button>
+                    seguidoId={seguidoAeropuertoId ?? undefined}
+                    seleccionadoId={aeroSeleccionadoSim ?? undefined}
+                    filtroContinente={filtroContinenteSim}
+                    onFiltroContinenteChange={setFiltroContinenteSim}
+                  />
                 </div>
+              ) : (
+                <p className="text-xs text-slate-600 p-4">Sin sesión activa</p>
               )}
-              {sesionPausada && !sesionEnCurso && (
-                <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
-                  <span className="text-xs text-yellow-600 font-medium">
-                    Pausada: {sesionPausada.fecha_inicio_virtual}
+            </PanelFlotante>
+          )}
+          {dockAbiertas.has('vuelos') && (
+            <PanelFlotante
+              title="Vuelos"
+              onClose={() => toggleDock('vuelos')}
+              className="w-80 shrink-0 pointer-events-auto"
+            >
+              <div className="p-4">
+                <PanelVuelosOperacion
+                  vuelos={telemetria?.vuelos ?? []}
+                  onVueloClick={(id, codigo) =>
+                    setSelectedEnvio({ tipo: "vuelo", id, codigo })
+                  }
+                  onDownloadManifiesto={async (id, codigo) => {
+                    try {
+                      const blob = await api.downloadBlob(`/manifiestos/${id}`);
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `manifiesto_${codigo}_${new Date().toISOString().split("T")[0]}.pdf`;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
+                    } catch {
+                      alert("Error al descargar manifiesto");
+                    }
+                  }}
+                  onCancelVuelo={handleCancelarVuelo}
+                  onVerEnMapa={(id) => {
+                    setSeguidoVueloId(id);
+                    setSeguidoAeropuertoId(null);
+                  }}
+                  seguidoId={seguidoVueloId ?? undefined}
+                  seleccionadoId={vueloSeleccionadoSim ?? undefined}
+                  origenFilter={vueloFilterOrigen}
+                  destinoFilter={vueloFilterDestino}
+                  onFilterChange={({ origen, destino }) => {
+                    setVueloFilterOrigen(origen);
+                    setVueloFilterDestino(destino);
+                  }}
+                />
+                {sesionId && plantillas.length > 0 && (
+                  <SeccionCancelacion
+                    plantillas={plantillas}
+                    sesionId={sesionId}
+                    momentoVirtual={metricas?.dia_hora_virtual ?? null}
+                  />
+                )}
+              </div>
+            </PanelFlotante>
+          )}
+          {dockAbiertas.has('envios') && (
+            <PanelFlotante
+              title="Envíos de Maletas"
+              onClose={() => toggleDock('envios')}
+              className="w-80 shrink-0 pointer-events-auto"
+            >
+              {sesionId && estadoSesion !== "FINALIZADA" ? (
+                <PanelEnviosMaletas
+                  sesionId={sesionId}
+                  activo={estadoSesion === "EN_CURSO"}
+                  nodos={aeropuertosMapa.map((n) => ({
+                    codigo_iata: n.codigo_iata,
+                    nombre: n.nombre,
+                  }))}
+                  onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
+                  onMostrarRuta={handleMostrarRutaSim}
+                />
+              ) : (
+                <p className="text-xs text-slate-600 p-4">Sin sesión activa</p>
+              )}
+            </PanelFlotante>
+          )}
+          {dockAbiertas.has('sesion') && (
+            <PanelFlotante
+              title="Sesión"
+              onClose={() => toggleDock('sesion')}
+              className="w-80 shrink-0 pointer-events-auto"
+            >
+              <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+                <div className="flex items-center gap-2 mb-1">
+                  <span
+                    className={`w-2 h-2 rounded-full ${wsConnected ? "bg-green-500" : "bg-red-500"}`}
+                  />
+                  <span className="text-xs text-slate-600">
+                    WS {wsConnected ? "conectado" : "desconectado"}
                   </span>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    disabled={finalizandoId === sesionPausada.id}
-                    onClick={() => handleDetener(sesionPausada.id)}
-                  >
-                    <Square size={12} className="mr-1" />
-                    {finalizandoId === sesionPausada.id ? "..." : "Detener"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={async () => {
+                </div>
+                {sesionEnCurso && (
+                  <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+                    <span className="text-xs text-blue-600 font-medium">
+                      Activa: {sesionEnCurso.fecha_inicio_virtual}
+                    </span>
+                    <Button variant="danger" size="sm" disabled={finalizandoId === sesionEnCurso.id} onClick={() => handleDetener(sesionEnCurso.id)}>
+                      <Square size={12} className="mr-1" />
+                      {finalizandoId === sesionEnCurso.id ? "..." : "Detener"}
+                    </Button>
+                    <Button size="sm" onClick={() => { setSesionId(sesionEnCurso.id); setEstadoSesion("EN_CURSO"); }}>
+                      <Play size={12} className="mr-1" />
+                      Reanudar
+                    </Button>
+                  </div>
+                )}
+                {sesionPausada && !sesionEnCurso && (
+                  <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+                    <span className="text-xs text-yellow-600 font-medium">
+                      Pausada: {sesionPausada.fecha_inicio_virtual}
+                    </span>
+                    <Button variant="danger" size="sm" disabled={finalizandoId === sesionPausada.id} onClick={() => handleDetener(sesionPausada.id)}>
+                      <Square size={12} className="mr-1" />
+                      {finalizandoId === sesionPausada.id ? "..." : "Detener"}
+                    </Button>
+                    <Button size="sm" onClick={async () => {
                       setSesionId(sesionPausada.id);
                       setLoading(true);
                       setError("");
                       try {
-                        const otrasActivas = await api
-                          .get<SesionListaItem[]>("/sesiones?estado=EN_CURSO")
-                          .catch(() => [] as SesionListaItem[]);
+                        const otrasActivas = await api.get<SesionListaItem[]>("/sesiones?estado=EN_CURSO").catch(() => [] as SesionListaItem[]);
                         for (const s of otrasActivas) {
                           if (s.id !== sesionPausada.id) {
-                            try {
-                              await api.post(
-                                `/sesiones/${s.id}/detener`,
-                                {},
-                              );
-                            } catch {
-                              /* ignore */
-                            }
+                            try { await api.post(`/sesiones/${s.id}/detener`, {}); } catch { /* ignore */ }
                           }
                         }
-                        await api.post(
-                          `/sesiones/${sesionPausada.id}/iniciar`,
-                          {},
-                        );
+                        await api.post(`/sesiones/${sesionPausada.id}/iniciar`, {});
                         setInicioRealMs(hora.getTime());
                         setEstadoSesion("EN_CURSO");
                       } catch (err: unknown) {
                         const e = err as { mensaje?: string; message?: string };
-                        setError(
-                          e.mensaje || e.message || "Error al reanudar",
-                        );
-                      } finally {
-                        setLoading(false);
-                      }
-                    }}
-                  >
-                    <Play size={12} className="mr-1" />
-                    Continuar
-                  </Button>
-                </div>
-              )}
-              {error && (
-                <div className="flex items-center gap-2 p-2 mt-2 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
-                  <XCircle
-                    size={14}
-                    className="text-red-600 dark:text-red-400 flex-shrink-0"
-                  />
-                  <span className="text-xs text-red-700 dark:text-red-300">
-                    {error}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {(estadoSesion === "EN_CURSO" || estadoSesion === "PAUSADA") && (
-              <div className="p-4 border-b border-slate-200 dark:border-slate-700">
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">
-                  Sesión {sesionId?.slice(0, 8)}
-                </h3>
-
-                <div className="flex gap-2">
-                  {estadoSesion === "EN_CURSO" ? (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={handlePausar}
-                      disabled={loading}
-                      className="flex-1"
-                    >
-                      <Pause size={14} className="mr-1" />
-                      Pausar
+                        setError(e.mensaje || e.message || "Error al reanudar");
+                      } finally { setLoading(false); }
+                    }}>
+                      <Play size={12} className="mr-1" />
+                      Continuar
                     </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      onClick={handleReanudar}
-                      disabled={loading}
-                      className="flex-1"
-                    >
-                      <Play size={14} className="mr-1" />
-                      Reanudar
-                    </Button>
-                  )}
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => sesionId && handleDetener(sesionId)}
-                    disabled={finalizandoId === sesionId}
-                    className="flex-1"
-                  >
-                    <Square size={14} className="mr-1" />
-                    Detener
-                  </Button>
-                </div>
+                  </div>
+                )}
+                {error && (
+                  <div className="flex items-center gap-2 p-2 mt-2 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
+                    <XCircle size={14} className="text-red-600 dark:text-red-400 flex-shrink-0" />
+                    <span className="text-xs text-red-700 dark:text-red-300">{error}</span>
+                  </div>
+                )}
               </div>
-            )}
-
-            {(!sesionId || estadoSesion === "FINALIZADA") && (
-              <>
-                {estadoSesion === "FINALIZADA" && reporte && (
+              {(estadoSesion === "EN_CURSO" || estadoSesion === "PAUSADA") && (
+                <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">
+                    Sesión {sesionId?.slice(0, 8)}
+                  </h3>
+                  <div className="flex gap-2">
+                    {estadoSesion === "EN_CURSO" ? (
+                      <Button variant="secondary" size="sm" onClick={handlePausar} disabled={loading} className="flex-1">
+                        <Pause size={14} className="mr-1" />
+                        Pausar
+                      </Button>
+                    ) : (
+                      <Button size="sm" onClick={handleReanudar} disabled={loading} className="flex-1">
+                        <Play size={14} className="mr-1" />
+                        Reanudar
+                      </Button>
+                    )}
+                    <Button variant="danger" size="sm" onClick={() => sesionId && handleDetener(sesionId)} disabled={finalizandoId === sesionId} className="flex-1">
+                      <Square size={14} className="mr-1" />
+                      Detener
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {(!sesionId || estadoSesion === "FINALIZADA") && (
+                <div className="p-4 space-y-4">
+                  <div className="space-y-3">
+                    <Input label="Fecha virtual" type="date" value={simulacionConfig.fecha_inicio_virtual}
+                      onChange={(e) => setSimulacionConfig({ ...simulacionConfig, fecha_inicio_virtual: e.target.value })}
+                    />
+                    <Input label="Hora virtual" type="time" value={simulacionConfig.hora_inicio_virtual}
+                      onChange={(e) => setSimulacionConfig({ ...simulacionConfig, hora_inicio_virtual: e.target.value })}
+                    />
+                  </div>
+                  <Button size="lg" onClick={handleIniciar} disabled={loading} className="w-full">
+                    <Play size={18} className="mr-2" />
+                    {loading ? "Creando..." : "Iniciar Simulación"}
+                  </Button>
+                </div>
+              )}
+            </PanelFlotante>
+          )}
+          {dockAbiertas.has('reportes') && (
+            <PanelFlotante
+              title="Reportes"
+              onClose={() => toggleDock('reportes')}
+              className="w-80 shrink-0 pointer-events-auto"
+            >
+              {reporte ? (
+                <div className="p-4">
                   <PanelReporte
                     reporte={reporte}
                     sesionId={sesionId ?? ""}
                     onClose={() => setReporte(null)}
                   />
-                )}
-                <div className="p-4 border-b border-slate-200 dark:border-slate-700 space-y-4">
-                  <Card title="Fecha y Hora">
-                    <div className="space-y-3">
-                      <Input
-                        label="Fecha virtual"
-                        type="date"
-                        value={simulacionConfig.fecha_inicio_virtual}
-                        onChange={(e) =>
-                          setSimulacionConfig({
-                            ...simulacionConfig,
-                            fecha_inicio_virtual: e.target.value,
-                          })
-                        }
-                      />
-                      <Input
-                        label="Hora virtual"
-                        type="time"
-                        value={simulacionConfig.hora_inicio_virtual}
-                        onChange={(e) =>
-                          setSimulacionConfig({
-                            ...simulacionConfig,
-                            hora_inicio_virtual: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                  </Card>
-                  <Button
-                    size="lg"
-                    onClick={handleIniciar}
-                    disabled={loading}
-                    className="w-full"
-                  >
-                    <Play size={18} className="mr-2" />
-                    {loading ? "Creando..." : "Iniciar Simulación"}
-                  </Button>
                 </div>
-              </>
-            )}
+              ) : (
+                <p className="text-xs text-slate-600 p-4">No hay reportes disponibles</p>
+              )}
+            </PanelFlotante>
+          )}
+        </div>
 
-            {sesionId && estadoSesion !== "FINALIZADA" && (
-              <PanelTabs
-                aeropuertos={telemetria?.nodos ?? []}
-                vuelosAeropuerto={telemetria?.vuelos ?? []}
-                onAeropuertoClick={(id, codigo) =>
-                  setSelectedEnvio({ tipo: "nodo", id, codigo })
-                }
-                vuelos={telemetria?.vuelos ?? []}
-                onVueloClick={(id, codigo) =>
-                  setSelectedEnvio({ tipo: "vuelo", id, codigo })
-                }
-                onDownloadManifiesto={async (id, codigo) => {
-                  try {
-                    const blob = await api.downloadBlob(`/manifiestos/${id}`);
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = `manifiesto_${codigo}_${new Date().toISOString().split("T")[0]}.pdf`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                  } catch {
-                    alert("Error al descargar manifiesto");
-                  }
-                }}
-                onVerEnMapa={(id) => {
-                  setSeguidoVueloId(id);
-                  setSeguidoAeropuertoId(null);
-                }}
-                seguidoVueloId={seguidoVueloId ?? undefined}
-                onAeropuertoVerEnMapa={(id) => {
-                  setSeguidoAeropuertoId(id);
-                  setSeguidoVueloId(null);
-                }}
-                seguidoAeropuertoId={seguidoAeropuertoId ?? undefined}
-                aeropuertoSeleccionadoId={aeroSeleccionadoSim ?? undefined}
-                vueloSeleccionadoId={vueloSeleccionadoSim ?? undefined}
-                onCancelVuelo={handleCancelarVuelo}
-                vueloFilterOrigen={vueloFilterOrigen}
-                vueloFilterDestino={vueloFilterDestino}
-                onVueloFilterChange={({ origen, destino }) => {
-                  setVueloFilterOrigen(origen);
-                  setVueloFilterDestino(destino);
-                }}
-                sesionId={sesionId}
-                enviosActivo={estadoSesion === "EN_CURSO"}
-                nodos={aeropuertosMapa.map((n) => ({
-                  codigo_iata: n.codigo_iata,
-                  nombre: n.nombre,
-                }))}
-                onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
-                onMostrarRuta={handleMostrarRutaSim}
-                filtroContinente={filtroContinenteSim}
-                onFiltroContinenteChange={setFiltroContinenteSim}
-                plantillas={plantillas}
-                fechaVirtual={metricas?.dia_hora_virtual ?? null}
-              />
-            )}
-
-            {selectedEnvio && sesionId && (
+        {selectedEnvio && sesionId && (
+          <div className="absolute left-16 bottom-4 z-[1001]">
+            <PanelFlotante
+              title="Detalle de Envío"
+              onClose={() => setSelectedEnvio(null)}
+              className="w-80 pointer-events-auto"
+            >
               <PanelEnvios
                 selectedEnvio={selectedEnvio}
                 sesionId={sesionId}
@@ -2203,69 +1792,54 @@ function SimulacionView({
                 onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
                 onMostrarRuta={handleMostrarRutaSim}
               />
-            )}
-
-            {cancelResult && (
-              <Modal
-                open={true}
-                onClose={() => setCancelResult(null)}
-                title={`Vuelo ${cancelResult.codigo} cancelado`}
-                footer={
-                  <div className="flex gap-2">
-                    <Button
-                      variant="secondary"
-                      onClick={() => setCancelResult(null)}
-                    >
-                      Cerrar
-                    </Button>
-                    <Button
-                      onClick={async () => {
-                        const blob = await api.downloadBlob(
-                          `/sesiones/${sesionId}/replanificaciones/${cancelResult.loteId}/pdf`,
-                        );
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = url;
-                        a.download = `replanificacion_${cancelResult.loteId}.pdf`;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
-                      }}
-                    >
-                      Descargar PDF
-                    </Button>
-                  </div>
-                }
-              >
-                <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
-                  {cancelResult.equipajes.length} equipaje
-                  {cancelResult.equipajes.length !== 1 ? "s" : ""} afectado
-                  {cancelResult.equipajes.length !== 1 ? "s" : ""} y re-enrutado
-                  {cancelResult.equipajes.length !== 1 ? "s" : ""}.
-                </p>
-                {cancelResult.equipajes.length > 0 && (
-                  <div className="max-h-48 overflow-y-auto space-y-1">
-                    {cancelResult.equipajes.map((eq) => (
-                      <div
-                        key={eq.id}
-                        className="flex items-center justify-between text-xs px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50"
-                      >
-                        <span className="font-medium text-slate-700 dark:text-slate-300">
-                          {eq.codigo}
-                        </span>
-                        <span className="text-slate-500">
-                          {eq.origen_iata} → {eq.destino_iata}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Modal>
-            )}
-          </>
+            </PanelFlotante>
+          </div>
         )}
-      </div>
+
+        {cancelResult && (
+          <Modal
+            open={true}
+            onClose={() => setCancelResult(null)}
+            title={`Vuelo ${cancelResult.codigo} cancelado`}
+            footer={
+              <div className="flex gap-2">
+                <Button variant="secondary" onClick={() => setCancelResult(null)}>
+                  Cerrar
+                </Button>
+                <Button onClick={async () => {
+                  const blob = await api.downloadBlob(`/sesiones/${sesionId}/replanificaciones/${cancelResult.loteId}/pdf`);
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `replanificacion_${cancelResult.loteId}.pdf`;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                }}>
+                  Descargar PDF
+                </Button>
+              </div>
+            }
+          >
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-3">
+              {cancelResult.equipajes.length} equipaje
+              {cancelResult.equipajes.length !== 1 ? "s" : ""} afectado
+              {cancelResult.equipajes.length !== 1 ? "s" : ""} y re-enrutado
+              {cancelResult.equipajes.length !== 1 ? "s" : ""}.
+            </p>
+            {cancelResult.equipajes.length > 0 && (
+              <div className="max-h-48 overflow-y-auto space-y-1">
+                {cancelResult.equipajes.map((eq) => (
+                  <div key={eq.id} className="flex items-center justify-between text-xs px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
+                    <span className="font-medium text-slate-700 dark:text-slate-300">{eq.codigo}</span>
+                    <span className="text-slate-600">{eq.origen_iata} → {eq.destino_iata}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Modal>
+        )}
     </div>
   );
 }
@@ -2280,9 +1854,11 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [error, setError] = useState("");
   const [sesionesActivas, setSesionesActivas] = useState<SesionListaItem[]>([]);
   const [finalizandoId, setFinalizandoId] = useState<string | null>(null);
-  const [isCollapsed, setIsCollapsed] = useState(true);
+  const [dockAbiertas, setDockAbiertas] = useState<Set<string>>(new Set());
+  const [dockCollapsed, setDockCollapsed] = useState(false);
   const [reporte, setReporte] = useState<ReporteSesion | null>(null);
   const [cancelResult, setCancelResult] = useState<CancelResult | null>(null);
+  const [plantillas, setPlantillas] = useState<PlantillaResumen[]>([]);
 
   const [simulacionConfig, setSimulacionConfig] = useState({
     fecha_inicio_virtual: "2026-01-02",
@@ -2696,14 +2272,44 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     }
   };
 
+  useEffect(() => {
+    if (!sesionId || estadoSesion === "CONFIGURADA" || estadoSesion === "FINALIZADA" || estadoSesion === "COLAPSADA") {
+      setPlantillas([]);
+      return;
+    }
+    api
+      .get<VueloPageResponse>("/vuelos?es_plantilla=true&size=500")
+      .then((r) => {
+        setPlantillas(
+          r.content.map((v) => ({
+            id: v.id,
+            codigo_vuelo: v.codigo_vuelo,
+            origen_iata: v.origen.codigo_iata,
+            destino_iata: v.destino.codigo_iata,
+            hora_salida: v.hora_salida,
+            hora_llegada: v.hora_llegada,
+          })),
+        );
+      })
+      .catch(() => setPlantillas([]));
+  }, [sesionId, estadoSesion]);
+
   const k = useMemo(() => telemetria?.metricas_sesion?.k ?? 120, [telemetria]);
   const animacionActiva =
     wsConnected && (vuelosMapa.some((v) => v.estado === "EN_RUTA") ?? false);
 
+  const toggleDock = useCallback((id: string) => {
+    setDockAbiertas((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
   return (
-    <div className="flex h-full">
-      <div className="flex-1 p-4 relative">
-        <GeoMapa
+    <div className="relative h-full overflow-hidden">
+      <GeoMapa
           aeropuertos={aeropuertosMapa}
           vuelos={
             estadoSesion === "EN_CURSO" || estadoSesion === "PAUSADA"
@@ -2724,7 +2330,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
           mostrarAviones={true}
           animacionActiva={animacionActiva}
           k={k}
-          className="h-full"
+          className="h-full w-full"
           umbralesConfig={configUmbrales}
           cargando={
             (!!sesionId || estadoSesion === "EN_CURSO") &&
@@ -2747,441 +2353,201 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
           onVueloSeleccionado={handleVueloSeleccionadoCol}
           continenteFiltro={filtroContinenteCol || undefined}
         >
-          <div className="absolute top-4 left-4 z-[1001] pointer-events-none">
-            <div className="pointer-events-auto flex gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
-              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
-                <Activity size={12} className="text-blue-600" />
-                <span className="text-[10px] text-slate-500">SLA</span>
-                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                  {(metricas.sla_acumulado_pct ?? 0).toFixed(1)}%
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
-                <XCircle size={12} className="text-red-600" />
-                <span className="text-[10px] text-slate-500">Cancel</span>
-                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                  {metricas.vuelos_cancelados}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50">
-                <RefreshCw size={12} className="text-amber-600" />
-                <span className="text-[10px] text-slate-500">Replan</span>
-                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                  {metricas.maletas_replanificadas}
-                </span>
-              </div>
-            </div>
-            <div className="pointer-events-auto mt-1.5 p-2 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
-              <div className="flex items-center justify-between mb-0.5">
-                <span className="text-[10px] text-slate-500">
-                  Ocupación global
-                </span>
-                <span
-                  className="text-xs font-bold"
-                  style={{
-                    color:
-                      ocupacionGlobal < configUmbrales.verdeMax
-                        ? "#22c55e"
-                        : ocupacionGlobal < configUmbrales.ambarMax
-                          ? "#eab308"
-                          : "#ef4444",
-                  }}
-                >
-                  {ocupacionGlobal.toFixed(1)}%
-                </span>
-              </div>
-              <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${Math.min(ocupacionGlobal, 100)}%`,
-                    backgroundColor:
-                      ocupacionGlobal < configUmbrales.verdeMax
-                        ? "#22c55e"
-                        : ocupacionGlobal < configUmbrales.ambarMax
-                          ? "#eab308"
-                          : "#ef4444",
-                  }}
-                />
-              </div>
-            </div>
-            <div className="pointer-events-auto mt-1.5 p-2 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-slate-500">
-                  Vuelos activos
-                </span>
-                <span className="text-xs font-bold text-green-600">
-                  {vuelosColActivos}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-slate-500">
-                  Vuelos programados
-                </span>
-                <span className="text-xs font-bold text-blue-600">
-                  {vuelosColProgramados}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-slate-500">
-                  Últimas Maletas Entregadas
-                </span>
-                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                  {metricas.maletas_entregadas ?? 0}
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="absolute top-4 right-4 z-[1001] pointer-events-none max-w-[320px] flex flex-col gap-1.5">
-            <div className="pointer-events-auto p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 space-y-1 text-[11px] text-slate-600 dark:text-slate-400 min-w-[220px]">
-              <div className="flex justify-between">
-                <span>Inicio Real:</span>
-                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
-                  {inicioRealMs > 0
-                    ? formatearFechaHora(
-                        new Date(inicioRealMs).toISOString(),
-                      )
-                    : "-"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span>Inicio Virtual:</span>
-                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
-                  {simulacionConfig.fecha_inicio_virtual}{" "}
-                  {simulacionConfig.hora_inicio_virtual}:00
-                </span>
-              </div>
-              <div className="border-t border-slate-200 dark:border-slate-600 my-1" />
-              <div className="flex justify-between">
-                <span>Actual Real:</span>
-                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
-                  {inicioRealMs > 0
-                    ? formatearFechaHora(
-                        new Date(inicioRealMs).toISOString(),
-                      )
-                    : "-"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span>Actual Virtual:</span>
-                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
-                  {formatearFechaHoraLima(metricas.dia_hora_virtual)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span>Transcurrido:</span>
-                <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
-                  {formatDuracionHHMMSS(
-                    metricas.segundos_reales_transcurridos ?? 0,
-                  )}
-                </span>
-              </div>
-            </div>
-            <div className="pointer-events-auto p-2 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700">
-              <div className="flex items-center gap-1">
-                <Luggage
-                  size={14}
-                  className="text-slate-500 dark:text-slate-400"
-                />
-                {(["todos", "con_equipaje", "sin_equipaje"] as const).map(
-                  (opt) => (
-                    <button
-                      key={opt}
-                      onClick={() => setEquipajeFilter(opt)}
-                      className={`px-2 py-0.5 text-[11px] font-medium rounded-md transition-colors ${
-                        equipajeFilter === opt
-                          ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
-                          : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-                      }`}
-                    >
-                      {opt === "todos"
-                        ? "Todos"
-                        : opt === "con_equipaje"
-                          ? "Con equipaje"
-                          : "Sin equipaje"}
-                    </button>
-                  ),
-                )}
-              </div>
-            </div>
-          </div>
-        </GeoMapa>
-      </div>
-
-      <div
-        className={`border-l border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col overflow-y-auto transition-all duration-300 ${isCollapsed ? "w-12" : "w-80"}`}
-      >
-        <div className="p-2 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-          {!isCollapsed && (
-            <h2 className="font-semibold text-slate-900 dark:text-slate-100 text-sm truncate">
-              Colapso
-            </h2>
-          )}
-          <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          >
-            {isCollapsed ? <Menu size={18} /> : <ChevronLeft size={18} />}
-          </button>
-        </div>
-
-        {isCollapsed ? (
-          <div className="flex flex-col items-center gap-3 py-4 px-1">
-            <span
-              className={`w-2 h-2 rounded-full ${wsConnected ? "bg-green-500" : "bg-red-500"}`}
+          <BarraMetricasCompacta
+            sla={metricas.sla_acumulado_pct ?? 100}
+            cancelados={metricas.vuelos_cancelados}
+            replanificadas={metricas.maletas_replanificadas}
+            ocupacionGlobal={ocupacionGlobal}
+            verdeMax={configUmbrales.verdeMax}
+            ambarMax={configUmbrales.ambarMax}
+            vuelosActivos={vuelosColActivos}
+            vuelosProgramados={vuelosColProgramados}
+            maletasEntregadas={metricas.maletas_entregadas}
+            equipajeFilter={equipajeFilter}
+            onEquipajeFilterChange={setEquipajeFilter}
+          />
+          <div className="absolute top-4 right-4 z-[1001] pointer-events-none">
+            <TiemposInfo
+              inicioRealMs={inicioRealMs}
+              inicioSimuladoISO={`${simulacionConfig.fecha_inicio_virtual}T${simulacionConfig.hora_inicio_virtual}:00`}
+              actualSimulado={metricas?.dia_hora_virtual ?? null}
             />
           </div>
-        ) : (
-          <>
-            <div className="p-4 border-b border-slate-200 dark:border-slate-700">
-              <div className="flex items-center justify-between mb-1">
-                <h2 className="font-semibold text-slate-900 dark:text-slate-100">
-                  Colapso
-                </h2>
-              </div>
-              <div className="flex items-center gap-2 mb-1">
-                <span
-                  className={`w-2 h-2 rounded-full ${wsConnected ? "bg-green-500" : "bg-red-500"}`}
-                />
-                <span className="text-xs text-slate-500">
-                  WS {wsConnected ? "conectado" : "desconectado"}
-                </span>
-              </div>
+        </GeoMapa>
 
-              {sesionEnCurso && (
-                <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
-                  <span className="text-xs text-blue-600 font-medium">
-                    Activa: {sesionEnCurso.fecha_inicio_virtual}
+        <div className="absolute left-2 top-1/2 -translate-y-1/2 z-[1002] flex flex-col bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 rounded-xl">
+          <DockIconos
+            secciones={[
+              { id: 'sesion', icon: Settings, label: 'Sesión' },
+              { id: 'vuelos', icon: Plane, label: 'Vuelos' },
+              { id: 'reportes', icon: FileText, label: 'Reportes' },
+            ]}
+            abiertas={dockAbiertas}
+            onToggle={toggleDock}
+            collapsed={dockCollapsed}
+            onToggleCollapse={() => setDockCollapsed(!dockCollapsed)}
+          />
+        </div>
+
+        <div className="absolute left-16 top-4 z-[1001] flex flex-col gap-2 max-h-[calc(100vh-8rem)] overflow-y-auto pointer-events-none">
+          {dockAbiertas.has('sesion') && (
+            <PanelFlotante
+              title="Sesión"
+              onClose={() => toggleDock('sesion')}
+              className="w-80 shrink-0 pointer-events-auto"
+            >
+              <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+                <div className="flex items-center gap-2 mb-1">
+                  <span
+                    className={`w-2 h-2 rounded-full ${wsConnected ? "bg-green-500" : "bg-red-500"}`}
+                  />
+                  <span className="text-xs text-slate-600">
+                    WS {wsConnected ? "conectado" : "desconectado"}
                   </span>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    disabled={finalizandoId === sesionEnCurso.id}
-                    onClick={() => handleDetener(sesionEnCurso.id)}
-                  >
-                    <Square size={12} className="mr-1" />
-                    {finalizandoId === sesionEnCurso.id ? "..." : "Detener"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setSesionId(sesionEnCurso.id);
-                      setEstadoSesion("EN_CURSO");
-                    }}
-                  >
-                    <Play size={12} className="mr-1" />
-                    Reanudar
-                  </Button>
                 </div>
-              )}
-              {sesionPausada && !sesionEnCurso && (
-                <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
-                  <span className="text-xs text-yellow-600 font-medium">
-                    Pausada: {sesionPausada.fecha_inicio_virtual}
-                  </span>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    disabled={finalizandoId === sesionPausada.id}
-                    onClick={() => handleDetener(sesionPausada.id)}
-                  >
-                    <Square size={12} className="mr-1" />
-                    {finalizandoId === sesionPausada.id ? "..." : "Detener"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={async () => {
+                {sesionEnCurso && (
+                  <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+                    <span className="text-xs text-blue-600 font-medium">
+                      Activa: {sesionEnCurso.fecha_inicio_virtual}
+                    </span>
+                    <Button variant="danger" size="sm" disabled={finalizandoId === sesionEnCurso.id} onClick={() => handleDetener(sesionEnCurso.id)}>
+                      <Square size={12} className="mr-1" />
+                      {finalizandoId === sesionEnCurso.id ? "..." : "Detener"}
+                    </Button>
+                    <Button size="sm" onClick={() => { setSesionId(sesionEnCurso.id); setEstadoSesion("EN_CURSO"); }}>
+                      <Play size={12} className="mr-1" />
+                      Reanudar
+                    </Button>
+                  </div>
+                )}
+                {sesionPausada && !sesionEnCurso && (
+                  <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+                    <span className="text-xs text-yellow-600 font-medium">
+                      Pausada: {sesionPausada.fecha_inicio_virtual}
+                    </span>
+                    <Button variant="danger" size="sm" disabled={finalizandoId === sesionPausada.id} onClick={() => handleDetener(sesionPausada.id)}>
+                      <Square size={12} className="mr-1" />
+                      {finalizandoId === sesionPausada.id ? "..." : "Detener"}
+                    </Button>
+                    <Button size="sm" onClick={async () => {
                       setSesionId(sesionPausada.id);
                       setLoading(true);
                       setError("");
                       try {
-                        const otrasActivas = await api
-                          .get<SesionListaItem[]>("/sesiones?estado=EN_CURSO")
-                          .catch(() => [] as SesionListaItem[]);
+                        const otrasActivas = await api.get<SesionListaItem[]>("/sesiones?estado=EN_CURSO").catch(() => [] as SesionListaItem[]);
                         for (const s of otrasActivas) {
                           if (s.id !== sesionPausada.id) {
-                            try {
-                              await api.post(
-                                `/sesiones/${s.id}/detener`,
-                                {},
-                              );
-                            } catch {
-                              /* ignore */
-                            }
+                            try { await api.post(`/sesiones/${s.id}/detener`, {}); } catch { /* ignore */ }
                           }
                         }
-                        await api.post(
-                          `/sesiones/${sesionPausada.id}/iniciar`,
-                          {},
-                        );
+                        await api.post(`/sesiones/${sesionPausada.id}/iniciar`, {});
                         setInicioRealMs(hora.getTime());
                         setEstadoSesion("EN_CURSO");
                       } catch (err: unknown) {
                         const e = err as { mensaje?: string; message?: string };
-                        setError(
-                          e.mensaje || e.message || "Error al reanudar",
-                        );
-                      } finally {
-                        setLoading(false);
-                      }
-                    }}
-                  >
-                    <Play size={12} className="mr-1" />
-                    Continuar
-                  </Button>
-                </div>
-              )}
-              {error && (
-                <div className="flex items-center gap-2 p-2 mt-2 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
-                  <XCircle
-                    size={14}
-                    className="text-red-600 dark:text-red-400 flex-shrink-0"
-                  />
-                  <span className="text-xs text-red-700 dark:text-red-300">
-                    {error}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {(estadoSesion === "EN_CURSO" || estadoSesion === "PAUSADA") && (
-              <div className="p-4 border-b border-slate-200 dark:border-slate-700">
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">
-                  Sesión {sesionId?.slice(0, 8)}
-                </h3>
-                <div className="flex gap-2">
-                  {estadoSesion === "EN_CURSO" ? (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={handlePausar}
-                      disabled={loading}
-                      className="flex-1"
-                    >
-                      <Pause size={14} className="mr-1" />
-                      Pausar
+                        setError(e.mensaje || e.message || "Error al reanudar");
+                      } finally { setLoading(false); }
+                    }}>
+                      <Play size={12} className="mr-1" />
+                      Continuar
                     </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      onClick={handleReanudar}
-                      disabled={loading}
-                      className="flex-1"
-                    >
-                      <Play size={14} className="mr-1" />
-                      Reanudar
-                    </Button>
-                  )}
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => sesionId && handleDetener(sesionId)}
-                    disabled={finalizandoId === sesionId}
-                    className="flex-1"
-                  >
-                    <Square size={14} className="mr-1" />
-                    Detener
-                  </Button>
-                </div>
+                  </div>
+                )}
+                {error && (
+                  <div className="flex items-center gap-2 p-2 mt-2 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
+                    <XCircle size={14} className="text-red-600 dark:text-red-400 flex-shrink-0" />
+                    <span className="text-xs text-red-700 dark:text-red-300">{error}</span>
+                  </div>
+                )}
               </div>
-            )}
-
-            {(!sesionId ||
-              estadoSesion === "FINALIZADA" ||
-              estadoSesion === "COLAPSADA") && (
-              <>
-                {(estadoSesion === "FINALIZADA" ||
-                  estadoSesion === "COLAPSADA") &&
-                  reporte && (
+              {(estadoSesion === "EN_CURSO" || estadoSesion === "PAUSADA") && (
+                <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">
+                    Sesión {sesionId?.slice(0, 8)}
+                  </h3>
+                  <div className="flex gap-2">
+                    {estadoSesion === "EN_CURSO" ? (
+                      <Button variant="secondary" size="sm" onClick={handlePausar} disabled={loading} className="flex-1">
+                        <Pause size={14} className="mr-1" />
+                        Pausar
+                      </Button>
+                    ) : (
+                      <Button size="sm" onClick={handleReanudar} disabled={loading} className="flex-1">
+                        <Play size={14} className="mr-1" />
+                        Reanudar
+                      </Button>
+                    )}
+                    <Button variant="danger" size="sm" onClick={() => sesionId && handleDetener(sesionId)} disabled={finalizandoId === sesionId} className="flex-1">
+                      <Square size={14} className="mr-1" />
+                      Detener
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {(!sesionId || estadoSesion === "FINALIZADA" || estadoSesion === "COLAPSADA") && (
+                <div className="p-4 space-y-4">
+                  {(estadoSesion === "FINALIZADA" || estadoSesion === "COLAPSADA") && reporte && (
                     <PanelReporte
                       reporte={reporte}
                       sesionId={sesionId ?? ""}
                       onClose={() => setReporte(null)}
                     />
                   )}
-                {estadoSesion === "COLAPSADA" && !reporte && (
-                  <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+                  {estadoSesion === "COLAPSADA" && !reporte && (
                     <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
-                      <AlertTriangle
-                        size={14}
-                        className="text-red-600 dark:text-red-400"
-                      />
+                      <AlertTriangle size={14} className="text-red-600 dark:text-red-400" />
                       <span className="text-xs text-red-700 dark:text-red-300">
                         Generando reporte de colapso...
                       </span>
                     </div>
-                  </div>
-                )}
-                {estadoSesion === "FINALIZADA" && !reporte && (
-                  <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+                  )}
+                  {estadoSesion === "FINALIZADA" && !reporte && (
                     <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
-                      <CheckCircle size={14} className="text-slate-500" />
-                      <span className="text-xs text-slate-500">
-                        Generando reporte...
-                      </span>
+                      <CheckCircle size={14} className="text-slate-600" />
+                      <span className="text-xs text-slate-600">Generando reporte...</span>
                     </div>
-                  </div>
-                )}
-                {(!sesionId || !reporte) && (
-                  <div className="p-4 border-b border-slate-200 dark:border-slate-700 space-y-4">
-                    <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
-                      <div className="flex items-center gap-2 mb-1">
-                        <AlertTriangle
-                          size={14}
-                          className="text-amber-600 dark:text-amber-400"
-                        />
-                        <span className="text-xs font-medium text-amber-700 dark:text-amber-300">
-                          Modo: HASTA COLAPSO
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-amber-600 dark:text-amber-400">
-                        La simulación se detendrá automáticamente cuando un
-                        almacén supere su capacidad máxima.
-                      </p>
-                    </div>
-                    <Card title="Fecha y Hora">
+                  )}
+                  {(!sesionId || !reporte) && (
+                    <>
+                      {(!sesionId || (estadoSesion !== "FINALIZADA" && estadoSesion !== "COLAPSADA")) && (
+                        <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                          <div className="flex items-center gap-2 mb-1">
+                            <AlertTriangle size={14} className="text-amber-600 dark:text-amber-400" />
+                            <span className="text-xs font-medium text-amber-700 dark:text-amber-300">
+                              Modo: HASTA COLAPSO
+                            </span>
+                          </div>
+                          <p className="text-sm text-amber-600 dark:text-amber-400">
+                            La simulación se detendrá automáticamente cuando un almacén supere su capacidad máxima.
+                          </p>
+                        </div>
+                      )}
                       <div className="space-y-3">
-                        <Input
-                          label="Fecha virtual"
-                          type="date"
-                          value={simulacionConfig.fecha_inicio_virtual}
-                          onChange={(e) =>
-                            setSimulacionConfig({
-                              ...simulacionConfig,
-                              fecha_inicio_virtual: e.target.value,
-                            })
-                          }
+                        <Input label="Fecha virtual" type="date" value={simulacionConfig.fecha_inicio_virtual}
+                          onChange={(e) => setSimulacionConfig({ ...simulacionConfig, fecha_inicio_virtual: e.target.value })}
                         />
-                        <Input
-                          label="Hora virtual"
-                          type="time"
-                          value={simulacionConfig.hora_inicio_virtual}
-                          onChange={(e) =>
-                            setSimulacionConfig({
-                              ...simulacionConfig,
-                              hora_inicio_virtual: e.target.value,
-                            })
-                          }
+                        <Input label="Hora virtual" type="time" value={simulacionConfig.hora_inicio_virtual}
+                          onChange={(e) => setSimulacionConfig({ ...simulacionConfig, hora_inicio_virtual: e.target.value })}
                         />
                       </div>
-                    </Card>
-                    <Button
-                      size="lg"
-                      onClick={handleIniciar}
-                      disabled={loading}
-                      className="w-full"
-                    >
-                      <Play size={18} className="mr-2" />
-                      {loading ? "Creando..." : "Iniciar Simulación"}
-                    </Button>
-                  </div>
-                )}
-              </>
-            )}
+                      <Button size="lg" onClick={handleIniciar} disabled={loading} className="w-full">
+                        <Play size={18} className="mr-2" />
+                        {loading ? "Creando..." : "Iniciar Simulación"}
+                      </Button>
+                    </>
+                  )}
+                </div>
+              )}
+            </PanelFlotante>
+          )}
 
-            {sesionId &&
-              estadoSesion !== "FINALIZADA" &&
-              estadoSesion !== "COLAPSADA" && (
+          {dockAbiertas.has('vuelos') && (
+            <PanelFlotante
+              title="Vuelos"
+              onClose={() => toggleDock('vuelos')}
+              className="w-80 shrink-0 pointer-events-auto"
+            >
+              {sesionId && estadoSesion !== "FINALIZADA" && estadoSesion !== "COLAPSADA" ? (
                 <PanelTabs
                   aeropuertos={telemetria?.nodos ?? []}
                   vuelosAeropuerto={telemetria?.vuelos ?? []}
@@ -3236,10 +2602,43 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                   onMostrarRuta={handleMostrarRutaCol}
                   filtroContinente={filtroContinenteCol}
                   onFiltroContinenteChange={setFiltroContinenteCol}
+                  plantillas={plantillas}
+                  fechaVirtual={metricas?.dia_hora_virtual ?? null}
                 />
+              ) : (
+                <p className="text-xs text-slate-600 p-4">Sin sesión activa</p>
               )}
+            </PanelFlotante>
+          )}
 
-            {selectedEnvio && sesionId && (
+          {dockAbiertas.has('reportes') && (
+            <PanelFlotante
+              title="Reportes"
+              onClose={() => toggleDock('reportes')}
+              className="w-80 shrink-0 pointer-events-auto"
+            >
+              {reporte ? (
+                <div className="p-4">
+                  <PanelReporte
+                    reporte={reporte}
+                    sesionId={sesionId ?? ""}
+                    onClose={() => setReporte(null)}
+                  />
+                </div>
+              ) : (
+                <p className="text-xs text-slate-600 p-4">No hay reportes disponibles</p>
+              )}
+            </PanelFlotante>
+          )}
+        </div>
+
+        {selectedEnvio && sesionId && (
+          <div className="absolute left-16 bottom-4 z-[1001]">
+            <PanelFlotante
+              title="Detalle de Envío"
+              onClose={() => setSelectedEnvio(null)}
+              className="w-80 pointer-events-auto"
+            >
               <PanelEnvios
                 selectedEnvio={selectedEnvio}
                 sesionId={sesionId}
@@ -3247,69 +2646,61 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                 onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
                 onMostrarRuta={handleMostrarRutaCol}
               />
-            )}
+            </PanelFlotante>
+          </div>
+        )}
 
-            {cancelResult && (
-              <Modal
-                open={true}
-                onClose={() => setCancelResult(null)}
-                title={`Vuelo ${cancelResult.codigo} cancelado`}
-                footer={
-                  <div className="flex gap-2">
-                    <Button
-                      variant="secondary"
-                      onClick={() => setCancelResult(null)}
-                    >
-                      Cerrar
-                    </Button>
-                    <Button
-                      onClick={async () => {
-                        const blob = await api.downloadBlob(
-                          `/sesiones/${sesionId}/replanificaciones/${cancelResult.loteId}/pdf`,
-                        );
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = url;
-                        a.download = `replanificacion_${cancelResult.loteId}.pdf`;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
-                      }}
-                    >
-                      Descargar PDF
-                    </Button>
+        {cancelResult && (
+          <Modal
+            open={true}
+            onClose={() => setCancelResult(null)}
+            title={`Vuelo ${cancelResult.codigo} cancelado`}
+            footer={
+              <div className="flex gap-2">
+                <Button variant="secondary" onClick={() => setCancelResult(null)}>
+                  Cerrar
+                </Button>
+                <Button onClick={async () => {
+                  const blob = await api.downloadBlob(`/sesiones/${sesionId}/replanificaciones/${cancelResult.loteId}/pdf`);
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `replanificacion_${cancelResult.loteId}.pdf`;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                }}>
+                  Descargar PDF
+                </Button>
+              </div>
+            }
+          >
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-3">
+              {cancelResult.equipajes.length} equipaje
+              {cancelResult.equipajes.length !== 1 ? "s" : ""} afectado
+              {cancelResult.equipajes.length !== 1 ? "s" : ""} y re-enrutado
+              {cancelResult.equipajes.length !== 1 ? "s" : ""}.
+            </p>
+            {cancelResult.equipajes.length > 0 && (
+              <div className="max-h-48 overflow-y-auto space-y-1">
+                {cancelResult.equipajes.map((eq) => (
+                  <div
+                    key={eq.id}
+                    className="flex items-center justify-between text-xs px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50"
+                  >
+                    <span className="font-medium text-slate-700 dark:text-slate-300">
+                      {eq.codigo}
+                    </span>
+                    <span className="text-slate-600">
+                      {eq.origen_iata} → {eq.destino_iata}
+                    </span>
                   </div>
-                }
-              >
-                <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
-                  {cancelResult.equipajes.length} equipaje
-                  {cancelResult.equipajes.length !== 1 ? "s" : ""} afectado
-                  {cancelResult.equipajes.length !== 1 ? "s" : ""} y re-enrutado
-                  {cancelResult.equipajes.length !== 1 ? "s" : ""}.
-                </p>
-                {cancelResult.equipajes.length > 0 && (
-                  <div className="max-h-48 overflow-y-auto space-y-1">
-                    {cancelResult.equipajes.map((eq) => (
-                      <div
-                        key={eq.id}
-                        className="flex items-center justify-between text-xs px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/50"
-                      >
-                        <span className="font-medium text-slate-700 dark:text-slate-300">
-                          {eq.codigo}
-                        </span>
-                        <span className="text-slate-500">
-                          {eq.origen_iata} → {eq.destino_iata}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Modal>
+                ))}
+              </div>
             )}
-          </>
+          </Modal>
         )}
       </div>
-    </div>
-  );
-}
+    );
+  };
