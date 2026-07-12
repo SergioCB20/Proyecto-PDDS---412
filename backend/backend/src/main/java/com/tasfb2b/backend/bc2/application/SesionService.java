@@ -676,7 +676,8 @@ public class SesionService {
                 s.getTipoSimulacion() != null ? s.getTipoSimulacion().name() : "VENTANA_FIJA",
                 s.getEstado().name(),
                 s.getFechaInicioVirtual().toString(),
-                s.getCreatedAt() != null ? s.getCreatedAt().toString() : null
+                s.getCreatedAt() != null ? s.getCreatedAt().toString() : null,
+                s.getDispositivoId()
             ))
             .toList();
     }

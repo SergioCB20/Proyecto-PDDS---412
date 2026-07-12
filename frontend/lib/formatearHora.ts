@@ -21,14 +21,12 @@ function formatTime(d: Date, tz?: string): string {
   const parts = new Intl.DateTimeFormat('en-GB', {
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit',
     hour12: false,
     timeZone: tz,
   }).formatToParts(d);
   const hour = parts.find((p) => p.type === 'hour')?.value ?? '00';
   const minute = parts.find((p) => p.type === 'minute')?.value ?? '00';
-  const second = parts.find((p) => p.type === 'second')?.value ?? '00';
-  return `${hour}:${minute}:${second}`;
+  return `${hour}:${minute}`;
 }
 
 function parseOrNull(iso: string | null | undefined): Date | null {

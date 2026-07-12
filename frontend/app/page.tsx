@@ -12,8 +12,6 @@ import {
   Upload,
   FileSpreadsheet,
   AlertTriangle,
-  Menu,
-  ChevronLeft,
   Play,
   Pause,
   Square,
@@ -38,12 +36,12 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Modal } from "@/components/ui/Modal";
+import { device } from "@/lib/device";
 import { Card } from "@/components/ui/Card";
-import { PanelEnviosOperacion } from "@/components/operacion/PanelEnviosOperacion";
 import { PanelAeropuertosOperacion } from "@/components/operacion/PanelAeropuertosOperacion";
 import { PanelVuelosOperacion } from "@/components/operacion/PanelVuelosOperacion";
 import { PanelEnviosMaletas } from "@/components/shared/PanelEnviosMaletas";
-import { PanelEnvios } from "@/components/simulacion/PanelEnvios";
+import { ModalEnvios, type SelectedEnvioConsolidado } from "@/components/shared/ModalEnvios";
 import { PanelReporte } from "@/components/simulacion/PanelReporte";
 import { SeccionCancelacion } from "@/components/simulacion/SeccionCancelacion";
 import { SimulacionLoadingOverlay } from "@/components/simulacion/SimulacionLoadingOverlay";
@@ -52,13 +50,11 @@ import {
   ConfigUmbrales,
   type UmbralesConfig,
 } from "@/components/mapa/ConfigUmbrales";
-import type { SelectedEnvioOperacion } from "@/components/operacion/PanelEnviosOperacion";
 import DockIconos from "@/components/mapa/DockIconos";
 import PanelFlotante from "@/components/mapa/PanelFlotante";
 import BarraMetricasCompacta from "@/components/mapa/BarraMetricasCompacta";
 import TiemposInfo from "@/components/mapa/TiemposInfo";
 import { formatearFechaHora } from "@/lib/formatearHora";
-import type { SelectedEnvio } from "@/components/simulacion/PanelEnvios";
 import type {
   Aeropuerto,
   Vuelo,
@@ -142,6 +138,7 @@ interface SesionListaItem {
   estado: string;
   fecha_inicio_virtual: string;
   created_at: string;
+  dispositivo_id: string | null;
 }
 
 interface SesionResponse {
@@ -317,7 +314,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [relojVisibleOp, setRelojVisibleOp] = useState(true);
   const [zoomVisibleOp, setZoomVisibleOp] = useState(true);
   const [selectedEnvio, setSelectedEnvio] =
-    useState<SelectedEnvioOperacion | null>(null);
+    useState<SelectedEnvioConsolidado | null>(null);
   const [vueloFilterOrigen, setVueloFilterOrigen] = useState("");
   const [vueloFilterDestino, setVueloFilterDestino] = useState("");
   const [equipajeFilter, setEquipajeFilter] = useState<
@@ -634,9 +631,9 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const vuelosProgramadosOp = allVuelos.filter(
     (v) => v.estado === "PROGRAMADO",
   ).length;
-  const vuelosEntregadosOp = allVuelos.filter(
+  /*const vuelosEntregadosOp = allVuelos.filter(
     (v) => v.estado === "COMPLETADO",
-  ).length;
+  ).length;*/
 
   const vuelosFiltradosMapa = useMemo(() => {
     let lista = vuelosMapaFiltrados;
@@ -769,12 +766,12 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
           />
         </div>
 
-        <div className="absolute left-16 top-4 z-[1001] flex flex-col gap-2 max-h-[calc(100vh-8rem)] overflow-y-auto pointer-events-none">
+        <div className="absolute left-16 top-4 z-1001 flex flex-col gap-2 max-h-[calc(100vh-8rem)] overflow-y-auto pointer-events-none">
           {dockAbiertas.has('datos') && (
             <PanelFlotante
               title="Aeropuertos, Vuelos, Envíos"
               onClose={() => toggleDockOp('datos')}
-              className="w-80 shrink-0 pointer-events-auto"
+              className="w-120 shrink-0 pointer-events-auto"
             >
               <PanelTabs
                 aeropuertos={telemetria?.nodos ?? []}
@@ -971,13 +968,13 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
         </div>
 
         {selectedEnvio && (
-          <div className="absolute left-16 bottom-4 z-[1001]">
-            <PanelFlotante title="Detalle de Envío" onClose={() => setSelectedEnvio(null)} className="w-80 pointer-events-auto">
-              <PanelEnviosOperacion selectedEnvio={selectedEnvio} onClose={() => setSelectedEnvio(null)}
-                onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)} onMostrarRuta={handleMostrarRutaOp}
-              />
-            </PanelFlotante>
-          </div>
+          <ModalEnvios
+            open={!!selectedEnvio}
+            selectedEnvio={selectedEnvio}
+            onClose={() => setSelectedEnvio(null)}
+            onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
+            onMostrarRuta={handleMostrarRutaOp}
+          />
         )}
 
         <Modal open={cargaMasivaOpen}
@@ -1056,7 +1053,7 @@ function SimulacionView({
     AeropuertoEnMapa[]
   >([]);
   const [initialVuelos, setInitialVuelos] = useState<VueloEnMapa[]>([]);
-  const [selectedEnvio, setSelectedEnvio] = useState<SelectedEnvio | null>(
+  const [selectedEnvio, setSelectedEnvio] = useState<SelectedEnvioConsolidado | null>(
     null,
   );
   const [vueloFilterOrigen, setVueloFilterOrigen] = useState("");
@@ -1234,8 +1231,13 @@ function SimulacionView({
     return () => clearInterval(interval);
   }, [sesionId, configUmbrales.verdeMax, configUmbrales.ambarMax]);
 
+  const currentDeviceId = typeof window !== 'undefined' ? device.getId() : '';
   const sesionEnCurso = sesionesActivas.find((s) => s.estado === "EN_CURSO");
   const sesionPausada = sesionesActivas.find((s) => s.estado === "PAUSADA");
+  const isDuenioSesionActual = sesionId && (
+    !sesionesActivas.some((s) => s.id === sesionId)
+    || sesionesActivas.some((s) => s.id === sesionId && s.dispositivo_id === currentDeviceId)
+  );
 
   const aeropuertosMapa: AeropuertoEnMapa[] =
     (telemetria?.nodos ?? []).length > 0
@@ -1321,26 +1323,6 @@ function SimulacionView({
     setLoading(true);
     setReporte(null);
     try {
-      const activas = await api.get<SesionListaItem[]>(
-        "/sesiones?estado=EN_CURSO",
-      );
-      for (const s of activas) {
-        try {
-          await api.post(`/sesiones/${s.id}/detener`, {});
-        } catch {
-          /* ignore */
-        }
-      }
-      const pausadas = await api.get<SesionListaItem[]>(
-        "/sesiones?estado=PAUSADA",
-      );
-      for (const s of pausadas) {
-        try {
-          await api.post(`/sesiones/${s.id}/detener`, {});
-        } catch {
-          /* ignore */
-        }
-      }
       const res = await api.post<SesionResponse>("/sesiones", {
         tipo: "SIMULADA",
         fecha_inicio_virtual: simulacionConfig.fecha_inicio_virtual,
@@ -1610,7 +1592,7 @@ function SimulacionView({
             <PanelFlotante
               title="Aeropuertos"
               onClose={() => toggleDock('aeropuertos')}
-              className="w-80 shrink-0 pointer-events-auto"
+              className="w-[30rem] shrink-0 pointer-events-auto"
             >
               {sesionId && estadoSesion !== "FINALIZADA" ? (
                 <div className="p-4">
@@ -1638,7 +1620,7 @@ function SimulacionView({
             <PanelFlotante
               title="Vuelos"
               onClose={() => toggleDock('vuelos')}
-              className="w-80 shrink-0 pointer-events-auto"
+              className="w-[30rem] shrink-0 pointer-events-auto"
             >
               <div className="p-4">
                 <PanelVuelosOperacion
@@ -1699,7 +1681,7 @@ function SimulacionView({
             <PanelFlotante
               title="Envíos de Maletas"
               onClose={() => toggleDock('envios')}
-              className="w-80 shrink-0 pointer-events-auto"
+              className="w-[30rem] shrink-0 pointer-events-auto"
             >
               {sesionId && estadoSesion !== "FINALIZADA" ? (
                 <PanelEnviosMaletas
@@ -1737,14 +1719,23 @@ function SimulacionView({
                     <span className="text-xs text-blue-600 font-medium">
                       Activa: {sesionEnCurso.fecha_inicio_virtual}
                     </span>
-                    <Button variant="danger" size="sm" disabled={finalizandoId === sesionEnCurso.id} onClick={() => handleDetener(sesionEnCurso.id)}>
-                      <Square size={12} className="mr-1" />
-                      {finalizandoId === sesionEnCurso.id ? "..." : "Detener"}
-                    </Button>
-                    <Button size="sm" onClick={() => { setSesionId(sesionEnCurso.id); setEstadoSesion("EN_CURSO"); }}>
-                      <Play size={12} className="mr-1" />
-                      Reanudar
-                    </Button>
+                    {sesionEnCurso.dispositivo_id === currentDeviceId ? (
+                      <>
+                        <Button variant="danger" size="sm" disabled={finalizandoId === sesionEnCurso.id} onClick={() => handleDetener(sesionEnCurso.id)}>
+                          <Square size={12} className="mr-1" />
+                          {finalizandoId === sesionEnCurso.id ? "..." : "Detener"}
+                        </Button>
+                        <Button size="sm" onClick={() => { setSesionId(sesionEnCurso.id); setEstadoSesion("EN_CURSO"); }}>
+                          <Play size={12} className="mr-1" />
+                          Reanudar
+                        </Button>
+                      </>
+                    ) : (
+                      <Button size="sm" onClick={() => { setSesionId(sesionEnCurso.id); setEstadoSesion("EN_CURSO"); }}>
+                        <Play size={12} className="mr-1" />
+                        Unirse
+                      </Button>
+                    )}
                   </div>
                 )}
                 {sesionPausada && !sesionEnCurso && (
@@ -1752,32 +1743,41 @@ function SimulacionView({
                     <span className="text-xs text-yellow-600 font-medium">
                       Pausada: {sesionPausada.fecha_inicio_virtual}
                     </span>
-                    <Button variant="danger" size="sm" disabled={finalizandoId === sesionPausada.id} onClick={() => handleDetener(sesionPausada.id)}>
-                      <Square size={12} className="mr-1" />
-                      {finalizandoId === sesionPausada.id ? "..." : "Detener"}
-                    </Button>
-                    <Button size="sm" onClick={async () => {
-                      setSesionId(sesionPausada.id);
-                      setLoading(true);
-                      setError("");
-                      try {
-                        const otrasActivas = await api.get<SesionListaItem[]>("/sesiones?estado=EN_CURSO").catch(() => [] as SesionListaItem[]);
-                        for (const s of otrasActivas) {
-                          if (s.id !== sesionPausada.id) {
-                            try { await api.post(`/sesiones/${s.id}/detener`, {}); } catch { /* ignore */ }
-                          }
-                        }
-                        await api.post(`/sesiones/${sesionPausada.id}/iniciar`, {});
-                        setInicioRealMs(hora.getTime());
-                        setEstadoSesion("EN_CURSO");
-                      } catch (err: unknown) {
-                        const e = err as { mensaje?: string; message?: string };
-                        setError(e.mensaje || e.message || "Error al reanudar");
-                      } finally { setLoading(false); }
-                    }}>
-                      <Play size={12} className="mr-1" />
-                      Continuar
-                    </Button>
+                    {sesionPausada.dispositivo_id === currentDeviceId ? (
+                      <>
+                        <Button variant="danger" size="sm" disabled={finalizandoId === sesionPausada.id} onClick={() => handleDetener(sesionPausada.id)}>
+                          <Square size={12} className="mr-1" />
+                          {finalizandoId === sesionPausada.id ? "..." : "Detener"}
+                        </Button>
+                        <Button size="sm" onClick={async () => {
+                          setSesionId(sesionPausada.id);
+                          setLoading(true);
+                          setError("");
+                          try {
+                            const otrasActivas = await api.get<SesionListaItem[]>("/sesiones?estado=EN_CURSO").catch(() => [] as SesionListaItem[]);
+                            for (const s of otrasActivas) {
+                              if (s.id !== sesionPausada.id) {
+                                try { await api.post(`/sesiones/${s.id}/detener`, {}); } catch { /* ignore */ }
+                              }
+                            }
+                            await api.post(`/sesiones/${sesionPausada.id}/iniciar`, {});
+                            setInicioRealMs(hora.getTime());
+                            setEstadoSesion("EN_CURSO");
+                          } catch (err: unknown) {
+                            const e = err as { mensaje?: string; message?: string };
+                            setError(e.mensaje || e.message || "Error al reanudar");
+                          } finally { setLoading(false); }
+                        }}>
+                          <Play size={12} className="mr-1" />
+                          Continuar
+                        </Button>
+                      </>
+                    ) : (
+                      <Button size="sm" onClick={() => { setSesionId(sesionPausada.id); setEstadoSesion("PAUSADA"); }}>
+                        <Play size={12} className="mr-1" />
+                        Unirse
+                      </Button>
+                    )}
                   </div>
                 )}
                 {error && (
@@ -1792,23 +1792,27 @@ function SimulacionView({
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">
                     Sesión {sesionId?.slice(0, 8)}
                   </h3>
-                  <div className="flex gap-2">
-                    {estadoSesion === "EN_CURSO" ? (
-                      <Button variant="secondary" size="sm" onClick={handlePausar} disabled={loading} className="flex-1">
-                        <Pause size={14} className="mr-1" />
-                        Pausar
+                  {isDuenioSesionActual ? (
+                    <div className="flex gap-2">
+                      {estadoSesion === "EN_CURSO" ? (
+                        <Button variant="secondary" size="sm" onClick={handlePausar} disabled={loading} className="flex-1">
+                          <Pause size={14} className="mr-1" />
+                          Pausar
+                        </Button>
+                      ) : (
+                        <Button size="sm" onClick={handleReanudar} disabled={loading} className="flex-1">
+                          <Play size={14} className="mr-1" />
+                          Reanudar
+                        </Button>
+                      )}
+                      <Button variant="danger" size="sm" onClick={() => sesionId && handleDetener(sesionId)} disabled={finalizandoId === sesionId} className="flex-1">
+                        <Square size={14} className="mr-1" />
+                        Detener
                       </Button>
-                    ) : (
-                      <Button size="sm" onClick={handleReanudar} disabled={loading} className="flex-1">
-                        <Play size={14} className="mr-1" />
-                        Reanudar
-                      </Button>
-                    )}
-                    <Button variant="danger" size="sm" onClick={() => sesionId && handleDetener(sesionId)} disabled={finalizandoId === sesionId} className="flex-1">
-                      <Square size={14} className="mr-1" />
-                      Detener
-                    </Button>
-                  </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-500">Vista de solo lectura</p>
+                  )}
                 </div>
               )}
               {(!sesionId || estadoSesion === "FINALIZADA") && (
@@ -1851,21 +1855,14 @@ function SimulacionView({
         </div>
 
         {selectedEnvio && sesionId && (
-          <div className="absolute left-16 bottom-4 z-[1001]">
-            <PanelFlotante
-              title="Detalle de Envío"
-              onClose={() => setSelectedEnvio(null)}
-              className="w-80 pointer-events-auto"
-            >
-              <PanelEnvios
-                selectedEnvio={selectedEnvio}
-                sesionId={sesionId}
-                onClose={() => setSelectedEnvio(null)}
-                onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
-                onMostrarRuta={handleMostrarRutaSim}
-              />
-            </PanelFlotante>
-          </div>
+          <ModalEnvios
+            open={!!selectedEnvio}
+            selectedEnvio={selectedEnvio}
+            onClose={() => setSelectedEnvio(null)}
+            sesionId={sesionId}
+            onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
+            onMostrarRuta={handleMostrarRutaSim}
+          />
         )}
 
         {cancelResult && (
@@ -1947,7 +1944,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     AeropuertoEnMapa[]
   >([]);
   const [initialVuelos, setInitialVuelos] = useState<VueloEnMapa[]>([]);
-  const [selectedEnvio, setSelectedEnvio] = useState<SelectedEnvio | null>(
+  const [selectedEnvio, setSelectedEnvio] = useState<SelectedEnvioConsolidado | null>(
     null,
   );
   const [vueloFilterOrigen, setVueloFilterOrigen] = useState("");
@@ -2090,8 +2087,13 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     return () => clearInterval(interval);
   }, [sesionId, configUmbrales.verdeMax, configUmbrales.ambarMax]);
 
+  const currentDeviceId = typeof window !== 'undefined' ? device.getId() : '';
   const sesionEnCurso = sesionesActivas.find((s) => s.estado === "EN_CURSO");
   const sesionPausada = sesionesActivas.find((s) => s.estado === "PAUSADA");
+  const isDuenioSesionActual = sesionId && (
+    !sesionesActivas.some((s) => s.id === sesionId)
+    || sesionesActivas.some((s) => s.id === sesionId && s.dispositivo_id === currentDeviceId)
+  );
 
   const aeropuertosMapa: AeropuertoEnMapa[] =
     (telemetria?.nodos ?? []).length > 0
@@ -2196,26 +2198,6 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     setLoading(true);
     setReporte(null);
     try {
-      const activas = await api.get<SesionListaItem[]>(
-        "/sesiones?estado=EN_CURSO",
-      );
-      for (const s of activas) {
-        try {
-          await api.post(`/sesiones/${s.id}/detener`, {});
-        } catch {
-          /* ignore */
-        }
-      }
-      const pausadas = await api.get<SesionListaItem[]>(
-        "/sesiones?estado=PAUSADA",
-      );
-      for (const s of pausadas) {
-        try {
-          await api.post(`/sesiones/${s.id}/detener`, {});
-        } catch {
-          /* ignore */
-        }
-      }
       const res = await api.post<SesionResponse>("/sesiones", {
         tipo: "SIMULADA",
         tipo_simulacion: "HASTA_COLAPSO",
@@ -2509,14 +2491,23 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                     <span className="text-xs text-blue-600 font-medium">
                       Activa: {sesionEnCurso.fecha_inicio_virtual}
                     </span>
-                    <Button variant="danger" size="sm" disabled={finalizandoId === sesionEnCurso.id} onClick={() => handleDetener(sesionEnCurso.id)}>
-                      <Square size={12} className="mr-1" />
-                      {finalizandoId === sesionEnCurso.id ? "..." : "Detener"}
-                    </Button>
-                    <Button size="sm" onClick={() => { setSesionId(sesionEnCurso.id); setEstadoSesion("EN_CURSO"); }}>
-                      <Play size={12} className="mr-1" />
-                      Reanudar
-                    </Button>
+                    {sesionEnCurso.dispositivo_id === currentDeviceId ? (
+                      <>
+                        <Button variant="danger" size="sm" disabled={finalizandoId === sesionEnCurso.id} onClick={() => handleDetener(sesionEnCurso.id)}>
+                          <Square size={12} className="mr-1" />
+                          {finalizandoId === sesionEnCurso.id ? "..." : "Detener"}
+                        </Button>
+                        <Button size="sm" onClick={() => { setSesionId(sesionEnCurso.id); setEstadoSesion("EN_CURSO"); }}>
+                          <Play size={12} className="mr-1" />
+                          Reanudar
+                        </Button>
+                      </>
+                    ) : (
+                      <Button size="sm" onClick={() => { setSesionId(sesionEnCurso.id); setEstadoSesion("EN_CURSO"); }}>
+                        <Play size={12} className="mr-1" />
+                        Unirse
+                      </Button>
+                    )}
                   </div>
                 )}
                 {sesionPausada && !sesionEnCurso && (
@@ -2524,32 +2515,41 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                     <span className="text-xs text-yellow-600 font-medium">
                       Pausada: {sesionPausada.fecha_inicio_virtual}
                     </span>
-                    <Button variant="danger" size="sm" disabled={finalizandoId === sesionPausada.id} onClick={() => handleDetener(sesionPausada.id)}>
-                      <Square size={12} className="mr-1" />
-                      {finalizandoId === sesionPausada.id ? "..." : "Detener"}
-                    </Button>
-                    <Button size="sm" onClick={async () => {
-                      setSesionId(sesionPausada.id);
-                      setLoading(true);
-                      setError("");
-                      try {
-                        const otrasActivas = await api.get<SesionListaItem[]>("/sesiones?estado=EN_CURSO").catch(() => [] as SesionListaItem[]);
-                        for (const s of otrasActivas) {
-                          if (s.id !== sesionPausada.id) {
-                            try { await api.post(`/sesiones/${s.id}/detener`, {}); } catch { /* ignore */ }
-                          }
-                        }
-                        await api.post(`/sesiones/${sesionPausada.id}/iniciar`, {});
-                        setInicioRealMs(hora.getTime());
-                        setEstadoSesion("EN_CURSO");
-                      } catch (err: unknown) {
-                        const e = err as { mensaje?: string; message?: string };
-                        setError(e.mensaje || e.message || "Error al reanudar");
-                      } finally { setLoading(false); }
-                    }}>
-                      <Play size={12} className="mr-1" />
-                      Continuar
-                    </Button>
+                    {sesionPausada.dispositivo_id === currentDeviceId ? (
+                      <>
+                        <Button variant="danger" size="sm" disabled={finalizandoId === sesionPausada.id} onClick={() => handleDetener(sesionPausada.id)}>
+                          <Square size={12} className="mr-1" />
+                          {finalizandoId === sesionPausada.id ? "..." : "Detener"}
+                        </Button>
+                        <Button size="sm" onClick={async () => {
+                          setSesionId(sesionPausada.id);
+                          setLoading(true);
+                          setError("");
+                          try {
+                            const otrasActivas = await api.get<SesionListaItem[]>("/sesiones?estado=EN_CURSO").catch(() => [] as SesionListaItem[]);
+                            for (const s of otrasActivas) {
+                              if (s.id !== sesionPausada.id) {
+                                try { await api.post(`/sesiones/${s.id}/detener`, {}); } catch { /* ignore */ }
+                              }
+                            }
+                            await api.post(`/sesiones/${sesionPausada.id}/iniciar`, {});
+                            setInicioRealMs(hora.getTime());
+                            setEstadoSesion("EN_CURSO");
+                          } catch (err: unknown) {
+                            const e = err as { mensaje?: string; message?: string };
+                            setError(e.mensaje || e.message || "Error al reanudar");
+                          } finally { setLoading(false); }
+                        }}>
+                          <Play size={12} className="mr-1" />
+                          Continuar
+                        </Button>
+                      </>
+                    ) : (
+                      <Button size="sm" onClick={() => { setSesionId(sesionPausada.id); setEstadoSesion("PAUSADA"); }}>
+                        <Play size={12} className="mr-1" />
+                        Unirse
+                      </Button>
+                    )}
                   </div>
                 )}
                 {error && (
@@ -2564,23 +2564,27 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">
                     Sesión {sesionId?.slice(0, 8)}
                   </h3>
-                  <div className="flex gap-2">
-                    {estadoSesion === "EN_CURSO" ? (
-                      <Button variant="secondary" size="sm" onClick={handlePausar} disabled={loading} className="flex-1">
-                        <Pause size={14} className="mr-1" />
-                        Pausar
+                  {isDuenioSesionActual ? (
+                    <div className="flex gap-2">
+                      {estadoSesion === "EN_CURSO" ? (
+                        <Button variant="secondary" size="sm" onClick={handlePausar} disabled={loading} className="flex-1">
+                          <Pause size={14} className="mr-1" />
+                          Pausar
+                        </Button>
+                      ) : (
+                        <Button size="sm" onClick={handleReanudar} disabled={loading} className="flex-1">
+                          <Play size={14} className="mr-1" />
+                          Reanudar
+                        </Button>
+                      )}
+                      <Button variant="danger" size="sm" onClick={() => sesionId && handleDetener(sesionId)} disabled={finalizandoId === sesionId} className="flex-1">
+                        <Square size={14} className="mr-1" />
+                        Detener
                       </Button>
-                    ) : (
-                      <Button size="sm" onClick={handleReanudar} disabled={loading} className="flex-1">
-                        <Play size={14} className="mr-1" />
-                        Reanudar
-                      </Button>
-                    )}
-                    <Button variant="danger" size="sm" onClick={() => sesionId && handleDetener(sesionId)} disabled={finalizandoId === sesionId} className="flex-1">
-                      <Square size={14} className="mr-1" />
-                      Detener
-                    </Button>
-                  </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-500">Vista de solo lectura</p>
+                  )}
                 </div>
               )}
               {(!sesionId || estadoSesion === "FINALIZADA" || estadoSesion === "COLAPSADA") && (
@@ -2644,7 +2648,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
             <PanelFlotante
               title="Vuelos"
               onClose={() => toggleDock('vuelos')}
-              className="w-80 shrink-0 pointer-events-auto"
+              className="w-[30rem] shrink-0 pointer-events-auto"
             >
               {sesionId && estadoSesion !== "FINALIZADA" && estadoSesion !== "COLAPSADA" ? (
                 <PanelTabs
@@ -2748,21 +2752,14 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
         </div>
 
         {selectedEnvio && sesionId && (
-          <div className="absolute left-16 bottom-4 z-[1001]">
-            <PanelFlotante
-              title="Detalle de Envío"
-              onClose={() => setSelectedEnvio(null)}
-              className="w-80 pointer-events-auto"
-            >
-              <PanelEnvios
-                selectedEnvio={selectedEnvio}
-                sesionId={sesionId}
-                onClose={() => setSelectedEnvio(null)}
-                onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
-                onMostrarRuta={handleMostrarRutaCol}
-              />
-            </PanelFlotante>
-          </div>
+          <ModalEnvios
+            open={!!selectedEnvio}
+            selectedEnvio={selectedEnvio}
+            onClose={() => setSelectedEnvio(null)}
+            sesionId={sesionId}
+            onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
+            onMostrarRuta={handleMostrarRutaCol}
+          />
         )}
 
         {cancelResult && (

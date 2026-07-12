@@ -33,7 +33,7 @@ export function Modal({
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="relative z-10 w-full max-w-md mx-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl">
+      <div className="relative z-10 w-full max-w-2xl mx-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl flex flex-col max-h-[80vh]">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-700">
           <h2 className="font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
           <button
@@ -43,7 +43,7 @@ export function Modal({
             <X size={18} />
           </button>
         </div>
-        <div className="p-5">{children}</div>
+        <div className="p-5 flex-1 overflow-y-auto">{children}</div>
         {footer && (
           <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
             {footer}

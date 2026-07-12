@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { PlaneTakeoff, PlaneLanding } from 'lucide-react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { colorVueloPorEstado } from '@/lib/colors';
@@ -16,14 +15,20 @@ interface PanelVuelosProps {
   onFilterChange?: (filters: { origen: string; destino: string }) => void;
 }
 
-// Tope de tarjetas montadas en el DOM. Evita que un día con miles de vuelos
-// PROGRAMADO sature la pestaña. El filtrado opera sobre la lista completa; solo
-// se acota cuántas se renderizan a la vez.
-const MAX_RENDER = 100;
+const MAX_RENDER = 500;
 
 export function PanelVuelos({ vuelos, onVueloClick, origenFilter = '', destinoFilter = '', onFilterChange }: PanelVuelosProps) {
   const [filtroCodigo, setFiltroCodigo] = useState('');
   const [orden, setOrden] = useState('');
+  const itemRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
+  useEffect(() => {
+    if (origenFilter || destinoFilter) {
+      const found = vuelos.find(v => v.origen_iata === origenFilter && (!destinoFilter || v.destino_iata === destinoFilter));
+      if (found && itemRefs.current[found.id]) {
+        itemRefs.current[found.id]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [origenFilter, destinoFilter, vuelos]);
 
   const opcionesOrigen = useMemo(() => {
     const set = new Set(vuelos.map(v => v.origen_iata));
@@ -105,7 +110,7 @@ export function PanelVuelos({ vuelos, onVueloClick, origenFilter = '', destinoFi
       <div className="flex items-center justify-between mb-1">
         <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Vuelos</h3>
         <span className="text-xs text-slate-600">
-          Mostrando {vuelosFiltrados.length} de {vuelos.length} vuelos
+          Mostrando {vuelosFiltrados.length} de {vuelos.length}
         </span>
       </div>
 
@@ -159,66 +164,79 @@ export function PanelVuelos({ vuelos, onVueloClick, origenFilter = '', destinoFi
         </p>
       )}
 
-      <div className="space-y-2 max-h-56 overflow-y-auto">
-        {vuelosVisibles.map(v => {
-          const ocupada = v.capacidad_carga - v.carga_disponible;
-          const pct = v.capacidad_carga > 0 ? (ocupada / v.capacidad_carga) * 100 : 0;
-          const colorHex = colorVueloPorEstado(v.estado);
-          const salida = formatearFechaHoraSeparado(v.hora_salida);
-          const llegada = formatearFechaHoraSeparado(v.hora_llegada);
-          return (
-            <div
-              key={v.id}
-              className={`py-2 px-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/60 ${onVueloClick ? 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/70 hover:border-slate-200 dark:hover:border-slate-700 transition-colors' : ''}`}
-              onClick={() => onVueloClick?.(v.id, v.codigo_vuelo)}
-            >
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full shadow-sm" style={{ backgroundColor: colorHex }} />
-                  <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">{v.codigo_vuelo}</span>
-                </div>
-                <span className="text-sm font-mono font-medium text-slate-600 dark:text-slate-300">
-                  {v.origen_iata} → {v.destino_iata}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300 mb-1">
-                <span>Carga: {ocupada} / {v.capacidad_carga}</span>
-                <span className="font-semibold" style={{ color: colorHex }}>{pct.toFixed(0)}%</span>
-              </div>
-              <div className="w-full h-1 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden mb-2">
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: colorHex }}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-1.5 text-xs">
-                <div className="flex items-center gap-1 rounded bg-white/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-700/50 px-1.5 py-1">
-                  <PlaneTakeoff size={10} className="text-slate-600 dark:text-slate-400 shrink-0" />
-                  <div className="flex flex-col leading-tight min-w-0">
-                    <span className="text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">Sale</span>
-                    <span className="font-mono font-semibold text-slate-700 dark:text-slate-200 truncate">
-                      {salida.hora} <span className="text-slate-600 dark:text-slate-400 font-normal">{salida.fecha}</span>
+      <div className="max-h-[28rem] overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700">
+        <table className="w-full text-xs border-collapse">
+          <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 uppercase tracking-wide z-10">
+            <tr>
+              <th className="text-left px-2 py-2 font-semibold">Código</th>
+              <th className="text-left px-2 py-2 font-semibold">Estado</th>
+              <th className="text-left px-2 py-2 font-semibold">Ruta</th>
+              <th className="text-right px-2 py-2 font-semibold">Carga</th>
+              <th className="text-left px-2 py-2 font-semibold">Sale</th>
+              <th className="text-left px-2 py-2 font-semibold">Llega</th>
+            </tr>
+          </thead>
+          <tbody>
+            {vuelosVisibles.map((v, idx) => {
+              const ocupada = v.capacidad_carga - v.carga_disponible;
+              const pct = v.capacidad_carga > 0 ? (ocupada / v.capacidad_carga) * 100 : 0;
+              const colorHex = colorVueloPorEstado(v.estado);
+              const salida = formatearFechaHoraSeparado(v.hora_salida);
+              const llegada = formatearFechaHoraSeparado(v.hora_llegada);
+              const zebra = idx % 2 === 0 ? 'bg-white/40 dark:bg-slate-900/20' : '';
+              const rowCls = `${zebra} ${onVueloClick ? 'cursor-pointer hover:bg-blue-50/50 dark:hover:bg-blue-900/20' : ''}`;
+              const estadoLabel = v.estado === 'EN_RUTA' ? 'En Ruta' : v.estado === 'PROGRAMADO' ? 'Programado' : v.estado === 'CANCELADO' ? 'Cancelado' : 'Completado';
+              const estadoBg = v.estado === 'PROGRAMADO' ? '#f1f5f9' : `${colorHex}15`;
+              const estadoFg = v.estado === 'PROGRAMADO' ? '#94a3b8' : colorHex;
+              return (
+                <tr
+                  key={v.id}
+                  ref={el => { itemRefs.current[v.id] = el; }}
+                  className={rowCls + ' border-t border-slate-100 dark:border-slate-800'}
+                  onClick={() => onVueloClick?.(v.id, v.codigo_vuelo)}
+                >
+                  <td className="px-2 py-1.5 whitespace-nowrap">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className={`w-2 h-2 rounded-full shadow-sm shrink-0 ${v.estado === 'PROGRAMADO' ? 'ring-1 ring-slate-300' : ''}`} style={{ backgroundColor: colorHex }} />
+                      <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">{v.codigo_vuelo}</span>
+                    </div>
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <span
+                      className="text-[10px] px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap"
+                      style={{ backgroundColor: estadoBg, color: estadoFg }}
+                    >
+                      {estadoLabel}
                     </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 rounded bg-white/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-700/50 px-1.5 py-1">
-                  <PlaneLanding size={10} className="text-slate-600 dark:text-slate-400 shrink-0" />
-                  <div className="flex flex-col leading-tight min-w-0">
-                    <span className="text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">Llega</span>
-                    <span className="font-mono font-semibold text-slate-700 dark:text-slate-200 truncate">
-                      {llegada.hora} <span className="text-slate-600 dark:text-slate-400 font-normal">{llegada.fecha}</span>
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-        {vuelosFiltrados.length === 0 && (
-          <p className="text-xs text-slate-600 italic text-center py-2">
-            Ningún vuelo coincide con los filtros
-          </p>
-        )}
+                  </td>
+                  <td className="px-2 py-1.5 font-mono text-slate-700 dark:text-slate-200 whitespace-nowrap">
+                    {v.origen_iata} → {v.destino_iata}
+                  </td>
+                  <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                    <span className="text-slate-600 dark:text-slate-400">{ocupada}/{v.capacidad_carga}</span>
+                    <span className="ml-2 font-bold" style={{ color: colorHex }}>{pct.toFixed(0)}%</span>
+                    <div className="w-full h-1 mt-0.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: colorHex }} />
+                    </div>
+                  </td>
+                  <td className="px-2 py-1.5 font-mono text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                    {salida.hora}
+                  </td>
+                  <td className="px-2 py-1.5 font-mono text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                    {llegada.hora}
+                  </td>
+                </tr>
+              );
+            })}
+            {vuelosFiltrados.length === 0 && (
+              <tr>
+                <td colSpan={6} className="text-xs text-slate-600 italic text-center py-4">
+                  Ningún vuelo coincide con los filtros
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
