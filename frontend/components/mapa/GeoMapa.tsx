@@ -44,6 +44,7 @@ function MapController({
       if (e.key === 'Escape') {
         if (rutaDestacada) {
           onLimpiarRuta?.();
+          map.flyTo(CENTRO, ZOOM, { duration: 0.8 });
           return;
         }
         if (siguiendo) {

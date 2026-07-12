@@ -17,7 +17,7 @@ function esCoordenadaValida(v: number): boolean {
 
 // Scales icon size with zoom level (smaller on zoom-out to reduce saturation)
 function calcularTamaño(zoom: number): number {
-  return Math.max(40, Math.min(128, Math.round((zoom * 1.8 + 6) * 4)));
+  return Math.max(20, Math.min(64, Math.round((zoom * 1.8 + 6) * 2)));
 }
 
 // No artificial speed cap — each flight moves at its own virtual velocity
@@ -47,7 +47,7 @@ function crearIconoAvion(color: string, rotacion: number = 0, size: number = 22,
   }
   return L.divIcon({
     className: 'avion-icon',
-    html: `<div style="width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;transform:rotate(${rotacion}deg);${estilo}"><svg viewBox="0 0 344.851 344.851" width="${svgSize}" height="${svgSize}" fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" xmlns="http://www.w3.org/2000/svg"><path d="M335.091,9.768c-13.015-13.015-34.115-13.014-47.13,0l-70.51,70.509L103.332,41.452c-1.577-0.537-3.293-0.5-4.846,0.104l-52.2,20.283c-1.066,0.328-2.07,0.916-2.915,1.759c-2.748,2.748-2.765,7.191-0.054,9.961c0.021,0.022,0.044,0.044,0.066,0.066c0.33,0.33,0.695,0.63,1.094,0.895l107.464,71.266L79.17,218.558l-45.602-15.514c-0.853-0.29-1.781-0.271-2.622,0.056L2.785,214.042c-0.752,0.342-1.184,0.598-1.663,1.078c-1.493,1.492-1.497,3.812-0.01,5.309c0.007,0.008,0.015,0.016,0.022,0.021c0.178,0.18,0.376,0.342,0.592,0.483l54.014,35.821c0.231,8.211,3.471,16.354,9.739,22.622c6.267,6.267,14.41,9.507,22.621,9.737l35.821,54.015c0.791,1.19,2.181,1.845,3.604,1.691c1.423-0.153,2.642-1.088,3.16-2.422l11.07-28.489c0.327-0.84,0.346-1.77,0.056-2.623l-15.514-45.602l72.771-72.771l71.268,107.464c1.463,2.204,4.031,3.411,6.662,3.127c2.63-0.284,4.883-2.011,5.841-4.476l20.461-52.66c0.603-1.553,0.64-3.269,0.103-4.846l-38.824-114.12l70.509-70.509C348.104,43.884,348.104,22.783,335.091,9.768z"/></svg></div>`,
+    html: `<div style="width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;transform:rotate(${rotacion - 45}deg);${estilo}"><svg viewBox="0 0 344.851 344.851" width="${svgSize}" height="${svgSize}" fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" xmlns="http://www.w3.org/2000/svg"><path d="M335.091,9.768c-13.015-13.015-34.115-13.014-47.13,0l-70.51,70.509L103.332,41.452c-1.577-0.537-3.293-0.5-4.846,0.104l-52.2,20.283c-1.066,0.328-2.07,0.916-2.915,1.759c-2.748,2.748-2.765,7.191-0.054,9.961c0.021,0.022,0.044,0.044,0.066,0.066c0.33,0.33,0.695,0.63,1.094,0.895l107.464,71.266L79.17,218.558l-45.602-15.514c-0.853-0.29-1.781-0.271-2.622,0.056L2.785,214.042c-0.752,0.342-1.184,0.598-1.663,1.078c-1.493,1.492-1.497,3.812-0.01,5.309c0.007,0.008,0.015,0.016,0.022,0.021c0.178,0.18,0.376,0.342,0.592,0.483l54.014,35.821c0.231,8.211,3.471,16.354,9.739,22.622c6.267,6.267,14.41,9.507,22.621,9.737l35.821,54.015c0.791,1.19,2.181,1.845,3.604,1.691c1.423-0.153,2.642-1.088,3.16-2.422l11.07-28.489c0.327-0.84,0.346-1.77,0.056-2.623l-15.514-45.602l72.771-72.771l71.268,107.464c1.463,2.204,4.031,3.411,6.662,3.127c2.63-0.284,4.883-2.011,5.841-4.476l20.461-52.66c0.603-1.553,0.64-3.269,0.103-4.846l-38.824-114.12l70.509-70.509C348.104,43.884,348.104,22.783,335.091,9.768z"/></svg></div>`,
     iconSize: [size, size],
     iconAnchor: [half, half],
   });
@@ -405,15 +405,19 @@ const AvionAnimado = React.memo(function AvionAnimado({
     return tail;
   }, [samples, ctrlLat, ctrlLon, vuelo.origen_lat, vuelo.origen_lon, vuelo.destino_lat, vuelo.destino_lon, vuelo.progreso]);
 
+  useEffect(() => () => { polylineRef.current = null; }, []);
+
   return (
     <>
-      {vuelo.estado === 'EN_RUTA' && (
-        <Polyline
-          ref={polylineRef}
-          positions={estelaInicial}
-          pathOptions={{ color: '#000', weight: destacado ? 6 : 1, opacity: destacado ? 0.9 : 0.6 }}
-        />
-      )}
+      <Polyline
+        ref={polylineRef}
+        positions={estelaInicial}
+        pathOptions={{
+          color: '#000',
+          weight: destacado ? 6 : 1,
+          opacity: vuelo.estado === 'EN_RUTA' ? (destacado ? 0.9 : 0.6) : 0,
+        }}
+      />
       <Marker ref={markerRef} position={frozenPos} icon={icono}
         eventHandlers={{ click: () => { onSeguirVuelo?.(vuelo.id); onVueloSeleccionado?.(vuelo.id); } }}>
       {seguido && onSalir && (
