@@ -12,8 +12,6 @@ import {
   Upload,
   FileSpreadsheet,
   AlertTriangle,
-  Menu,
-  ChevronLeft,
   Play,
   Pause,
   Square,
@@ -633,9 +631,9 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const vuelosProgramadosOp = allVuelos.filter(
     (v) => v.estado === "PROGRAMADO",
   ).length;
-  const vuelosEntregadosOp = allVuelos.filter(
+  /*const vuelosEntregadosOp = allVuelos.filter(
     (v) => v.estado === "COMPLETADO",
-  ).length;
+  ).length;*/
 
   const vuelosFiltradosMapa = useMemo(() => {
     let lista = vuelosMapaFiltrados;
@@ -768,12 +766,12 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
           />
         </div>
 
-        <div className="absolute left-16 top-4 z-[1001] flex flex-col gap-2 max-h-[calc(100vh-8rem)] overflow-y-auto pointer-events-none">
+        <div className="absolute left-16 top-4 z-1001 flex flex-col gap-2 max-h-[calc(100vh-8rem)] overflow-y-auto pointer-events-none">
           {dockAbiertas.has('datos') && (
             <PanelFlotante
               title="Aeropuertos, Vuelos, Envíos"
               onClose={() => toggleDockOp('datos')}
-              className="w-[30rem] shrink-0 pointer-events-auto"
+              className="w-120 shrink-0 pointer-events-auto"
             >
               <PanelTabs
                 aeropuertos={telemetria?.nodos ?? []}

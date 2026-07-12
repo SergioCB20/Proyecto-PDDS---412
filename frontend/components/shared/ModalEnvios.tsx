@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { Briefcase, Check, ChevronDown, ChevronRight, Copy, FileDown, Loader2, MapPin, Route } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
@@ -37,39 +37,78 @@ interface EnvioExpandido {
   maletaCopiada: string | null;
 }
 
+interface FetchState {
+  data: EnvioItemResponse[];
+  loading: boolean;
+  error: string | null;
+}
+
+type FetchAction =
+  | { type: 'START' }
+  | { type: 'SUCCESS'; data: EnvioItemResponse[] }
+  | { type: 'ERROR'; error: string };
+
+function fetchReducer(state: FetchState, action: FetchAction): FetchState {
+  switch (action.type) {
+    case 'START':
+      return { data: [], loading: true, error: null };
+    case 'SUCCESS':
+      return { data: action.data, loading: false, error: null };
+    case 'ERROR':
+      return { data: [], loading: false, error: action.error };
+    default:
+      return state;
+  }
+}
+
 export function ModalEnvios({ open, selectedEnvio, onClose, sesionId, onSeguirEnMapa, onMostrarRuta }: ModalEnviosProps) {
-  const [data, setData] = useState<EnvioItemResponse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [{ data, loading, error }, dispatch] = useReducer(fetchReducer, {
+    data: [],
+    loading: true,
+    error: null,
+  });
   const [expandidos, setExpandidos] = useState<Record<string, EnvioExpandido>>({});
   const [siguiendoId, setSiguiendoId] = useState<string | null>(null);
   const [mostrandoRutaId, setMostrandoRutaId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open || !selectedEnvio) return;
-    setLoading(true);
-    setError(null);
-    setExpandidos({});
-    const fetchFn = sesionId
-      ? (selectedEnvio.tipo === 'vuelo'
-          ? fetchEnviosVuelo(sesionId, selectedEnvio.id)
-          : fetchEnviosAeropuerto(sesionId, selectedEnvio.id))
-      : (selectedEnvio.tipo === 'vuelo'
-          ? fetchEnviosVueloOperacion(selectedEnvio.id)
-          : fetchEnviosAeropuertoOperacion(selectedEnvio.id));
-    fetchFn
-      .then(d => { setData(d); setLoading(false); })
-      .catch(err => { setError(err?.mensaje || err?.message || 'Error al cargar envíos'); setLoading(false); });
+
+    let cancelled = false;
+
+    const loadData = async () => {
+      dispatch({ type: 'START' });
+      setExpandidos({});
+
+      const fetchFn = sesionId
+        ? (selectedEnvio.tipo === 'vuelo'
+            ? fetchEnviosVuelo(sesionId, selectedEnvio.id)
+            : fetchEnviosAeropuerto(sesionId, selectedEnvio.id))
+        : (selectedEnvio.tipo === 'vuelo'
+            ? fetchEnviosVueloOperacion(selectedEnvio.id)
+            : fetchEnviosAeropuertoOperacion(selectedEnvio.id));
+
+      try {
+        const d = await fetchFn;
+        if (!cancelled) dispatch({ type: 'SUCCESS', data: d });
+      } catch (err: unknown) {
+        if (!cancelled) {
+          const e = err as { mensaje?: string; message?: string };
+          const mensaje = e?.mensaje || e?.message || 'Error al cargar envíos';
+          dispatch({ type: 'ERROR', error: mensaje });
+        }
+      }
+    };
+
+    loadData();
+
+    return () => { cancelled = true; };
   }, [open, selectedEnvio, sesionId]);
 
   const totalMaletas = useMemo(() => data.reduce((acc, item) => acc + (item.cantidad || 0), 0), [data]);
 
   const handleToggleExpand = useCallback(async (id: string, codigoEquipaje: string) => {
-    setExpandidos(prev => {
-      if (prev[id]) return {};
-      return { ...prev };
-    });
-    if (expandidos[id] || loading) {
+    if (expandidos[id]) {
       setExpandidos(prev => {
         const next = { ...prev };
         delete next[id];
@@ -77,7 +116,9 @@ export function ModalEnvios({ open, selectedEnvio, onClose, sesionId, onSeguirEn
       });
       return;
     }
+
     setExpandidos(prev => ({ ...prev, [id]: { maletas: [], loading: true, error: null, maletaCopiada: null } }));
+
     try {
       const lista = await fetchMaletasEquipaje(codigoEquipaje);
       setExpandidos(prev => ({ ...prev, [id]: { maletas: lista, loading: false, error: null, maletaCopiada: null } }));
@@ -88,7 +129,7 @@ export function ModalEnvios({ open, selectedEnvio, onClose, sesionId, onSeguirEn
         [id]: { maletas: [], loading: false, error: e.mensaje || e.message || 'Error al cargar maletas', maletaCopiada: null },
       }));
     }
-  }, [expandidos, loading]);
+  }, [expandidos]);
 
   const handleCopiarMaleta = useCallback(async (envioId: string, codigo: string) => {
     try {
