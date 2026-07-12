@@ -38,7 +38,7 @@ export function Modal({
           <h2 className="font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
+            className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600"
           >
             <X size={18} />
           </button>

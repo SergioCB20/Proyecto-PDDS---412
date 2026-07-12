@@ -18,7 +18,7 @@ export function SimulacionLoadingOverlay({ visible }: Props) {
         </span>
       </div>
 
-      <div className="flex items-center gap-6 text-xs text-slate-400 dark:text-slate-500">
+      <div className="flex items-center gap-6 text-xs text-slate-600 dark:text-slate-400">
         <div className="flex items-center gap-1.5">
           <Package size={14} />
           <span>Clonando equipajes</span>

@@ -14,7 +14,7 @@ function MetricaCard({ label, value, icon: Icon, color }: {
         <Icon size={18} className="text-white" />
       </div>
       <div>
-        <div className="text-xs text-slate-500">{label}</div>
+        <div className="text-xs text-slate-600">{label}</div>
         <div className="text-lg font-bold text-slate-900 dark:text-slate-100">{value}</div>
       </div>
     </div>
@@ -54,7 +54,7 @@ export function MetricasOperacion() {
     return (
 <div className="p-4">
         <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Métricas</h3>
-        <p className="text-xs text-slate-400 italic text-center py-2">Cargando métricas...</p>
+        <p className="text-xs text-slate-600 italic text-center py-2">Cargando métricas...</p>
       </div>
     );
   }
@@ -66,7 +66,7 @@ export function MetricasOperacion() {
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Métricas de la Sesión</h3>
         <button onClick={reiniciar} className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800" title="Reiniciar sesión">
-          <RefreshCw size={14} className="text-slate-400" />
+          <RefreshCw size={14} className="text-slate-600" />
         </button>
       </div>
       <div className="grid grid-cols-2 gap-2">
@@ -95,7 +95,7 @@ export function MetricasOperacion() {
           color="bg-yellow-500"
         />
       </div>
-      <div className="mt-2 text-xs text-slate-400 text-center">
+      <div className="mt-2 text-xs text-slate-600 text-center">
         {totalVuelos} vuelos totales · {metricas.vuelos_cancelados} cancelados
       </div>
     </div>

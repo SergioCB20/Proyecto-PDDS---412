@@ -97,10 +97,10 @@ export function PanelTabs({
           <button
             key={key}
             onClick={() => setTab(key)}
-            className={`flex-1 text-[11px] font-medium py-1.5 px-1 rounded-md transition-colors ${
+            className={`flex-1 text-sm font-medium py-1.5 px-1 rounded-md transition-colors ${
               tab === key
                 ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 hover:text-slate-700 dark:hover:text-slate-300'
             }`}
           >
             {label}

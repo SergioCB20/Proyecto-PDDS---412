@@ -10,6 +10,16 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  /* Escala de tipografia ampliada para accesibilidad (clientes con baja
+     vision). Cada nivel sube ~2px respecto al default de Tailwind v4. */
+  --text-xs: 0.875rem;
+  --text-xs--line-height: 1.3;
+  --text-sm: 1rem;
+  --text-sm--line-height: 1.4;
+  --text-base: 1.125rem;
+  --text-base--line-height: 1.5;
+  --text-lg: 1.25rem;
+  --text-lg--line-height: 1.5;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -33,7 +43,7 @@ body {
   box-shadow: none;
   padding: 0 3px;
   margin: 0;
-  font-size: 10px;
+  font-size: 13px;
   line-height: 1.2;
   white-space: nowrap;
   border-radius: 4px;
@@ -52,4 +62,19 @@ body {
 }
 .salir-vuelo-tooltip::before {
   display: none;
+}
+
+.pais-nombre-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+  text-shadow:
+    0 0 4px #fff,
+    0 0 8px #fff,
+    0 0 12px #fff;
+  white-space: nowrap;
+  pointer-events: none;
+  letter-spacing: 0.3px;
 }

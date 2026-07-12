@@ -95,7 +95,7 @@ export function PanelVuelos({ vuelos, onVueloClick, origenFilter = '', destinoFi
     return (
       <div className="p-4 border-t border-slate-200 dark:border-slate-700">
         <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Vuelos</h3>
-        <p className="text-xs text-slate-400 italic text-center py-2">Sin datos de vuelos</p>
+        <p className="text-xs text-slate-600 italic text-center py-2">Sin datos de vuelos</p>
       </div>
     );
   }
@@ -104,7 +104,7 @@ export function PanelVuelos({ vuelos, onVueloClick, origenFilter = '', destinoFi
     <div className="p-4 border-t border-slate-200 dark:border-slate-700">
       <div className="flex items-center justify-between mb-1">
         <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Vuelos</h3>
-        <span className="text-xs text-slate-400">
+        <span className="text-xs text-slate-600">
           Mostrando {vuelosFiltrados.length} de {vuelos.length} vuelos
         </span>
       </div>
@@ -154,7 +154,7 @@ export function PanelVuelos({ vuelos, onVueloClick, origenFilter = '', destinoFi
       </div>
 
       {vuelosFiltrados.length > MAX_RENDER && (
-        <p className="text-[11px] text-slate-400 mb-2">
+        <p className="text-sm text-slate-600 mb-2">
           Mostrando las primeras {MAX_RENDER}; refina los filtros para ver el resto.
         </p>
       )}
@@ -177,11 +177,11 @@ export function PanelVuelos({ vuelos, onVueloClick, origenFilter = '', destinoFi
                   <span className="w-2 h-2 rounded-full shadow-sm" style={{ backgroundColor: colorHex }} />
                   <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">{v.codigo_vuelo}</span>
                 </div>
-                <span className="text-[11px] font-mono font-medium text-slate-500 dark:text-slate-400">
+                <span className="text-sm font-mono font-medium text-slate-600 dark:text-slate-300">
                   {v.origen_iata} → {v.destino_iata}
                 </span>
               </div>
-              <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 mb-1">
+              <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300 mb-1">
                 <span>Carga: {ocupada} / {v.capacidad_carga}</span>
                 <span className="font-semibold" style={{ color: colorHex }}>{pct.toFixed(0)}%</span>
               </div>
@@ -191,22 +191,22 @@ export function PanelVuelos({ vuelos, onVueloClick, origenFilter = '', destinoFi
                   style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: colorHex }}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+              <div className="grid grid-cols-2 gap-1.5 text-xs">
                 <div className="flex items-center gap-1 rounded bg-white/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-700/50 px-1.5 py-1">
-                  <PlaneTakeoff size={10} className="text-slate-400 dark:text-slate-500 shrink-0" />
+                  <PlaneTakeoff size={10} className="text-slate-600 dark:text-slate-400 shrink-0" />
                   <div className="flex flex-col leading-tight min-w-0">
-                    <span className="text-[9px] uppercase tracking-wide text-slate-400 dark:text-slate-500">Sale</span>
+                    <span className="text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">Sale</span>
                     <span className="font-mono font-semibold text-slate-700 dark:text-slate-200 truncate">
-                      {salida.hora} <span className="text-slate-400 dark:text-slate-500 font-normal">{salida.fecha}</span>
+                      {salida.hora} <span className="text-slate-600 dark:text-slate-400 font-normal">{salida.fecha}</span>
                     </span>
                   </div>
                 </div>
                 <div className="flex items-center gap-1 rounded bg-white/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-700/50 px-1.5 py-1">
-                  <PlaneLanding size={10} className="text-slate-400 dark:text-slate-500 shrink-0" />
+                  <PlaneLanding size={10} className="text-slate-600 dark:text-slate-400 shrink-0" />
                   <div className="flex flex-col leading-tight min-w-0">
-                    <span className="text-[9px] uppercase tracking-wide text-slate-400 dark:text-slate-500">Llega</span>
+                    <span className="text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">Llega</span>
                     <span className="font-mono font-semibold text-slate-700 dark:text-slate-200 truncate">
-                      {llegada.hora} <span className="text-slate-400 dark:text-slate-500 font-normal">{llegada.fecha}</span>
+                      {llegada.hora} <span className="text-slate-600 dark:text-slate-400 font-normal">{llegada.fecha}</span>
                     </span>
                   </div>
                 </div>
@@ -215,7 +215,7 @@ export function PanelVuelos({ vuelos, onVueloClick, origenFilter = '', destinoFi
           );
         })}
         {vuelosFiltrados.length === 0 && (
-          <p className="text-xs text-slate-400 italic text-center py-2">
+          <p className="text-xs text-slate-600 italic text-center py-2">
             Ningún vuelo coincide con los filtros
           </p>
         )}

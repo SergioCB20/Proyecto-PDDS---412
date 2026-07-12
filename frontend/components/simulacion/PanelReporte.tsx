@@ -70,7 +70,7 @@ export function PanelReporte({
           <div
             className={`p-3 rounded-lg ${slaOk ? "bg-green-50 dark:bg-green-900/20" : "bg-red-50 dark:bg-red-900/20"}`}
           >
-            <div className="text-xs text-slate-500">SLA Incumplido</div>
+            <div className="text-xs text-slate-600">SLA Incumplido</div>
             <div
               className={`text-lg font-bold ${slaOk ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}`}
             >
@@ -78,7 +78,7 @@ export function PanelReporte({
             </div>
           </div>
           <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20">
-            <div className="text-xs text-slate-500">Replanificadas</div>
+            <div className="text-xs text-slate-600">Replanificadas</div>
             <div className="text-lg font-bold text-amber-700 dark:text-amber-300">
               {reporte.total_replanificadas}
             </div>
@@ -110,7 +110,7 @@ export function PanelReporte({
 
         {serieSla.length > 0 && (
           <div>
-            <p className="text-xs font-medium text-slate-500 mb-2">
+            <p className="text-xs font-medium text-slate-600 mb-2">
               SLA por hora virtual
             </p>
             <div className="flex items-end gap-0.5 h-16">
@@ -123,7 +123,7 @@ export function PanelReporte({
                     className={`w-full rounded-t transition-all ${p.hubo_cancelacion ? "bg-red-400" : "bg-blue-400"}`}
                     style={{ height: `${Math.max(p.sla_pct, 2)}%` }}
                   />
-                  <div className="absolute bottom-full mb-1 hidden group-hover:block z-10 bg-slate-800 text-white text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap">
+                  <div className="absolute bottom-full mb-1 hidden group-hover:block z-10 bg-slate-800 text-white text-xs px-1.5 py-0.5 rounded whitespace-nowrap">
                     {formatMomento(p.momento_virtual)} —{" "}
                     {(p.sla_pct ?? 0).toFixed(0)}%
                   </div>
@@ -133,13 +133,13 @@ export function PanelReporte({
             <div className="flex items-center gap-3 mt-1">
               <div className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-sm bg-blue-400" />
-                <span className="text-[10px] text-slate-400">
+                <span className="text-xs text-slate-600">
                   Sin cancelación
                 </span>
               </div>
               <div className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-sm bg-red-400" />
-                <span className="text-[10px] text-slate-400">
+                <span className="text-xs text-slate-600">
                   Con cancelación
                 </span>
               </div>

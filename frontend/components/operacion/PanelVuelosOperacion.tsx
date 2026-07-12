@@ -168,7 +168,7 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
     return (
       <div className="p-4 border-t border-slate-200 dark:border-slate-700">
         <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Vuelos</h3>
-        <p className="text-xs text-slate-400 italic text-center py-2">Sin datos de vuelos</p>
+        <p className="text-xs text-slate-600 italic text-center py-2">Sin datos de vuelos</p>
       </div>
     );
   }
@@ -177,7 +177,7 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
     <div className="p-4 border-t border-slate-200 dark:border-slate-700">
       <div className="flex items-center justify-between mb-1">
         <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Vuelos</h3>
-        <span className="text-xs text-slate-400">
+        <span className="text-xs text-slate-600">
           Mostrando {vuelosFiltrados.length} de {vuelos.length} vuelos
         </span>
       </div>
@@ -227,7 +227,7 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
       </div>
 
       {vuelosFiltrados.length > MAX_RENDER && (
-        <p className="text-[11px] text-slate-400 mb-2">
+        <p className="text-sm text-slate-600 mb-2">
           Mostrando las primeras {MAX_RENDER}; refina los filtros para ver el resto.
         </p>
       )}
@@ -252,20 +252,20 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
                   <span className="w-2 h-2 rounded-full shadow-sm animate-pulse" style={{ backgroundColor: colorHex }} />
                   <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">{v.codigo_vuelo}</span>
                   <span
-                    className="text-[9px] px-1.5 py-0.5 rounded-full font-medium"
+                    className="text-xs px-1.5 py-0.5 rounded-full font-medium"
                     style={{ backgroundColor: `${colorHex}15`, color: colorHex }}
                   >
                     {v.estado === 'EN_RUTA' ? 'En Ruta' : v.estado === 'PROGRAMADO' ? 'Programado' : v.estado === 'CANCELADO' ? 'Cancelado' : 'Completado'}
                   </span>
                 </div>
                 <span
-                  className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate max-w-[170px]"
+                  className="text-sm font-medium text-slate-600 dark:text-slate-300 truncate max-w-[170px]"
                   title={`${v.origen_iata} → ${v.destino_iata}`}
                 >
                   {ciudadDe(v.origen_iata)} &rarr; {ciudadDe(v.destino_iata)}
                 </span>
               </div>
-              <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 mb-1">
+              <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300 mb-1">
                 <span>Carga: {ocupada} / {v.capacidad_carga}</span>
                 <span className="font-semibold" style={{ color: colorHex }}>{pct.toFixed(0)}%</span>
               </div>
@@ -282,22 +282,22 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
                   return (
                     <>
                       <div className="flex items-center gap-1.5 rounded-md bg-white/70 dark:bg-slate-900/40 border border-slate-200/70 dark:border-slate-700/50 px-2 py-1.5">
-                        <PlaneTakeoff size={11} className="text-slate-400 dark:text-slate-500 shrink-0" />
+                        <PlaneTakeoff size={11} className="text-slate-600 dark:text-slate-400 shrink-0" />
                         <div className="flex flex-col leading-tight min-w-0">
-                          <span className="text-[9px] uppercase tracking-wide text-slate-400 dark:text-slate-500 font-medium">Salida</span>
-                          <span className="text-[11px] font-mono font-semibold text-slate-700 dark:text-slate-200 truncate">
+                          <span className="text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400 font-medium">Salida</span>
+                          <span className="text-sm font-mono font-semibold text-slate-700 dark:text-slate-200 truncate">
                             {salida.hora}
-                            <span className="text-slate-400 dark:text-slate-500 font-normal"> · {salida.fecha}</span>
+                            <span className="text-slate-600 dark:text-slate-400 font-normal"> · {salida.fecha}</span>
                           </span>
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 rounded-md bg-white/70 dark:bg-slate-900/40 border border-slate-200/70 dark:border-slate-700/50 px-2 py-1.5">
-                        <PlaneLanding size={11} className="text-slate-400 dark:text-slate-500 shrink-0" />
+                        <PlaneLanding size={11} className="text-slate-600 dark:text-slate-400 shrink-0" />
                         <div className="flex flex-col leading-tight min-w-0">
-                          <span className="text-[9px] uppercase tracking-wide text-slate-400 dark:text-slate-500 font-medium">Llegada</span>
-                          <span className="text-[11px] font-mono font-semibold text-slate-700 dark:text-slate-200 truncate">
+                          <span className="text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400 font-medium">Llegada</span>
+                          <span className="text-sm font-mono font-semibold text-slate-700 dark:text-slate-200 truncate">
                             {llegada.hora}
-                            <span className="text-slate-400 dark:text-slate-500 font-normal"> · {llegada.fecha}</span>
+                            <span className="text-slate-600 dark:text-slate-400 font-normal"> · {llegada.fecha}</span>
                           </span>
                         </div>
                       </div>
@@ -311,7 +311,7 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
                   {onVueloClick && (
                     <button
                       onClick={(e) => { e.stopPropagation(); onVueloClick(v.id, v.codigo_vuelo); }}
-                      className="px-2.5 py-0.5 rounded bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-[10px] font-medium transition-colors cursor-pointer border border-transparent dark:border-blue-900/30"
+                      className="px-2.5 py-0.5 rounded bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-xs font-medium transition-colors cursor-pointer border border-transparent dark:border-blue-900/30"
                     >
                       Ver Envíos
                     </button>
@@ -319,7 +319,7 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
                   {onDownloadManifiesto && (
                     <button
                       onClick={(e) => { e.stopPropagation(); handleAbrirMaletas(v.id, v.codigo_vuelo); }}
-                      className="px-2.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 text-[10px] font-medium transition-colors cursor-pointer border border-transparent dark:border-emerald-900/30"
+                      className="px-2.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 text-xs font-medium transition-colors cursor-pointer border border-transparent dark:border-emerald-900/30"
                       title="Ver IDs individuales de las maletas asignadas a este vuelo"
                     >
                       Ver Maletas
@@ -329,7 +329,7 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
 
                 <div className="flex items-center gap-1.5">
                   {seguidoId === v.id ? (
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-medium whitespace-nowrap">
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-medium whitespace-nowrap">
                       En Mapa [ESC]
                     </span>
                   ) : onVerEnMapa && v.estado === 'EN_RUTA' && (
@@ -347,7 +347,7 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
           );
         })}
         {vuelosFiltrados.length === 0 && (
-          <p className="text-xs text-slate-400 italic text-center py-2">
+          <p className="text-xs text-slate-600 italic text-center py-2">
             Ningún vuelo coincide con los filtros
           </p>
         )}
@@ -366,7 +366,7 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
         }
       >
         {maletasLoading && (
-          <div className="flex items-center gap-2 text-xs text-slate-500 py-4">
+          <div className="flex items-center gap-2 text-xs text-slate-600 py-4">
             <span className="w-3 h-3 border-2 border-slate-300 border-t-emerald-500 rounded-full animate-spin" />
             Cargando maletas...
           </div>
@@ -380,7 +380,7 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
 
         {!maletasLoading && !maletasError && (
           <>
-            <div className="flex items-center justify-between mb-3 text-xs text-slate-500">
+            <div className="flex items-center justify-between mb-3 text-xs text-slate-600">
               <span>
                 {maletas.length === 0
                   ? 'Este vuelo no tiene maletas asignadas todavía.'
@@ -408,14 +408,14 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
                   <div key={equipajeIdExt} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40">
                     <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 dark:border-slate-700 bg-white/60 dark:bg-slate-900/30">
                       <div className="flex items-center gap-2">
-                        <span className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-[10px] font-semibold tracking-wide">
+                        <span className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs font-semibold tracking-wide">
                           EQUIPAJE
                         </span>
                         <span className="text-sm font-mono font-semibold text-slate-800 dark:text-slate-200">
                           {equipajeIdExt}
                         </span>
                       </div>
-                      <span className="text-[11px] text-slate-500">
+                      <span className="text-sm text-slate-600">
                         {lista.length} maleta{lista.length !== 1 ? 's' : ''}
                       </span>
                     </div>
@@ -431,7 +431,7 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
                           <button
                             type="button"
                             onClick={() => handleCopiarMaleta(m.codigo_maleta)}
-                            className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors shrink-0"
+                            className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 hover:text-slate-700 dark:hover:text-slate-200 transition-colors shrink-0"
                             title="Copiar ID al portapapeles"
                           >
                             {maletaCopiada === m.codigo_maleta ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}

@@ -93,7 +93,7 @@ export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false
               <div className="text-xs text-slate-600" title={`${vuelo.origen.codigo_iata} → ${vuelo.destino.codigo_iata}`}>
                 {ciudadDe(vuelo.origen.codigo_iata)} → {ciudadDe(vuelo.destino.codigo_iata)}
               </div>
-              <div className="text-[10px] text-slate-500 mt-0.5 font-mono">
+              <div className="text-xs text-slate-600 mt-0.5 font-mono">
                 {(() => {
                   const s = formatearFechaHoraSeparado(vuelo.hora_salida);
                   const l = formatearFechaHoraSeparado(vuelo.hora_llegada);
@@ -106,7 +106,7 @@ export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false
                 })()}
               </div>
               <div className="text-xs mt-1">
-                <span className="text-slate-500">Ocupado: </span>
+                <span className="text-slate-600">Ocupado: </span>
                 <span className="font-semibold">{ocupada}/{vuelo.capacidad_carga}</span>
               </div>
               <OcupacionBar ocupada={vuelo.carga_disponible} total={vuelo.capacidad_carga} verdeMax={verdeMax} ambarMax={ambarMax} />

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Marker, Tooltip, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import type { AeropuertoEnMapa } from '@/lib/types';
@@ -21,29 +21,21 @@ interface GeoMapaAeropuertoProps {
  *   quedaban diminutos frente a cada aeropuerto. Ahora el tamano es 22 px y la
  *   meta visual se cumple con un simbolo reconocible + color.
  */
-function crearIconoAeropuerto(color: string, size: number = 28, hover: boolean = false) {
+function crearIconoAeropuerto(color: string, size: number = 28) {
   const half = Math.round(size / 2);
-  const border = Math.max(1, Math.round(size * 0.09));
-  const svgSize = Math.round(size * 0.6);
-  // Icono de avion (lucide "plane") superpuesto al pasar el mouse, ligeramente
-  // mas grande que la torre para que se note la superposicion.
-  const planeSize = Math.round(size * 1.15);
-  const planeHtml = hover
-    ? `<svg viewBox="0 0 24 24" width="${planeSize}" height="${planeSize}" fill="none" stroke="#0f172a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(45deg);filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5))" xmlns="http://www.w3.org/2000/svg"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-1 .1-1.3.5l-.7.7c-.4.4-.3 1.1.2 1.4l5.9 3.3-1.5 2.6-3.1-.5c-.3 0-.6.1-.8.3l-.5.5c-.4.4-.3 1 .1 1.4l3.3 2.9 2.9 3.3c.4.4 1.1.5 1.4.1l.5-.5c.2-.2.3-.5.3-.8l-.5-3.1 2.6-1.5 3.3 5.9c.3.5 1 .6 1.4.2l.7-.7c.4-.3.6-.8.5-1.3z" fill="white"/></svg>`
-    : '';
+  const svgSize = Math.round(size * 0.75);
   return L.divIcon({
     className: 'aeropuerto-icon',
-    html: `<div style="position:relative;width:${size}px;height:${size}px"><div style="width:${size}px;height:${size}px;background:${color};border-radius:${Math.round(size * 0.27)}px;border:${border}px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="${svgSize}" height="${svgSize}" fill="white" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M11 2 L13 2 L13 5 L18 5 L18 8 L13 8 L13 10 L20 13 L20 16 L11 14 L2 16 L2 13 L11 10 Z M9 17 L15 17 L15 22 L9 22 Z"/></svg></div>${planeHtml}</div>`,
+    html: `<div style="width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.35))"><svg viewBox="0 0 15 15" width="${svgSize}" height="${svgSize}" fill="${color}" xmlns="http://www.w3.org/2000/svg"><path d="M7.20938 0.0931333C7.38323 -0.0310444 7.61677 -0.0310444 7.79062 0.0931333L14.7906 5.09313C14.922 5.18699 15 5.33852 15 5.5V14.5C15 14.7761 14.7761 15 14.5 15H13V7H2V15H0.5C0.223858 15 0 14.7761 0 14.5V5.5C0 5.33852 0.0779828 5.18699 0.209381 5.09313L7.20938 0.0931333Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M3 15H12V11H3V15ZM9 13H6V12H9V13Z"/><path d="M12 10V8H3V10H12Z"/></svg></div>`,
     iconSize: [size, size],
     iconAnchor: [half, half],
   });
 }
 
 export default function GeoMapaAeropuerto({ aeropuerto, onClick }: GeoMapaAeropuertoProps) {
-  const [hover, setHover] = useState(false);
   const icono = useMemo(
-    () => crearIconoAeropuerto(aeropuerto.color, 28, hover),
-    [aeropuerto.color, hover]
+    () => crearIconoAeropuerto(aeropuerto.color, 28),
+    [aeropuerto.color]
   );
 
   return (
@@ -52,15 +44,13 @@ export default function GeoMapaAeropuerto({ aeropuerto, onClick }: GeoMapaAeropu
       icon={icono}
       eventHandlers={{
         click: () => onClick?.(aeropuerto.codigo_iata),
-        mouseover: () => setHover(true),
-        mouseout: () => setHover(false),
       }}
     >
       <Tooltip direction="top" offset={[0, -16]} className="aeropuerto-label">
         <div className="text-center">
-          <div className="font-bold text-[11px]">{ciudadDe(aeropuerto.codigo_iata)}</div>
-          <div className="text-[9px] text-slate-500 font-mono">{aeropuerto.codigo_iata}</div>
-          <span className="font-semibold text-[10px]" style={{ color: aeropuerto.color }}>
+          <div className="font-bold text-sm">{ciudadDe(aeropuerto.codigo_iata)}</div>
+          <div className="text-xs text-slate-600 font-mono">{aeropuerto.codigo_iata}</div>
+          <span className="font-semibold text-xs" style={{ color: aeropuerto.color }}>
             {aeropuerto.ocupacionPorcentaje.toFixed(0)}%
           </span>
         </div>
@@ -68,7 +58,7 @@ export default function GeoMapaAeropuerto({ aeropuerto, onClick }: GeoMapaAeropu
       <Popup>
         <div className="text-center min-w-[120px]">
           <div className="font-bold text-sm">{ciudadDe(aeropuerto.codigo_iata)}</div>
-          <div className="text-[11px] text-slate-500">
+          <div className="text-sm text-slate-600">
             {[paisDe(aeropuerto.codigo_iata), aeropuerto.codigo_iata].filter(Boolean).join(' · ')}
           </div>
           <div className="text-xs text-slate-600 mt-1">
