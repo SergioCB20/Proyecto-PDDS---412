@@ -2277,6 +2277,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
 
   useEffect(() => {
     if (!sesionId || estadoSesion === "CONFIGURADA" || estadoSesion === "FINALIZADA" || estadoSesion === "COLAPSADA") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPlantillas([]);
       return;
     }
