@@ -6,8 +6,8 @@ export const COLOR_AEROPUERTO = {
 } as const;
 
 export const COLOR_VUELO = {
-  PROGRAMADO: '#3b82f6',
-  EN_RUTA: '#22c55e',
+  PROGRAMADO: '#ffffff',
+  EN_RUTA: '#f97316',
   CANCELADO: '#ef4444',
   COMPLETADO: '#6b7280',
   VACIO: '#9ca3af',

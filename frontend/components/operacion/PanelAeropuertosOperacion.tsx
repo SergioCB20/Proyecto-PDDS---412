@@ -6,7 +6,21 @@ import { Select } from '@/components/ui/Select';
 import { Map as MapIcon } from 'lucide-react';
 import type { AeropuertoTelemetria } from '@/lib/types';
 import { ciudadDe, paisDe } from '@/lib/aeropuertos';
-import { determinarColorSemaforo } from '@/lib/colors';
+import { determinarColorSemaforo, type ColorSemaforo } from '@/lib/colors';
+
+interface EstiloEstado {
+  bordeIzq: string;
+  dotCls: string;
+  label: string;
+  textCls: string;
+}
+
+const ESTILO_POR_ESTADO: Record<ColorSemaforo, EstiloEstado> = {
+  VACIO: { bordeIzq: 'border-l-slate-400', dotCls: 'bg-slate-400', label: 'Vacío', textCls: 'text-slate-600 dark:text-slate-400' },
+  VERDE: { bordeIzq: 'border-l-green-500', dotCls: 'bg-green-500', label: 'Verde', textCls: 'text-green-700 dark:text-green-400' },
+  AMBAR: { bordeIzq: 'border-l-yellow-500', dotCls: 'bg-yellow-500', label: 'Amarillo', textCls: 'text-yellow-700 dark:text-yellow-400' },
+  ROJO: { bordeIzq: 'border-l-red-500', dotCls: 'bg-red-500', label: 'Rojo', textCls: 'text-red-700 dark:text-red-400' },
+};
 
 interface PanelAeropuertosOperacionProps {
   aeropuertos: AeropuertoTelemetria[];
@@ -17,7 +31,6 @@ interface PanelAeropuertosOperacionProps {
   filtroColor?: string;
   onFilterColorChange?: (color: string) => void;
   umbralesConfig?: { verdeMax: number; ambarMax: number };
-  /** Filtro por continente controlado por el padre (también mueve el mapa). */
   filtroContinente?: string;
   onFiltroContinenteChange?: (continente: string) => void;
 }
@@ -35,7 +48,7 @@ export function PanelAeropuertosOperacion({
   onFiltroContinenteChange,
 }: PanelAeropuertosOperacionProps) {
   const [filtroCodigo, setFiltroCodigo] = useState('');
-  const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const itemRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
   useEffect(() => {
     if (seleccionadoId && itemRefs.current[seleccionadoId]) {
       itemRefs.current[seleccionadoId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -43,8 +56,6 @@ export function PanelAeropuertosOperacion({
   }, [seleccionadoId]);
   const [orden, setOrden] = useState('');
 
-  // Default al state interno si el padre no controla el filtro. Asi el componente
-  // sigue utilisable en aislamiento, pero las vistas del dashboard siempre pasan props.
   const [filtroContinenteInterno, setFiltroContinenteInterno] = useState('');
   const continenteActual = filtroContinente ?? filtroContinenteInterno;
   const onContinenteChange = (v: string) => {
@@ -121,7 +132,7 @@ export function PanelAeropuertosOperacion({
       <div className="flex items-center justify-between mb-1">
         <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Aeropuertos</h3>
         <span className="text-xs text-slate-600">
-          Mostrando {aeropuertosOrdenados.length} de {aeropuertos.length} aeropuertos
+          Mostrando {aeropuertosOrdenados.length} de {aeropuertos.length}
         </span>
       </div>
 
@@ -161,72 +172,80 @@ export function PanelAeropuertosOperacion({
         </button>
       )}
 
-      <div className="space-y-2 max-h-56 overflow-y-auto">
-        {aeropuertosOrdenados.map(n => {
-          const continenteLabel = n.continente && n.continente !== 'Desconocido' ? n.continente : (n.zona_horaria ? n.zona_horaria.split('/')[0] : '');
-          const ciudad = ciudadDe(n.codigo_iata);
-          const pais = paisDe(n.codigo_iata);
-          const ubicacion = [pais, continenteLabel].filter(Boolean).join(' · ');
-          return (
-            <div
-              key={n.id}
-              ref={el => { itemRefs.current[n.codigo_iata] = el; }}
-              className={`py-2 px-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border ${
-                seleccionadoId === n.codigo_iata
-                  ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-800'
-                  : 'border-slate-100 dark:border-slate-800/60'
-              } ${onAeropuertoClick ? 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/70 hover:border-slate-200 dark:hover:border-slate-700 transition-colors' : ''}`}
-              onClick={() => onAeropuertoClick?.(n.codigo_iata, n.codigo_iata)}
-            >
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="w-2 h-2 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: n.color }} />
-                  <div className="flex flex-col min-w-0 leading-tight">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      {ciudad && ciudad !== n.codigo_iata && (
-                        <span className="font-semibold text-sm text-slate-800 dark:text-slate-200 truncate">{ciudad}</span>
-                      )}
-                      <span className="text-xs font-mono text-slate-600 shrink-0">{n.codigo_iata}</span>
+      <div className="max-h-[28rem] overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700">
+        <table className="w-full text-xs border-collapse">
+          <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 uppercase tracking-wide z-10">
+            <tr>
+              <th className="text-left px-2 py-2 font-semibold">IATA</th>
+              <th className="text-left px-2 py-2 font-semibold">Ciudad</th>
+              <th className="text-left px-2 py-2 font-semibold hidden md:table-cell">País · Cont.</th>
+              <th className="text-right px-2 py-2 font-semibold">Ocupación</th>
+              <th className="text-right px-2 py-2 font-semibold w-12">—</th>
+            </tr>
+          </thead>
+          <tbody>
+            {aeropuertosOrdenados.map((n, idx) => {
+              const continenteLabel = n.continente && n.continente !== 'Desconocido' ? n.continente : (n.zona_horaria ? n.zona_horaria.split('/')[0] : '');
+              const ciudad = ciudadDe(n.codigo_iata);
+              const pais = paisDe(n.codigo_iata);
+              const ubicacion = [pais, continenteLabel].filter(Boolean).join(' · ');
+              const zebra = idx % 2 === 0 ? 'bg-white/40 dark:bg-slate-900/20' : '';
+              const seleccionado = seleccionadoId === n.codigo_iata;
+              const rowCls = `${zebra} ${seleccionado ? '!bg-blue-50 dark:!bg-blue-900/30 ring-1 ring-blue-300 dark:ring-blue-700' : ''} ${onAeropuertoClick ? 'cursor-pointer hover:bg-blue-50/50 dark:hover:bg-blue-900/20' : ''}`;
+              const estado = ESTILO_POR_ESTADO[determinarColorSemaforo(n.ocupacion_pct, umbralesConfig) as ColorSemaforo];
+              return (
+                <tr
+                  key={n.id}
+                  ref={el => { itemRefs.current[n.codigo_iata] = el; }}
+                  className={`${rowCls} border-t border-slate-100 dark:border-slate-800 border-l-4 ${estado.bordeIzq}`}
+                  onClick={() => onAeropuertoClick?.(n.codigo_iata, n.codigo_iata)}
+                >
+                  <td className="px-2 py-1.5">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={`w-3 h-3 rounded-full shrink-0 shadow-sm ${estado.dotCls}`} />
+                      <div className="flex flex-col leading-tight min-w-0">
+                        <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">{n.codigo_iata}</span>
+                        <span className={`text-[10px] font-semibold uppercase tracking-wide ${estado.textCls}`}>{estado.label}</span>
+                      </div>
                     </div>
-                    {ubicacion && (
-                      <span className="text-xs text-slate-600 truncate">{ubicacion}</span>
+                  </td>
+                  <td className="px-2 py-1.5 text-slate-700 dark:text-slate-300 truncate max-w-[140px]" title={ciudad}>
+                    {ciudad && ciudad !== n.codigo_iata ? ciudad : '—'}
+                  </td>
+                  <td className="px-2 py-1.5 text-slate-600 dark:text-slate-400 truncate hidden md:table-cell max-w-[200px]" title={ubicacion}>
+                    {ubicacion || '—'}
+                  </td>
+                  <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                    <span className="text-slate-600 dark:text-slate-400">{n.ocupacion_actual}/{n.capacidad_almacen}</span>
+                    <span className={`ml-2 font-bold ${estado.textCls}`}>{n.ocupacion_pct.toFixed(0)}%</span>
+                  </td>
+                  <td className="px-2 py-1.5 text-right">
+                    {seguidoId === n.codigo_iata ? (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-medium">ESC</span>
+                    ) : (
+                      onVerEnMapa && (
+                        <button
+                          onClick={e => { e.stopPropagation(); onVerEnMapa(n.codigo_iata); }}
+                          className="p-1 rounded hover:bg-amber-100 dark:hover:bg-amber-900/30 text-amber-600"
+                          title="Ver en mapa"
+                        >
+                          <MapIcon size={12} />
+                        </button>
+                      )
                     )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {seguidoId === n.codigo_iata ? (
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-medium whitespace-nowrap">
-                      Salir mapa [ESC]
-                    </span>
-                  ) : (
-                    onVerEnMapa && (
-                      <button
-                        onClick={e => { e.stopPropagation(); onVerEnMapa(n.codigo_iata); }}
-                        className="p-1 rounded hover:bg-amber-100 dark:hover:bg-amber-900/30 text-amber-600"
-                        title="Ver en mapa"
-                      >
-                        <MapIcon size={12} />
-                      </button>
-                    )
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-600 dark:text-slate-300">
-                  {n.ocupacion_actual}/{n.capacidad_almacen}
-                </span>
-                <span className="font-bold" style={{ color: n.color }}>
-                  {n.ocupacion_pct.toFixed(0)}%
-                </span>
-              </div>
-            </div>
-          );
-        })}
-        {aeropuertosOrdenados.length === 0 && (
-          <p className="text-xs text-slate-600 italic text-center py-2">
-            Ningún aeropuerto coincide con los filtros
-          </p>
-        )}
+                  </td>
+                </tr>
+              );
+            })}
+            {aeropuertosOrdenados.length === 0 && (
+              <tr>
+                <td colSpan={5} className="text-xs text-slate-600 italic text-center py-4">
+                  Ningún aeropuerto coincide con los filtros
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );

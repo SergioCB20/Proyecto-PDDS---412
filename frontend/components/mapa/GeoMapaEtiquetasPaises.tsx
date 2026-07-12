@@ -1,6 +1,6 @@
 'use client';
 
-import { Marker, useMap } from 'react-leaflet';
+import { Marker, Tooltip, useMap } from 'react-leaflet';
 import { divIcon } from 'leaflet';
 import { useEffect, useState, useCallback } from 'react';
 import { PAISES_ES } from '@/lib/paises-es';
@@ -30,12 +30,16 @@ export default function GeoMapaEtiquetasPaises() {
             key={code}
             position={[pais.lat, pais.lng]}
             icon={divIcon({
-              className: '',
-              html: `<div style="position:relative;width:0;height:0"><span class="pais-nombre-label">${pais.nombre}</span></div>`,
-              iconSize: [0, 0],
-              iconAnchor: [0, 0],
+              className: 'pais-hitarea',
+              html: '',
+              iconSize: [120, 120],
+              iconAnchor: [60, 60],
             })}
-          />
+          >
+            <Tooltip direction="center" offset={[0, 0]} className="pais-tooltip">
+              {pais.nombre}
+            </Tooltip>
+          </Marker>
         ))}
     </>
   );

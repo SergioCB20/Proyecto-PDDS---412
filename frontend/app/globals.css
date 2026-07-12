@@ -64,17 +64,12 @@ body {
   display: none;
 }
 
-.pais-nombre-label {
-  position: absolute;
-  transform: translate(-50%, -50%);
+.pais-hitarea {
+  background: transparent !important;
+  border: none !important;
+}
+.pais-tooltip {
   font-size: 14px;
   font-weight: 600;
-  color: #1e293b;
-  text-shadow:
-    0 0 4px #fff,
-    0 0 8px #fff,
-    0 0 12px #fff;
   white-space: nowrap;
-  pointer-events: none;
-  letter-spacing: 0.3px;
 }
