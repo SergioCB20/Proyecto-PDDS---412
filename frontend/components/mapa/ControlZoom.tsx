@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useMap } from 'react-leaflet';
-import { Minus, Plus } from 'lucide-react';
+import { Minus, Plus, X } from 'lucide-react';
 
 const MIN_ZOOM = 2;
 const MAX_ZOOM = 14;
@@ -16,7 +16,11 @@ const toLeaflet = (slider: number) =>
 const toSlider = (leafletZoom: number) =>
   Math.round(((leafletZoom - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM)) * SLIDER_MAX);
 
-export default function ControlZoom() {
+interface ControlZoomProps {
+  onClose?: () => void;
+}
+
+export default function ControlZoom({ onClose }: ControlZoomProps) {
   const map = useMap();
   const [display, setDisplay] = useState(() => toSlider(map.getZoom()));
 
@@ -44,9 +48,17 @@ export default function ControlZoom() {
 
   return (
     <div className="absolute bottom-4 left-4 z-[1000] bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm rounded-lg border border-slate-200 dark:border-slate-700 shadow-lg p-3 min-w-[180px]">
-      <div className="flex items-center gap-2 mb-1.5">
+      <div className="relative flex items-center gap-2 mb-1.5">
         <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Zoom</span>
         <span className="text-xs font-bold text-slate-900 dark:text-slate-100 ml-auto">{display}</span>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="absolute -top-2.5 -right-2.5 p-0.5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 shadow-sm z-10"
+          >
+            <X size={10} />
+          </button>
+        )}
       </div>
       <div className="flex items-center gap-2">
         <button

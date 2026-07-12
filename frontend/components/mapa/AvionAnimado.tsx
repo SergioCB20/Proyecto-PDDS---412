@@ -17,7 +17,7 @@ function esCoordenadaValida(v: number): boolean {
 
 // Scales icon size with zoom level (smaller on zoom-out to reduce saturation)
 function calcularTamaño(zoom: number): number {
-  return Math.max(10, Math.min(32, Math.round(zoom * 1.8 + 6)));
+  return Math.max(40, Math.min(128, Math.round((zoom * 1.8 + 6) * 4)));
 }
 
 // No artificial speed cap — each flight moves at its own virtual velocity
@@ -160,8 +160,10 @@ const AvionAnimado = React.memo(function AvionAnimado({
     poly.setLatLngs(tail);
   };
 
+  const colorAvion = vuelo.carga_disponible >= vuelo.capacidad_carga ? '#9ca3af' : colorVueloPorEstado(vuelo.estado);
+
   const [icono, setIcono] = useState(() =>
-    crearIconoAvion(colorVueloPorEstado(vuelo.estado), 0, iconSize, false, destacado)
+    crearIconoAvion(colorAvion, 0, iconSize, false, destacado)
   );
 
   const [frozenPos] = useState<[number, number]>(() => {
@@ -232,14 +234,14 @@ const AvionAnimado = React.memo(function AvionAnimado({
 
   // Update icon color on state change (preserve current bearing & size)
   useEffect(() => {
-    setIcono(crearIconoAvion(colorVueloPorEstado(vuelo.estado), bearingRef.current, iconSizeRef.current, seguidoRef.current, destacado));
+    setIcono(crearIconoAvion(colorAvion, bearingRef.current, iconSizeRef.current, seguidoRef.current, destacado));
     flightRef.current.lastBearingT = -1; // force bearing refresh
-  }, [vuelo.estado]);
+  }, [vuelo.estado, vuelo.carga_disponible, vuelo.capacidad_carga]);
 
   // Recreate icon when zoom changes (keeps current bearing)
   useEffect(() => {
-    setIcono(crearIconoAvion(colorVueloPorEstado(vuelo.estado), bearingRef.current, iconSize, seguido, destacado));
-  }, [iconSize, vuelo.estado, seguido, destacado]);
+    setIcono(crearIconoAvion(colorAvion, bearingRef.current, iconSize, seguido, destacado));
+  }, [iconSize, vuelo.estado, seguido, destacado, vuelo.carga_disponible, vuelo.capacidad_carga]);
 
   /**
    * Continuous rAF loop.
@@ -276,7 +278,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
         t
       );
       bearingRef.current = bearing;
-      setIcono(crearIconoAvion(colorVueloPorEstado(vuelo.estado), bearing, iconSizeRef.current, seguidoRef.current, destacado));
+      setIcono(crearIconoAvion(colorAvion, bearing, iconSizeRef.current, seguidoRef.current, destacado));
       return;
     }
 
@@ -360,7 +362,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
           t
         );
         bearingRef.current = bearing;
-        setIcono(crearIconoAvion(colorVueloPorEstado(vuelo.estado), bearing, iconSizeRef.current, seguidoRef.current, destacado));
+        setIcono(crearIconoAvion(colorAvion, bearing, iconSizeRef.current, seguidoRef.current, destacado));
       }
 
       rafRef.current = requestAnimationFrame(frame);
@@ -381,6 +383,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
     vuelo.id,
     vuelo.origen_lat, vuelo.origen_lon,
     vuelo.destino_lat, vuelo.destino_lon,
+    vuelo.carga_disponible, vuelo.capacidad_carga,
     ctrlLat, ctrlLon,
     samples,
     // NOTE: vuelo.progreso / k intentionally excluded — handled via flightRef
@@ -408,7 +411,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
         <Polyline
           ref={polylineRef}
           positions={estelaInicial}
-          pathOptions={{ color: colorVueloPorEstado('EN_RUTA'), weight: destacado ? 6 : 1, opacity: destacado ? 0.9 : 0.6 }}
+          pathOptions={{ color: '#000', weight: destacado ? 6 : 1, opacity: destacado ? 0.9 : 0.6 }}
         />
       )}
       <Marker ref={markerRef} position={frozenPos} icon={icono}

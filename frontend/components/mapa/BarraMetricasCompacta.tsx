@@ -1,6 +1,6 @@
 'use client';
 
-import { Activity, XCircle, RefreshCw, Luggage } from 'lucide-react';
+import { Activity, XCircle, RefreshCw, Luggage, X } from 'lucide-react';
 
 interface BarraMetricasCompactaProps {
   sla: number;
@@ -14,6 +14,7 @@ interface BarraMetricasCompactaProps {
   maletasEntregadas?: number;
   equipajeFilter: 'todos' | 'con_equipaje' | 'sin_equipaje';
   onEquipajeFilterChange: (v: 'todos' | 'con_equipaje' | 'sin_equipaje') => void;
+  onClose?: () => void;
 }
 
 export default function BarraMetricasCompacta({
@@ -28,6 +29,7 @@ export default function BarraMetricasCompacta({
   maletasEntregadas,
   equipajeFilter,
   onEquipajeFilterChange,
+  onClose,
 }: BarraMetricasCompactaProps) {
   const colorOcup =
     ocupacionGlobal < verdeMax
@@ -38,7 +40,15 @@ export default function BarraMetricasCompacta({
 
   return (
     <div className="absolute top-4 left-4 z-[1001] pointer-events-none flex flex-col gap-1">
-      <div className="pointer-events-auto flex items-center gap-1 p-1.5 rounded-lg bg-white/85 dark:bg-slate-900/85 backdrop-blur-sm shadow border border-slate-200 dark:border-slate-700">
+      <div className="pointer-events-auto relative flex items-center gap-1 p-1.5 rounded-lg bg-white/85 dark:bg-slate-900/85 backdrop-blur-sm shadow border border-slate-200 dark:border-slate-700">
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="absolute -top-1.5 -right-1.5 p-0.5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 shadow-sm z-10"
+          >
+            <X size={10} />
+          </button>
+        )}
         <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-50 dark:bg-slate-800/50">
           <Activity size={11} className="text-blue-600" />
           <span className="text-xs font-bold text-slate-900 dark:text-slate-100">

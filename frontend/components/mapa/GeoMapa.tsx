@@ -146,6 +146,8 @@ interface GeoMapaProps {
   onAeropuertoClick?: (codigoIata: string) => void;
   /** Filtro por continente que se representa en el mapa con fitBounds. */
   continenteFiltro?: string;
+  mostrarZoom?: boolean;
+  onCerrarZoom?: () => void;
 }
 
 // Gracia tras `cargando=false` para que los marcadores terminen de montarse
@@ -173,6 +175,8 @@ export default function GeoMapa({
   filtroColor,
   onAeropuertoClick,
   continenteFiltro,
+  mostrarZoom = true,
+  onCerrarZoom,
 }: GeoMapaProps) {
   const [legendaVisible, setLegendaVisible] = useState(true);
 
@@ -242,7 +246,7 @@ export default function GeoMapa({
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png"
         />
         <GeoMapaEtiquetasPaises />
         {aeropuertosFiltrados.map((aeropuerto) => (
@@ -268,7 +272,7 @@ export default function GeoMapa({
             pathOptions={{ color: '#2563eb', weight: 5, opacity: 0.8 }}
           />
         )}
-        <ControlZoom />
+        {mostrarZoom && <ControlZoom onClose={onCerrarZoom} />}
         <MapController
           aeropuertos={aeropuertos}
           vuelos={vuelos}

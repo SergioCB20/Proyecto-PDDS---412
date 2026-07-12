@@ -24,6 +24,9 @@ import {
   Warehouse,
   FileText,
   Filter,
+  X,
+  BarChart3,
+  ZoomIn,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { api, fetchReporte } from "@/lib/api";
@@ -310,6 +313,9 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
 
   const [dockAbiertas, setDockAbiertas] = useState<Set<string>>(new Set());
   const [dockCollapsed, setDockCollapsed] = useState(false);
+  const [metricaVisibleOp, setMetricaVisibleOp] = useState(true);
+  const [relojVisibleOp, setRelojVisibleOp] = useState(true);
+  const [zoomVisibleOp, setZoomVisibleOp] = useState(true);
   const [selectedEnvio, setSelectedEnvio] =
     useState<SelectedEnvioOperacion | null>(null);
   const [vueloFilterOrigen, setVueloFilterOrigen] = useState("");
@@ -647,6 +653,9 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   }, [vuelosMapaFiltrados, equipajeFilter]);
 
   const toggleDockOp = useCallback((id: string) => {
+    if (id === 'metricas') { setMetricaVisibleOp((v) => !v); return; }
+    if (id === 'reloj') { setRelojVisibleOp((v) => !v); return; }
+    if (id === 'zoom') { setZoomVisibleOp((v) => !v); return; }
     setDockAbiertas((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -654,6 +663,14 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
       return next;
     });
   }, []);
+
+  const dockAbiertasOp = useMemo(() => {
+    const s = new Set(dockAbiertas);
+    if (metricaVisibleOp) s.add('metricas');
+    if (relojVisibleOp) s.add('reloj');
+    if (zoomVisibleOp) s.add('zoom');
+    return s;
+  }, [dockAbiertas, metricaVisibleOp, relojVisibleOp, zoomVisibleOp]);
 
   return (
     <div className="relative h-full overflow-hidden">
@@ -683,41 +700,54 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
           onAeropuertoClick={handleAeropuertoClickOp}
           onVueloSeleccionado={handleVueloSeleccionadoOp}
           continenteFiltro={filtroContinenteOp || undefined}
+          mostrarZoom={zoomVisibleOp}
+          onCerrarZoom={() => setZoomVisibleOp(false)}
         >
-          <BarraMetricasCompacta
-            sla={metricasOpSim?.sla_acumulado_pct ?? 100}
-            cancelados={metricasOpSim?.vuelos_cancelados ?? 0}
-            replanificadas={metricasOpSim?.maletas_replanificadas ?? 0}
-            ocupacionGlobal={ocupacionGlobal}
-            verdeMax={configUmbrales.verdeMax}
-            ambarMax={configUmbrales.ambarMax}
-            vuelosActivos={vuelosActivosOp}
-            vuelosProgramados={vuelosProgramadosOp}
-            equipajeFilter={equipajeFilter}
-            onEquipajeFilterChange={setEquipajeFilter}
-          />
-          <div className="absolute top-4 right-4 z-[1001] pointer-events-none">
-            <div className="pointer-events-auto p-2 rounded-lg bg-white/85 dark:bg-slate-900/85 backdrop-blur-sm shadow border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 min-w-[150px]">
-              <div className="flex items-center gap-1.5 mb-1 pb-1 border-b border-slate-200 dark:border-slate-600">
-                <Clock size={11} />
-                <span className="font-semibold text-slate-900 dark:text-slate-100 text-sm">
-                  {formatearFechaHora(hora.toISOString())}
-                </span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span>Estado:</span>
-                <span className={`font-mono font-medium ${estadoOperacion === "ACTIVO" ? "text-green-600" : estadoOperacion === "PAUSADO" ? "text-amber-600" : "text-slate-600"}`}>
-                  {estadoOperacion}
-                </span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span>WS:</span>
-                <span className={`font-mono font-medium ${wsConnected ? "text-green-600" : "text-red-500"}`}>
-                  {wsConnected ? "Conectado" : "Desconectado"}
-                </span>
+          {metricaVisibleOp && (
+            <BarraMetricasCompacta
+              sla={metricasOpSim?.sla_acumulado_pct ?? 100}
+              cancelados={metricasOpSim?.vuelos_cancelados ?? 0}
+              replanificadas={metricasOpSim?.maletas_replanificadas ?? 0}
+              ocupacionGlobal={ocupacionGlobal}
+              verdeMax={configUmbrales.verdeMax}
+              ambarMax={configUmbrales.ambarMax}
+              vuelosActivos={vuelosActivosOp}
+              vuelosProgramados={vuelosProgramadosOp}
+              equipajeFilter={equipajeFilter}
+              onEquipajeFilterChange={setEquipajeFilter}
+              onClose={() => setMetricaVisibleOp(false)}
+            />
+          )}
+          {relojVisibleOp && (
+            <div className="absolute top-4 right-4 z-[1001] pointer-events-none">
+              <div className="pointer-events-auto relative p-2 rounded-lg bg-white/85 dark:bg-slate-900/85 backdrop-blur-sm shadow border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 min-w-[150px]">
+                <button
+                  onClick={() => setRelojVisibleOp(false)}
+                  className="absolute -top-1.5 -right-1.5 p-0.5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 shadow-sm z-10"
+                >
+                  <X size={10} />
+                </button>
+                <div className="flex items-center gap-1.5 mb-1 pb-1 border-b border-slate-200 dark:border-slate-600">
+                  <Clock size={11} />
+                  <span className="font-semibold text-slate-900 dark:text-slate-100 text-sm">
+                    {formatearFechaHora(hora.toISOString())}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span>Estado:</span>
+                  <span className={`font-mono font-medium ${estadoOperacion === "ACTIVO" ? "text-green-600" : estadoOperacion === "PAUSADO" ? "text-amber-600" : "text-slate-600"}`}>
+                    {estadoOperacion}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span>WS:</span>
+                  <span className={`font-mono font-medium ${wsConnected ? "text-green-600" : "text-red-500"}`}>
+                    {wsConnected ? "Conectado" : "Desconectado"}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </GeoMapa>
 
 
@@ -728,8 +758,11 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               { id: 'control', icon: Activity, label: 'Control' },
               { id: 'registro', icon: Package, label: 'Registro Equipaje' },
               { id: 'filtro', icon: Filter, label: 'Filtro Ocupación' },
+              { id: 'metricas', icon: BarChart3, label: 'Métricas' },
+              { id: 'reloj', icon: Clock, label: 'Reloj' },
+              { id: 'zoom', icon: ZoomIn, label: 'Zoom' },
             ]}
-            abiertas={dockAbiertas}
+            abiertas={dockAbiertasOp}
             onToggle={toggleDockOp}
             collapsed={dockCollapsed}
             onToggleCollapse={() => setDockCollapsed(!dockCollapsed)}
@@ -1006,6 +1039,9 @@ function SimulacionView({
   const [finalizandoId, setFinalizandoId] = useState<string | null>(null);
   const [dockAbiertas, setDockAbiertas] = useState<Set<string>>(new Set());
   const [dockCollapsed, setDockCollapsed] = useState(false);
+  const [metricaVisibleSim, setMetricaVisibleSim] = useState(true);
+  const [relojVisibleSim, setRelojVisibleSim] = useState(true);
+  const [zoomVisibleSim, setZoomVisibleSim] = useState(true);
   const [reporte, setReporte] = useState<ReporteSesion | null>(null);
 
   const [simulacionConfig, setSimulacionConfig] = useState({
@@ -1449,6 +1485,9 @@ function SimulacionView({
   }, [aeropuertosMapa]);
 
   const toggleDock = useCallback((id: string) => {
+    if (id === 'metricas') { setMetricaVisibleSim((v) => !v); return; }
+    if (id === 'reloj') { setRelojVisibleSim((v) => !v); return; }
+    if (id === 'zoom') { setZoomVisibleSim((v) => !v); return; }
     setDockAbiertas((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -1456,6 +1495,14 @@ function SimulacionView({
       return next;
     });
   }, []);
+
+  const dockAbiertasSim = useMemo(() => {
+    const s = new Set(dockAbiertas);
+    if (metricaVisibleSim) s.add('metricas');
+    if (relojVisibleSim) s.add('reloj');
+    if (zoomVisibleSim) s.add('zoom');
+    return s;
+  }, [dockAbiertas, metricaVisibleSim, relojVisibleSim, zoomVisibleSim]);
 
   return (
     <div className="relative h-full overflow-hidden">
@@ -1502,27 +1549,35 @@ function SimulacionView({
           onAeropuertoClick={handleAeropuertoClickSim}
           onVueloSeleccionado={handleVueloSeleccionadoSim}
           continenteFiltro={filtroContinenteSim || undefined}
+          mostrarZoom={zoomVisibleSim}
+          onCerrarZoom={() => setZoomVisibleSim(false)}
         >
-          <BarraMetricasCompacta
-            sla={metricas.sla_acumulado_pct ?? 100}
-            cancelados={metricas.vuelos_cancelados}
-            replanificadas={metricas.maletas_replanificadas}
-            ocupacionGlobal={ocupacionGlobal}
-            verdeMax={configUmbrales.verdeMax}
-            ambarMax={configUmbrales.ambarMax}
-            vuelosActivos={vuelosSimActivos}
-            vuelosProgramados={vuelosSimProgramados}
-            maletasEntregadas={metricas.maletas_entregadas}
-            equipajeFilter={equipajeFilter}
-            onEquipajeFilterChange={setEquipajeFilter}
-          />
-          <div className="absolute top-4 right-4 z-[1001] pointer-events-none">
-            <TiemposInfo
-              inicioRealMs={inicioRealMs}
-              inicioSimuladoISO={`${simulacionConfig.fecha_inicio_virtual}T${simulacionConfig.hora_inicio_virtual}:00`}
-              actualSimulado={metricas?.dia_hora_virtual ?? null}
+          {metricaVisibleSim && (
+            <BarraMetricasCompacta
+              sla={metricas.sla_acumulado_pct ?? 100}
+              cancelados={metricas.vuelos_cancelados}
+              replanificadas={metricas.maletas_replanificadas}
+              ocupacionGlobal={ocupacionGlobal}
+              verdeMax={configUmbrales.verdeMax}
+              ambarMax={configUmbrales.ambarMax}
+              vuelosActivos={vuelosSimActivos}
+              vuelosProgramados={vuelosSimProgramados}
+              maletasEntregadas={metricas.maletas_entregadas}
+              equipajeFilter={equipajeFilter}
+              onEquipajeFilterChange={setEquipajeFilter}
+              onClose={() => setMetricaVisibleSim(false)}
             />
-          </div>
+          )}
+          {relojVisibleSim && (
+            <div className="absolute top-4 right-4 z-[1001] pointer-events-none">
+              <TiemposInfo
+                inicioRealMs={inicioRealMs}
+                inicioSimuladoISO={`${simulacionConfig.fecha_inicio_virtual}T${simulacionConfig.hora_inicio_virtual}:00`}
+                actualSimulado={metricas?.dia_hora_virtual ?? null}
+                onClose={() => setRelojVisibleSim(false)}
+              />
+            </div>
+          )}
         </GeoMapa>
         {sesionId && estadoSesion === "EN_CURSO" && !simReady && (
           <div className="absolute inset-0 z-50">
@@ -1535,11 +1590,15 @@ function SimulacionView({
             secciones={[
               { id: 'aeropuertos', icon: Warehouse, label: 'Aeropuertos' },
               { id: 'vuelos', icon: Plane, label: 'Vuelos' },
+              { id: 'cancelacion', icon: XCircle, label: 'Cancelación' },
               { id: 'envios', icon: Luggage, label: 'Envíos' },
               { id: 'sesion', icon: Settings, label: 'Sesión' },
               { id: 'reportes', icon: FileText, label: 'Reportes' },
+              { id: 'metricas', icon: BarChart3, label: 'Métricas' },
+              { id: 'reloj', icon: Clock, label: 'Reloj' },
+              { id: 'zoom', icon: ZoomIn, label: 'Zoom' },
             ]}
-            abiertas={dockAbiertas}
+            abiertas={dockAbiertasSim}
             onToggle={toggleDock}
             collapsed={dockCollapsed}
             onToggleCollapse={() => setDockCollapsed(!dockCollapsed)}
@@ -1616,14 +1675,24 @@ function SimulacionView({
                     setVueloFilterDestino(destino);
                   }}
                 />
-                {sesionId && plantillas.length > 0 && (
-                  <SeccionCancelacion
-                    plantillas={plantillas}
-                    sesionId={sesionId}
-                    momentoVirtual={metricas?.dia_hora_virtual ?? null}
-                  />
-                )}
               </div>
+            </PanelFlotante>
+          )}
+          {dockAbiertas.has('cancelacion') && (
+            <PanelFlotante
+              title="Cancelación (plantillas)"
+              onClose={() => toggleDock('cancelacion')}
+              className="w-80 shrink-0 pointer-events-auto"
+            >
+              {sesionId && plantillas.length > 0 ? (
+                <SeccionCancelacion
+                  plantillas={plantillas}
+                  sesionId={sesionId}
+                  momentoVirtual={metricas?.dia_hora_virtual ?? null}
+                />
+              ) : (
+                <p className="text-xs text-slate-600 p-4">Sin plantillas disponibles</p>
+              )}
             </PanelFlotante>
           )}
           {dockAbiertas.has('envios') && (
@@ -1859,6 +1928,9 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [finalizandoId, setFinalizandoId] = useState<string | null>(null);
   const [dockAbiertas, setDockAbiertas] = useState<Set<string>>(new Set());
   const [dockCollapsed, setDockCollapsed] = useState(false);
+  const [metricaVisibleCol, setMetricaVisibleCol] = useState(true);
+  const [relojVisibleCol, setRelojVisibleCol] = useState(true);
+  const [zoomVisibleCol, setZoomVisibleCol] = useState(true);
   const [reporte, setReporte] = useState<ReporteSesion | null>(null);
   const [cancelResult, setCancelResult] = useState<CancelResult | null>(null);
   const [plantillas, setPlantillas] = useState<PlantillaResumen[]>([]);
@@ -2303,6 +2375,9 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     wsConnected && (vuelosMapa.some((v) => v.estado === "EN_RUTA") ?? false);
 
   const toggleDock = useCallback((id: string) => {
+    if (id === 'metricas') { setMetricaVisibleCol((v) => !v); return; }
+    if (id === 'reloj') { setRelojVisibleCol((v) => !v); return; }
+    if (id === 'zoom') { setZoomVisibleCol((v) => !v); return; }
     setDockAbiertas((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -2310,6 +2385,14 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
       return next;
     });
   }, []);
+
+  const dockAbiertasCol = useMemo(() => {
+    const s = new Set(dockAbiertas);
+    if (metricaVisibleCol) s.add('metricas');
+    if (relojVisibleCol) s.add('reloj');
+    if (zoomVisibleCol) s.add('zoom');
+    return s;
+  }, [dockAbiertas, metricaVisibleCol, relojVisibleCol, zoomVisibleCol]);
 
   return (
     <div className="relative h-full overflow-hidden">
@@ -2356,27 +2439,35 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
           onAeropuertoClick={handleAeropuertoClickCol}
           onVueloSeleccionado={handleVueloSeleccionadoCol}
           continenteFiltro={filtroContinenteCol || undefined}
+          mostrarZoom={zoomVisibleCol}
+          onCerrarZoom={() => setZoomVisibleCol(false)}
         >
-          <BarraMetricasCompacta
-            sla={metricas.sla_acumulado_pct ?? 100}
-            cancelados={metricas.vuelos_cancelados}
-            replanificadas={metricas.maletas_replanificadas}
-            ocupacionGlobal={ocupacionGlobal}
-            verdeMax={configUmbrales.verdeMax}
-            ambarMax={configUmbrales.ambarMax}
-            vuelosActivos={vuelosColActivos}
-            vuelosProgramados={vuelosColProgramados}
-            maletasEntregadas={metricas.maletas_entregadas}
-            equipajeFilter={equipajeFilter}
-            onEquipajeFilterChange={setEquipajeFilter}
-          />
-          <div className="absolute top-4 right-4 z-[1001] pointer-events-none">
-            <TiemposInfo
-              inicioRealMs={inicioRealMs}
-              inicioSimuladoISO={`${simulacionConfig.fecha_inicio_virtual}T${simulacionConfig.hora_inicio_virtual}:00`}
-              actualSimulado={metricas?.dia_hora_virtual ?? null}
+          {metricaVisibleCol && (
+            <BarraMetricasCompacta
+              sla={metricas.sla_acumulado_pct ?? 100}
+              cancelados={metricas.vuelos_cancelados}
+              replanificadas={metricas.maletas_replanificadas}
+              ocupacionGlobal={ocupacionGlobal}
+              verdeMax={configUmbrales.verdeMax}
+              ambarMax={configUmbrales.ambarMax}
+              vuelosActivos={vuelosColActivos}
+              vuelosProgramados={vuelosColProgramados}
+              maletasEntregadas={metricas.maletas_entregadas}
+              equipajeFilter={equipajeFilter}
+              onEquipajeFilterChange={setEquipajeFilter}
+              onClose={() => setMetricaVisibleCol(false)}
             />
-          </div>
+          )}
+          {relojVisibleCol && (
+            <div className="absolute top-4 right-4 z-[1001] pointer-events-none">
+              <TiemposInfo
+                inicioRealMs={inicioRealMs}
+                inicioSimuladoISO={`${simulacionConfig.fecha_inicio_virtual}T${simulacionConfig.hora_inicio_virtual}:00`}
+                actualSimulado={metricas?.dia_hora_virtual ?? null}
+                onClose={() => setRelojVisibleCol(false)}
+              />
+            </div>
+          )}
         </GeoMapa>
 
         <div className="absolute left-2 top-1/2 -translate-y-1/2 z-[1002] flex flex-col bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 rounded-xl">
@@ -2384,9 +2475,13 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
             secciones={[
               { id: 'sesion', icon: Settings, label: 'Sesión' },
               { id: 'vuelos', icon: Plane, label: 'Vuelos' },
+              { id: 'cancelacion', icon: XCircle, label: 'Cancelación' },
               { id: 'reportes', icon: FileText, label: 'Reportes' },
+              { id: 'metricas', icon: BarChart3, label: 'Métricas' },
+              { id: 'reloj', icon: Clock, label: 'Reloj' },
+              { id: 'zoom', icon: ZoomIn, label: 'Zoom' },
             ]}
-            abiertas={dockAbiertas}
+            abiertas={dockAbiertasCol}
             onToggle={toggleDock}
             collapsed={dockCollapsed}
             onToggleCollapse={() => setDockCollapsed(!dockCollapsed)}
@@ -2606,11 +2701,27 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                   onMostrarRuta={handleMostrarRutaCol}
                   filtroContinente={filtroContinenteCol}
                   onFiltroContinenteChange={setFiltroContinenteCol}
-                  plantillas={plantillas}
-                  fechaVirtual={metricas?.dia_hora_virtual ?? null}
                 />
               ) : (
                 <p className="text-xs text-slate-600 p-4">Sin sesión activa</p>
+              )}
+            </PanelFlotante>
+          )}
+
+          {dockAbiertas.has('cancelacion') && (
+            <PanelFlotante
+              title="Cancelación (plantillas)"
+              onClose={() => toggleDock('cancelacion')}
+              className="w-80 shrink-0 pointer-events-auto"
+            >
+              {sesionId && plantillas.length > 0 ? (
+                <SeccionCancelacion
+                  plantillas={plantillas}
+                  sesionId={sesionId}
+                  momentoVirtual={metricas?.dia_hora_virtual ?? null}
+                />
+              ) : (
+                <p className="text-xs text-slate-600 p-4">Sin plantillas disponibles</p>
               )}
             </PanelFlotante>
           )}
