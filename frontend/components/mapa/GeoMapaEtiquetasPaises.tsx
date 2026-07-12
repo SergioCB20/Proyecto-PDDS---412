@@ -24,14 +24,14 @@ export default function GeoMapaEtiquetasPaises() {
   return (
     <>
       <ZoomListener onZoom={setZoom} />
-      {zoom >= 4 &&
+      {zoom >= 3 &&
         Object.entries(PAISES_ES).map(([code, pais]) => (
           <Marker
             key={code}
             position={[pais.lat, pais.lng]}
             icon={divIcon({
               className: '',
-              html: `<span class="pais-nombre-label">${pais.nombre}</span>`,
+              html: `<div style="position:relative;width:0;height:0"><span class="pais-nombre-label">${pais.nombre}</span></div>`,
               iconSize: [0, 0],
               iconAnchor: [0, 0],
             })}

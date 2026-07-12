@@ -34,7 +34,7 @@ function crearIconoAeropuerto(color: string, size: number = 28) {
 
 export default function GeoMapaAeropuerto({ aeropuerto, onClick }: GeoMapaAeropuertoProps) {
   const icono = useMemo(
-    () => crearIconoAeropuerto(aeropuerto.color, 56),
+    () => crearIconoAeropuerto(aeropuerto.color, 45),
     [aeropuerto.color]
   );
 
