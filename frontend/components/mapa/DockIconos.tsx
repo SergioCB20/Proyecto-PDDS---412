@@ -32,25 +32,29 @@ export default function DockIconos({
       >
         {collapsed ? <Menu size={18} /> : <ChevronLeft size={18} />}
       </button>
-      <div className="w-8 border-t border-slate-200 dark:border-slate-700 my-1" />
-      {secciones.map((seccion) => {
-        const Icon = seccion.icon;
-        const activa = abiertas.has(seccion.id);
-        return (
-          <button
-            key={seccion.id}
-            onClick={() => onToggle(seccion.id)}
-            className={`p-2 rounded-lg transition-colors ${
-              activa
-                ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400'
-                : 'text-slate-600 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-            title={seccion.label}
-          >
-            <Icon size={18} />
-          </button>
-        );
-      })}
+      <div className={`grid transition-all duration-300 ease-in-out ${collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'}`}>
+        <div className="overflow-hidden flex flex-col items-center gap-1">
+          <div className="w-8 border-t border-slate-200 dark:border-slate-700 my-1" />
+          {secciones.map((seccion) => {
+            const Icon = seccion.icon;
+            const activa = abiertas.has(seccion.id);
+            return (
+              <button
+                key={seccion.id}
+                onClick={() => onToggle(seccion.id)}
+                className={`p-2 rounded-lg transition-colors ${
+                  activa
+                    ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400'
+                    : 'text-slate-600 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+                title={seccion.label}
+              >
+                <Icon size={18} />
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

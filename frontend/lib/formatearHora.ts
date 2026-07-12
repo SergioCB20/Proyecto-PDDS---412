@@ -124,8 +124,13 @@ export function formatearDiaYHora(inicioStr: string, actualStr: string | null | 
   const inicio = new Date(inicioStr);
   const actual = new Date(actualStr);
   if (isNaN(inicio.getTime()) || isNaN(actual.getTime())) return '-';
-  const diffMs = actual.getTime() - inicio.getTime();
-  const dia = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24))) + 1;
+  // Día basado en diferencia de fechas calendario (no en periodos de 24h desde
+  // inicio). Así la medianoche siempre incrementa el día, incluso si inicio no
+  // cae a las 00:00 (ej. 08:00).
+  const inicioFecha = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate());
+  const actualFecha = new Date(actual.getFullYear(), actual.getMonth(), actual.getDate());
+  const diffDias = Math.round((actualFecha.getTime() - inicioFecha.getTime()) / 86400000);
+  const dia = diffDias + 1;
   return `${dia} ${pad(actual.getHours())}:${pad(actual.getMinutes())}`;
 }
 

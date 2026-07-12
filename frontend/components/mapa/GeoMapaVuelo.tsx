@@ -2,7 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { Polyline, Tooltip } from 'react-leaflet';
-import { colorVueloPorEstado, COLOR_AEROPUERTO } from '@/lib/colors';
+import { COLOR_AEROPUERTO } from '@/lib/colors';
 import type { VueloEnMapa } from '@/lib/types';
 import type { UmbralesConfig } from './ConfigUmbrales';
 import { bezierCurvePoints } from '@/lib/bezier';
@@ -56,7 +56,6 @@ function areEqual(prevProps: GeoMapaVueloProps, nextProps: GeoMapaVueloProps): b
 }
 
 export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false, k = 120, umbralesConfig, seguido = false, onSalirSeguimiento, onSeguirVuelo, onVueloSeleccionado, destacado = false }: GeoMapaVueloProps) {
-  const color = colorVueloPorEstado(vuelo.estado);
   const opacidadRuta = animacionActiva ? 0.5 : 0.2;
   const verdeMax = umbralesConfig?.verdeMax ?? 70;
   const ambarMax = umbralesConfig?.ambarMax ?? 90;
@@ -81,7 +80,7 @@ export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false
         <Polyline
           positions={puntosCurva}
           pathOptions={{
-            color,
+            color: '#000',
             weight: destacado ? 6 : 1,
             opacity: destacado ? 0.8 : 0.25,
             dashArray: '6, 4',
