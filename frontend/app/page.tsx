@@ -21,7 +21,6 @@ import {
   Luggage,
   Warehouse,
   FileText,
-  Filter,
   X,
   BarChart3,
   ZoomIn,
@@ -30,7 +29,7 @@ import dynamic from "next/dynamic";
 import { api, fetchReporte } from "@/lib/api";
 import { aeropuertoToEnMapa } from "@/lib/mock";
 import { useTelemetria } from "@/lib/useTelemetria";
-import { colorAeropuertoPorOcupacion, determinarColorSemaforo, type ColorSemaforo } from "@/lib/colors";
+import { colorAeropuertoPorOcupacion } from "@/lib/colors";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -325,7 +324,6 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     null,
   );
   const [rutaDestacadaOp, setRutaDestacadaOp] = useState<RutaDestacada | null>(null);
-  const [filtroColor, setFiltroColor] = useState<'' | ColorSemaforo>('');
   const [filtroContinenteOp, setFiltroContinenteOp] = useState<string>('');
   const [aeroSeleccionado, setAeroSeleccionado] = useState<string | null>(null);
   const [vueloSeleccionadoOp, setVueloSeleccionadoOp] = useState<string | null>(null);
@@ -693,7 +691,6 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
           }}
           rutaDestacada={rutaDestacadaOp}
           onLimpiarRuta={() => setRutaDestacadaOp(null)}
-          filtroColor={filtroColor}
           onAeropuertoClick={handleAeropuertoClickOp}
           onVueloSeleccionado={handleVueloSeleccionadoOp}
           continenteFiltro={filtroContinenteOp || undefined}
@@ -754,7 +751,6 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               { id: 'datos', icon: Plane, label: 'Aeropuertos, Vuelos, Envíos' },
               { id: 'control', icon: Activity, label: 'Control' },
               { id: 'registro', icon: Package, label: 'Registro Equipaje' },
-              { id: 'filtro', icon: Filter, label: 'Filtro Ocupación' },
               { id: 'metricas', icon: BarChart3, label: 'Métricas' },
               { id: 'reloj', icon: Clock, label: 'Reloj' },
               { id: 'zoom', icon: ZoomIn, label: 'Zoom' },
@@ -824,8 +820,6 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                 }))}
                 onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
                 onMostrarRuta={handleMostrarRutaOp}
-                filtroColor={filtroColor}
-                onFilterColorChange={setFiltroColor}
                 umbralesConfig={configUmbrales}
                 filtroContinente={filtroContinenteOp}
                 onFiltroContinenteChange={setFiltroContinenteOp}
@@ -938,33 +932,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               </div>
             </PanelFlotante>
           )}
-          {dockAbiertas.has('filtro') && (
-            <PanelFlotante
-              title="Filtro por Ocupación"
-              onClose={() => toggleDockOp('filtro')}
-              className="w-80 shrink-0 pointer-events-auto"
-            >
-              <div className="p-4">
-                <div className="flex items-center gap-1 flex-wrap">
-                  {(['', 'VACIO', 'VERDE', 'AMBAR', 'ROJO'] as const).map((opt) => (
-                    <button key={opt} onClick={() => setFiltroColor(opt)}
-                      className={`px-2 py-1 text-sm font-medium rounded-md transition-colors flex items-center gap-1 ${
-                        filtroColor === opt
-                          ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
-                          : 'text-slate-600 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-200'
-                      }`}
-                    >
-                      {opt === '' ? 'Todos' : (
-                        <span className="w-3 h-3 rounded-full inline-block"
-                          style={{ backgroundColor: opt === 'VACIO' ? '#9ca3af' : opt === 'VERDE' ? '#22c55e' : opt === 'AMBAR' ? '#eab308' : '#ef4444' }}
-                        />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </PanelFlotante>
-          )}
+
         </div>
 
         {selectedEnvio && (

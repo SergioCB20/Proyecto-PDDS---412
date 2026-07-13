@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { XCircle, Clock, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { XCircle, Clock, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp } from "lucide-react";
 import { api } from "@/lib/api";
 import {
   type PlantillaResumen,
@@ -110,21 +110,23 @@ export function SeccionCancelacion({
 
   return (
     <div className="border-t border-slate-200 dark:border-slate-700">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
-      >
-        <span className="flex items-center gap-2">
+      <div className="flex items-center justify-between px-4 pt-4 pb-1">
+        <div className="flex items-center gap-2">
           <XCircle size={14} className="text-red-500" />
-          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-            Cancelación (plantillas)
-          </span>
-          <span className="text-xs text-slate-600">
-            {plantillasFiltradas.length} / {plantillas.length} vuelo{plantillas.length !== 1 ? "s" : ""}
-          </span>
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+            Cancelación
+          </h3>
+          <button onClick={() => setOpen(!open)}
+            className="p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 transition-colors"
+            title={open ? 'Ocultar filtros' : 'Mostrar filtros'}
+          >
+            {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+        </div>
+        <span className="text-xs text-slate-600">
+          {plantillasFiltradas.length} / {plantillas.length} vuelo{plantillas.length !== 1 ? "s" : ""}
         </span>
-        <span className="text-sm text-slate-600">{open ? "▾" : "▸"}</span>
-      </button>
+      </div>
 
       {open && (
         <div className="px-4 pb-4 space-y-2">
@@ -184,7 +186,7 @@ export function SeccionCancelacion({
             )}
           </div>
 
-          <div className="max-h-96 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700">
+          <div className="max-h-[28rem] overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 dark:bg-slate-800/50 sticky top-0">
                 <tr>

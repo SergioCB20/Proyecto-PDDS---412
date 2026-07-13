@@ -34,6 +34,10 @@ export function PanelReporte({
     }
     try {
       const blob = await api.downloadBlob(`/sesiones/${id}/rutas/csv`);
+      if (blob.size < 100) {
+        alert("El archivo CSV no contiene datos de replanificaciones.");
+        return;
+      }
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;

@@ -149,12 +149,13 @@ public class ReporteService {
     public String generarCsvRutas(UUID sesionId) {
         Map<UUID, OffsetDateTime> fechaReplanPorEquipaje = equipajesReplanificados(sesionId);
 
+        StringBuilder csv = new StringBuilder();
+        csv.append("envio_id,origen_iata,destino_iata,sla_comprometido,")
+           .append("segmento_orden,vuelo_codigo,nodo_origen_iata,nodo_destino_iata,")
+           .append("hora_salida,hora_llegada,fecha_replanificacion_virtual\n");
+
         if (fechaReplanPorEquipaje.isEmpty()) {
-            StringBuilder vacio = new StringBuilder();
-            vacio.append("envio_id,origen_iata,destino_iata,sla_comprometido,")
-                 .append("segmento_orden,vuelo_codigo,nodo_origen_iata,nodo_destino_iata,")
-                 .append("hora_salida,hora_llegada,fecha_replanificacion_virtual\n");
-            return vacio.toString();
+            return csv.toString();
         }
 
         List<PlanViaje> todosPlanes = planViajeRepository.findBySesionIdWithEquipaje(sesionId);
@@ -163,17 +164,22 @@ public class ReporteService {
                 .filter(p -> p.getEquipaje() != null
                         && fechaReplanPorEquipaje.containsKey(p.getEquipaje().getId()))
                 .toList();
-        if (planes.isEmpty()) return "";
+        if (planes.isEmpty()) {
+            log.warn("CSV replan: {} equipajes en lotes, {} planes totales en sesion, 0 con match. sesion={}",
+                    fechaReplanPorEquipaje.size(), todosPlanes.size(), sesionId);
+            if (log.isDebugEnabled()) {
+                log.debug("Equipaje IDs en lotes: {}", fechaReplanPorEquipaje.keySet());
+                log.debug("Equipaje IDs en planes: {}", todosPlanes.stream()
+                        .map(p -> p.getEquipaje() != null ? p.getEquipaje().getId() : null)
+                        .collect(Collectors.toList()));
+            }
+            return csv.toString();
+        }
 
         List<UUID> planIds = planes.stream().map(PlanViaje::getId).toList();
         List<SegmentoPlan> todosSegmentos = segmentoPlanRepository.findByPlanViajeIdInOrderByOrdenAsc(planIds);
         Map<UUID, List<SegmentoPlan>> segmentosPorPlan = todosSegmentos.stream()
                 .collect(Collectors.groupingBy(seg -> seg.getPlanViaje().getId()));
-
-        StringBuilder csv = new StringBuilder();
-        csv.append("envio_id,origen_iata,destino_iata,sla_comprometido,")
-           .append("segmento_orden,vuelo_codigo,nodo_origen_iata,nodo_destino_iata,")
-           .append("hora_salida,hora_llegada,fecha_replanificacion_virtual\n");
 
         for (PlanViaje plan : planes) {
             Equipaje eq = plan.getEquipaje();
