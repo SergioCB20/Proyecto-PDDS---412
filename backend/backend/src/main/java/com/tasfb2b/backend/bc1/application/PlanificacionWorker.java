@@ -22,6 +22,10 @@ import com.tasfb2b.backend.bc2.application.MotorEnrutamiento;
 import com.tasfb2b.backend.bc2.application.RutaResult;
 import com.tasfb2b.backend.bc2.application.RoutingStrategy;
 import com.tasfb2b.backend.bc2.application.SegmentoInfo;
+import com.tasfb2b.backend.bc2.domain.EstadoSesion;
+import com.tasfb2b.backend.bc2.domain.SesionEjecucion;
+import com.tasfb2b.backend.bc2.domain.TipoSesion;
+import com.tasfb2b.backend.bc2.infrastructure.SesionRepository;
 import com.tasfb2b.backend.shared.events.EquipajePlanificadoEvent;
 import com.tasfb2b.backend.shared.events.PlanViajeCreado;
 import com.tasfb2b.backend.shared.infrastructure.RedisCacheService;
@@ -62,6 +66,7 @@ public class PlanificacionWorker {
     private final RedisCacheService redisCacheService;
     private final SseService sseService;
     private final OcupacionNodoService ocupacionNodoService;
+    private final SesionRepository sesionRepository;
 
     @Autowired
     private ApplicationContext applicationContext;
@@ -81,7 +86,8 @@ public class PlanificacionWorker {
                                 ApplicationEventPublisher eventPublisher,
                                 RedisCacheService redisCacheService,
                                 SseService sseService,
-                                OcupacionNodoService ocupacionNodoService) {
+                                OcupacionNodoService ocupacionNodoService,
+                                SesionRepository sesionRepository) {
         this.colaRepository = colaRepository;
         this.equipajeRepository = equipajeRepository;
         this.vueloRepository = vueloRepository;
@@ -93,6 +99,7 @@ public class PlanificacionWorker {
         this.redisCacheService = redisCacheService;
         this.sseService = sseService;
         this.ocupacionNodoService = ocupacionNodoService;
+        this.sesionRepository = sesionRepository;
     }
 
     @Scheduled(fixedDelay = 500)
@@ -233,6 +240,10 @@ public class PlanificacionWorker {
         planViaje.setUbicacionId(ruta.segmentos().get(0).vueloId());
         planViaje.setUbicacionLat(origen.getLatitud());
         planViaje.setUbicacionLon(origen.getLongitud());
+        UUID sesionIdEnVivo = sesionRepository
+                .findByTipoAndEstado(TipoSesion.EN_VIVO, EstadoSesion.EN_CURSO)
+                .stream().findFirst().map(SesionEjecucion::getId).orElse(null);
+        planViaje.setSesionId(sesionIdEnVivo);
         planViajeRepository.save(planViaje);
 
         for (SegmentoInfo segInfo : ruta.segmentos()) {

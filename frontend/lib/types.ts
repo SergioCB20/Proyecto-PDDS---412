@@ -183,6 +183,19 @@ export interface ReporteSesion {
   serie_sla: PuntoSLA[];
 }
 
+export interface ReporteOperacion {
+  sesion_id: string;
+  total_equipajes: number;
+  equipajes_registrados: number;
+  equipajes_en_vuelo: number;
+  equipajes_en_almacen: number;
+  equipajes_entregados: number;
+  vuelos_programados: number;
+  vuelos_en_ruta: number;
+  vuelos_completados: number;
+  vuelos_cancelados: number;
+}
+
 export interface CrearEquipajeRequest {
   destino_iata: string;
   cantidad: number;

@@ -78,4 +78,10 @@ public interface VueloRepository extends JpaRepository<Vuelo, UUID>, JpaSpecific
     @Modifying
     @Query("UPDATE Vuelo v SET v.cargaDisponible = v.cargaDisponible + :cantidad WHERE v.id = :id")
     int incrementarCargaDisponible(@Param("id") UUID id, @Param("cantidad") int cantidad);
+
+    @Query("SELECT COUNT(v) FROM Vuelo v WHERE v.fechaOperacion = :fecha AND v.esPlantilla = false AND v.estado <> com.tasfb2b.backend.bc1.domain.EstadoVuelo.PROGRAMADO")
+    long countByFechaOperacionAndEstadoNotProgramado(@Param("fecha") LocalDate fecha);
+
+    @Query("SELECT COUNT(v) FROM Vuelo v WHERE v.fechaOperacion = :fecha AND v.esPlantilla = false AND v.estado = :estado")
+    long countByFechaOperacionAndEstado(@Param("fecha") LocalDate fecha, @Param("estado") EstadoVuelo estado);
 }
