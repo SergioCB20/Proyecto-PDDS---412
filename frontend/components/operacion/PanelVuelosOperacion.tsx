@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Map as MapIcon } from 'lucide-react';
+import { Map as MapIcon, ChevronDown, ChevronUp } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import { colorVueloPorEstado, determinarColorSemaforo } from '@/lib/colors';
+import { colorVueloPorEstado, colorVueloPorOcupacion, determinarColorSemaforo, type ColorSemaforo } from '@/lib/colors';
 import type { VueloTelemetria } from '@/lib/types';
 import { formatearFechaHoraSeparado } from '@/lib/formatearHora';
 import { ciudadDe, etiquetaFiltroAeropuerto } from '@/lib/aeropuertos';
@@ -20,14 +20,15 @@ interface PanelVuelosOperacionProps {
   origenFilter?: string;
   destinoFilter?: string;
   onFilterChange?: (filters: { origen: string; destino: string }) => void;
-  filtroColor?: string;
   umbralesConfig?: { verdeMax: number; ambarMax: number };
 }
 
 const MAX_RENDER = 500;
 
-export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiesto, onCancelVuelo, onVerEnMapa, seguidoId, seleccionadoId, origenFilter = '', destinoFilter = '', onFilterChange, filtroColor, umbralesConfig }: PanelVuelosOperacionProps) {
+export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiesto, onCancelVuelo, onVerEnMapa, seguidoId, seleccionadoId, origenFilter = '', destinoFilter = '', onFilterChange, umbralesConfig }: PanelVuelosOperacionProps) {
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(true);
   const [filtroCodigo, setFiltroCodigo] = useState('');
+  const [filtroColorLocal, setFiltroColorLocal] = useState<'' | ColorSemaforo>('');
   const [seleccionadoLocal, setSeleccionadoLocal] = useState<string | null>(null);
   const itemRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
   useEffect(() => {
@@ -53,12 +54,12 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
       if (filtroCodigo && !v.codigo_vuelo.toLowerCase().includes(filtroCodigo.toLowerCase())) return false;
       if (origenFilter && v.origen_iata !== origenFilter) return false;
       if (destinoFilter && v.destino_iata !== destinoFilter) return false;
-      if (filtroColor) {
-        if (determinarColorSemaforo(v.ocupacion_pct, umbralesConfig) !== filtroColor) return false;
+      if (filtroColorLocal) {
+        if (determinarColorSemaforo(v.ocupacion_pct, umbralesConfig) !== filtroColorLocal) return false;
       }
       return true;
     });
-  }, [vuelos, filtroCodigo, origenFilter, destinoFilter, filtroColor, umbralesConfig]);
+  }, [vuelos, filtroCodigo, origenFilter, destinoFilter, filtroColorLocal, umbralesConfig]);
 
   const opcionesOrden = [
     { value: '', label: 'Sin orden' },
@@ -100,11 +101,12 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
     [vuelosOrdenados]
   );
 
-  const hayFiltrosActivos = filtroCodigo || origenFilter || destinoFilter;
+  const hayFiltrosActivos = filtroCodigo || origenFilter || destinoFilter || filtroColorLocal;
 
   const limpiarFiltros = () => {
     setFiltroCodigo('');
     onFilterChange?.({ origen: '', destino: '' });
+    setFiltroColorLocal('');
   };
 
   if (vuelos.length === 0) {
@@ -119,12 +121,22 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
   return (
     <div className="p-4 border-t border-slate-200 dark:border-slate-700">
       <div className="flex items-center justify-between mb-1">
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Vuelos</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Vuelos</h3>
+          <button onClick={() => setFiltrosAbiertos(!filtrosAbiertos)}
+            className="p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 transition-colors"
+            title={filtrosAbiertos ? 'Ocultar filtros' : 'Mostrar filtros'}
+          >
+            {filtrosAbiertos ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+        </div>
         <span className="text-xs text-slate-600">
           Mostrando {vuelosFiltrados.length} de {vuelos.length}
         </span>
       </div>
 
+      {filtrosAbiertos && (
+      <>
       <div className="flex flex-wrap gap-2 mb-3">
         <div className="flex-1 min-w-[100px]">
           <Input
@@ -151,6 +163,24 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
         </div>
       </div>
 
+      <div className="flex items-center gap-1 mb-3 flex-wrap">
+        {(['', 'VACIO', 'VERDE', 'AMBAR', 'ROJO'] as const).map((opt) => (
+          <button key={opt} onClick={() => setFiltroColorLocal(filtroColorLocal === opt ? '' : opt)}
+            className={`px-2 py-1 text-xs font-medium rounded-md transition-colors flex items-center gap-1 ${
+              filtroColorLocal === opt
+                ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 ring-1 ring-blue-300 dark:ring-blue-700'
+                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            {opt === '' ? 'Todos' : (
+              <span className="w-2.5 h-2.5 rounded-full inline-block"
+                style={{ backgroundColor: opt === 'VACIO' ? '#9ca3af' : opt === 'VERDE' ? '#22c55e' : opt === 'AMBAR' ? '#eab308' : '#ef4444' }}
+              />
+            )}
+          </button>
+        ))}
+      </div>
+
       {hayFiltrosActivos && (
         <button
           onClick={limpiarFiltros}
@@ -168,6 +198,7 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
           onChange={e => setOrden(e.target.value)}
         />
       </div>
+      </>)}
 
       {vuelosFiltrados.length > MAX_RENDER && (
         <p className="text-sm text-slate-600 mb-2">
@@ -193,6 +224,7 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
               const ocupada = v.capacidad_carga - v.carga_disponible;
               const pct = v.capacidad_carga > 0 ? (ocupada / v.capacidad_carga) * 100 : 0;
               const colorHex = colorVueloPorEstado(v.estado);
+              const semaforoColor = colorVueloPorOcupacion(pct, umbralesConfig);
               const salida = formatearFechaHoraSeparado(v.hora_salida);
               const llegada = formatearFechaHoraSeparado(v.hora_llegada);
               const zebra = idx % 2 === 0 ? 'bg-white/40 dark:bg-slate-900/20' : '';
@@ -213,7 +245,7 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
                 >
                   <td className="px-2 py-1.5 whitespace-nowrap">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <span className={`w-2 h-2 rounded-full shadow-sm shrink-0 ${v.estado !== 'PROGRAMADO' ? 'animate-pulse' : ''} ${v.estado === 'PROGRAMADO' ? 'ring-1 ring-slate-300' : ''}`} style={{ backgroundColor: colorHex }} />
+                      <span className={`w-2 h-2 rounded-full shadow-sm shrink-0 ${v.estado !== 'PROGRAMADO' ? 'animate-pulse' : ''} ${v.estado === 'PROGRAMADO' ? 'ring-1 ring-slate-300' : ''}`} style={{ backgroundColor: semaforoColor }} />
                       <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">{v.codigo_vuelo}</span>
                     </div>
                   </td>
@@ -230,9 +262,9 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
                   </td>
                   <td className="px-2 py-1.5 text-right whitespace-nowrap">
                     <span className="text-slate-600 dark:text-slate-400">{ocupada}/{v.capacidad_carga}</span>
-                    <span className="ml-2 font-bold" style={{ color: colorHex }}>{pct.toFixed(0)}%</span>
+                    <span className="ml-2 font-bold" style={{ color: semaforoColor }}>{pct.toFixed(0)}%</span>
                     <div className="w-16 h-1 mt-0.5 ml-auto bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: colorHex }} />
+                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: semaforoColor }} />
                     </div>
                   </td>
                   <td className="px-2 py-1.5 font-mono text-slate-700 dark:text-slate-300 whitespace-nowrap">

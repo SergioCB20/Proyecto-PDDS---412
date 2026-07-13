@@ -2,6 +2,7 @@ package com.tasfb2b.backend.bc2.infrastructure;
 
 import com.tasfb2b.backend.bc2.domain.SesionEjecucion;
 import com.tasfb2b.backend.bc2.domain.EstadoSesion;
+import com.tasfb2b.backend.bc2.domain.TipoSesion;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -16,6 +17,7 @@ import java.util.UUID;
 public interface SesionRepository extends JpaRepository<SesionEjecucion, UUID> {
     List<SesionEjecucion> findByEstado(EstadoSesion estado);
     List<SesionEjecucion> findByTipo(String tipo);
+    List<SesionEjecucion> findByTipoAndEstado(TipoSesion tipo, EstadoSesion estado);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT s FROM SesionEjecucion s WHERE s.estado = :estado")

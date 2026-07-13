@@ -21,7 +21,6 @@ import {
   Luggage,
   Warehouse,
   FileText,
-  Filter,
   X,
   BarChart3,
   ZoomIn,
@@ -30,7 +29,7 @@ import dynamic from "next/dynamic";
 import { api, fetchReporte } from "@/lib/api";
 import { aeropuertoToEnMapa } from "@/lib/mock";
 import { useTelemetria } from "@/lib/useTelemetria";
-import { colorAeropuertoPorOcupacion, determinarColorSemaforo, type ColorSemaforo } from "@/lib/colors";
+import { colorAeropuertoPorOcupacion } from "@/lib/colors";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -66,6 +65,7 @@ import type {
   CargaMasivaConfirmResponse,
   MetricasSimulacion,
   ReporteSesion,
+  ReporteOperacion,
   RutaDestacada,
   SegmentoResponse,
   PlantillaResumen,
@@ -261,14 +261,16 @@ export default function DashboardPage() {
 }
 
 function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
-  const [estadoOperacion, setEstadoOperacion] = useState<
-    "INACTIVO" | "ACTIVO" | "PAUSADO"
-  >("INACTIVO");
+  const [sesionId, setSesionId] = useState<string | null>(null);
+  const [estadoSesion, setEstadoSesion] = useState<
+    "CONFIGURADA" | "EN_CURSO" | "PAUSADA" | "FINALIZADA"
+  >("CONFIGURADA");
   const [operacionLoading, setOperacionLoading] = useState(false);
   const [aeropuertos, setAeropuertos] = useState<AeropuertoEnMapa[]>([]);
   const [allVuelos, setAllVuelos] = useState<VueloEnMapa[]>([]);
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [reporteOp, setReporteOp] = useState<ReporteOperacion | null>(null);
 
   const [formOpen, setFormOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -290,16 +292,17 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [csvConfirmLoading, setCsvConfirmLoading] = useState(false);
 
   const { data: telemetria, connected: wsConnected } = useTelemetria(
-    estadoOperacion === "ACTIVO",
+    estadoSesion === "EN_CURSO",
   );
   const hora = useReloj();
 
   useEffect(() => {
     api
-      .get<{ estado: string }>("/operacion/estado")
+      .get<{ estado: string; sesion_id?: string }>("/operacion/estado")
       .then((r) => {
-        if (r.estado === "ACTIVO" || r.estado === "PAUSADO")
-          setEstadoOperacion(r.estado);
+        if (r.sesion_id) setSesionId(r.sesion_id);
+        if (r.estado === "ACTIVO") setEstadoSesion("EN_CURSO");
+        else if (r.estado === "PAUSADO") setEstadoSesion("PAUSADA");
       })
       .catch(() => {});
   }, []);
@@ -325,7 +328,6 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     null,
   );
   const [rutaDestacadaOp, setRutaDestacadaOp] = useState<RutaDestacada | null>(null);
-  const [filtroColor, setFiltroColor] = useState<'' | ColorSemaforo>('');
   const [filtroContinenteOp, setFiltroContinenteOp] = useState<string>('');
   const [aeroSeleccionado, setAeroSeleccionado] = useState<string | null>(null);
   const [vueloSeleccionadoOp, setVueloSeleccionadoOp] = useState<string | null>(null);
@@ -557,12 +559,17 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
 
   const handleIniciar = async () => {
     setOperacionLoading(true);
+    setApiError(null);
+    setReporteOp(null);
     try {
-      await api.post("/operacion/iniciar", {});
-      localStorage.setItem("sesion_operacion_inicio", new Date().toISOString());
-      setEstadoOperacion("ACTIVO");
-    } catch {
-      setApiError("Error al iniciar operación");
+      const res = await api.post<{ estado: string; sesion_id?: string }>(
+        "/operacion/iniciar", {}
+      );
+      if (res.sesion_id) setSesionId(res.sesion_id);
+      setEstadoSesion("EN_CURSO");
+    } catch (err: unknown) {
+      const e = err as { mensaje?: string; message?: string };
+      setApiError(e.mensaje || e.message || "Error al iniciar operación");
     } finally {
       setOperacionLoading(false);
     }
@@ -572,7 +579,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     setOperacionLoading(true);
     try {
       await api.post("/operacion/pausar", {});
-      setEstadoOperacion("PAUSADO");
+      setEstadoSesion("PAUSADA");
     } catch {
       setApiError("Error al pausar operación");
     } finally {
@@ -583,8 +590,11 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const handleReanudar = async () => {
     setOperacionLoading(true);
     try {
-      await api.post("/operacion/reanudar", {});
-      setEstadoOperacion("ACTIVO");
+      const res = await api.post<{ estado: string; sesion_id?: string }>(
+        "/operacion/reanudar", {}
+      );
+      if (res.sesion_id) setSesionId(res.sesion_id);
+      setEstadoSesion("EN_CURSO");
     } catch {
       setApiError("Error al reanudar operación");
     } finally {
@@ -594,9 +604,23 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
 
   const handleDetener = async () => {
     setOperacionLoading(true);
+    setApiError(null);
     try {
-      await api.post("/operacion/detener", {});
-      setEstadoOperacion("INACTIVO");
+      const res = await api.post<{ estado: string; sesion_id: string }>(
+        "/operacion/detener", {}
+      );
+      setSesionId(null);
+      setEstadoSesion("FINALIZADA");
+      for (let i = 0; i < 10; i++) {
+        await new Promise((r) => setTimeout(r, 600));
+        try {
+          const r = await api.get<ReporteOperacion>("/operacion/reporte");
+          setReporteOp(r);
+          break;
+        } catch {
+          /* report not ready yet */
+        }
+      }
     } catch {
       setApiError("Error al detener operación");
     } finally {
@@ -693,7 +717,6 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
           }}
           rutaDestacada={rutaDestacadaOp}
           onLimpiarRuta={() => setRutaDestacadaOp(null)}
-          filtroColor={filtroColor}
           onAeropuertoClick={handleAeropuertoClickOp}
           onVueloSeleccionado={handleVueloSeleccionadoOp}
           continenteFiltro={filtroContinenteOp || undefined}
@@ -732,8 +755,8 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                 </div>
                 <div className="flex justify-between gap-2">
                   <span>Estado:</span>
-                  <span className={`font-mono font-medium ${estadoOperacion === "ACTIVO" ? "text-green-600" : estadoOperacion === "PAUSADO" ? "text-amber-600" : "text-slate-600"}`}>
-                    {estadoOperacion}
+                  <span className={`font-mono font-medium ${estadoSesion === "EN_CURSO" ? "text-green-600" : estadoSesion === "PAUSADA" ? "text-amber-600" : "text-slate-600"}`}>
+                    {estadoSesion === "EN_CURSO" ? "ACTIVO" : estadoSesion === "PAUSADA" ? "PAUSADO" : "INACTIVO"}
                   </span>
                 </div>
                 <div className="flex justify-between gap-2">
@@ -754,7 +777,6 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               { id: 'datos', icon: Plane, label: 'Aeropuertos, Vuelos, Envíos' },
               { id: 'control', icon: Activity, label: 'Control' },
               { id: 'registro', icon: Package, label: 'Registro Equipaje' },
-              { id: 'filtro', icon: Filter, label: 'Filtro Ocupación' },
               { id: 'metricas', icon: BarChart3, label: 'Métricas' },
               { id: 'reloj', icon: Clock, label: 'Reloj' },
               { id: 'zoom', icon: ZoomIn, label: 'Zoom' },
@@ -817,15 +839,13 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                   setVueloFilterOrigen(origen);
                   setVueloFilterDestino(destino);
                 }}
-                enviosActivo={estadoOperacion === "ACTIVO"}
+                enviosActivo={estadoSesion === "EN_CURSO"}
                 nodos={aeropuertos.map((n) => ({
                   codigo_iata: n.codigo_iata,
                   nombre: n.nombre,
                 }))}
                 onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
                 onMostrarRuta={handleMostrarRutaOp}
-                filtroColor={filtroColor}
-                onFilterColorChange={setFiltroColor}
                 umbralesConfig={configUmbrales}
                 filtroContinente={filtroContinenteOp}
                 onFiltroContinenteChange={setFiltroContinenteOp}
@@ -855,7 +875,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                   <span className={`w-2 h-2 rounded-full ${wsConnected ? "bg-green-500" : "bg-red-500"}`} />
                   <span className="text-xs text-slate-600">WS {wsConnected ? "conectado" : "desconectado"}</span>
                 </div>
-                {estadoOperacion === "ACTIVO" ? (
+                {estadoSesion === "EN_CURSO" ? (
                   <div className="flex gap-2">
                     <Button variant="secondary" size="sm" onClick={handlePausar} disabled={operacionLoading} className="flex-1">
                       <Pause size={14} className="mr-1" />{operacionLoading ? "..." : "Pausar"}
@@ -864,7 +884,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                       <Square size={14} className="mr-1" />{operacionLoading ? "..." : "Detener"}
                     </Button>
                   </div>
-                ) : estadoOperacion === "PAUSADO" ? (
+                ) : estadoSesion === "PAUSADA" ? (
                   <div className="flex gap-2">
                     <Button size="sm" onClick={handleReanudar} disabled={operacionLoading} className="flex-1">
                       <Play size={14} className="mr-1" />{operacionLoading ? "..." : "Reanudar"}
@@ -875,7 +895,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                   </div>
                 ) : (
                   <Button size="sm" onClick={handleIniciar} disabled={operacionLoading} className="w-full">
-                    <Play size={14} className="mr-1" />{operacionLoading ? "..." : "Iniciar Operación"}
+                    <Play size={14} className="mr-1" />{operacionLoading ? "..." : "Iniciar Jornada"}
                   </Button>
                 )}
                 {apiError && (
@@ -938,33 +958,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               </div>
             </PanelFlotante>
           )}
-          {dockAbiertas.has('filtro') && (
-            <PanelFlotante
-              title="Filtro por Ocupación"
-              onClose={() => toggleDockOp('filtro')}
-              className="w-80 shrink-0 pointer-events-auto"
-            >
-              <div className="p-4">
-                <div className="flex items-center gap-1 flex-wrap">
-                  {(['', 'VACIO', 'VERDE', 'AMBAR', 'ROJO'] as const).map((opt) => (
-                    <button key={opt} onClick={() => setFiltroColor(opt)}
-                      className={`px-2 py-1 text-sm font-medium rounded-md transition-colors flex items-center gap-1 ${
-                        filtroColor === opt
-                          ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
-                          : 'text-slate-600 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-200'
-                      }`}
-                    >
-                      {opt === '' ? 'Todos' : (
-                        <span className="w-3 h-3 rounded-full inline-block"
-                          style={{ backgroundColor: opt === 'VACIO' ? '#9ca3af' : opt === 'VERDE' ? '#22c55e' : opt === 'AMBAR' ? '#eab308' : '#ef4444' }}
-                        />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </PanelFlotante>
-          )}
+
         </div>
 
         {selectedEnvio && (
@@ -1015,6 +1009,19 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
             )}
           </div>
         </Modal>
+
+        {reporteOp && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/20">
+            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 w-[28rem] max-h-[90vh] overflow-y-auto">
+              <PanelReporte
+                reporte={reporteOp}
+                sesionId={reporteOp.sesion_id}
+                onClose={() => setReporteOp(null)}
+                esOperacion={true}
+              />
+            </div>
+          </div>
+        )}
     </div>
   );
 }

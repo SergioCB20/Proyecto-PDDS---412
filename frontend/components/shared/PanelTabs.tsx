@@ -30,8 +30,6 @@ interface PanelTabsProps {
   nodos: { codigo_iata: string; nombre: string }[];
   onSeguirEnMapa?: (vueloId: string) => void;
   onMostrarRuta?: (segmentos: SegmentoResponse[]) => void;
-  filtroColor?: string;
-  onFilterColorChange?: (color: string) => void;
   umbralesConfig?: { verdeMax: number; ambarMax: number };
   filtroContinente?: string;
   onFiltroContinenteChange?: (continente: string) => void;
@@ -65,8 +63,6 @@ export function PanelTabs({
   nodos,
   onSeguirEnMapa,
   onMostrarRuta,
-  filtroColor,
-  onFilterColorChange,
   umbralesConfig,
   filtroContinente,
   onFiltroContinenteChange,
@@ -104,18 +100,16 @@ export function PanelTabs({
       </div>
 
       {tab === 'aeropuertos' && (
-        <PanelAeropuertosOperacion
-          aeropuertos={aeropuertos}
-          onAeropuertoClick={onAeropuertoClick}
-          onVerEnMapa={onAeropuertoVerEnMapa}
-          seguidoId={seguidoAeropuertoId}
-          seleccionadoId={aeropuertoSeleccionadoId}
-          filtroColor={filtroColor}
-          onFilterColorChange={onFilterColorChange}
-          umbralesConfig={umbralesConfig}
-          filtroContinente={filtroContinente}
-          onFiltroContinenteChange={onFiltroContinenteChange}
-        />
+          <PanelAeropuertosOperacion
+            aeropuertos={aeropuertos}
+            onAeropuertoClick={onAeropuertoClick}
+            onVerEnMapa={onAeropuertoVerEnMapa}
+            seguidoId={seguidoAeropuertoId}
+            seleccionadoId={aeropuertoSeleccionadoId}
+            umbralesConfig={umbralesConfig}
+            filtroContinente={filtroContinente}
+            onFiltroContinenteChange={onFiltroContinenteChange}
+          />
       )}
 
       {tab === 'vuelos' && (
@@ -131,7 +125,6 @@ export function PanelTabs({
             origenFilter={vueloFilterOrigen}
             destinoFilter={vueloFilterDestino}
             onFilterChange={onVueloFilterChange}
-            filtroColor={filtroColor}
             umbralesConfig={umbralesConfig}
           />
         </>)}

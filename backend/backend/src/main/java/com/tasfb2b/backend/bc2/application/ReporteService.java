@@ -2,11 +2,15 @@ package com.tasfb2b.backend.bc2.application;
 
 import com.tasfb2b.backend.bc1.domain.Equipaje;
 import com.tasfb2b.backend.bc1.domain.EstadoEquipaje;
+import com.tasfb2b.backend.bc1.domain.EstadoVuelo;
 import com.tasfb2b.backend.bc1.domain.PlanViaje;
 import com.tasfb2b.backend.bc1.domain.SegmentoPlan;
+import com.tasfb2b.backend.bc1.domain.Vuelo;
 import com.tasfb2b.backend.bc1.infrastructure.EquipajeRepository;
+import com.tasfb2b.backend.bc1.infrastructure.NodoLogisticoRepository;
 import com.tasfb2b.backend.bc1.infrastructure.PlanViajeRepository;
 import com.tasfb2b.backend.bc1.infrastructure.SegmentoPlanRepository;
+import com.tasfb2b.backend.bc1.infrastructure.VueloRepository;
 import com.tasfb2b.backend.bc2.domain.*;
 import com.tasfb2b.backend.bc2.domain.SesionEjecucion;
 import com.tasfb2b.backend.bc2.infrastructure.ItemLoteRepository;
@@ -32,6 +36,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -54,6 +59,8 @@ public class ReporteService {
     private final LoteReplanificacionRepository loteRepository;
     private final ItemLoteRepository itemLoteRepository;
     private final EventoCancelacionRepository eventoCancelacionRepository;
+    private final VueloRepository vueloRepository;
+    private final NodoLogisticoRepository nodoRepository;
     private final String rutaReportesDir;
 
     public ReporteService(EquipajeRepository equipajeRepository,
@@ -65,6 +72,8 @@ public class ReporteService {
                           LoteReplanificacionRepository loteRepository,
                           ItemLoteRepository itemLoteRepository,
                           EventoCancelacionRepository eventoCancelacionRepository,
+                          VueloRepository vueloRepository,
+                          NodoLogisticoRepository nodoRepository,
                           @Value("${app.reportes.ruta-archivos:data/reportes}") String rutaReportesDir) {
         this.equipajeRepository = equipajeRepository;
         this.reporteRepository = reporteRepository;
@@ -75,6 +84,8 @@ public class ReporteService {
         this.loteRepository = loteRepository;
         this.itemLoteRepository = itemLoteRepository;
         this.eventoCancelacionRepository = eventoCancelacionRepository;
+        this.vueloRepository = vueloRepository;
+        this.nodoRepository = nodoRepository;
         this.rutaReportesDir = rutaReportesDir;
     }
 
@@ -149,12 +160,13 @@ public class ReporteService {
     public String generarCsvRutas(UUID sesionId) {
         Map<UUID, OffsetDateTime> fechaReplanPorEquipaje = equipajesReplanificados(sesionId);
 
+        StringBuilder csv = new StringBuilder();
+        csv.append("envio_id,origen_iata,destino_iata,sla_comprometido,")
+           .append("segmento_orden,vuelo_codigo,nodo_origen_iata,nodo_destino_iata,")
+           .append("hora_salida,hora_llegada,fecha_replanificacion_virtual\n");
+
         if (fechaReplanPorEquipaje.isEmpty()) {
-            StringBuilder vacio = new StringBuilder();
-            vacio.append("envio_id,origen_iata,destino_iata,sla_comprometido,")
-                 .append("segmento_orden,vuelo_codigo,nodo_origen_iata,nodo_destino_iata,")
-                 .append("hora_salida,hora_llegada,fecha_replanificacion_virtual\n");
-            return vacio.toString();
+            return csv.toString();
         }
 
         List<PlanViaje> todosPlanes = planViajeRepository.findBySesionIdWithEquipaje(sesionId);
@@ -163,17 +175,22 @@ public class ReporteService {
                 .filter(p -> p.getEquipaje() != null
                         && fechaReplanPorEquipaje.containsKey(p.getEquipaje().getId()))
                 .toList();
-        if (planes.isEmpty()) return "";
+        if (planes.isEmpty()) {
+            log.warn("CSV replan: {} equipajes en lotes, {} planes totales en sesion, 0 con match. sesion={}",
+                    fechaReplanPorEquipaje.size(), todosPlanes.size(), sesionId);
+            if (log.isDebugEnabled()) {
+                log.debug("Equipaje IDs en lotes: {}", fechaReplanPorEquipaje.keySet());
+                log.debug("Equipaje IDs en planes: {}", todosPlanes.stream()
+                        .map(p -> p.getEquipaje() != null ? p.getEquipaje().getId() : null)
+                        .collect(Collectors.toList()));
+            }
+            return csv.toString();
+        }
 
         List<UUID> planIds = planes.stream().map(PlanViaje::getId).toList();
         List<SegmentoPlan> todosSegmentos = segmentoPlanRepository.findByPlanViajeIdInOrderByOrdenAsc(planIds);
         Map<UUID, List<SegmentoPlan>> segmentosPorPlan = todosSegmentos.stream()
                 .collect(Collectors.groupingBy(seg -> seg.getPlanViaje().getId()));
-
-        StringBuilder csv = new StringBuilder();
-        csv.append("envio_id,origen_iata,destino_iata,sla_comprometido,")
-           .append("segmento_orden,vuelo_codigo,nodo_origen_iata,nodo_destino_iata,")
-           .append("hora_salida,hora_llegada,fecha_replanificacion_virtual\n");
 
         for (PlanViaje plan : planes) {
             Equipaje eq = plan.getEquipaje();
@@ -213,6 +230,71 @@ public class ReporteService {
             }
         }
         return csv.toString();
+    }
+
+    @Transactional(readOnly = true)
+    public String generarCsvOperacionDiaria(UUID sesionId) {
+        var sesion = sesionRepository.findById(sesionId).orElse(null);
+        if (sesion == null || sesion.getFechaInicioReal() == null) return "";
+        OffsetDateTime inicio = sesion.getFechaInicioReal();
+        OffsetDateTime fin = sesion.getFechaFinReal() != null ? sesion.getFechaFinReal() : OffsetDateTime.now();
+
+        StringBuilder csv = new StringBuilder();
+        csv.append("dia,fecha,vuelos_operados,vuelos_completados,")
+           .append("equipajes_registrados,equipajes_entregados,equipajes_en_vuelo,ocupacion_promedio\n");
+
+        long totalDias = java.time.temporal.ChronoUnit.DAYS.between(inicio.toLocalDate(), fin.toLocalDate()) + 1;
+        for (long d = 0; d < totalDias; d++) {
+            LocalDate dia = inicio.toLocalDate().plusDays(d);
+            OffsetDateTime diaInicio = dia.atStartOfDay(inicio.getOffset()).toOffsetDateTime();
+            OffsetDateTime diaFin = dia.plusDays(1).atStartOfDay(inicio.getOffset()).toOffsetDateTime();
+
+            long operados = vueloRepository.countByFechaOperacionAndEstadoNotProgramado(dia);
+            long completados = vueloRepository.countByFechaOperacionAndEstado(dia, EstadoVuelo.COMPLETADO);
+            long registrados = equipajeRepository.countByFechaIngresoBetween(diaInicio, diaFin);
+            long entregados = equipajeRepository.countByEstadoAndFechaIngresoBetween(
+                    EstadoEquipaje.ENTREGADO, diaInicio, diaFin);
+            long enVuelo = equipajeRepository.countByEstadoAndFechaIngresoBefore(
+                    EstadoEquipaje.EN_VUELO, diaFin);
+
+            long totalCap = 0, totalOcup = 0;
+            for (var nodo : nodoRepository.findAll()) {
+                if (nodo.getCapacidadAlmacen() != null && nodo.getCapacidadAlmacen() > 0) {
+                    totalCap += nodo.getCapacidadAlmacen();
+                    totalOcup += Math.min(nodo.getOcupacionActual() != null ? nodo.getOcupacionActual() : 0,
+                            nodo.getCapacidadAlmacen());
+                }
+            }
+            double ocupPct = totalCap > 0 ? (totalOcup * 100.0 / totalCap) : 0.0;
+
+            csv.append(d + 1).append(",")
+               .append(dia.toString()).append(",")
+               .append(operados).append(",")
+               .append(completados).append(",")
+               .append(registrados).append(",")
+               .append(entregados).append(",")
+               .append(enVuelo).append(",")
+               .append(String.format("%.1f", ocupPct))
+               .append("\n");
+        }
+        return csv.toString();
+    }
+
+    public void exportarCsvOperacionDiaria(UUID sesionId) {
+        String csv = generarCsvOperacionDiaria(sesionId);
+        if (csv == null || csv.isBlank()) {
+            log.info("CSV operacion diaria vacío para sesion {}", sesionId);
+            return;
+        }
+        try {
+            Path dir = Paths.get(rutaReportesDir);
+            Files.createDirectories(dir);
+            Path archivo = dir.resolve("operacion_diaria_sesion_" + sesionId.toString().replace("-", "_") + ".csv");
+            Files.writeString(archivo, csv, StandardCharsets.UTF_8);
+            log.info("CSV operacion diaria exportado: {}", archivo.toAbsolutePath());
+        } catch (Exception e) {
+            log.error("Error exportando CSV operacion diaria: {}", e.getMessage());
+        }
     }
 
     private static String peruFormat(OffsetDateTime odt) {

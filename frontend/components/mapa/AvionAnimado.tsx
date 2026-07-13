@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Marker, Polyline, Tooltip, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { colorVueloPorEstado } from '@/lib/colors';
+import { colorVueloPorOcupacion } from '@/lib/colors';
 import { bezierControlPoint, bezierPoint, bezierBearing, bezierSamples } from '@/lib/bezier';
 import type { VueloEnMapa } from '@/lib/types';
 import type { UmbralesConfig } from './ConfigUmbrales';
@@ -160,7 +160,9 @@ const AvionAnimado = React.memo(function AvionAnimado({
     poly.setLatLngs(tail);
   };
 
-  const colorAvion = vuelo.carga_disponible >= vuelo.capacidad_carga ? '#9ca3af' : colorVueloPorEstado(vuelo.estado);
+  const ocupada = vuelo.capacidad_carga - vuelo.carga_disponible;
+  const pctOcup = vuelo.capacidad_carga > 0 ? (ocupada / vuelo.capacidad_carga) * 100 : 0;
+  const colorAvion = vuelo.carga_disponible >= vuelo.capacidad_carga ? '#9ca3af' : colorVueloPorOcupacion(pctOcup, umbralesConfig);
 
   const [icono, setIcono] = useState(() =>
     crearIconoAvion(colorAvion, 0, iconSize, false, destacado)
@@ -389,8 +391,6 @@ const AvionAnimado = React.memo(function AvionAnimado({
     // NOTE: vuelo.progreso / k intentionally excluded — handled via flightRef
   ]);
 
-  const ocupada = vuelo.capacidad_carga - vuelo.carga_disponible;
-
   // Estela inicial: ruta por delante del avión desde su progreso actual
   // (evita un parpadeo con la ruta completa antes del primer frame).
   const estelaInicial = useMemo<L.LatLngTuple[]>(() => {
@@ -458,7 +458,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
               className="h-full rounded-full transition-all duration-500"
               style={{
                 width: `${vuelo.capacidad_carga > 0 ? (ocupada / vuelo.capacidad_carga) * 100 : 0}%`,
-                backgroundColor: colorVueloPorEstado(vuelo.estado),
+                backgroundColor: colorVueloPorOcupacion(pctOcup, umbralesConfig),
               }}
             />
           </div>

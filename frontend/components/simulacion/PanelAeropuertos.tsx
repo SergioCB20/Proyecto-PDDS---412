@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import { Map as MapIcon } from 'lucide-react';
+import { Map as MapIcon, ChevronDown, ChevronUp } from 'lucide-react';
 import type { AeropuertoTelemetria, VueloTelemetria } from '@/lib/types'
 import { formatearFechaHoraSeparado } from '@/lib/formatearHora';
 import { determinarColorSemaforo, type ColorSemaforo } from '@/lib/colors';
@@ -31,7 +31,9 @@ interface PanelAeropuertosProps {
 }
 
 export function PanelAeropuertos({ aeropuertos, vuelos, onAeropuertoClick, onVerEnMapa, seguidoId }: PanelAeropuertosProps) {
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(true);
   const [filtroCodigo, setFiltroCodigo] = useState('');
+  const [filtroColorLocal, setFiltroColorLocal] = useState<'' | ColorSemaforo>('');
   const [filtroContinente, setFiltroContinente] = useState('');
   const [orden, setOrden] = useState('');
   const itemRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
@@ -79,9 +81,10 @@ export function PanelAeropuertos({ aeropuertos, vuelos, onAeropuertoClick, onVer
         const valor = n.continente || n.zona_horaria;
         if (valor !== filtroContinente) return false;
       }
+      if (filtroColorLocal && determinarColorSemaforo(n.ocupacion_pct) !== filtroColorLocal) return false;
       return true;
     });
-  }, [aeropuertos, filtroCodigo, filtroContinente]);
+  }, [aeropuertos, filtroCodigo, filtroContinente, filtroColorLocal]);
 
   const aeropuertosOrdenados = useMemo(() => {
     const lista = [...aeropuertosFiltrados];
@@ -110,11 +113,12 @@ export function PanelAeropuertos({ aeropuertos, vuelos, onAeropuertoClick, onVer
     return lista;
   }, [aeropuertosFiltrados, orden, timingPorAeropuerto]);
 
-  const hayFiltrosActivos = filtroCodigo || filtroContinente;
+  const hayFiltrosActivos = filtroCodigo || filtroContinente || filtroColorLocal;
 
   const limpiarFiltros = () => {
     setFiltroCodigo('');
     setFiltroContinente('');
+    setFiltroColorLocal('');
   };
 
   if (aeropuertos.length === 0) {
@@ -129,12 +133,22 @@ export function PanelAeropuertos({ aeropuertos, vuelos, onAeropuertoClick, onVer
   return (
     <div className="p-4 border-t border-slate-200 dark:border-slate-700">
       <div className="flex items-center justify-between mb-1">
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Aeropuertos</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Aeropuertos</h3>
+          <button onClick={() => setFiltrosAbiertos(!filtrosAbiertos)}
+            className="p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 transition-colors"
+            title={filtrosAbiertos ? 'Ocultar filtros' : 'Mostrar filtros'}
+          >
+            {filtrosAbiertos ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+        </div>
         <span className="text-xs text-slate-600">
           Mostrando {aeropuertosOrdenados.length} de {aeropuertos.length}
         </span>
       </div>
 
+      {filtrosAbiertos && (
+      <>
       <div className="flex flex-wrap gap-2 mb-3">
         <div className="flex-1 min-w-[100px]">
           <Input
@@ -153,6 +167,24 @@ export function PanelAeropuertos({ aeropuertos, vuelos, onAeropuertoClick, onVer
         </div>
       </div>
 
+      <div className="flex items-center gap-1 mb-3 flex-wrap">
+        {(['', 'VACIO', 'VERDE', 'AMBAR', 'ROJO'] as const).map((opt) => (
+          <button key={opt} onClick={() => setFiltroColorLocal(filtroColorLocal === opt ? '' : opt)}
+            className={`px-2 py-1 text-xs font-medium rounded-md transition-colors flex items-center gap-1 ${
+              filtroColorLocal === opt
+                ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 ring-1 ring-blue-300 dark:ring-blue-700'
+                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            {opt === '' ? 'Todos' : (
+              <span className="w-2.5 h-2.5 rounded-full inline-block"
+                style={{ backgroundColor: opt === 'VACIO' ? '#9ca3af' : opt === 'VERDE' ? '#22c55e' : opt === 'AMBAR' ? '#eab308' : '#ef4444' }}
+              />
+            )}
+          </button>
+        ))}
+      </div>
+
       <div className="mb-3">
         <Select
           placeholder="Ordenar por..."
@@ -169,6 +201,8 @@ export function PanelAeropuertos({ aeropuertos, vuelos, onAeropuertoClick, onVer
         >
           Limpiar filtros
         </button>
+      )}
+      </>
       )}
 
       <div className="max-h-[28rem] overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700">
