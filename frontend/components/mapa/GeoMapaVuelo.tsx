@@ -2,13 +2,13 @@
 
 import React, { useMemo } from 'react';
 import { Polyline, Tooltip } from 'react-leaflet';
-import { COLOR_AEROPUERTO } from '@/lib/colors';
 import type { VueloEnMapa } from '@/lib/types';
 import type { UmbralesConfig } from './ConfigUmbrales';
 import { bezierCurvePoints } from '@/lib/bezier';
 import { formatearFechaHoraSeparado } from '@/lib/formatearHora';
 import { ciudadDe } from '@/lib/aeropuertos';
 import AvionAnimado from './AvionAnimado';
+import OcupacionBarra from './OcupacionBarra';
 
 interface GeoMapaVueloProps {
   vuelo: VueloEnMapa;
@@ -21,20 +21,6 @@ interface GeoMapaVueloProps {
   onVueloSeleccionado?: (id: string) => void;
   destacado?: boolean;
 }
-
-function OcupacionBar({ ocupada, total, verdeMax, ambarMax }: { ocupada: number; total: number; verdeMax: number; ambarMax: number }) {
-  const pct = total > 0 ? ((total - ocupada) / total) * 100 : 0;
-  const color = pct <= 0 ? COLOR_AEROPUERTO.VACIO : pct < verdeMax ? COLOR_AEROPUERTO.VERDE : pct < ambarMax ? COLOR_AEROPUERTO.AMBAR : COLOR_AEROPUERTO.ROJO;
-  return (
-    <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden mt-1">
-      <div
-        className="h-full rounded-full transition-all duration-500"
-        style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: color }}
-      />
-    </div>
-  );
-}
-
 
 function areEqual(prevProps: GeoMapaVueloProps, nextProps: GeoMapaVueloProps): boolean {
   if (prevProps.animacionActiva !== nextProps.animacionActiva) return false;
@@ -56,10 +42,6 @@ function areEqual(prevProps: GeoMapaVueloProps, nextProps: GeoMapaVueloProps): b
 }
 
 export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false, k = 120, umbralesConfig, seguido = false, onSalirSeguimiento, onSeguirVuelo, onVueloSeleccionado, destacado = false }: GeoMapaVueloProps) {
-  const opacidadRuta = animacionActiva ? 0.5 : 0.2;
-  const verdeMax = umbralesConfig?.verdeMax ?? 70;
-  const ambarMax = umbralesConfig?.ambarMax ?? 90;
-
   const tieneRuta = vuelo.origen_lat && vuelo.origen_lon && vuelo.destino_lat && vuelo.destino_lon;
   const ocupada = vuelo.capacidad_carga - vuelo.carga_disponible;
 
@@ -108,7 +90,7 @@ export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false
                 <span className="text-slate-600">Ocupado: </span>
                 <span className="font-semibold">{ocupada}/{vuelo.capacidad_carga}</span>
               </div>
-              <OcupacionBar ocupada={vuelo.carga_disponible} total={vuelo.capacidad_carga} verdeMax={verdeMax} ambarMax={ambarMax} />
+              <OcupacionBarra ocupada={ocupada} total={vuelo.capacidad_carga} umbralesConfig={umbralesConfig} className="mt-1" />
             </div>
           </Tooltip>
         </Polyline>

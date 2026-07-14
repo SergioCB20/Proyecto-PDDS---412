@@ -233,11 +233,11 @@ export default function GeoMapa({
   const siguiendo = !!(seguidoVueloId || seguidoAeropuertoId);
 
   return (
-    <div className={`relative ${className}`} style={{ padding: '10px' }}>
+    <div className={`relative ${className}`}>
       <MapContainer
         center={CENTRO}
         zoom={ZOOM}
-        className="w-full h-full rounded-xl z-0"
+        className="w-full h-full z-0"
         zoomControl={false}
         scrollWheelZoom={true}
         attributionControl={false}

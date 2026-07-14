@@ -19,7 +19,7 @@ export default function TiemposInfo({ inicioRealMs, inicioSimuladoISO, actualSim
   const actualSimuladoStr = formatearDiaYHora(inicioSimuladoISO, actualSimulado);
 
   return (
-    <div className="pointer-events-auto relative p-2 rounded-lg bg-white/85 dark:bg-slate-900/85 backdrop-blur-sm shadow border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300">
+    <div className="pointer-events-auto relative p-2 rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-lg border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300">
       {onClose && (
         <button
           onClick={onClose}
