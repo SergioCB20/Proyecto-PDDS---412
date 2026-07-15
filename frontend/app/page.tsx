@@ -31,7 +31,7 @@ import { aeropuertoToEnMapa } from "@/lib/mock";
 import { useTelemetria } from "@/lib/useTelemetria";
 import { useMapaData, matchEstadoVuelo } from "@/lib/useMapaData";
 import { useSimulacionSesion } from "@/lib/useSimulacionSesion";
-import { colorAeropuertoPorOcupacion } from "@/lib/colors";
+import { colorAeropuertoPorOcupacion, type ColorSemaforo } from "@/lib/colors";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -55,7 +55,11 @@ import PanelFlotante from "@/components/mapa/PanelFlotante";
 import BarraMetricasCompacta from "@/components/mapa/BarraMetricasCompacta";
 import TiemposInfo from "@/components/mapa/TiemposInfo";
 import CommandBarSimulacion from "@/components/mapa/CommandBarSimulacion";
-import { formatearFechaHora } from "@/lib/formatearHora";
+import {
+  formatearFechaHora,
+  formatearFechaHoraSinSeg,
+  formatDuracionHHMMSS,
+} from "@/lib/formatearHora";
 import type {
   Aeropuerto,
   Vuelo,
@@ -252,6 +256,12 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   );
   const hora = useReloj();
 
+  // Inicio de la jornada. Operación corre en TIEMPO REAL (OperacionTickService usa
+  // el reloj de pared, no hay reloj virtual), así que el "momento simulado" y el
+  // "momento actual" coinciden: se muestran inicio + actual + transcurrido — la
+  // variante de "2 datos de tiempos" que admite el criterio de evaluación.
+  const [inicioOperacionMs, setInicioOperacionMs] = useState(0);
+
   useEffect(() => {
     api
       .get<{ estado: string; sesion_id?: string }>("/operacion/estado")
@@ -259,6 +269,13 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
         if (r.sesion_id) setSesionId(r.sesion_id);
         if (r.estado === "ACTIVO") setEstadoSesion("EN_CURSO");
         else if (r.estado === "PAUSADO") setEstadoSesion("PAUSADA");
+        // Rescata el inicio de jornada tras una recarga, para no perder el
+        // "transcurrido" mientras la operación sigue activa.
+        if (r.estado === "ACTIVO" || r.estado === "PAUSADO") {
+          const guardado = localStorage.getItem("sesion_operacion_inicio");
+          const ms = guardado ? new Date(guardado).getTime() : NaN;
+          if (!Number.isNaN(ms)) setInicioOperacionMs(ms);
+        }
       })
       .catch(() => {});
   }, []);
@@ -285,6 +302,9 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   );
   const [rutaDestacadaOp, setRutaDestacadaOp] = useState<RutaDestacada | null>(null);
   const [filtroContinenteOp, setFiltroContinenteOp] = useState<string>('');
+  // Filtros por semáforo: viven en la vista para reflejarse en panel Y mapa.
+  const [filtroColorAeroOp, setFiltroColorAeroOp] = useState<'' | ColorSemaforo>('');
+  const [filtroColorVueloOp, setFiltroColorVueloOp] = useState<'' | ColorSemaforo>('');
   const [aeroSeleccionado, setAeroSeleccionado] = useState<string | null>(null);
   const [vueloSeleccionadoOp, setVueloSeleccionadoOp] = useState<string | null>(null);
 
@@ -523,6 +543,14 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
       );
       if (res.sesion_id) setSesionId(res.sesion_id);
       setEstadoSesion("EN_CURSO");
+      // Marca el inicio de la jornada; se persiste para sobrevivir recargas y lo
+      // reutilizan los paneles que consultan "entregados desde".
+      const ahoraMs = Date.now();
+      setInicioOperacionMs(ahoraMs);
+      localStorage.setItem(
+        "sesion_operacion_inicio",
+        new Date(ahoraMs).toISOString(),
+      );
     } catch (err: unknown) {
       const e = err as { mensaje?: string; message?: string };
       setApiError(e.mensaje || e.message || "Error al iniciar operación");
@@ -567,6 +595,8 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
       );
       setSesionId(null);
       setEstadoSesion("FINALIZADA");
+      setInicioOperacionMs(0);
+      localStorage.removeItem("sesion_operacion_inicio");
       for (let i = 0; i < 10; i++) {
         await new Promise((r) => setTimeout(r, 600));
         try {
@@ -602,6 +632,17 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     const sumCap = aeropuertos.reduce((s, a) => s + (a.capacidad_almacen || 0), 0);
     return sumCap > 0 ? (sumOcup / sumCap) * 100 : 0;
   }, [aeropuertos]);
+
+  // Ocupación agregada de la flota de UT (criterios 84-85), con el mismo
+  // semáforo que colorea los aviones en el mapa.
+  const ocupacionFlota = useMemo(() => {
+    const sumOcup = allVuelos.reduce(
+      (s, v) => s + ((v.capacidad_carga || 0) - (v.carga_disponible || 0)),
+      0,
+    );
+    const sumCap = allVuelos.reduce((s, v) => s + (v.capacidad_carga || 0), 0);
+    return sumCap > 0 ? (sumOcup / sumCap) * 100 : 0;
+  }, [allVuelos]);
 
   const metricasOpSim = telemetria?.metricas_sesion;
 
@@ -676,6 +717,8 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
           onAeropuertoClick={handleAeropuertoClickOp}
           onVueloSeleccionado={handleVueloSeleccionadoOp}
           continenteFiltro={filtroContinenteOp || undefined}
+          filtroColorAeropuerto={filtroColorAeroOp || undefined}
+          filtroColorVuelo={filtroColorVueloOp || undefined}
           mostrarZoom={zoomVisibleOp}
           onCerrarZoom={() => setZoomVisibleOp(false)}
         >
@@ -685,6 +728,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               cancelados={metricasOpSim?.vuelos_cancelados ?? 0}
               replanificadas={metricasOpSim?.maletas_replanificadas ?? 0}
               ocupacionGlobal={ocupacionGlobal}
+              ocupacionFlota={ocupacionFlota}
               verdeMax={configUmbrales.verdeMax}
               ambarMax={configUmbrales.ambarMax}
               vuelosActivos={vuelosActivosOp}
@@ -709,6 +753,26 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                     {formatearFechaHora(hora.toISOString())}
                   </span>
                 </div>
+                {inicioOperacionMs > 0 && (
+                  <>
+                    <div className="flex justify-between gap-2">
+                      <span>Inicio:</span>
+                      <span className="font-mono font-medium text-slate-700 dark:text-slate-300">
+                        {formatearFechaHoraSinSeg(
+                          new Date(inicioOperacionMs).toISOString(),
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span>Transcurrido:</span>
+                      <span className="font-mono font-medium text-slate-700 dark:text-slate-300">
+                        {formatDuracionHHMMSS(
+                          Math.floor((hora.getTime() - inicioOperacionMs) / 1000),
+                        )}
+                      </span>
+                    </div>
+                  </>
+                )}
                 <div className="flex justify-between gap-2">
                   <span>Estado:</span>
                   <span className={`font-mono font-medium ${estadoSesion === "EN_CURSO" ? "text-green-600" : estadoSesion === "PAUSADA" ? "text-amber-600" : "text-slate-600"}`}>
@@ -805,6 +869,10 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                 umbralesConfig={configUmbrales}
                 filtroContinente={filtroContinenteOp}
                 onFiltroContinenteChange={setFiltroContinenteOp}
+                filtroColorAeropuerto={filtroColorAeroOp}
+                onFiltroColorAeropuertoChange={setFiltroColorAeroOp}
+                filtroColorVuelo={filtroColorVueloOp}
+                onFiltroColorVueloChange={setFiltroColorVueloOp}
               />
             </PanelFlotante>
           )}
@@ -1046,6 +1114,9 @@ function SimulacionView({
   const [aeroSeleccionadoSim, setAeroSeleccionadoSim] = useState<string | null>(null);
   const [vueloSeleccionadoSim, setVueloSeleccionadoSim] = useState<string | null>(null);
   const [filtroContinenteSim, setFiltroContinenteSim] = useState<string>('');
+  // Filtros por semáforo: viven en la vista para reflejarse en panel Y mapa.
+  const [filtroColorAeroSim, setFiltroColorAeroSim] = useState<'' | ColorSemaforo>('');
+  const [filtroColorVueloSim, setFiltroColorVueloSim] = useState<'' | ColorSemaforo>('');
 
   // Datos del mapa desde una fuente única de verdad (WebSocket en vivo / REST en
   // vista previa). Lógica compartida con la vista de Colapso — ver useMapaData.
@@ -1103,6 +1174,17 @@ function SimulacionView({
     return sumCap > 0 ? (sumOcup / sumCap) * 100 : 0;
   }, [aeropuertosMapa]);
 
+  // Ocupación agregada de la flota de UT (criterios 84-85), con el mismo
+  // semáforo que colorea los aviones en el mapa.
+  const ocupacionFlota = useMemo(() => {
+    const sumOcup = vuelosMapa.reduce(
+      (s, v) => s + ((v.capacidad_carga || 0) - (v.carga_disponible || 0)),
+      0,
+    );
+    const sumCap = vuelosMapa.reduce((s, v) => s + (v.capacidad_carga || 0), 0);
+    return sumCap > 0 ? (sumOcup / sumCap) * 100 : 0;
+  }, [vuelosMapa]);
+
   const toggleDock = useCallback((id: string) => {
     if (id === 'metricas') { setMetricaVisibleSim((v) => !v); return; }
     if (id === 'reloj') { setRelojVisibleSim((v) => !v); return; }
@@ -1153,6 +1235,8 @@ function SimulacionView({
           onAeropuertoClick={handleAeropuertoClickSim}
           onVueloSeleccionado={handleVueloSeleccionadoSim}
           continenteFiltro={filtroContinenteSim || undefined}
+          filtroColorAeropuerto={filtroColorAeroSim || undefined}
+          filtroColorVuelo={filtroColorVueloSim || undefined}
           mostrarZoom={zoomVisibleSim}
           onCerrarZoom={() => setZoomVisibleSim(false)}
         >
@@ -1162,6 +1246,7 @@ function SimulacionView({
               cancelados={metricas.vuelos_cancelados}
               replanificadas={metricas.maletas_replanificadas}
               ocupacionGlobal={ocupacionGlobal}
+              ocupacionFlota={ocupacionFlota}
               verdeMax={configUmbrales.verdeMax}
               ambarMax={configUmbrales.ambarMax}
               vuelosActivos={vuelosSimActivos}
@@ -1235,6 +1320,7 @@ function SimulacionView({
                 <div className="p-4">
                   <PanelAeropuertosOperacion
                     aeropuertos={telemetria?.nodos ?? []}
+                    vuelos={telemetria?.vuelos ?? []}
                     onAeropuertoClick={(id, codigo) =>
                       setSelectedEnvio({ tipo: "nodo", id, codigo })
                     }
@@ -1246,6 +1332,8 @@ function SimulacionView({
                     seleccionadoId={aeroSeleccionadoSim ?? undefined}
                     filtroContinente={filtroContinenteSim}
                     onFiltroContinenteChange={setFiltroContinenteSim}
+                    filtroColor={filtroColorAeroSim}
+                    onFiltroColorChange={setFiltroColorAeroSim}
                   />
                 </div>
               ) : (
@@ -1287,6 +1375,8 @@ function SimulacionView({
                   }}
                   seguidoId={seguidoVueloId ?? undefined}
                   seleccionadoId={vueloSeleccionadoSim ?? undefined}
+                  filtroColor={filtroColorVueloSim}
+                  onFiltroColorChange={setFiltroColorVueloSim}
                   origenFilter={vueloFilterOrigen}
                   destinoFilter={vueloFilterDestino}
                   onFilterChange={({ origen, destino }) => {
@@ -1608,6 +1698,9 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [rutaDestacadaCol, setRutaDestacadaCol] = useState<RutaDestacada | null>(null);
   const [aeroSeleccionadoCol, setAeroSeleccionadoCol] = useState<string | null>(null);
   const [filtroContinenteCol, setFiltroContinenteCol] = useState<string>('');
+  // Filtros por semáforo: viven en la vista para reflejarse en panel Y mapa.
+  const [filtroColorAeroCol, setFiltroColorAeroCol] = useState<'' | ColorSemaforo>('');
+  const [filtroColorVueloCol, setFiltroColorVueloCol] = useState<'' | ColorSemaforo>('');
   const [vueloSeleccionadoCol, setVueloSeleccionadoCol] = useState<string | null>(null);
 
   // Datos del mapa desde una fuente única de verdad (WebSocket en vivo / REST en
@@ -1636,6 +1729,17 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     const sumCap = aeropuertosMapa.reduce((s, a) => s + (a.capacidad_almacen || 0), 0);
     return sumCap > 0 ? (sumOcup / sumCap) * 100 : 0;
   }, [aeropuertosMapa]);
+
+  // Ocupación agregada de la flota de UT (criterios 84-85), con el mismo
+  // semáforo que colorea los aviones en el mapa.
+  const ocupacionFlota = useMemo(() => {
+    const sumOcup = vuelosMapa.reduce(
+      (s, v) => s + ((v.capacidad_carga || 0) - (v.carga_disponible || 0)),
+      0,
+    );
+    const sumCap = vuelosMapa.reduce((s, v) => s + (v.capacidad_carga || 0), 0);
+    return sumCap > 0 ? (sumOcup / sumCap) * 100 : 0;
+  }, [vuelosMapa]);
 
   const handleAeropuertoClickCol = useCallback((codigoIata: string) => {
     setAeroSeleccionadoCol(codigoIata);
@@ -1716,6 +1820,8 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
           onAeropuertoClick={handleAeropuertoClickCol}
           onVueloSeleccionado={handleVueloSeleccionadoCol}
           continenteFiltro={filtroContinenteCol || undefined}
+          filtroColorAeropuerto={filtroColorAeroCol || undefined}
+          filtroColorVuelo={filtroColorVueloCol || undefined}
           mostrarZoom={zoomVisibleCol}
           onCerrarZoom={() => setZoomVisibleCol(false)}
         >
@@ -1725,6 +1831,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               cancelados={metricas.vuelos_cancelados}
               replanificadas={metricas.maletas_replanificadas}
               ocupacionGlobal={ocupacionGlobal}
+              ocupacionFlota={ocupacionFlota}
               verdeMax={configUmbrales.verdeMax}
               ambarMax={configUmbrales.ambarMax}
               vuelosActivos={vuelosColActivos}
@@ -2015,6 +2122,10 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                   onMostrarRuta={handleMostrarRutaCol}
                   filtroContinente={filtroContinenteCol}
                   onFiltroContinenteChange={setFiltroContinenteCol}
+                  filtroColorAeropuerto={filtroColorAeroCol}
+                  onFiltroColorAeropuertoChange={setFiltroColorAeroCol}
+                  filtroColorVuelo={filtroColorVueloCol}
+                  onFiltroColorVueloChange={setFiltroColorVueloCol}
                 />
               ) : (
                 <p className="text-xs text-slate-600 p-4">Sin sesión activa</p>

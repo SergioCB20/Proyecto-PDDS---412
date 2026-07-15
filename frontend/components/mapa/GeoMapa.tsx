@@ -143,7 +143,10 @@ interface GeoMapaProps {
   onSalirSeguimientoAeropuerto?: () => void;
   rutaDestacada?: RutaDestacada | null;
   onLimpiarRuta?: () => void;
-  filtroColor?: string;
+  /** Filtro por semáforo de almacenes, sincronizado con el panel. */
+  filtroColorAeropuerto?: string;
+  /** Filtro por semáforo de unidades de transporte, sincronizado con el panel. */
+  filtroColorVuelo?: string;
   onAeropuertoClick?: (codigoIata: string) => void;
   /** Filtro por continente que se representa en el mapa con fitBounds. */
   continenteFiltro?: string;
@@ -173,7 +176,8 @@ export default function GeoMapa({
   onSalirSeguimientoAeropuerto,
   rutaDestacada,
   onLimpiarRuta,
-  filtroColor,
+  filtroColorAeropuerto,
+  filtroColorVuelo,
   onAeropuertoClick,
   continenteFiltro,
   mostrarZoom = true,
@@ -194,8 +198,8 @@ export default function GeoMapa({
         })()
       : aeropuertos
   ).filter(a => {
-    if (!filtroColor) return true;
-    return determinarColorSemaforo(a.ocupacionPorcentaje, umbralesConfig) === filtroColor;
+    if (!filtroColorAeropuerto) return true;
+    return determinarColorSemaforo(a.ocupacionPorcentaje, umbralesConfig) === filtroColorAeropuerto;
   });
 
   const vuelosFiltrados = (seguidoAeropuertoId
@@ -204,11 +208,11 @@ export default function GeoMapa({
       ? vuelos.filter(v => v.id === seguidoVueloId)
       : vuelos
   ).filter(v => {
-    if (!filtroColor) return true;
+    if (!filtroColorVuelo) return true;
     const pct = v.capacidad_carga > 0
       ? ((v.capacidad_carga - v.carga_disponible) / v.capacidad_carga) * 100
       : 0;
-    return determinarColorSemaforo(pct, umbralesConfig) === filtroColor;
+    return determinarColorSemaforo(pct, umbralesConfig) === filtroColorVuelo;
   });
 
   // Mantiene el overlay un poco más tras cargar para que la flota se pinte completa.

@@ -4,9 +4,10 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Map as MapIcon, ChevronDown, ChevronUp } from 'lucide-react';
-import type { AeropuertoTelemetria } from '@/lib/types';
+import type { AeropuertoTelemetria, VueloTelemetria } from '@/lib/types';
 import { ciudadDe, paisDe } from '@/lib/aeropuertos';
 import { determinarColorSemaforo, type ColorSemaforo } from '@/lib/colors';
+import { formatearHoraLima } from '@/lib/formatearHora';
 
 interface EstiloEstado {
   bordeIzq: string;
@@ -24,6 +25,8 @@ const ESTILO_POR_ESTADO: Record<ColorSemaforo, EstiloEstado> = {
 
 interface PanelAeropuertosOperacionProps {
   aeropuertos: AeropuertoTelemetria[];
+  /** Vuelos usados para calcular la próxima UT en salir/llegar de cada almacén. */
+  vuelos?: VueloTelemetria[];
   onAeropuertoClick?: (id: string, codigo: string) => void;
   onVerEnMapa?: (id: string) => void;
   seguidoId?: string;
@@ -31,10 +34,14 @@ interface PanelAeropuertosOperacionProps {
   umbralesConfig?: { verdeMax: number; ambarMax: number };
   filtroContinente?: string;
   onFiltroContinenteChange?: (continente: string) => void;
+  /** Filtro por semáforo controlado desde la vista, para reflejarlo en el mapa. */
+  filtroColor?: '' | ColorSemaforo;
+  onFiltroColorChange?: (color: '' | ColorSemaforo) => void;
 }
 
 export function PanelAeropuertosOperacion({
   aeropuertos,
+  vuelos = [],
   onAeropuertoClick,
   onVerEnMapa,
   seguidoId,
@@ -42,10 +49,19 @@ export function PanelAeropuertosOperacion({
   umbralesConfig,
   filtroContinente,
   onFiltroContinenteChange,
+  filtroColor,
+  onFiltroColorChange,
 }: PanelAeropuertosOperacionProps) {
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(true);
   const [filtroCodigo, setFiltroCodigo] = useState('');
-  const [filtroColorLocal, setFiltroColorLocal] = useState<'' | ColorSemaforo>('');
+  // Controlado si la vista pasa filtroColor (para reflejarlo en el mapa); si no,
+  // mantiene el filtro local al panel.
+  const [filtroColorInterno, setFiltroColorInterno] = useState<'' | ColorSemaforo>('');
+  const filtroColorLocal = filtroColor ?? filtroColorInterno;
+  const setFiltroColorLocal = (v: '' | ColorSemaforo) => {
+    if (onFiltroColorChange) onFiltroColorChange(v);
+    else setFiltroColorInterno(v);
+  };
   const itemRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
   useEffect(() => {
     if (seleccionadoId && itemRefs.current[seleccionadoId]) {
@@ -73,7 +89,40 @@ export function PanelAeropuertosOperacion({
     { value: '', label: 'Sin orden' },
     { value: 'ocupacion-asc', label: 'Ocupación ↑' },
     { value: 'ocupacion-desc', label: 'Ocupación ↓' },
+    { value: 'prox-salida', label: 'Próxima salida' },
+    { value: 'prox-llegada', label: 'Próxima llegada' },
   ];
+
+  /**
+   * Por cada almacén, la hora de la UT más próxima en SALIR (vuelos aún no
+   * despegados que parten de él) y en LLEGAR (vuelos en ruta o programados con
+   * destino a él). Las horas vienen en ISO, así que se comparan lexicográficamente.
+   */
+  const proximos = useMemo(() => {
+    const salida = new Map<string, string>();
+    const llegada = new Map<string, string>();
+    for (const v of vuelos) {
+      if (v.hora_salida && v.estado === 'PROGRAMADO') {
+        const actual = salida.get(v.origen_iata);
+        if (!actual || v.hora_salida < actual) salida.set(v.origen_iata, v.hora_salida);
+      }
+      if (v.hora_llegada && (v.estado === 'EN_RUTA' || v.estado === 'PROGRAMADO')) {
+        const actual = llegada.get(v.destino_iata);
+        if (!actual || v.hora_llegada < actual) llegada.set(v.destino_iata, v.hora_llegada);
+      }
+    }
+    return { salida, llegada };
+  }, [vuelos]);
+
+  /** Ordena por hora ascendente; los almacenes sin vuelo próximo quedan al final. */
+  const porHora = (mapa: Map<string, string>) => (a: AeropuertoTelemetria, b: AeropuertoTelemetria) => {
+    const ta = mapa.get(a.codigo_iata);
+    const tb = mapa.get(b.codigo_iata);
+    if (!ta && !tb) return 0;
+    if (!ta) return 1;
+    if (!tb) return -1;
+    return ta.localeCompare(tb);
+  };
 
   const aeropuertosFiltrados = useMemo(() => {
     return aeropuertos.filter(n => {
@@ -104,9 +153,15 @@ export function PanelAeropuertosOperacion({
       case 'ocupacion-desc':
         lista.sort((a, b) => b.ocupacion_pct - a.ocupacion_pct);
         break;
+      case 'prox-salida':
+        lista.sort(porHora(proximos.salida));
+        break;
+      case 'prox-llegada':
+        lista.sort(porHora(proximos.llegada));
+        break;
     }
     return lista;
-  }, [aeropuertosFiltrados, orden]);
+  }, [aeropuertosFiltrados, orden, proximos]);
 
   const hayFiltrosActivos = filtroCodigo || continenteActual || filtroColorLocal;
 
@@ -207,6 +262,12 @@ export function PanelAeropuertosOperacion({
               <th className="text-left px-2 py-2 font-semibold">IATA</th>
               <th className="text-left px-2 py-2 font-semibold">Ciudad</th>
               <th className="text-left px-2 py-2 font-semibold hidden md:table-cell">País · Cont.</th>
+              <th
+                className="text-left px-2 py-2 font-semibold hidden lg:table-cell"
+                title="Próxima UT en salir (↑) y en llegar (↓)"
+              >
+                Próx. UT
+              </th>
               <th className="text-right px-2 py-2 font-semibold">Ocupación</th>
               <th className="text-right px-2 py-2 font-semibold w-12">—</th>
             </tr>
@@ -243,6 +304,23 @@ export function PanelAeropuertosOperacion({
                   <td className="px-2 py-1.5 text-slate-600 dark:text-slate-400 truncate hidden md:table-cell max-w-[200px]" title={ubicacion}>
                     {ubicacion || '—'}
                   </td>
+                  <td className="px-2 py-1.5 hidden lg:table-cell whitespace-nowrap font-mono text-[11px] text-slate-600 dark:text-slate-400">
+                    {(() => {
+                      const s = proximos.salida.get(n.codigo_iata);
+                      const l = proximos.llegada.get(n.codigo_iata);
+                      if (!s && !l) return <span className="text-slate-400">—</span>;
+                      return (
+                        <span className="flex gap-2">
+                          <span title="Próxima salida">
+                            ↑ {s ? formatearHoraLima(s).slice(0, 5) : '—'}
+                          </span>
+                          <span title="Próxima llegada">
+                            ↓ {l ? formatearHoraLima(l).slice(0, 5) : '—'}
+                          </span>
+                        </span>
+                      );
+                    })()}
+                  </td>
                   <td className="px-2 py-1.5 text-right whitespace-nowrap">
                     <span className="text-slate-600 dark:text-slate-400">{n.ocupacion_actual}/{n.capacidad_almacen}</span>
                     <span className={`ml-2 font-bold ${estado.textCls}`}>{n.ocupacion_pct.toFixed(0)}%</span>
@@ -267,7 +345,7 @@ export function PanelAeropuertosOperacion({
             })}
             {aeropuertosOrdenados.length === 0 && (
               <tr>
-                <td colSpan={5} className="text-xs text-slate-600 italic text-center py-4">
+                <td colSpan={6} className="text-xs text-slate-600 italic text-center py-4">
                   Ningún aeropuerto coincide con los filtros
                 </td>
               </tr>

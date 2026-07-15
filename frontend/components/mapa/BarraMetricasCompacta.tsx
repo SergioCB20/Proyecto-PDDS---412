@@ -11,13 +11,16 @@ import {
   CheckCircle,
   X,
 } from 'lucide-react';
-import { colorAeropuertoPorOcupacion } from '@/lib/colors';
+import { colorAeropuertoPorOcupacion, colorVueloPorOcupacion } from '@/lib/colors';
 
 interface BarraMetricasCompactaProps {
   sla: number;
   cancelados: number;
   replanificadas: number;
+  /** Ocupación agregada de los almacenes (aeropuertos), 0–100. */
   ocupacionGlobal: number;
+  /** Ocupación agregada de la flota de unidades de transporte, 0–100. */
+  ocupacionFlota?: number;
   verdeMax: number;
   ambarMax: number;
   vuelosActivos: number;
@@ -73,6 +76,7 @@ export default function BarraMetricasCompacta({
   cancelados,
   replanificadas,
   ocupacionGlobal,
+  ocupacionFlota,
   verdeMax,
   ambarMax,
   vuelosActivos,
@@ -85,6 +89,11 @@ export default function BarraMetricasCompacta({
   // Semáforo de ocupación: MISMA función que los marcadores del mapa, para que el
   // color del KPI coincida exactamente con el que ve el operario en los aeropuertos.
   const colorOcup = colorAeropuertoPorOcupacion(ocupacionGlobal, {
+    verdeMax,
+    ambarMax,
+  });
+  // Semáforo de la flota: misma función que colorea los aviones en el mapa.
+  const colorFlota = colorVueloPorOcupacion(ocupacionFlota ?? 0, {
     verdeMax,
     ambarMax,
   });
@@ -113,7 +122,7 @@ export default function BarraMetricasCompacta({
         <Stat
           icon={<Warehouse size={12} />}
           label="Ocup"
-          value={`${ocupacionGlobal.toFixed(0)}%`}
+          value={`${ocupacionGlobal.toFixed(1)}%`}
           valueStyle={{ color: colorOcup }}
         >
           <div className="w-11 h-1 mt-1 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
@@ -126,6 +135,24 @@ export default function BarraMetricasCompacta({
             />
           </div>
         </Stat>
+        {ocupacionFlota !== undefined && (
+          <Stat
+            icon={<Plane size={12} />}
+            label="Flota"
+            value={`${ocupacionFlota.toFixed(1)}%`}
+            valueStyle={{ color: colorFlota }}
+          >
+            <div className="w-11 h-1 mt-1 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${Math.min(ocupacionFlota, 100)}%`,
+                  backgroundColor: colorFlota,
+                }}
+              />
+            </div>
+          </Stat>
+        )}
 
         <Sep />
 
