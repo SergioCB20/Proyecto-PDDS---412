@@ -152,6 +152,7 @@ export function PanelTabs({
           nodos={nodos}
           onSeguirEnMapa={onSeguirEnMapa}
           onMostrarRuta={onMostrarRuta}
+          onVerAeropuertoEnMapa={onAeropuertoVerEnMapa}
         />
       )}
     </div>

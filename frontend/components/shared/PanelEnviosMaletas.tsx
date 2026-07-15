@@ -13,6 +13,7 @@ interface PanelEnviosMaletasProps {
   nodos: { codigo_iata: string; nombre: string }[];
   onSeguirEnMapa?: (vueloId: string) => void;
   onMostrarRuta?: (segmentos: SegmentoResponse[]) => void;
+  onVerAeropuertoEnMapa?: (id: string) => void;
 }
 
 type State = {
@@ -46,7 +47,7 @@ const TAB_LABELS: Record<TabType, string> = {
   entregados: 'Entregados (4h)',
 };
 
-export function PanelEnviosMaletas({ sesionId, activo, nodos, onSeguirEnMapa, onMostrarRuta }: PanelEnviosMaletasProps) {
+export function PanelEnviosMaletas({ sesionId, activo, nodos, onSeguirEnMapa, onMostrarRuta, onVerAeropuertoEnMapa }: PanelEnviosMaletasProps) {
   const [tab, setTab] = useReducer((_: TabType, next: TabType) => next, 'planificados' as TabType);
   const [origen, setOrigen] = useReducer((_: string, next: string) => next, '');
   const [destino, setDestino] = useReducer((_: string, next: string) => next, '');
@@ -59,21 +60,21 @@ export function PanelEnviosMaletas({ sesionId, activo, nodos, onSeguirEnMapa, on
   const [expandidos, setExpandidos] = useState<Record<string, { maletas: Maleta[]; loading: boolean }>>({});
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleSeguir = useCallback(async (id: string) => {
+  const handleVerEnMapa = useCallback(async (id: string) => {
     setSiguiendoId(id);
     try {
       const plan = await fetchPlanViaje(id);
       if (plan.ubicacion_actual?.tipo === 'VUELO') {
         onSeguirEnMapa?.(plan.ubicacion_actual.referencia_id);
-      } else {
-        alert('La maleta no está en un vuelo actualmente');
+      } else if (plan.ubicacion_actual?.tipo === 'NODO') {
+        onVerAeropuertoEnMapa?.(plan.ubicacion_actual.referencia_id);
       }
     } catch {
-      alert('Error al obtener información de la maleta');
+      // silent fail
     } finally {
       setSiguiendoId(null);
     }
-  }, [onSeguirEnMapa]);
+  }, [onSeguirEnMapa, onVerAeropuertoEnMapa]);
 
   const handleMostrarRuta = useCallback(async (id: string) => {
     setMostrandoRutaId(id);
@@ -251,12 +252,12 @@ export function PanelEnviosMaletas({ sesionId, activo, nodos, onSeguirEnMapa, on
                       )}
                     </button>
                     <div className="flex items-center gap-2 shrink-0">
-                      {tab === 'en_vuelo' && onSeguirEnMapa && (
+                      {onSeguirEnMapa && (
                         <button
-                          onClick={() => handleSeguir(item.equipaje_id)}
+                          onClick={() => handleVerEnMapa(item.equipaje_id)}
                           disabled={siguiendoId === item.equipaje_id}
                           className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 hover:text-emerald-600 dark:hover:text-emerald-400 disabled:opacity-50 disabled:cursor-wait"
-                          title="Seguir en mapa"
+                          title="Ver en mapa"
                         >
                           {siguiendoId === item.equipaje_id ? (
                             <Loader2 size={14} className="animate-spin" />
@@ -310,10 +311,10 @@ export function PanelEnviosMaletas({ sesionId, activo, nodos, onSeguirEnMapa, on
                                 {onSeguirEnMapa && (
                                   <button
                                     type="button"
-                                    onClick={() => handleSeguir(m.equipaje_id)}
+                                    onClick={() => handleVerEnMapa(m.equipaje_id)}
                                     disabled={siguiendoId === m.equipaje_id}
                                     className="p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 hover:text-emerald-600 dark:hover:text-emerald-400 disabled:opacity-50 disabled:cursor-wait"
-                                    title="Seguir en mapa"
+                                    title="Ver en mapa"
                                   >
                                     {siguiendoId === m.equipaje_id ? <Loader2 size={10} className="animate-spin" /> : <MapPin size={10} />}
                                   </button>
