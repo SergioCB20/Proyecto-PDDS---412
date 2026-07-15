@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import {
   Package,
   RefreshCw,
@@ -26,16 +26,17 @@ import {
   ZoomIn,
 } from "lucide-react";
 import dynamic from "next/dynamic";
-import { api, fetchReporte } from "@/lib/api";
+import { api } from "@/lib/api";
 import { aeropuertoToEnMapa } from "@/lib/mock";
 import { useTelemetria } from "@/lib/useTelemetria";
-import { colorAeropuertoPorOcupacion } from "@/lib/colors";
+import { useMapaData, matchEstadoVuelo } from "@/lib/useMapaData";
+import { useSimulacionSesion } from "@/lib/useSimulacionSesion";
+import { colorAeropuertoPorOcupacion, type ColorSemaforo } from "@/lib/colors";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Modal } from "@/components/ui/Modal";
-import { device } from "@/lib/device";
 import { Card } from "@/components/ui/Card";
 import { PanelAeropuertosOperacion } from "@/components/operacion/PanelAeropuertosOperacion";
 import { PanelVuelosOperacion } from "@/components/operacion/PanelVuelosOperacion";
@@ -53,7 +54,12 @@ import DockIconos from "@/components/mapa/DockIconos";
 import PanelFlotante from "@/components/mapa/PanelFlotante";
 import BarraMetricasCompacta from "@/components/mapa/BarraMetricasCompacta";
 import TiemposInfo from "@/components/mapa/TiemposInfo";
-import { formatearFechaHora } from "@/lib/formatearHora";
+import CommandBarSimulacion from "@/components/mapa/CommandBarSimulacion";
+import {
+  formatearFechaHora,
+  formatearFechaHoraSinSeg,
+  formatDuracionHHMMSS,
+} from "@/lib/formatearHora";
 import type {
   Aeropuerto,
   Vuelo,
@@ -63,35 +69,10 @@ import type {
   CrearEquipajeResponse,
   CargaMasivaPreview,
   CargaMasivaConfirmResponse,
-  MetricasSimulacion,
-  ReporteSesion,
   ReporteOperacion,
   RutaDestacada,
   SegmentoResponse,
-  PlantillaResumen,
 } from "@/lib/types";
-
-interface CancelResultEquipaje {
-  id: string;
-  codigo: string;
-  origen_iata: string;
-  destino_iata: string;
-}
-
-interface CancelResult {
-  vueloId: string;
-  codigo: string;
-  loteId: string;
-  equipajes: CancelResultEquipaje[];
-}
-
-interface CancelResultResponse {
-  vuelo_id: string;
-  estado_nuevo: string;
-  equipajes_afectados: number;
-  lote_replanificacion_id: string;
-  equipajes: CancelResultEquipaje[];
-}
 
 const GeoMapa = dynamic(() => import("@/components/mapa/GeoMapa"), {
   ssr: false,
@@ -111,24 +92,6 @@ function useReloj() {
   return hora;
 }
 
-const ESTADOS_VUELO_VALIDOS = [
-  "PROGRAMADO",
-  "EN_RUTA",
-  "CANCELADO",
-  "COMPLETADO",
-] as const;
-
-function matchEstadoVuelo(valor: string): VueloEnMapa["estado"] {
-  if (
-    ESTADOS_VUELO_VALIDOS.includes(
-      valor as (typeof ESTADOS_VUELO_VALIDOS)[number],
-    )
-  ) {
-    return valor as VueloEnMapa["estado"];
-  }
-  return "PROGRAMADO";
-}
-
 type DashboardMode = "operacion" | "simulacion" | "colapso";
 
 interface SesionListaItem {
@@ -141,9 +104,6 @@ interface SesionListaItem {
   dispositivo_id: string | null;
 }
 
-interface SesionResponse {
-  id: string;
-}
 
 export default function DashboardPage() {
   const [mode, setMode] = useState<DashboardMode>("operacion");
@@ -179,7 +139,7 @@ export default function DashboardPage() {
               onClick={() => setMode("operacion")}
               className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
                 mode === "operacion"
-                  ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-b-2 border-blue-500"
+                  ? "bg-info/10 text-info dark:text-info-soft border-b-2 border-info"
                   : "text-slate-600 hover:text-slate-700 dark:hover:text-slate-300"
               }`}
             >
@@ -190,7 +150,7 @@ export default function DashboardPage() {
               onClick={() => setMode("simulacion")}
               className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
                 mode === "simulacion"
-                  ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-b-2 border-blue-500"
+                  ? "bg-info/10 text-info dark:text-info-soft border-b-2 border-info"
                   : "text-slate-600 hover:text-slate-700 dark:hover:text-slate-300"
               }`}
             >
@@ -201,7 +161,7 @@ export default function DashboardPage() {
               onClick={() => setMode("colapso")}
               className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
                 mode === "colapso"
-                  ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-b-2 border-blue-500"
+                  ? "bg-info/10 text-info dark:text-info-soft border-b-2 border-info"
                   : "text-slate-600 hover:text-slate-700 dark:hover:text-slate-300"
               }`}
             >
@@ -296,6 +256,12 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   );
   const hora = useReloj();
 
+  // Inicio de la jornada. Operación corre en TIEMPO REAL (OperacionTickService usa
+  // el reloj de pared, no hay reloj virtual), así que el "momento simulado" y el
+  // "momento actual" coinciden: se muestran inicio + actual + transcurrido — la
+  // variante de "2 datos de tiempos" que admite el criterio de evaluación.
+  const [inicioOperacionMs, setInicioOperacionMs] = useState(0);
+
   useEffect(() => {
     api
       .get<{ estado: string; sesion_id?: string }>("/operacion/estado")
@@ -303,6 +269,13 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
         if (r.sesion_id) setSesionId(r.sesion_id);
         if (r.estado === "ACTIVO") setEstadoSesion("EN_CURSO");
         else if (r.estado === "PAUSADO") setEstadoSesion("PAUSADA");
+        // Rescata el inicio de jornada tras una recarga, para no perder el
+        // "transcurrido" mientras la operación sigue activa.
+        if (r.estado === "ACTIVO" || r.estado === "PAUSADO") {
+          const guardado = localStorage.getItem("sesion_operacion_inicio");
+          const ms = guardado ? new Date(guardado).getTime() : NaN;
+          if (!Number.isNaN(ms)) setInicioOperacionMs(ms);
+        }
       })
       .catch(() => {});
   }, []);
@@ -329,6 +302,9 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   );
   const [rutaDestacadaOp, setRutaDestacadaOp] = useState<RutaDestacada | null>(null);
   const [filtroContinenteOp, setFiltroContinenteOp] = useState<string>('');
+  // Filtros por semáforo: viven en la vista para reflejarse en panel Y mapa.
+  const [filtroColorAeroOp, setFiltroColorAeroOp] = useState<'' | ColorSemaforo>('');
+  const [filtroColorVueloOp, setFiltroColorVueloOp] = useState<'' | ColorSemaforo>('');
   const [aeroSeleccionado, setAeroSeleccionado] = useState<string | null>(null);
   const [vueloSeleccionadoOp, setVueloSeleccionadoOp] = useState<string | null>(null);
 
@@ -567,6 +543,14 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
       );
       if (res.sesion_id) setSesionId(res.sesion_id);
       setEstadoSesion("EN_CURSO");
+      // Marca el inicio de la jornada; se persiste para sobrevivir recargas y lo
+      // reutilizan los paneles que consultan "entregados desde".
+      const ahoraMs = Date.now();
+      setInicioOperacionMs(ahoraMs);
+      localStorage.setItem(
+        "sesion_operacion_inicio",
+        new Date(ahoraMs).toISOString(),
+      );
     } catch (err: unknown) {
       const e = err as { mensaje?: string; message?: string };
       setApiError(e.mensaje || e.message || "Error al iniciar operación");
@@ -611,6 +595,8 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
       );
       setSesionId(null);
       setEstadoSesion("FINALIZADA");
+      setInicioOperacionMs(0);
+      localStorage.removeItem("sesion_operacion_inicio");
       for (let i = 0; i < 10; i++) {
         await new Promise((r) => setTimeout(r, 600));
         try {
@@ -646,6 +632,17 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     const sumCap = aeropuertos.reduce((s, a) => s + (a.capacidad_almacen || 0), 0);
     return sumCap > 0 ? (sumOcup / sumCap) * 100 : 0;
   }, [aeropuertos]);
+
+  // Ocupación agregada de la flota de UT (criterios 84-85), con el mismo
+  // semáforo que colorea los aviones en el mapa.
+  const ocupacionFlota = useMemo(() => {
+    const sumOcup = allVuelos.reduce(
+      (s, v) => s + ((v.capacidad_carga || 0) - (v.carga_disponible || 0)),
+      0,
+    );
+    const sumCap = allVuelos.reduce((s, v) => s + (v.capacidad_carga || 0), 0);
+    return sumCap > 0 ? (sumOcup / sumCap) * 100 : 0;
+  }, [allVuelos]);
 
   const metricasOpSim = telemetria?.metricas_sesion;
 
@@ -720,6 +717,8 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
           onAeropuertoClick={handleAeropuertoClickOp}
           onVueloSeleccionado={handleVueloSeleccionadoOp}
           continenteFiltro={filtroContinenteOp || undefined}
+          filtroColorAeropuerto={filtroColorAeroOp || undefined}
+          filtroColorVuelo={filtroColorVueloOp || undefined}
           mostrarZoom={zoomVisibleOp}
           onCerrarZoom={() => setZoomVisibleOp(false)}
         >
@@ -729,6 +728,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               cancelados={metricasOpSim?.vuelos_cancelados ?? 0}
               replanificadas={metricasOpSim?.maletas_replanificadas ?? 0}
               ocupacionGlobal={ocupacionGlobal}
+              ocupacionFlota={ocupacionFlota}
               verdeMax={configUmbrales.verdeMax}
               ambarMax={configUmbrales.ambarMax}
               vuelosActivos={vuelosActivosOp}
@@ -753,6 +753,26 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                     {formatearFechaHora(hora.toISOString())}
                   </span>
                 </div>
+                {inicioOperacionMs > 0 && (
+                  <>
+                    <div className="flex justify-between gap-2">
+                      <span>Inicio:</span>
+                      <span className="font-mono font-medium text-slate-700 dark:text-slate-300">
+                        {formatearFechaHoraSinSeg(
+                          new Date(inicioOperacionMs).toISOString(),
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span>Transcurrido:</span>
+                      <span className="font-mono font-medium text-slate-700 dark:text-slate-300">
+                        {formatDuracionHHMMSS(
+                          Math.floor((hora.getTime() - inicioOperacionMs) / 1000),
+                        )}
+                      </span>
+                    </div>
+                  </>
+                )}
                 <div className="flex justify-between gap-2">
                   <span>Estado:</span>
                   <span className={`font-mono font-medium ${estadoSesion === "EN_CURSO" ? "text-green-600" : estadoSesion === "PAUSADA" ? "text-amber-600" : "text-slate-600"}`}>
@@ -849,6 +869,10 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                 umbralesConfig={configUmbrales}
                 filtroContinente={filtroContinenteOp}
                 onFiltroContinenteChange={setFiltroContinenteOp}
+                filtroColorAeropuerto={filtroColorAeroOp}
+                onFiltroColorAeropuertoChange={setFiltroColorAeroOp}
+                filtroColorVuelo={filtroColorVueloOp}
+                onFiltroColorVueloChange={setFiltroColorVueloOp}
               />
             </PanelFlotante>
           )}
@@ -1031,35 +1055,49 @@ function SimulacionView({
 }: {
   configUmbrales: UmbralesConfig;
 }) {
-  const [sesionId, setSesionId] = useState<string | null>(null);
-  const [inicioRealMs, setInicioRealMs] = useState(0);
-  const [estadoSesion, setEstadoSesion] = useState<
-    "CONFIGURADA" | "EN_CURSO" | "PAUSADA" | "FINALIZADA"
-  >("CONFIGURADA");
-  const [cancelResult, setCancelResult] = useState<CancelResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [sesionesActivas, setSesionesActivas] = useState<SesionListaItem[]>([]);
-  const [finalizandoId, setFinalizandoId] = useState<string | null>(null);
+  const {
+    sesionId,
+    estadoSesion,
+    inicioRealMs,
+    cancelResult,
+    loading,
+    error,
+    finalizandoId,
+    reporte,
+    plantillas,
+    simReady,
+    simulacionConfig,
+    metricas,
+    telemetria,
+    wsConnected,
+    initialAeropuertos,
+    initialVuelos,
+    hora,
+    currentDeviceId,
+    sesionEnCurso,
+    sesionPausada,
+    isDuenioSesionActual,
+    setSesionId,
+    setEstadoSesion,
+    setInicioRealMs,
+    setSimulacionConfig,
+    setCancelResult,
+    setReporte,
+    setLoading,
+    setError,
+    handleIniciar,
+    handlePausar,
+    handleReanudar,
+    handleDetener,
+    handleCancelarVuelo,
+  } = useSimulacionSesion({ configUmbrales });
+
+  // Estado de UI propio de esta vista (paneles, filtros, selección) — no compartido.
   const [dockAbiertas, setDockAbiertas] = useState<Set<string>>(new Set());
   const [dockCollapsed, setDockCollapsed] = useState(false);
   const [metricaVisibleSim, setMetricaVisibleSim] = useState(true);
   const [relojVisibleSim, setRelojVisibleSim] = useState(true);
   const [zoomVisibleSim, setZoomVisibleSim] = useState(true);
-  const [reporte, setReporte] = useState<ReporteSesion | null>(null);
-
-  const [simulacionConfig, setSimulacionConfig] = useState({
-    fecha_inicio_virtual: "2026-01-02",
-    hora_inicio_virtual: "08:00",
-  });
-
-  const { data: telemetria, connected: wsConnected } = useTelemetria(
-    estadoSesion === "EN_CURSO",
-  );
-  const [initialAeropuertos, setInitialAeropuertos] = useState<
-    AeropuertoEnMapa[]
-  >([]);
-  const [initialVuelos, setInitialVuelos] = useState<VueloEnMapa[]>([]);
   const [selectedEnvio, setSelectedEnvio] = useState<SelectedEnvioConsolidado | null>(
     null,
   );
@@ -1076,222 +1114,23 @@ function SimulacionView({
   const [aeroSeleccionadoSim, setAeroSeleccionadoSim] = useState<string | null>(null);
   const [vueloSeleccionadoSim, setVueloSeleccionadoSim] = useState<string | null>(null);
   const [filtroContinenteSim, setFiltroContinenteSim] = useState<string>('');
-  const [plantillas, setPlantillas] = useState<PlantillaResumen[]>([]);
+  // Filtros por semáforo: viven en la vista para reflejarse en panel Y mapa.
+  const [filtroColorAeroSim, setFiltroColorAeroSim] = useState<'' | ColorSemaforo>('');
+  const [filtroColorVueloSim, setFiltroColorVueloSim] = useState<'' | ColorSemaforo>('');
 
-  const [metricasPoll, setMetricasPoll] = useState<MetricasSimulacion>({
-    sesion_id: "",
-    estado: "CONFIGURADA",
-    dia_hora_virtual: "",
-    segundos_reales_transcurridos: 0,
-    sla_acumulado_pct: 100,
-    vuelos_cancelados: 0,
-    maletas_replanificadas: 0,
+  // Datos del mapa desde una fuente única de verdad (WebSocket en vivo / REST en
+  // vista previa). Lógica compartida con la vista de Colapso — ver useMapaData.
+  const { aeropuertosMapa, vuelosMapa, vuelosVisibles } = useMapaData({
+    telemetria,
+    estadoSesion,
+    sesionId,
+    initialAeropuertos,
+    initialVuelos,
+    configUmbrales,
+    vueloFilterOrigen,
+    vueloFilterDestino,
+    equipajeFilter,
   });
-
-  const sesionIdRef = useRef<string | null>(null);
-  useEffect(() => {
-    sesionIdRef.current = sesionId;
-  }, [sesionId]);
-
-  const metricas = telemetria?.metricas_sesion ?? metricasPoll;
-  const hora = useReloj();
-
-  // Plantillas: una fila por codigo_vuelo. Solo se cargan cuando la sesion ya esta
-  // en movimiento (no en CONFIGURADA), porque la regla hoy/mañana requiere el reloj
-  // virtual que solo existe una vez arrancada.
-  useEffect(() => {
-    if (!sesionId || estadoSesion === "CONFIGURADA" || estadoSesion === "FINALIZADA") {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPlantillas([]);
-      return;
-    }
-    api
-      .get<VueloPageResponse>("/vuelos?es_plantilla=true&size=500")
-      .then((r) => {
-        setPlantillas(
-          r.content.map((v) => ({
-            id: v.id,
-            codigo_vuelo: v.codigo_vuelo,
-            origen_iata: v.origen.codigo_iata,
-            destino_iata: v.destino.codigo_iata,
-            hora_salida: v.hora_salida,
-            hora_llegada: v.hora_llegada,
-          })),
-        );
-      })
-      .catch(() => setPlantillas([]));
-  }, [sesionId, estadoSesion]);
-
-  const [simReady, setSimReady] = useState(false);
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSimReady(false);
-  }, [sesionId]);
-  useEffect(() => {
-    if (
-      sesionId &&
-      estadoSesion === "EN_CURSO" &&
-      telemetria?.sesion_id === sesionId &&
-      (telemetria?.metricas_sesion?.segundos_reales_transcurridos ?? 0) > 0
-    ) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setSimReady(true);
-    }
-  }, [telemetria, sesionId, estadoSesion]);
-
-  useEffect(() => {
-    api
-      .get<SesionListaItem[]>("/sesiones?estado=EN_CURSO")
-      .then((enCurso) =>
-        api
-          .get<SesionListaItem[]>("/sesiones?estado=PAUSADA")
-          .then((pausadas) => {
-            setSesionesActivas([...enCurso, ...pausadas]);
-          }),
-      )
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (!sesionId || estadoSesion === "FINALIZADA") return;
-    const targetSesionId = sesionId;
-    const interval = setInterval(() => {
-      api
-        .get<MetricasSimulacion>(`/sesiones/${targetSesionId}/metricas`)
-        .then((m) => {
-          if (!sesionIdRef.current || sesionIdRef.current !== targetSesionId)
-            return;
-          setMetricasPoll(m);
-        })
-        .catch(() => {});
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [sesionId, estadoSesion]);
-
-  // Aeropuertos visibles aun antes de iniciar la simulacion (solo nodos, sin vuelos).
-  useEffect(() => {
-    api
-      .get<Aeropuerto[]>("/nodos")
-      .then((aeropuertosData) => {
-        setInitialAeropuertos(
-          aeropuertosData.map((n) => {
-            const pct =
-              n.capacidad_almacen > 0
-                ? (n.ocupacion_actual / n.capacidad_almacen) * 100
-                : 0;
-            return {
-              ...n,
-              color: colorAeropuertoPorOcupacion(pct, {
-                verdeMax: configUmbrales.verdeMax,
-                ambarMax: configUmbrales.ambarMax,
-              }),
-              ocupacionPorcentaje: pct,
-            };
-          }),
-        );
-      })
-      .catch(() => {});
-  }, [configUmbrales.verdeMax, configUmbrales.ambarMax]);
-
-  useEffect(() => {
-    if (!sesionId) return;
-    const cargar = () => {
-      api
-        .get<Aeropuerto[]>("/nodos")
-        .then((aeropuertosData) => {
-          setInitialAeropuertos(
-            aeropuertosData.map((n) => {
-              const pct =
-                n.capacidad_almacen > 0
-                  ? (n.ocupacion_actual / n.capacidad_almacen) * 100
-                  : 0;
-              return {
-                ...n,
-                color: colorAeropuertoPorOcupacion(pct, {
-                  verdeMax: configUmbrales.verdeMax,
-                  ambarMax: configUmbrales.ambarMax,
-                }),
-                ocupacionPorcentaje: pct,
-              };
-            }),
-          );
-        })
-        .catch(() => {});
-      api
-        .get<VueloPageResponse>("/vuelos?size=200&estado=PROGRAMADO")
-        .then((r1) => {
-          api
-            .get<VueloPageResponse>("/vuelos?size=200&estado=EN_RUTA")
-            .then((r2) => {
-              setInitialVuelos(
-                [...r1.content, ...r2.content].map((v: Vuelo): VueloEnMapa => ({
-                  ...v,
-                })),
-              );
-            })
-            .catch(() => {});
-        })
-        .catch(() => {});
-    };
-    cargar();
-    const interval = setInterval(cargar, 5000);
-    return () => clearInterval(interval);
-  }, [sesionId, configUmbrales.verdeMax, configUmbrales.ambarMax]);
-
-  const currentDeviceId = typeof window !== 'undefined' ? device.getId() : '';
-  const sesionEnCurso = sesionesActivas.find((s) => s.estado === "EN_CURSO");
-  const sesionPausada = sesionesActivas.find((s) => s.estado === "PAUSADA");
-  const isDuenioSesionActual = sesionId && (
-    !sesionesActivas.some((s) => s.id === sesionId)
-    || sesionesActivas.some((s) => s.id === sesionId && s.dispositivo_id === currentDeviceId)
-  );
-
-  const aeropuertosMapa: AeropuertoEnMapa[] =
-    (telemetria?.nodos ?? []).length > 0
-      ? (telemetria?.nodos ?? []).map((n) => ({
-          id: n.id,
-          codigo_iata: n.codigo_iata,
-          nombre: n.codigo_iata,
-          latitud: n.lat,
-          longitud: n.lon,
-          capacidad_almacen: n.capacidad_almacen,
-          ocupacion_actual: n.ocupacion_actual,
-          zona_horaria: "",
-          color: colorAeropuertoPorOcupacion(n.ocupacion_pct, {
-            verdeMax: configUmbrales.verdeMax,
-            ambarMax: configUmbrales.ambarMax,
-          }),
-          ocupacionPorcentaje: n.ocupacion_pct,
-          continente: n.continente,
-        }))
-      : initialAeropuertos;
-
-  const vuelosMapa: VueloEnMapa[] =
-    (telemetria?.vuelos ?? []).length > 0
-      ? telemetria!.vuelos.map((v) => ({
-          id: v.id,
-          codigo_vuelo: v.codigo_vuelo,
-          estado: matchEstadoVuelo(v.estado),
-          origen: { id: "", codigo_iata: v.origen_iata, nombre: v.origen_iata },
-          destino: {
-            id: "",
-            codigo_iata: v.destino_iata,
-            nombre: v.destino_iata,
-          },
-          origen_lat: v.origen_lat,
-          origen_lon: v.origen_lon,
-          destino_lat: v.destino_lat,
-          destino_lon: v.destino_lon,
-          hora_salida: v.hora_salida ?? "",
-          hora_llegada: v.hora_llegada ?? "",
-          capacidad_carga: v.capacidad_carga,
-          carga_disponible: v.carga_disponible,
-          es_plantilla: false,
-          fecha_operacion: "",
-          posicionActual: { lat: v.lat_actual, lon: v.lon_actual },
-          progreso: v.progreso,
-        }))
-      : initialVuelos;
 
   const vuelosSimActivos = vuelosMapa.filter(
     (v) => v.estado === "EN_RUTA",
@@ -1325,144 +1164,6 @@ function SimulacionView({
     }
   }, [aeropuertosMapa]);
 
-  const handleIniciar = async () => {
-    setError("");
-    setLoading(true);
-    setReporte(null);
-    try {
-      const res = await api.post<SesionResponse>("/sesiones", {
-        tipo: "SIMULADA",
-        fecha_inicio_virtual: simulacionConfig.fecha_inicio_virtual,
-        hora_inicio_virtual: simulacionConfig.hora_inicio_virtual + ":00",
-        umbrales_almacen: {
-          verde_min: 0,
-          verde_max: configUmbrales.verdeMax,
-          ambar_min: configUmbrales.verdeMax,
-          ambar_max: configUmbrales.ambarMax,
-          rojo_min: configUmbrales.ambarMax,
-          rojo_max: 100,
-        },
-        umbrales_vuelo: {
-          verde_min: 0,
-          verde_max: configUmbrales.verdeMax,
-          ambar_min: configUmbrales.verdeMax,
-          ambar_max: configUmbrales.ambarMax,
-          rojo_min: configUmbrales.ambarMax,
-          rojo_max: 100,
-        },
-      });
-      await api.post(`/sesiones/${res.id}/iniciar`, {});
-      setSesionId(res.id);
-      setInicioRealMs(hora.getTime());
-      setEstadoSesion("EN_CURSO");
-      setSesionesActivas([]);
-      setMetricasPoll({
-        sesion_id: res.id,
-        estado: "EN_CURSO",
-        dia_hora_virtual: "",
-        segundos_reales_transcurridos: 0,
-        sla_acumulado_pct: 100,
-        vuelos_cancelados: 0,
-        maletas_replanificadas: 0,
-      });
-      setInitialVuelos([]);
-      setInitialAeropuertos([]);
-    } catch (err: unknown) {
-      const e = err as { mensaje?: string; message?: string };
-      setError(e.mensaje || e.message || "Error al crear sesion");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePausar = async () => {
-    if (!sesionId) return;
-    setLoading(true);
-    try {
-      await api.post(`/sesiones/${sesionId}/pausar`, {});
-      setEstadoSesion("PAUSADA");
-    } catch {
-      setError("Error al pausar");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleReanudar = async () => {
-    if (!sesionId) return;
-    setLoading(true);
-    setError("");
-    try {
-      const otrasActivas = await api
-        .get<SesionListaItem[]>("/sesiones?estado=EN_CURSO")
-        .catch(() => [] as SesionListaItem[]);
-      for (const s of otrasActivas) {
-        if (s.id !== sesionId) {
-          try {
-            await api.post(`/sesiones/${s.id}/detener`, {});
-          } catch {
-            /* ignore */
-          }
-        }
-      }
-      await api.post(`/sesiones/${sesionId}/iniciar`, {});
-      setInicioRealMs(hora.getTime());
-      setEstadoSesion("EN_CURSO");
-    } catch (err: unknown) {
-      const e = err as { mensaje?: string; message?: string };
-      setError(e.mensaje || e.message || "Error al reanudar");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDetener = async (id: string) => {
-    setFinalizandoId(id);
-    setError("");
-    try {
-      await api.post(`/sesiones/${id}/detener`, {});
-      setSesionesActivas((prev) => prev.filter((s) => s.id !== id));
-      if (id === sesionId) {
-        setSesionId(null);
-        setEstadoSesion("FINALIZADA");
-        setInicioRealMs(0);
-      }
-      for (let i = 0; i < 10; i++) {
-        await new Promise((r) => setTimeout(r, 600));
-        try {
-          const r = await fetchReporte(id);
-          setReporte(r);
-          break;
-        } catch {
-          /* report not ready yet */
-        }
-      }
-    } catch (err: unknown) {
-      const e = err as { mensaje?: string; message?: string };
-      setError(e.mensaje || e.message || "Error al detener");
-    } finally {
-      setFinalizandoId(null);
-    }
-  };
-
-  const handleCancelarVuelo = async (id: string, codigo: string) => {
-    if (!confirm(`¿Cancelar vuelo ${codigo}?`)) return;
-    try {
-      const res = await api.post<CancelResultResponse>(
-        "/simulacion/cancelacion",
-        { vuelo_id: id, causa: "Cancelación manual", sesion_id: sesionId },
-      );
-      setCancelResult({
-        vueloId: res.vuelo_id,
-        codigo,
-        loteId: res.lote_replanificacion_id,
-        equipajes: res.equipajes ?? [],
-      });
-    } catch {
-      alert("Error al cancelar vuelo");
-    }
-  };
-
   const k = useMemo(() => telemetria?.metricas_sesion?.k ?? 120, [telemetria]);
   const animacionActiva =
     wsConnected && (vuelosMapa.some((v) => v.estado === "EN_RUTA") ?? false);
@@ -1472,6 +1173,17 @@ function SimulacionView({
     const sumCap = aeropuertosMapa.reduce((s, a) => s + (a.capacidad_almacen || 0), 0);
     return sumCap > 0 ? (sumOcup / sumCap) * 100 : 0;
   }, [aeropuertosMapa]);
+
+  // Ocupación agregada de la flota de UT (criterios 84-85), con el mismo
+  // semáforo que colorea los aviones en el mapa.
+  const ocupacionFlota = useMemo(() => {
+    const sumOcup = vuelosMapa.reduce(
+      (s, v) => s + ((v.capacidad_carga || 0) - (v.carga_disponible || 0)),
+      0,
+    );
+    const sumCap = vuelosMapa.reduce((s, v) => s + (v.capacidad_carga || 0), 0);
+    return sumCap > 0 ? (sumOcup / sumCap) * 100 : 0;
+  }, [vuelosMapa]);
 
   const toggleDock = useCallback((id: string) => {
     if (id === 'metricas') { setMetricaVisibleSim((v) => !v); return; }
@@ -1497,22 +1209,7 @@ function SimulacionView({
     <div className="relative h-full overflow-hidden">
       <GeoMapa
           aeropuertos={aeropuertosMapa}
-          vuelos={
-            estadoSesion === "EN_CURSO" || estadoSesion === "PAUSADA"
-              ? vuelosMapa.filter(
-                  (v) =>
-                    (v.estado === "EN_RUTA" || v.estado === "PROGRAMADO") &&
-                    (!vueloFilterOrigen ||
-                      v.origen.codigo_iata === vueloFilterOrigen) &&
-                    (!vueloFilterDestino ||
-                      v.destino.codigo_iata === vueloFilterDestino) &&
-                    (equipajeFilter === "todos" ||
-                      (equipajeFilter === "con_equipaje"
-                        ? v.carga_disponible < v.capacidad_carga
-                        : v.carga_disponible >= v.capacidad_carga)),
-                )
-              : []
-          }
+          vuelos={vuelosVisibles}
           mostrarAviones={true}
           animacionActiva={animacionActiva}
           k={k}
@@ -1538,6 +1235,8 @@ function SimulacionView({
           onAeropuertoClick={handleAeropuertoClickSim}
           onVueloSeleccionado={handleVueloSeleccionadoSim}
           continenteFiltro={filtroContinenteSim || undefined}
+          filtroColorAeropuerto={filtroColorAeroSim || undefined}
+          filtroColorVuelo={filtroColorVueloSim || undefined}
           mostrarZoom={zoomVisibleSim}
           onCerrarZoom={() => setZoomVisibleSim(false)}
         >
@@ -1547,6 +1246,7 @@ function SimulacionView({
               cancelados={metricas.vuelos_cancelados}
               replanificadas={metricas.maletas_replanificadas}
               ocupacionGlobal={ocupacionGlobal}
+              ocupacionFlota={ocupacionFlota}
               verdeMax={configUmbrales.verdeMax}
               ambarMax={configUmbrales.ambarMax}
               vuelosActivos={vuelosSimActivos}
@@ -1568,6 +1268,21 @@ function SimulacionView({
             </div>
           )}
         </GeoMapa>
+        <CommandBarSimulacion
+          estado={estadoSesion}
+          wsConnected={wsConnected}
+          diaHoraVirtual={metricas?.dia_hora_virtual}
+          loading={loading}
+          finalizando={finalizandoId === sesionId}
+          esDuenio={!!isDuenioSesionActual}
+          onIniciar={handleIniciar}
+          onPausar={handlePausar}
+          onReanudar={handleReanudar}
+          onDetener={() => {
+            if (sesionId) handleDetener(sesionId);
+          }}
+          onAbrirConfig={() => toggleDock("sesion")}
+        />
         {sesionId && estadoSesion === "EN_CURSO" && !simReady && (
           <div className="absolute inset-0 z-50">
             <SimulacionLoadingOverlay visible={true} />
@@ -1605,6 +1320,7 @@ function SimulacionView({
                 <div className="p-4">
                   <PanelAeropuertosOperacion
                     aeropuertos={telemetria?.nodos ?? []}
+                    vuelos={telemetria?.vuelos ?? []}
                     onAeropuertoClick={(id, codigo) =>
                       setSelectedEnvio({ tipo: "nodo", id, codigo })
                     }
@@ -1616,6 +1332,8 @@ function SimulacionView({
                     seleccionadoId={aeroSeleccionadoSim ?? undefined}
                     filtroContinente={filtroContinenteSim}
                     onFiltroContinenteChange={setFiltroContinenteSim}
+                    filtroColor={filtroColorAeroSim}
+                    onFiltroColorChange={setFiltroColorAeroSim}
                   />
                 </div>
               ) : (
@@ -1657,6 +1375,8 @@ function SimulacionView({
                   }}
                   seguidoId={seguidoVueloId ?? undefined}
                   seleccionadoId={vueloSeleccionadoSim ?? undefined}
+                  filtroColor={filtroColorVueloSim}
+                  onFiltroColorChange={setFiltroColorVueloSim}
                   origenFilter={vueloFilterOrigen}
                   destinoFilter={vueloFilterDestino}
                   onFilterChange={({ origen, destino }) => {
@@ -1921,36 +1641,48 @@ function SimulacionView({
 }
 
 function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
-  const [sesionId, setSesionId] = useState<string | null>(null);
-  const [inicioRealMs, setInicioRealMs] = useState(0);
-  const [estadoSesion, setEstadoSesion] = useState<
-    "CONFIGURADA" | "EN_CURSO" | "PAUSADA" | "FINALIZADA" | "COLAPSADA"
-  >("CONFIGURADA");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [sesionesActivas, setSesionesActivas] = useState<SesionListaItem[]>([]);
-  const [finalizandoId, setFinalizandoId] = useState<string | null>(null);
+  const {
+    sesionId,
+    estadoSesion,
+    inicioRealMs,
+    cancelResult,
+    loading,
+    error,
+    finalizandoId,
+    reporte,
+    plantillas,
+    simulacionConfig,
+    metricas,
+    telemetria,
+    wsConnected,
+    initialAeropuertos,
+    initialVuelos,
+    hora,
+    currentDeviceId,
+    sesionEnCurso,
+    sesionPausada,
+    isDuenioSesionActual,
+    setSesionId,
+    setEstadoSesion,
+    setInicioRealMs,
+    setSimulacionConfig,
+    setCancelResult,
+    setReporte,
+    setLoading,
+    setError,
+    handleIniciar,
+    handlePausar,
+    handleReanudar,
+    handleDetener,
+    handleCancelarVuelo,
+  } = useSimulacionSesion({ configUmbrales, tipoSimulacion: "HASTA_COLAPSO" });
+
+  // Estado de UI propio de esta vista (paneles, filtros, selección) — no compartido.
   const [dockAbiertas, setDockAbiertas] = useState<Set<string>>(new Set());
   const [dockCollapsed, setDockCollapsed] = useState(false);
   const [metricaVisibleCol, setMetricaVisibleCol] = useState(true);
   const [relojVisibleCol, setRelojVisibleCol] = useState(true);
   const [zoomVisibleCol, setZoomVisibleCol] = useState(true);
-  const [reporte, setReporte] = useState<ReporteSesion | null>(null);
-  const [cancelResult, setCancelResult] = useState<CancelResult | null>(null);
-  const [plantillas, setPlantillas] = useState<PlantillaResumen[]>([]);
-
-  const [simulacionConfig, setSimulacionConfig] = useState({
-    fecha_inicio_virtual: "2026-01-02",
-    hora_inicio_virtual: "08:00",
-  });
-
-  const { data: telemetria, connected: wsConnected } = useTelemetria(
-    estadoSesion === "EN_CURSO",
-  );
-  const [initialAeropuertos, setInitialAeropuertos] = useState<
-    AeropuertoEnMapa[]
-  >([]);
-  const [initialVuelos, setInitialVuelos] = useState<VueloEnMapa[]>([]);
   const [selectedEnvio, setSelectedEnvio] = useState<SelectedEnvioConsolidado | null>(
     null,
   );
@@ -1966,188 +1698,24 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [rutaDestacadaCol, setRutaDestacadaCol] = useState<RutaDestacada | null>(null);
   const [aeroSeleccionadoCol, setAeroSeleccionadoCol] = useState<string | null>(null);
   const [filtroContinenteCol, setFiltroContinenteCol] = useState<string>('');
+  // Filtros por semáforo: viven en la vista para reflejarse en panel Y mapa.
+  const [filtroColorAeroCol, setFiltroColorAeroCol] = useState<'' | ColorSemaforo>('');
+  const [filtroColorVueloCol, setFiltroColorVueloCol] = useState<'' | ColorSemaforo>('');
   const [vueloSeleccionadoCol, setVueloSeleccionadoCol] = useState<string | null>(null);
 
-  const [metricasPoll, setMetricasPoll] = useState<MetricasSimulacion>({
-    sesion_id: "",
-    estado: "CONFIGURADA",
-    dia_hora_virtual: "",
-    segundos_reales_transcurridos: 0,
-    sla_acumulado_pct: 100,
-    vuelos_cancelados: 0,
-    maletas_replanificadas: 0,
+  // Datos del mapa desde una fuente única de verdad (WebSocket en vivo / REST en
+  // vista previa). Lógica compartida con la vista de Simulación — ver useMapaData.
+  const { aeropuertosMapa, vuelosMapa, vuelosVisibles } = useMapaData({
+    telemetria,
+    estadoSesion,
+    sesionId,
+    initialAeropuertos,
+    initialVuelos,
+    configUmbrales,
+    vueloFilterOrigen,
+    vueloFilterDestino,
+    equipajeFilter,
   });
-
-  const sesionIdRef = useRef<string | null>(null);
-  useEffect(() => {
-    sesionIdRef.current = sesionId;
-  }, [sesionId]);
-
-  const metricas = telemetria?.metricas_sesion ?? metricasPoll;
-  const hora = useReloj();
-
-  useEffect(() => {
-    api
-      .get<SesionListaItem[]>("/sesiones?estado=EN_CURSO")
-      .then((enCurso) =>
-        api
-          .get<SesionListaItem[]>("/sesiones?estado=PAUSADA")
-          .then((pausadas) => {
-            setSesionesActivas([...enCurso, ...pausadas]);
-          }),
-      )
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (
-      !sesionId ||
-      estadoSesion === "FINALIZADA" ||
-      estadoSesion === "COLAPSADA"
-    )
-      return;
-    const targetSesionId = sesionId;
-    const interval = setInterval(() => {
-      api
-        .get<MetricasSimulacion>(`/sesiones/${sesionId}/metricas`)
-        .then((m) => {
-          if (!sesionIdRef.current || sesionIdRef.current !== targetSesionId)
-            return;
-          setMetricasPoll(m);
-          if (m.estado === "COLAPSADA") {
-            setEstadoSesion("COLAPSADA");
-            fetchReportWithRetry(sesionId);
-          }
-        })
-        .catch(() => {});
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [sesionId, estadoSesion]);
-
-  // Aeropuertos visibles aun antes de iniciar la simulacion (solo nodos, sin vuelos).
-  useEffect(() => {
-    api
-      .get<Aeropuerto[]>("/nodos")
-      .then((aeropuertosData) => {
-        setInitialAeropuertos(
-          aeropuertosData.map((n) => {
-            const pct =
-              n.capacidad_almacen > 0
-                ? (n.ocupacion_actual / n.capacidad_almacen) * 100
-                : 0;
-            return {
-              ...n,
-              color: colorAeropuertoPorOcupacion(pct, {
-                verdeMax: configUmbrales.verdeMax,
-                ambarMax: configUmbrales.ambarMax,
-              }),
-              ocupacionPorcentaje: pct,
-            };
-          }),
-        );
-      })
-      .catch(() => {});
-  }, [configUmbrales.verdeMax, configUmbrales.ambarMax]);
-
-  useEffect(() => {
-    if (!sesionId) return;
-    const cargar = () => {
-      api
-        .get<Aeropuerto[]>("/nodos")
-        .then((aeropuertosData) => {
-          setInitialAeropuertos(
-            aeropuertosData.map((n) => {
-              const pct =
-                n.capacidad_almacen > 0
-                  ? (n.ocupacion_actual / n.capacidad_almacen) * 100
-                  : 0;
-              return {
-                ...n,
-                color: colorAeropuertoPorOcupacion(pct, {
-                  verdeMax: configUmbrales.verdeMax,
-                  ambarMax: configUmbrales.ambarMax,
-                }),
-                ocupacionPorcentaje: pct,
-              };
-            }),
-          );
-        })
-        .catch(() => {});
-      api
-        .get<VueloPageResponse>("/vuelos?size=200&estado=PROGRAMADO")
-        .then((r1) => {
-          api
-            .get<VueloPageResponse>("/vuelos?size=200&estado=EN_RUTA")
-            .then((r2) => {
-              setInitialVuelos(
-                [...r1.content, ...r2.content].map((v: Vuelo): VueloEnMapa => ({
-                  ...v,
-                })),
-              );
-            })
-            .catch(() => {});
-        })
-        .catch(() => {});
-    };
-    cargar();
-    const interval = setInterval(cargar, 5000);
-    return () => clearInterval(interval);
-  }, [sesionId, configUmbrales.verdeMax, configUmbrales.ambarMax]);
-
-  const currentDeviceId = typeof window !== 'undefined' ? device.getId() : '';
-  const sesionEnCurso = sesionesActivas.find((s) => s.estado === "EN_CURSO");
-  const sesionPausada = sesionesActivas.find((s) => s.estado === "PAUSADA");
-  const isDuenioSesionActual = sesionId && (
-    !sesionesActivas.some((s) => s.id === sesionId)
-    || sesionesActivas.some((s) => s.id === sesionId && s.dispositivo_id === currentDeviceId)
-  );
-
-  const aeropuertosMapa: AeropuertoEnMapa[] =
-    (telemetria?.nodos ?? []).length > 0
-      ? (telemetria?.nodos ?? []).map((n) => ({
-          id: n.id,
-          codigo_iata: n.codigo_iata,
-          nombre: n.codigo_iata,
-          latitud: n.lat,
-          longitud: n.lon,
-          capacidad_almacen: n.capacidad_almacen,
-          ocupacion_actual: n.ocupacion_actual,
-          zona_horaria: "",
-          color: colorAeropuertoPorOcupacion(n.ocupacion_pct, {
-            verdeMax: configUmbrales.verdeMax,
-            ambarMax: configUmbrales.ambarMax,
-          }),
-          ocupacionPorcentaje: n.ocupacion_pct,
-          continente: n.continente,
-        }))
-      : initialAeropuertos;
-
-  const vuelosMapa: VueloEnMapa[] =
-    (telemetria?.vuelos ?? []).length > 0
-      ? telemetria!.vuelos.map((v) => ({
-          id: v.id,
-          codigo_vuelo: v.codigo_vuelo,
-          estado: matchEstadoVuelo(v.estado),
-          origen: { id: "", codigo_iata: v.origen_iata, nombre: v.origen_iata },
-          destino: {
-            id: "",
-            codigo_iata: v.destino_iata,
-            nombre: v.destino_iata,
-          },
-          origen_lat: v.origen_lat,
-          origen_lon: v.origen_lon,
-          destino_lat: v.destino_lat,
-          destino_lon: v.destino_lon,
-          hora_salida: v.hora_salida ?? "",
-          hora_llegada: v.hora_llegada ?? "",
-          capacidad_carga: v.capacidad_carga,
-          carga_disponible: v.carga_disponible,
-          es_plantilla: false,
-          fecha_operacion: "",
-          posicionActual: { lat: v.lat_actual, lon: v.lon_actual },
-          progreso: v.progreso,
-        }))
-      : initialVuelos;
 
   const vuelosColActivos = vuelosMapa.filter(
     (v) => v.estado === "EN_RUTA",
@@ -2161,6 +1729,17 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     const sumCap = aeropuertosMapa.reduce((s, a) => s + (a.capacidad_almacen || 0), 0);
     return sumCap > 0 ? (sumOcup / sumCap) * 100 : 0;
   }, [aeropuertosMapa]);
+
+  // Ocupación agregada de la flota de UT (criterios 84-85), con el mismo
+  // semáforo que colorea los aviones en el mapa.
+  const ocupacionFlota = useMemo(() => {
+    const sumOcup = vuelosMapa.reduce(
+      (s, v) => s + ((v.capacidad_carga || 0) - (v.carga_disponible || 0)),
+      0,
+    );
+    const sumCap = vuelosMapa.reduce((s, v) => s + (v.capacidad_carga || 0), 0);
+    return sumCap > 0 ? (sumOcup / sumCap) * 100 : 0;
+  }, [vuelosMapa]);
 
   const handleAeropuertoClickCol = useCallback((codigoIata: string) => {
     setAeroSeleccionadoCol(codigoIata);
@@ -2186,178 +1765,6 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
       setRutaDestacadaCol({ vueloIds, coordenadas });
     }
   }, [aeropuertosMapa]);
-
-  async function fetchReportWithRetry(id: string) {
-    for (let i = 0; i < 10; i++) {
-      await new Promise((r) => setTimeout(r, 600));
-      try {
-        const r = await fetchReporte(id);
-        setReporte(r);
-        return;
-      } catch {
-        /* report not ready yet */
-      }
-    }
-  }
-
-  const handleIniciar = async () => {
-    setError("");
-    setLoading(true);
-    setReporte(null);
-    try {
-      const res = await api.post<SesionResponse>("/sesiones", {
-        tipo: "SIMULADA",
-        tipo_simulacion: "HASTA_COLAPSO",
-        fecha_inicio_virtual: simulacionConfig.fecha_inicio_virtual,
-        hora_inicio_virtual: simulacionConfig.hora_inicio_virtual + ":00",
-        umbrales_almacen: {
-          verde_min: 0,
-          verde_max: configUmbrales.verdeMax,
-          ambar_min: configUmbrales.verdeMax,
-          ambar_max: configUmbrales.ambarMax,
-          rojo_min: configUmbrales.ambarMax,
-          rojo_max: 100,
-        },
-        umbrales_vuelo: {
-          verde_min: 0,
-          verde_max: configUmbrales.verdeMax,
-          ambar_min: configUmbrales.verdeMax,
-          ambar_max: configUmbrales.ambarMax,
-          rojo_min: configUmbrales.ambarMax,
-          rojo_max: 100,
-        },
-      });
-      await api.post(`/sesiones/${res.id}/iniciar`, {});
-      setSesionId(res.id);
-      setInicioRealMs(hora.getTime());
-      setEstadoSesion("EN_CURSO");
-      setSesionesActivas([]);
-      setMetricasPoll({
-        sesion_id: res.id,
-        estado: "EN_CURSO",
-        dia_hora_virtual: "",
-        segundos_reales_transcurridos: 0,
-        sla_acumulado_pct: 100,
-        vuelos_cancelados: 0,
-        maletas_replanificadas: 0,
-      });
-      setInitialVuelos([]);
-      setInitialAeropuertos([]);
-    } catch (err: unknown) {
-      const e = err as { mensaje?: string; message?: string };
-      setError(e.mensaje || e.message || "Error al crear sesion");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePausar = async () => {
-    if (!sesionId) return;
-    setLoading(true);
-    try {
-      await api.post(`/sesiones/${sesionId}/pausar`, {});
-      setEstadoSesion("PAUSADA");
-    } catch {
-      setError("Error al pausar");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleReanudar = async () => {
-    if (!sesionId) return;
-    setLoading(true);
-    setError("");
-    try {
-      const otrasActivas = await api
-        .get<SesionListaItem[]>("/sesiones?estado=EN_CURSO")
-        .catch(() => [] as SesionListaItem[]);
-      for (const s of otrasActivas) {
-        if (s.id !== sesionId) {
-          try {
-            await api.post(`/sesiones/${s.id}/detener`, {});
-          } catch {
-            /* ignore */
-          }
-        }
-      }
-      await api.post(`/sesiones/${sesionId}/iniciar`, {});
-      setInicioRealMs(hora.getTime());
-      setEstadoSesion("EN_CURSO");
-    } catch (err: unknown) {
-      const e = err as { mensaje?: string; message?: string };
-      setError(e.mensaje || e.message || "Error al reanudar");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDetener = async (id: string) => {
-    setFinalizandoId(id);
-    setError("");
-    try {
-      await api.post(`/sesiones/${id}/detener`, {});
-      setSesionesActivas((prev) => prev.filter((s) => s.id !== id));
-      if (id === sesionId) {
-        setSesionId(null);
-        setEstadoSesion("FINALIZADA");
-        setInicioRealMs(0);
-      }
-      await fetchReportWithRetry(id);
-    } catch (err: unknown) {
-      const e = err as { mensaje?: string; message?: string };
-      setError(e.mensaje || e.message || "Error al detener");
-    } finally {
-      setFinalizandoId(null);
-    }
-  };
-
-  const handleCancelarVuelo = async (id: string, codigo: string) => {
-    if (!confirm(`¿Cancelar vuelo ${codigo}?`)) return;
-    try {
-      const res = await api.post<CancelResultResponse>(
-        "/simulacion/cancelacion",
-        { vuelo_id: id, causa: "Cancelación manual", sesion_id: sesionId },
-      );
-      setCancelResult({
-        vueloId: res.vuelo_id,
-        codigo,
-        loteId: res.lote_replanificacion_id,
-        equipajes: res.equipajes ?? [],
-      });
-      setCancelResult({
-        vueloId: res.vuelo_id,
-        codigo,
-        loteId: res.lote_replanificacion_id,
-        equipajes: res.equipajes ?? [],
-      });
-    } catch {
-      alert("Error al cancelar vuelo");
-    }
-  };
-
-  useEffect(() => {
-    if (!sesionId || estadoSesion === "CONFIGURADA" || estadoSesion === "FINALIZADA" || estadoSesion === "COLAPSADA") {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPlantillas([]);
-      return;
-    }
-    api
-      .get<VueloPageResponse>("/vuelos?es_plantilla=true&size=500")
-      .then((r) => {
-        setPlantillas(
-          r.content.map((v) => ({
-            id: v.id,
-            codigo_vuelo: v.codigo_vuelo,
-            origen_iata: v.origen.codigo_iata,
-            destino_iata: v.destino.codigo_iata,
-            hora_salida: v.hora_salida,
-            hora_llegada: v.hora_llegada,
-          })),
-        );
-      })
-      .catch(() => setPlantillas([]));
-  }, [sesionId, estadoSesion]);
 
   const k = useMemo(() => telemetria?.metricas_sesion?.k ?? 120, [telemetria]);
   const animacionActiva =
@@ -2387,22 +1794,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     <div className="relative h-full overflow-hidden">
       <GeoMapa
           aeropuertos={aeropuertosMapa}
-          vuelos={
-            estadoSesion === "EN_CURSO" || estadoSesion === "PAUSADA"
-              ? vuelosMapa.filter(
-                  (v) =>
-                    (v.estado === "EN_RUTA" || v.estado === "PROGRAMADO") &&
-                    (!vueloFilterOrigen ||
-                      v.origen.codigo_iata === vueloFilterOrigen) &&
-                    (!vueloFilterDestino ||
-                      v.destino.codigo_iata === vueloFilterDestino) &&
-                    (equipajeFilter === "todos" ||
-                      (equipajeFilter === "con_equipaje"
-                        ? v.carga_disponible < v.capacidad_carga
-                        : v.carga_disponible >= v.capacidad_carga)),
-                )
-              : []
-          }
+          vuelos={vuelosVisibles}
           mostrarAviones={true}
           animacionActiva={animacionActiva}
           k={k}
@@ -2428,6 +1820,8 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
           onAeropuertoClick={handleAeropuertoClickCol}
           onVueloSeleccionado={handleVueloSeleccionadoCol}
           continenteFiltro={filtroContinenteCol || undefined}
+          filtroColorAeropuerto={filtroColorAeroCol || undefined}
+          filtroColorVuelo={filtroColorVueloCol || undefined}
           mostrarZoom={zoomVisibleCol}
           onCerrarZoom={() => setZoomVisibleCol(false)}
         >
@@ -2437,6 +1831,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               cancelados={metricas.vuelos_cancelados}
               replanificadas={metricas.maletas_replanificadas}
               ocupacionGlobal={ocupacionGlobal}
+              ocupacionFlota={ocupacionFlota}
               verdeMax={configUmbrales.verdeMax}
               ambarMax={configUmbrales.ambarMax}
               vuelosActivos={vuelosColActivos}
@@ -2458,6 +1853,21 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
             </div>
           )}
         </GeoMapa>
+        <CommandBarSimulacion
+          estado={estadoSesion}
+          wsConnected={wsConnected}
+          diaHoraVirtual={metricas?.dia_hora_virtual}
+          loading={loading}
+          finalizando={finalizandoId === sesionId}
+          esDuenio={!!isDuenioSesionActual}
+          onIniciar={handleIniciar}
+          onPausar={handlePausar}
+          onReanudar={handleReanudar}
+          onDetener={() => {
+            if (sesionId) handleDetener(sesionId);
+          }}
+          onAbrirConfig={() => toggleDock("sesion")}
+        />
 
         <div className="absolute left-2 top-1/2 -translate-y-1/2 z-[1002] flex flex-col bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 rounded-xl">
           <DockIconos
@@ -2712,6 +2122,10 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                   onMostrarRuta={handleMostrarRutaCol}
                   filtroContinente={filtroContinenteCol}
                   onFiltroContinenteChange={setFiltroContinenteCol}
+                  filtroColorAeropuerto={filtroColorAeroCol}
+                  onFiltroColorAeropuertoChange={setFiltroColorAeroCol}
+                  filtroColorVuelo={filtroColorVueloCol}
+                  onFiltroColorVueloChange={setFiltroColorVueloCol}
                 />
               ) : (
                 <p className="text-xs text-slate-600 p-4">Sin sesión activa</p>

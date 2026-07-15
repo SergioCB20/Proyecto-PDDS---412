@@ -10,6 +10,7 @@ import type { UmbralesConfig } from './ConfigUmbrales';
 import { CENTRO, ZOOM } from './mapaConfig';
 import { formatearFechaHoraSeparado } from '@/lib/formatearHora';
 import { ciudadDe } from '@/lib/aeropuertos';
+import OcupacionBarra from './OcupacionBarra';
 
 function esCoordenadaValida(v: number): boolean {
   return Number.isFinite(v) && Math.abs(v) <= 180;
@@ -453,15 +454,12 @@ const AvionAnimado = React.memo(function AvionAnimado({
             <span className="text-slate-600">Carga: </span>
             <span className="font-bold">{ocupada}/{vuelo.capacidad_carga}</span>
           </div>
-          <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden mt-0.5">
-            <div
-              className="h-full rounded-full transition-all duration-500"
-              style={{
-                width: `${vuelo.capacidad_carga > 0 ? (ocupada / vuelo.capacidad_carga) * 100 : 0}%`,
-                backgroundColor: colorVueloPorOcupacion(pctOcup, umbralesConfig),
-              }}
-            />
-          </div>
+          <OcupacionBarra
+            ocupada={ocupada}
+            total={vuelo.capacidad_carga}
+            umbralesConfig={umbralesConfig}
+            className="mt-0.5"
+          />
         </div>
       </Tooltip>
       <Popup>
@@ -496,20 +494,9 @@ const AvionAnimado = React.memo(function AvionAnimado({
           </div>
           <div
             className="px-2 py-1 rounded text-white text-xs font-bold"
-            style={{
-              backgroundColor: (() => {
-                const pct = vuelo.capacidad_carga > 0 ? (ocupada / vuelo.capacidad_carga) * 100 : 0;
-                const vm = umbralesConfig?.verdeMax ?? 70;
-                const am = umbralesConfig?.ambarMax ?? 90;
-                if (pct < vm) return '#22c55e';
-                if (pct < am) return '#eab308';
-                return '#ef4444';
-              })(),
-            }}
+            style={{ backgroundColor: colorVueloPorOcupacion(pctOcup, umbralesConfig) }}
           >
-            {vuelo.capacidad_carga > 0
-              ? ((ocupada / vuelo.capacidad_carga) * 100).toFixed(0)
-              : 0}% ocupado
+            {pctOcup.toFixed(0)}% ocupado
           </div>
         </div>
       </Popup>

@@ -44,7 +44,7 @@ export default function DockIconos({
                 onClick={() => onToggle(seccion.id)}
                 className={`p-2 rounded-lg transition-colors ${
                   activa
-                    ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400'
+                    ? 'bg-info/10 text-info ring-1 ring-info/25 dark:bg-info/20 dark:text-info-soft'
                     : 'text-slate-600 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
                 title={seccion.label}

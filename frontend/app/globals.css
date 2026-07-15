@@ -22,6 +22,22 @@
   --text-lg--line-height: 1.5;
 }
 
+/* Colores semánticos de estado — única fuente de verdad para éxito, advertencia,
+   error e información. Generan utilidades Tailwind: text-success, bg-danger,
+   border-info, etc. Reemplazan a los hex/slate hardcodeados repartidos por la UI.
+   Los tonos "soft" son para fondos/rellenos; los base para texto/iconos (mejor
+   contraste sobre superficies claras). */
+@theme {
+  --color-success: #16a34a;
+  --color-success-soft: #22c55e;
+  --color-warning: #d97706;
+  --color-warning-soft: #eab308;
+  --color-danger: #dc2626;
+  --color-danger-soft: #ef4444;
+  --color-info: #2563eb;
+  --color-info-soft: #3b82f6;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;

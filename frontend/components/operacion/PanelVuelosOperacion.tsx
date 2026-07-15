@@ -21,14 +21,24 @@ interface PanelVuelosOperacionProps {
   destinoFilter?: string;
   onFilterChange?: (filters: { origen: string; destino: string }) => void;
   umbralesConfig?: { verdeMax: number; ambarMax: number };
+  /** Filtro por semáforo controlado desde la vista, para reflejarlo en el mapa. */
+  filtroColor?: '' | ColorSemaforo;
+  onFiltroColorChange?: (color: '' | ColorSemaforo) => void;
 }
 
 const MAX_RENDER = 500;
 
-export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiesto, onCancelVuelo, onVerEnMapa, seguidoId, seleccionadoId, origenFilter = '', destinoFilter = '', onFilterChange, umbralesConfig }: PanelVuelosOperacionProps) {
+export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiesto, onCancelVuelo, onVerEnMapa, seguidoId, seleccionadoId, origenFilter = '', destinoFilter = '', onFilterChange, umbralesConfig, filtroColor, onFiltroColorChange }: PanelVuelosOperacionProps) {
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(true);
   const [filtroCodigo, setFiltroCodigo] = useState('');
-  const [filtroColorLocal, setFiltroColorLocal] = useState<'' | ColorSemaforo>('');
+  // Controlado si la vista pasa filtroColor (para reflejarlo en el mapa); si no,
+  // mantiene el filtro local al panel.
+  const [filtroColorInterno, setFiltroColorInterno] = useState<'' | ColorSemaforo>('');
+  const filtroColorLocal = filtroColor ?? filtroColorInterno;
+  const setFiltroColorLocal = (v: '' | ColorSemaforo) => {
+    if (onFiltroColorChange) onFiltroColorChange(v);
+    else setFiltroColorInterno(v);
+  };
   const [seleccionadoLocal, setSeleccionadoLocal] = useState<string | null>(null);
   const itemRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
   useEffect(() => {

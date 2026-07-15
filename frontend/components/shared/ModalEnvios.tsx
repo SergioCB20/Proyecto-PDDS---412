@@ -12,8 +12,15 @@ import {
   fetchMaletasEquipaje,
   descargarPlanViajePdf,
   fetchPlanViaje,
+  fetchEnviosPanel,
+  fetchEnviosPanelSesion,
 } from '@/lib/api';
-import type { EnvioItemResponse, Maleta, SegmentoResponse } from '@/lib/types';
+import type {
+  EnvioItemResponse,
+  EnvioPanelResponse,
+  Maleta,
+  SegmentoResponse,
+} from '@/lib/types';
 
 export interface SelectedEnvioConsolidado {
   tipo: 'vuelo' | 'nodo';
@@ -43,6 +50,61 @@ interface FetchState {
   error: string | null;
 }
 
+/** Resumen de la carga planificada que entra o sale de un almacén. */
+function ResumenPlanificado({
+  titulo,
+  items,
+  loading,
+}: {
+  titulo: string;
+  items: EnvioPanelResponse[];
+  loading: boolean;
+}) {
+  const maletas = items.reduce((acc, i) => acc + (i.cantidad || 0), 0);
+  return (
+    <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40 p-2.5">
+      <div className="text-[0.7rem] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">
+        {titulo}
+      </div>
+      {loading ? (
+        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+          <Loader2 size={12} className="animate-spin" /> Cargando…
+        </div>
+      ) : (
+        <>
+          <div className="text-sm font-bold text-slate-800 dark:text-slate-200 tabular-nums">
+            {items.length}{' '}
+            <span className="font-normal text-slate-500 text-xs">
+              envío{items.length !== 1 ? 's' : ''}
+            </span>
+            <span className="mx-1 text-slate-300 dark:text-slate-600">·</span>
+            {maletas}{' '}
+            <span className="font-normal text-slate-500 text-xs">
+              maleta{maletas !== 1 ? 's' : ''}
+            </span>
+          </div>
+          {items.length > 0 && (
+            <ul className="mt-1 space-y-0.5 max-h-24 overflow-y-auto">
+              {items.slice(0, 20).map((i, idx) => (
+                <li
+                  key={`${i.equipaje_id}-${idx}`}
+                  className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-400"
+                >
+                  <span className="font-mono truncate">
+                    {i.origen_iata}→{i.destino_iata}
+                    {i.codigo_vuelo ? ` · ${i.codigo_vuelo}` : ''}
+                  </span>
+                  <span className="shrink-0 ml-2">{i.cantidad}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 type FetchAction =
   | { type: 'START' }
   | { type: 'SUCCESS'; data: EnvioItemResponse[] }
@@ -70,6 +132,40 @@ export function ModalEnvios({ open, selectedEnvio, onClose, sesionId, onSeguirEn
   const [expandidos, setExpandidos] = useState<Record<string, EnvioExpandido>>({});
   const [siguiendoId, setSiguiendoId] = useState<string | null>(null);
   const [mostrandoRutaId, setMostrandoRutaId] = useState<string | null>(null);
+  // Carga planificada que entra/sale de un almacén. Se deriva del endpoint de
+  // envíos filtrando por destino (entran) y por origen (salen).
+  const [planificado, setPlanificado] = useState<{
+    entran: EnvioPanelResponse[];
+    salen: EnvioPanelResponse[];
+    loading: boolean;
+  }>({ entran: [], salen: [], loading: false });
+
+  useEffect(() => {
+    // Sin reset al salir: la sección solo se renderiza para tipo 'nodo', y al abrir
+    // otro almacén el loading de abajo reemplaza los datos previos.
+    if (!open || !selectedEnvio || selectedEnvio.tipo !== 'nodo') return;
+    let cancelled = false;
+    const iata = selectedEnvio.codigo;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPlanificado({ entran: [], salen: [], loading: true });
+
+    const traer = (origen?: string, destino?: string) =>
+      sesionId
+        ? fetchEnviosPanelSesion(sesionId, 'planificados', origen, destino)
+        : fetchEnviosPanel('planificados', origen, destino);
+
+    Promise.all([traer(undefined, iata), traer(iata, undefined)])
+      .then(([entran, salen]) => {
+        if (!cancelled) setPlanificado({ entran, salen, loading: false });
+      })
+      .catch(() => {
+        if (!cancelled) setPlanificado({ entran: [], salen: [], loading: false });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, selectedEnvio, sesionId]);
 
   useEffect(() => {
     if (!open || !selectedEnvio) return;
@@ -206,6 +302,22 @@ export function ModalEnvios({ open, selectedEnvio, onClose, sesionId, onSeguirEn
         </div>
       }
     >
+      {/* Carga planificada del almacén: qué envíos/maletas entran y salen. */}
+      {selectedEnvio?.tipo === 'nodo' && (
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <ResumenPlanificado
+            titulo="Planificado que entra"
+            items={planificado.entran}
+            loading={planificado.loading}
+          />
+          <ResumenPlanificado
+            titulo="Planificado que sale"
+            items={planificado.salen}
+            loading={planificado.loading}
+          />
+        </div>
+      )}
+
       {loading && (
         <div className="flex items-center gap-2 text-xs text-slate-600 py-4">
           <span className="w-3 h-3 border-2 border-slate-300 border-t-emerald-500 rounded-full animate-spin" />

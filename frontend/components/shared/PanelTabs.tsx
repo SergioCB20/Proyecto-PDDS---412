@@ -5,6 +5,7 @@ import { PanelAeropuertosOperacion } from '@/components/operacion/PanelAeropuert
 import { PanelVuelosOperacion } from '@/components/operacion/PanelVuelosOperacion';
 import { PanelEnviosMaletas } from '@/components/shared/PanelEnviosMaletas';
 import type { AeropuertoTelemetria, VueloTelemetria, SegmentoResponse } from '@/lib/types';
+import type { ColorSemaforo } from '@/lib/colors';
 
 type TabName = 'aeropuertos' | 'vuelos' | 'envios';
 
@@ -33,6 +34,11 @@ interface PanelTabsProps {
   umbralesConfig?: { verdeMax: number; ambarMax: number };
   filtroContinente?: string;
   onFiltroContinenteChange?: (continente: string) => void;
+  /** Filtros por semáforo controlados por la vista, para reflejarlos en el mapa. */
+  filtroColorAeropuerto?: '' | ColorSemaforo;
+  onFiltroColorAeropuertoChange?: (color: '' | ColorSemaforo) => void;
+  filtroColorVuelo?: '' | ColorSemaforo;
+  onFiltroColorVueloChange?: (color: '' | ColorSemaforo) => void;
 }
 
 const TAB_LABELS: Record<TabName, string> = {
@@ -66,6 +72,10 @@ export function PanelTabs({
   umbralesConfig,
   filtroContinente,
   onFiltroContinenteChange,
+  filtroColorAeropuerto,
+  onFiltroColorAeropuertoChange,
+  filtroColorVuelo,
+  onFiltroColorVueloChange,
 }: PanelTabsProps) {
   const [tab, setTab] = useReducer((_: TabName, next: TabName) => next, 'aeropuertos' as TabName);
 
@@ -102,6 +112,7 @@ export function PanelTabs({
       {tab === 'aeropuertos' && (
           <PanelAeropuertosOperacion
             aeropuertos={aeropuertos}
+            vuelos={vuelosAeropuerto}
             onAeropuertoClick={onAeropuertoClick}
             onVerEnMapa={onAeropuertoVerEnMapa}
             seguidoId={seguidoAeropuertoId}
@@ -109,6 +120,8 @@ export function PanelTabs({
             umbralesConfig={umbralesConfig}
             filtroContinente={filtroContinente}
             onFiltroContinenteChange={onFiltroContinenteChange}
+            filtroColor={filtroColorAeropuerto}
+            onFiltroColorChange={onFiltroColorAeropuertoChange}
           />
       )}
 
@@ -126,6 +139,8 @@ export function PanelTabs({
             destinoFilter={vueloFilterDestino}
             onFilterChange={onVueloFilterChange}
             umbralesConfig={umbralesConfig}
+            filtroColor={filtroColorVuelo}
+            onFiltroColorChange={onFiltroColorVueloChange}
           />
         </>)}
       {tab === 'envios' && (
