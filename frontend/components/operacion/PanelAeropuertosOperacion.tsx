@@ -70,8 +70,11 @@ export function PanelAeropuertosOperacion({
   };
   const itemRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
   useEffect(() => {
-    if (seleccionadoId && itemRefs.current[seleccionadoId]) {
-      itemRefs.current[seleccionadoId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (seleccionadoId) {
+      setAeropuertoSeleccionado(seleccionadoId);
+      if (itemRefs.current[seleccionadoId]) {
+        itemRefs.current[seleccionadoId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
     }
   }, [seleccionadoId]);
   const [orden, setOrden] = useState('');
