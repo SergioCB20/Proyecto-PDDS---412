@@ -303,6 +303,7 @@ export interface MetricasOperacion {
 
 export interface EnvioPanelResponse {
   equipaje_id: string;
+  codigo_equipaje: string;
   origen_iata: string;
   destino_iata: string;
   codigo_vuelo: string;

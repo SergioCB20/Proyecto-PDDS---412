@@ -654,6 +654,7 @@ public class SesionService {
                     }
                     return new EnvioPanelResponse(
                             e.getId(),
+                            e.getIdExterno(),
                             e.getOrigenIata(),
                             e.getDestinoIata(),
                             codigoVuelo,

@@ -466,6 +466,7 @@ public class EquipajeService {
 
     public record EnvioPanelResponse(
             UUID equipaje_id,
+            String codigo_equipaje,
             String origen_iata,
             String destino_iata,
             String codigo_vuelo,
@@ -504,6 +505,7 @@ public class EquipajeService {
                     }
                     return new EnvioPanelResponse(
                             e.getId(),
+                            e.getIdExterno(),
                             e.getOrigenIata(),
                             e.getDestinoIata(),
                             codigoVuelo,

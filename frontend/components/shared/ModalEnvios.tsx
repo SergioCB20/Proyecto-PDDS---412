@@ -513,14 +513,46 @@ export function ModalEnvios({ open, selectedEnvio, onClose, sesionId, onSeguirEn
                                     </span>
                                   )}
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => handleCopiarMaleta(item.id, m.codigo_maleta)}
-                                  className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 hover:text-slate-700 dark:hover:text-slate-200 transition-colors shrink-0"
-                                  title="Copiar ID al portapapeles"
-                                >
-                                  {exp.maletaCopiada === m.codigo_maleta ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
-                                </button>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  {onSeguirEnMapa && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSeguir(m.equipaje_id)}
+                                      disabled={siguiendoId === m.equipaje_id}
+                                      className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 hover:text-emerald-600 dark:hover:text-emerald-400 disabled:opacity-50 disabled:cursor-wait"
+                                      title="Seguir en mapa"
+                                    >
+                                      {siguiendoId === m.equipaje_id ? (
+                                        <Loader2 size={12} className="animate-spin" />
+                                      ) : (
+                                        <MapPin size={12} />
+                                      )}
+                                    </button>
+                                  )}
+                                  {onMostrarRuta && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleMostrarRuta(m.equipaje_id)}
+                                      disabled={mostrandoRutaId === m.equipaje_id}
+                                      className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-50 disabled:cursor-wait"
+                                      title="Mostrar ruta en el mapa"
+                                    >
+                                      {mostrandoRutaId === m.equipaje_id ? (
+                                        <Loader2 size={12} className="animate-spin" />
+                                      ) : (
+                                        <Route size={12} />
+                                      )}
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopiarMaleta(item.id, m.codigo_maleta)}
+                                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 hover:text-slate-700 dark:hover:text-slate-200 transition-colors shrink-0"
+                                    title="Copiar ID al portapapeles"
+                                  >
+                                    {exp.maletaCopiada === m.codigo_maleta ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
+                                  </button>
+                                </div>
                               </li>
                             ))}
                           </ul>
@@ -585,14 +617,46 @@ export function ModalEnvios({ open, selectedEnvio, onClose, sesionId, onSeguirEn
                       </span>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleCopiarMaletaVuelo(m.codigo_maleta)}
-                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 hover:text-slate-700 dark:hover:text-slate-200 transition-colors shrink-0"
-                    title="Copiar ID al portapapeles"
-                  >
-                    {maletaVueloCopiado === m.codigo_maleta ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
-                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {onSeguirEnMapa && (
+                      <button
+                        type="button"
+                        onClick={() => handleSeguir(m.equipaje_id)}
+                        disabled={siguiendoId === m.equipaje_id}
+                        className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 hover:text-emerald-600 dark:hover:text-emerald-400 disabled:opacity-50 disabled:cursor-wait"
+                        title="Seguir en mapa"
+                      >
+                        {siguiendoId === m.equipaje_id ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                          <MapPin size={12} />
+                        )}
+                      </button>
+                    )}
+                    {onMostrarRuta && (
+                      <button
+                        type="button"
+                        onClick={() => handleMostrarRuta(m.equipaje_id)}
+                        disabled={mostrandoRutaId === m.equipaje_id}
+                        className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-50 disabled:cursor-wait"
+                        title="Mostrar ruta en el mapa"
+                      >
+                        {mostrandoRutaId === m.equipaje_id ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                          <Route size={12} />
+                        )}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleCopiarMaletaVuelo(m.codigo_maleta)}
+                      className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 hover:text-slate-700 dark:hover:text-slate-200 transition-colors shrink-0"
+                      title="Copiar ID al portapapeles"
+                    >
+                      {maletaVueloCopiado === m.codigo_maleta ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>

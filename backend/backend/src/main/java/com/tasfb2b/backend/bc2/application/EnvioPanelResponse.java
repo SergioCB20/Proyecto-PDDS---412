@@ -5,6 +5,7 @@ import java.util.UUID;
 
 public record EnvioPanelResponse(
     @JsonProperty("equipaje_id") UUID equipajeId,
+    @JsonProperty("codigo_equipaje") String codigoEquipaje,
     @JsonProperty("origen_iata") String origenIata,
     @JsonProperty("destino_iata") String destinoIata,
     @JsonProperty("codigo_vuelo") String codigoVuelo,

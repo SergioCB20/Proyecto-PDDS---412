@@ -180,12 +180,38 @@ export function DetalleEnviosAeropuerto({ iata, onSeguirEnMapa, onMostrarRuta }:
             {item.maletas.length > 0 && (
               <ul className="divide-y divide-slate-200 dark:divide-slate-700 rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden">
                 {item.maletas.map((m: Maleta) => (
-                  <li key={m.id} className="flex items-center gap-2 px-3 py-1.5 bg-white/60 dark:bg-slate-900/30">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                    <span className="font-mono text-xs text-slate-700 dark:text-slate-300 truncate">{m.codigo_maleta}</span>
-                    {m.virtual && (
-                      <span className="text-[10px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-medium shrink-0">virtual</span>
-                    )}
+                  <li key={m.id} className="flex items-center justify-between px-3 py-1.5 bg-white/60 dark:bg-slate-900/30">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                      <span className="font-mono text-xs text-slate-700 dark:text-slate-300 truncate">{m.codigo_maleta}</span>
+                      {m.virtual && (
+                        <span className="text-[10px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-medium shrink-0">virtual</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {onSeguirEnMapa && (
+                        <button
+                          type="button"
+                          onClick={() => handleSeguir(m.equipaje_id)}
+                          disabled={siguiendoId === m.equipaje_id}
+                          className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 hover:text-emerald-600 dark:hover:text-emerald-400 disabled:opacity-50 disabled:cursor-wait"
+                          title="Seguir en mapa"
+                        >
+                          {siguiendoId === m.equipaje_id ? <Loader2 size={12} className="animate-spin" /> : <MapPin size={12} />}
+                        </button>
+                      )}
+                      {onMostrarRuta && (
+                        <button
+                          type="button"
+                          onClick={() => handleMostrarRuta(m.equipaje_id)}
+                          disabled={mostrandoRutaId === m.equipaje_id}
+                          className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-50 disabled:cursor-wait"
+                          title="Mostrar ruta en el mapa"
+                        >
+                          {mostrandoRutaId === m.equipaje_id ? <Loader2 size={12} className="animate-spin" /> : <Route size={12} />}
+                        </button>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>
