@@ -698,3 +698,61 @@ Todos los errores siguen esta estructura:
 | `409` | Conflicto — recurso ya existe |
 | `422` | Regla de negocio violada (capacidad, vuelo inactivo, etc.) |
 | `500` | Error interno inesperado |
+
+---
+
+## Endpoint: GET /api/nodos/{iata}/envios
+
+Obtiene los envíos clasificados por dirección en un nodo logístico.
+
+**Rol requerido:** OPERADOR_LOGISTICO, ANALISTA, ADMINISTRADOR  
+**Path param:** `iata` — Código IATA del nodo (string, 3 caracteres)
+
+### Response 200
+```json
+{
+  "nodo_iata": "LIM",
+  "saliendo": [
+    {
+      "id": "uuid-envio",
+      "codigo_equipaje": "ENV-ABC123",
+      "origen_iata": "LIM",
+      "destino_iata": "MAD",
+      "cantidad": 3,
+      "estado": "ENRUTADO",
+      "codigo_vuelo": "IB1234",
+      "fecha_ingreso": "2026-07-15T10:00:00Z",
+      "maletas": [
+        { "id": "uuid", "codigo_maleta": "MAL-ENV-ABC123-01", "equipaje_id": "uuid", "equipaje_id_externo": "ENV-ABC123", "created_at": "...", "virtual": false },
+        { "id": "uuid", "codigo_maleta": "MAL-ENV-ABC123-02", "equipaje_id": "uuid", "equipaje_id_externo": "ENV-ABC123", "created_at": "...", "virtual": false }
+      ]
+    }
+  ],
+  "llegando": [
+    {
+      "id": "uuid-envio",
+      "codigo_equipaje": "ENV-DEF456",
+      "origen_iata": "MEX",
+      "destino_iata": "LIM",
+      "cantidad": 2,
+      "estado": "EN_ALMACEN",
+      "codigo_vuelo": "AM789",
+      "fecha_ingreso": "2026-07-14T22:00:00Z",
+      "maletas": []
+    }
+  ],
+  "conteo": {
+    "saliendo_envios": 1,
+    "saliendo_maletas": 3,
+    "llegando_envios": 1,
+    "llegando_maletas": 2
+  }
+}
+```
+
+### Errors
+- `404` — Nodo no encontrado
+- `400` — IATA inválido (vacío o malformado)
+
+### Maletas virtuales
+Si un envío tiene `cantidad > 0` pero no tiene registros en la tabla `maletas`, se generan N maletas virtuales con `codigo_maleta = "MAL-{id_externo}-NN"` y `virtual = true`.
