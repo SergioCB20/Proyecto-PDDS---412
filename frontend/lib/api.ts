@@ -1,4 +1,4 @@
-import type { ApiError, EnvioEntregadoResponse, EnvioItemResponse, EnvioPanelResponse, EquipajePlanViaje, Maleta, MetricasOperacion, ReporteSesion } from './types';
+import type { ApiError, EnvioEntregadoResponse, EnvioItemResponse, EnvioPanelResponse, EquipajePlanViaje, Maleta, MetricasOperacion, NodoEnviosResponse, ReporteSesion } from './types';
 import { device } from './device';
 
 function getBaseUrl(): string {
@@ -197,4 +197,8 @@ export async function fetchMaletasEquipaje(idExternoEquipaje: string): Promise<M
 
 export async function fetchPlanViaje(equipajeId: string): Promise<EquipajePlanViaje> {
   return api.get<EquipajePlanViaje>(`/equipajes/${equipajeId}/plan-viaje`);
+}
+
+export async function fetchEnviosNodoConClasificacion(iata: string): Promise<NodoEnviosResponse> {
+  return api.get<NodoEnviosResponse>(`/nodos/${encodeURIComponent(iata)}/envios`);
 }

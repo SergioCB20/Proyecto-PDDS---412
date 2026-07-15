@@ -122,6 +122,8 @@ export function PanelTabs({
             onFiltroContinenteChange={onFiltroContinenteChange}
             filtroColor={filtroColorAeropuerto}
             onFiltroColorChange={onFiltroColorAeropuertoChange}
+            onSeguirEnMapa={onSeguirEnMapa}
+            onMostrarRuta={onMostrarRuta}
           />
       )}
 

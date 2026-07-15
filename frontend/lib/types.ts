@@ -320,6 +320,32 @@ export interface EquipajeListItem {
   cantidad: number;
 }
 
+export interface EnvioNodoDetalle {
+  id: string;
+  codigo_equipaje: string;
+  origen_iata: string;
+  destino_iata: string;
+  cantidad: number;
+  estado: string;
+  codigo_vuelo: string;
+  fecha_ingreso: string;
+  maletas: Maleta[];
+}
+
+export interface ConteoNodo {
+  saliendo_envios: number;
+  saliendo_maletas: number;
+  llegando_envios: number;
+  llegando_maletas: number;
+}
+
+export interface NodoEnviosResponse {
+  nodo_iata: string;
+  saliendo: EnvioNodoDetalle[];
+  llegando: EnvioNodoDetalle[];
+  conteo: ConteoNodo;
+}
+
 export interface RutaDestacada {
   vueloIds: string[];
   coordenadas: [number, number][];
