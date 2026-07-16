@@ -314,8 +314,9 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     setSeguidoVueloId(null);
   }, []);
 
-  const handleVueloSeleccionadoOp = useCallback((id: string) => {
+  const handleVueloSeleccionadoOp = useCallback((id: string, codigo: string) => {
     setVueloSeleccionadoOp(id);
+    setSelectedEnvio({ tipo: 'vuelo', id, codigo });
   }, []);
 
   const handleMostrarRutaOp = useCallback((segmentos: SegmentoResponse[]) => {
@@ -818,9 +819,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               <PanelTabs
                 aeropuertos={telemetria?.nodos ?? []}
                 vuelosAeropuerto={telemetria?.vuelos ?? []}
-                onAeropuertoClick={(id, codigo) =>
-                  setSelectedEnvio({ tipo: "nodo", id, codigo })
-                }
+                onAeropuertoClick={() => {}}
                 vuelos={telemetria?.vuelos ?? []}
                 onVueloClick={(id, codigo) =>
                   setSelectedEnvio({ tipo: "vuelo", id, codigo })
@@ -1145,8 +1144,9 @@ function SimulacionView({
     setSeguidoVueloId(null);
   }, []);
 
-  const handleVueloSeleccionadoSim = useCallback((id: string) => {
+  const handleVueloSeleccionadoSim = useCallback((id: string, codigo: string) => {
     setVueloSeleccionadoSim(id);
+    setSelectedEnvio({ tipo: 'vuelo', id, codigo });
   }, []);
 
   const handleMostrarRutaSim = useCallback((segmentos: SegmentoResponse[]) => {
@@ -1321,9 +1321,9 @@ function SimulacionView({
                   <PanelAeropuertosOperacion
                     aeropuertos={telemetria?.nodos ?? []}
                     vuelos={telemetria?.vuelos ?? []}
-                    onAeropuertoClick={(id, codigo) =>
-                      setSelectedEnvio({ tipo: "nodo", id, codigo })
-                    }
+                    onAeropuertoClick={() => {}}
+                    onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
+                    onMostrarRuta={handleMostrarRutaSim}
                     onVerEnMapa={(id) => {
                       setSeguidoAeropuertoId(id);
                       setSeguidoVueloId(null);
@@ -1747,8 +1747,9 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     setSeguidoVueloId(null);
   }, []);
 
-  const handleVueloSeleccionadoCol = useCallback((id: string) => {
+  const handleVueloSeleccionadoCol = useCallback((id: string, codigo: string) => {
     setVueloSeleccionadoCol(id);
+    setSelectedEnvio({ tipo: 'vuelo', id, codigo });
   }, []);
 
   const handleMostrarRutaCol = useCallback((segmentos: SegmentoResponse[]) => {
@@ -2071,9 +2072,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                 <PanelTabs
                   aeropuertos={telemetria?.nodos ?? []}
                   vuelosAeropuerto={telemetria?.vuelos ?? []}
-                  onAeropuertoClick={(id, codigo) =>
-                    setSelectedEnvio({ tipo: "nodo", id, codigo })
-                  }
+                  onAeropuertoClick={() => {}}
                   vuelos={telemetria?.vuelos ?? []}
                   onVueloClick={(id, codigo) =>
                     setSelectedEnvio({ tipo: "vuelo", id, codigo })

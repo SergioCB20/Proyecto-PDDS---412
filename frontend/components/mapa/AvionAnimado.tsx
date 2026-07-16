@@ -66,7 +66,7 @@ interface AvionAnimadoProps {
   destacado?: boolean;
   onSalir?: () => void;
   onSeguirVuelo?: (id: string) => void;
-  onVueloSeleccionado?: (id: string) => void;
+  onVueloSeleccionado?: (id: string, codigo: string) => void;
 }
 
 const AvionAnimado = React.memo(function AvionAnimado({
@@ -420,7 +420,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
         }}
       />
       <Marker ref={markerRef} position={frozenPos} icon={icono}
-        eventHandlers={{ click: () => { onSeguirVuelo?.(vuelo.id); onVueloSeleccionado?.(vuelo.id); } }}>
+        eventHandlers={{ click: () => { onSeguirVuelo?.(vuelo.id); onVueloSeleccionado?.(vuelo.id, vuelo.codigo_vuelo); } }}>
       {seguido && onSalir && (
         <Tooltip permanent direction="bottom" offset={[0, 10]} className="salir-vuelo-tooltip">
           <button

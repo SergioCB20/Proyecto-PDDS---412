@@ -38,4 +38,13 @@ public class NodoController {
     public ResponseEntity<?> obtenerEquipajes(@PathVariable String iata) {
         return ResponseEntity.ok(equipajeService.obtenerEnviosNodo(iata));
     }
+
+    @GetMapping("/{iata}/envios")
+    public ResponseEntity<?> obtenerEnviosNodo(@PathVariable String iata) {
+        try {
+            return ResponseEntity.ok(equipajeService.obtenerEnviosPorNodoConClasificacion(iata));
+        } catch (EquipajeService.NodoNoEncontradoException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
 }

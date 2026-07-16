@@ -10,6 +10,7 @@ import {
   fetchEnviosVuelo,
   fetchEnviosAeropuerto,
   fetchMaletasEquipaje,
+  fetchMaletasVuelo,
   descargarPlanViajePdf,
   fetchPlanViaje,
   fetchEnviosPanel,
@@ -139,6 +140,11 @@ export function ModalEnvios({ open, selectedEnvio, onClose, sesionId, onSeguirEn
     salen: EnvioPanelResponse[];
     loading: boolean;
   }>({ entran: [], salen: [], loading: false });
+  const [maletasVuelo, setMaletasVuelo] = useState<{
+    data: Maleta[];
+    loading: boolean;
+    error: string | null;
+  }>({ data: [], loading: false, error: null });
 
   useEffect(() => {
     // Sin reset al salir: la sección solo se renderiza para tipo 'nodo', y al abrir
@@ -201,6 +207,27 @@ export function ModalEnvios({ open, selectedEnvio, onClose, sesionId, onSeguirEn
     return () => { cancelled = true; };
   }, [open, selectedEnvio, sesionId]);
 
+  const [maletaVueloCopiado, setMaletaVueloCopiado] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open || !selectedEnvio || selectedEnvio.tipo !== 'vuelo') return;
+
+    let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMaletasVuelo({ data: [], loading: true, error: null });
+
+    fetchMaletasVuelo(selectedEnvio.id)
+      .then(d => { if (!cancelled) setMaletasVuelo({ data: d, loading: false, error: null }); })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          const e = err as { mensaje?: string; message?: string };
+          setMaletasVuelo({ data: [], loading: false, error: e?.mensaje || e?.message || 'Error al cargar maletas del vuelo' });
+        }
+      });
+
+    return () => { cancelled = true; };
+  }, [open, selectedEnvio]);
+
   const totalMaletas = useMemo(() => data.reduce((acc, item) => acc + (item.cantidad || 0), 0), [data]);
 
   const handleToggleExpand = useCallback(async (id: string, codigoEquipaje: string) => {
@@ -243,6 +270,16 @@ export function ModalEnvios({ open, selectedEnvio, onClose, sesionId, onSeguirEn
       }, 1500);
     } catch {
       // Fallback silencioso sin clipboard API
+    }
+  }, []);
+
+  const handleCopiarMaletaVuelo = useCallback(async (codigo: string) => {
+    try {
+      await navigator.clipboard.writeText(codigo);
+      setMaletaVueloCopiado(codigo);
+      setTimeout(() => setMaletaVueloCopiado(null), 1500);
+    } catch {
+      // Fallback silencioso
     }
   }, []);
 
@@ -476,14 +513,46 @@ export function ModalEnvios({ open, selectedEnvio, onClose, sesionId, onSeguirEn
                                     </span>
                                   )}
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => handleCopiarMaleta(item.id, m.codigo_maleta)}
-                                  className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 hover:text-slate-700 dark:hover:text-slate-200 transition-colors shrink-0"
-                                  title="Copiar ID al portapapeles"
-                                >
-                                  {exp.maletaCopiada === m.codigo_maleta ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
-                                </button>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  {onSeguirEnMapa && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSeguir(m.equipaje_id)}
+                                      disabled={siguiendoId === m.equipaje_id}
+                                      className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 hover:text-emerald-600 dark:hover:text-emerald-400 disabled:opacity-50 disabled:cursor-wait"
+                                      title="Seguir en mapa"
+                                    >
+                                      {siguiendoId === m.equipaje_id ? (
+                                        <Loader2 size={12} className="animate-spin" />
+                                      ) : (
+                                        <MapPin size={12} />
+                                      )}
+                                    </button>
+                                  )}
+                                  {onMostrarRuta && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleMostrarRuta(m.equipaje_id)}
+                                      disabled={mostrandoRutaId === m.equipaje_id}
+                                      className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-50 disabled:cursor-wait"
+                                      title="Mostrar ruta en el mapa"
+                                    >
+                                      {mostrandoRutaId === m.equipaje_id ? (
+                                        <Loader2 size={12} className="animate-spin" />
+                                      ) : (
+                                        <Route size={12} />
+                                      )}
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopiarMaleta(item.id, m.codigo_maleta)}
+                                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 hover:text-slate-700 dark:hover:text-slate-200 transition-colors shrink-0"
+                                    title="Copiar ID al portapapeles"
+                                  >
+                                    {exp.maletaCopiada === m.codigo_maleta ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
+                                  </button>
+                                </div>
                               </li>
                             ))}
                           </ul>
@@ -496,6 +565,103 @@ export function ModalEnvios({ open, selectedEnvio, onClose, sesionId, onSeguirEn
             })}
           </div>
         </>
+      )}
+
+      {selectedEnvio?.tipo === 'vuelo' && (
+        <div className="mt-4 border-t border-slate-200 dark:border-slate-700 pt-4">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Todas las maletas del vuelo
+              {!maletasVuelo.loading && !maletasVuelo.error && (
+                <span className="ml-1">({maletasVuelo.data.length})</span>
+              )}
+            </h4>
+          </div>
+
+          {maletasVuelo.loading && (
+            <div className="flex items-center gap-2 text-xs text-slate-600 py-3">
+              <Loader2 size={12} className="animate-spin" />
+              Cargando maletas del vuelo...
+            </div>
+          )}
+
+          {!maletasVuelo.loading && maletasVuelo.error && (
+            <div className="text-xs text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400 p-2 rounded">
+              {maletasVuelo.error}
+            </div>
+          )}
+
+          {!maletasVuelo.loading && !maletasVuelo.error && maletasVuelo.data.length === 0 && (
+            <p className="text-xs text-slate-600 italic text-center py-3">Este vuelo no tiene maletas registradas.</p>
+          )}
+
+          {!maletasVuelo.loading && !maletasVuelo.error && maletasVuelo.data.length > 0 && (
+            <ul className="divide-y divide-slate-200 dark:divide-slate-700 rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden max-h-60 overflow-y-auto">
+              {maletasVuelo.data.map(m => (
+                <li key={m.id} className="flex items-center justify-between px-3 py-1.5 bg-white/60 dark:bg-slate-900/30">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                    <span className="font-mono text-xs text-slate-700 dark:text-slate-300 truncate">
+                      {m.codigo_maleta}
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 shrink-0">
+                      {m.equipaje_id_externo}
+                    </span>
+                    {m.virtual ? (
+                      <span className="text-[10px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-medium shrink-0">
+                        virtual
+                      </span>
+                    ) : (
+                      <span className="text-[10px] px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-medium shrink-0">
+                        física
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {onSeguirEnMapa && (
+                      <button
+                        type="button"
+                        onClick={() => handleSeguir(m.equipaje_id)}
+                        disabled={siguiendoId === m.equipaje_id}
+                        className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 hover:text-emerald-600 dark:hover:text-emerald-400 disabled:opacity-50 disabled:cursor-wait"
+                        title="Seguir en mapa"
+                      >
+                        {siguiendoId === m.equipaje_id ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                          <MapPin size={12} />
+                        )}
+                      </button>
+                    )}
+                    {onMostrarRuta && (
+                      <button
+                        type="button"
+                        onClick={() => handleMostrarRuta(m.equipaje_id)}
+                        disabled={mostrandoRutaId === m.equipaje_id}
+                        className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-50 disabled:cursor-wait"
+                        title="Mostrar ruta en el mapa"
+                      >
+                        {mostrandoRutaId === m.equipaje_id ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                          <Route size={12} />
+                        )}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleCopiarMaletaVuelo(m.codigo_maleta)}
+                      className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 hover:text-slate-700 dark:hover:text-slate-200 transition-colors shrink-0"
+                      title="Copiar ID al portapapeles"
+                    >
+                      {maletaVueloCopiado === m.codigo_maleta ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </Modal>
   );

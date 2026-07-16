@@ -110,4 +110,27 @@ public interface EquipajeRepository extends JpaRepository<Equipaje, UUID> {
     @Query("SELECT COUNT(e) FROM Equipaje e WHERE e.estado = :estado AND e.fechaIngreso < :hasta")
     long countByEstadoAndFechaIngresoBefore(@Param("estado") EstadoEquipaje estado,
                                             @Param("hasta") OffsetDateTime hasta);
+
+    @Query("SELECT DISTINCT e FROM Equipaje e " +
+           "JOIN PlanViaje pv ON pv.equipaje = e " +
+           "JOIN SegmentoPlan sp ON sp.planViaje = pv " +
+           "WHERE e.estado = 'ENRUTADO' AND sp.orden = 1 AND sp.estado = 'PENDIENTE' " +
+           "AND sp.nodoOrigen.codigoIata = :nodoIata " +
+           "ORDER BY e.fechaIngreso DESC")
+    List<Equipaje> findEnRutadoSaliendo(@Param("nodoIata") String nodoIata, Pageable pageable);
+
+    @Query("SELECT e FROM Equipaje e " +
+           "WHERE e.estado = 'EN_VUELO' AND e.vueloActual.destino.codigoIata = :nodoIata " +
+           "ORDER BY e.fechaIngreso DESC")
+    List<Equipaje> findEnVueloLlegando(@Param("nodoIata") String nodoIata, Pageable pageable);
+
+    @Query("SELECT DISTINCT e FROM Equipaje e " +
+           "JOIN PlanViaje pv ON pv.equipaje = e " +
+           "JOIN SegmentoPlan sp ON sp.planViaje = pv " +
+           "WHERE e.estado = 'EN_ALMACEN' AND sp.estado = 'COMPLETADO' " +
+           "AND sp.nodoDestino.codigoIata = :nodoIata " +
+           "AND sp.orden = (SELECT MAX(sp2.orden) FROM SegmentoPlan sp2 " +
+           "               WHERE sp2.planViaje = pv AND sp2.estado = 'COMPLETADO') " +
+           "ORDER BY e.fechaIngreso DESC")
+    List<Equipaje> findEnAlmacenEnNodo(@Param("nodoIata") String nodoIata, Pageable pageable);
 }

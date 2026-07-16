@@ -18,7 +18,7 @@ interface GeoMapaVueloProps {
   seguido?: boolean;
   onSalirSeguimiento?: () => void;
   onSeguirVuelo?: (id: string) => void;
-  onVueloSeleccionado?: (id: string) => void;
+  onVueloSeleccionado?: (id: string, codigo: string) => void;
   destacado?: boolean;
 }
 

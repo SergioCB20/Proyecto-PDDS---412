@@ -466,6 +466,7 @@ public class EquipajeService {
 
     public record EnvioPanelResponse(
             UUID equipaje_id,
+            String codigo_equipaje,
             String origen_iata,
             String destino_iata,
             String codigo_vuelo,
@@ -504,6 +505,7 @@ public class EquipajeService {
                     }
                     return new EnvioPanelResponse(
                             e.getId(),
+                            e.getIdExterno(),
                             e.getOrigenIata(),
                             e.getDestinoIata(),
                             codigoVuelo,
@@ -714,6 +716,139 @@ public class EquipajeService {
         }
 
         return result;
+    }
+
+    public record EnvioNodoDetalleResponse(
+            UUID id,
+            String codigo_equipaje,
+            String origen_iata,
+            String destino_iata,
+            Integer cantidad,
+            String estado,
+            String codigo_vuelo,
+            OffsetDateTime fecha_ingreso,
+            List<MaletaResponse> maletas
+    ) {}
+
+    public record ConteoNodo(
+            int saliendo_envios,
+            int saliendo_maletas,
+            int llegando_envios,
+            int llegando_maletas
+    ) {}
+
+    public record NodoEnviosResponse(
+            String nodo_iata,
+            List<EnvioNodoDetalleResponse> saliendo,
+            List<EnvioNodoDetalleResponse> llegando,
+            ConteoNodo conteo
+    ) {}
+
+    public NodoEnviosResponse obtenerEnviosPorNodoConClasificacion(String nodoIata) {
+        if (!nodoRepository.findByCodigoIata(nodoIata).isPresent()) {
+            throw new NodoNoEncontradoException("Nodo no encontrado: " + nodoIata);
+        }
+
+        var limit = PageRequest.of(0, 200);
+
+        java.util.Set<Equipaje> saliendoSet = new java.util.LinkedHashSet<>();
+        for (Equipaje e : equipajeRepository.findByEstadoAndOrigenIata(EstadoEquipaje.REGISTRADO, nodoIata)) {
+            saliendoSet.add(e);
+        }
+        for (Equipaje e : equipajeRepository.findEnRutadoSaliendo(nodoIata, limit)) {
+            saliendoSet.add(e);
+        }
+
+        java.util.Set<Equipaje> llegandoSet = new java.util.LinkedHashSet<>();
+        for (Equipaje e : equipajeRepository.findEnAlmacenEnNodo(nodoIata, limit)) {
+            llegandoSet.add(e);
+        }
+        for (Equipaje e : equipajeRepository.findEnVueloLlegando(nodoIata, limit)) {
+            llegandoSet.add(e);
+        }
+
+        java.util.List<Equipaje> todos = new java.util.ArrayList<>();
+        todos.addAll(saliendoSet);
+        todos.addAll(llegandoSet);
+        java.util.Map<UUID, List<MaletaResponse>> maletasPorEquipaje = new java.util.HashMap<>();
+        if (!todos.isEmpty()) {
+            java.util.List<UUID> ids = todos.stream().map(Equipaje::getId).toList();
+            java.util.List<Maleta> fisicas = maletaRepository.findByEquipajeIdIn(ids);
+            for (Maleta m : fisicas) {
+                maletasPorEquipaje.computeIfAbsent(m.getEquipaje().getId(), k -> new java.util.ArrayList<>())
+                    .add(toMaletaResponse(m));
+            }
+        }
+
+        int saliendoMaletas = 0, llegandoMaletas = 0;
+
+        java.util.List<EnvioNodoDetalleResponse> saliendo = new java.util.ArrayList<>();
+        for (Equipaje e : saliendoSet) {
+            int cant = e.getCantidad() != null ? e.getCantidad() : 1;
+            saliendoMaletas += cant;
+            saliendo.add(toEnvioNodoDetalle(e, maletasPorEquipaje.getOrDefault(e.getId(), List.of()), cant));
+        }
+
+        java.util.List<EnvioNodoDetalleResponse> llegando = new java.util.ArrayList<>();
+        for (Equipaje e : llegandoSet) {
+            int cant = e.getCantidad() != null ? e.getCantidad() : 1;
+            llegandoMaletas += cant;
+            llegando.add(toEnvioNodoDetalle(e, maletasPorEquipaje.getOrDefault(e.getId(), List.of()), cant));
+        }
+
+        return new NodoEnviosResponse(
+                nodoIata,
+                saliendo,
+                llegando,
+                new ConteoNodo(saliendo.size(), saliendoMaletas, llegando.size(), llegandoMaletas)
+        );
+    }
+
+    private EnvioNodoDetalleResponse toEnvioNodoDetalle(Equipaje e, List<MaletaResponse> maletas, int cantidad) {
+        String codigoVuelo = "";
+        if (e.getEstado() == EstadoEquipaje.EN_VUELO && e.getVueloActual() != null) {
+            codigoVuelo = e.getVueloActual().getCodigoVuelo();
+        } else if (e.getPlanViaje() != null && e.getPlanViaje().getSegmentos() != null) {
+            var segs = e.getPlanViaje().getSegmentos();
+            var seg = segs.stream()
+                    .filter(s -> s.getEstado() == EstadoSegmento.EN_CURSO || s.getEstado() == EstadoSegmento.PENDIENTE)
+                    .min(java.util.Comparator.comparingInt(s -> s.getOrden() != null ? s.getOrden() : 0))
+                    .orElse(null);
+            if (seg != null && seg.getVuelo() != null) {
+                codigoVuelo = seg.getVuelo().getCodigoVuelo();
+            }
+        }
+
+        List<MaletaResponse> maletasOut;
+        if (!maletas.isEmpty()) {
+            maletasOut = maletas;
+        } else {
+            maletasOut = new java.util.ArrayList<>();
+            String prefijo = e.getIdExterno() != null && !e.getIdExterno().isBlank()
+                    ? (e.getIdExterno().length() > 20 ? e.getIdExterno().substring(0, 20) : e.getIdExterno())
+                    : e.getId().toString().substring(0, 8);
+            int ancho = Math.max(2, String.valueOf(cantidad).length());
+            for (int i = 1; i <= cantidad; i++) {
+                String codigo = String.format("MAL-%s-%0" + ancho + "d", prefijo, i);
+                maletasOut.add(new MaletaResponse("VIRT-" + codigo, codigo, e.getId(), e.getIdExterno(), null, true));
+            }
+        }
+
+        return new EnvioNodoDetalleResponse(
+                e.getId(),
+                e.getIdExterno() != null ? e.getIdExterno() : e.getId().toString(),
+                e.getOrigenIata(),
+                e.getDestinoIata(),
+                cantidad,
+                e.getEstado().name(),
+                codigoVuelo,
+                e.getFechaIngreso(),
+                maletasOut
+        );
+    }
+
+    public static class NodoNoEncontradoException extends RuntimeException {
+        public NodoNoEncontradoException(String msg) { super(msg); }
     }
 
     public static class EquipajeNoEncontradoException extends RuntimeException {

@@ -138,7 +138,7 @@ interface GeoMapaProps {
   seguidoVueloId?: string;
   onSalirSeguimiento?: () => void;
   onSeguirVuelo?: (id: string) => void;
-  onVueloSeleccionado?: (id: string) => void;
+  onVueloSeleccionado?: (id: string, codigo: string) => void;
   seguidoAeropuertoId?: string;
   onSalirSeguimientoAeropuerto?: () => void;
   rutaDestacada?: RutaDestacada | null;

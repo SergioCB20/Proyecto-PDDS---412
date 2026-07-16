@@ -4,10 +4,11 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Map as MapIcon, ChevronDown, ChevronUp } from 'lucide-react';
-import type { AeropuertoTelemetria, VueloTelemetria } from '@/lib/types';
+import type { AeropuertoTelemetria, SegmentoResponse, VueloTelemetria } from '@/lib/types';
 import { ciudadDe, paisDe } from '@/lib/aeropuertos';
 import { determinarColorSemaforo, type ColorSemaforo } from '@/lib/colors';
 import { formatearHoraLima } from '@/lib/formatearHora';
+import { DetalleEnviosAeropuerto } from '@/components/operacion/DetalleEnviosAeropuerto';
 
 interface EstiloEstado {
   bordeIzq: string;
@@ -37,6 +38,8 @@ interface PanelAeropuertosOperacionProps {
   /** Filtro por semáforo controlado desde la vista, para reflejarlo en el mapa. */
   filtroColor?: '' | ColorSemaforo;
   onFiltroColorChange?: (color: '' | ColorSemaforo) => void;
+  onSeguirEnMapa?: (vueloId: string) => void;
+  onMostrarRuta?: (segmentos: SegmentoResponse[]) => void;
 }
 
 export function PanelAeropuertosOperacion({
@@ -51,9 +54,12 @@ export function PanelAeropuertosOperacion({
   onFiltroContinenteChange,
   filtroColor,
   onFiltroColorChange,
+  onSeguirEnMapa,
+  onMostrarRuta,
 }: PanelAeropuertosOperacionProps) {
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(true);
   const [filtroCodigo, setFiltroCodigo] = useState('');
+  const [aeropuertoSeleccionado, setAeropuertoSeleccionado] = useState<string | null>(null);
   // Controlado si la vista pasa filtroColor (para reflejarlo en el mapa); si no,
   // mantiene el filtro local al panel.
   const [filtroColorInterno, setFiltroColorInterno] = useState<'' | ColorSemaforo>('');
@@ -62,6 +68,7 @@ export function PanelAeropuertosOperacion({
     if (onFiltroColorChange) onFiltroColorChange(v);
     else setFiltroColorInterno(v);
   };
+  const seleccionadoActual = aeropuertoSeleccionado ?? seleccionadoId;
   const itemRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
   useEffect(() => {
     if (seleccionadoId && itemRefs.current[seleccionadoId]) {
@@ -269,6 +276,8 @@ export function PanelAeropuertosOperacion({
                 Próx. UT
               </th>
               <th className="text-right px-2 py-2 font-semibold">Ocupación</th>
+              <th className="text-right px-2 py-2 font-semibold hidden sm:table-cell" title="Envíos saliendo">🡑 Sale</th>
+              <th className="text-right px-2 py-2 font-semibold hidden sm:table-cell" title="Envíos llegando">🡓 Llega</th>
               <th className="text-right px-2 py-2 font-semibold w-12">—</th>
             </tr>
           </thead>
@@ -287,7 +296,11 @@ export function PanelAeropuertosOperacion({
                   key={n.id}
                   ref={el => { itemRefs.current[n.codigo_iata] = el; }}
                   className={`${rowCls} border-t border-slate-100 dark:border-slate-800 border-l-4 ${estado.bordeIzq}`}
-                  onClick={() => onAeropuertoClick?.(n.codigo_iata, n.codigo_iata)}
+                  onClick={() => {
+                    const iata = n.codigo_iata;
+                    setAeropuertoSeleccionado(prev => prev === iata ? null : iata);
+                    onAeropuertoClick?.(iata, iata);
+                  }}
                 >
                   <td className="px-2 py-1.5">
                     <div className="flex items-center gap-2 min-w-0">
@@ -325,6 +338,12 @@ export function PanelAeropuertosOperacion({
                     <span className="text-slate-600 dark:text-slate-400">{n.ocupacion_actual}/{n.capacidad_almacen}</span>
                     <span className={`ml-2 font-bold ${estado.textCls}`}>{n.ocupacion_pct.toFixed(0)}%</span>
                   </td>
+                  <td className="px-2 py-1.5 text-right hidden sm:table-cell">
+                    <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">—</span>
+                  </td>
+                  <td className="px-2 py-1.5 text-right hidden sm:table-cell">
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">—</span>
+                  </td>
                   <td className="px-2 py-1.5 text-right">
                     {seguidoId === n.codigo_iata ? (
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-medium">ESC</span>
@@ -345,7 +364,7 @@ export function PanelAeropuertosOperacion({
             })}
             {aeropuertosOrdenados.length === 0 && (
               <tr>
-                <td colSpan={6} className="text-xs text-slate-600 italic text-center py-4">
+                <td colSpan={8} className="text-xs text-slate-600 italic text-center py-4">
                   Ningún aeropuerto coincide con los filtros
                 </td>
               </tr>
@@ -353,6 +372,15 @@ export function PanelAeropuertosOperacion({
           </tbody>
         </table>
       </div>
+
+      {seleccionadoActual && (
+        <DetalleEnviosAeropuerto
+          key={seleccionadoActual}
+          iata={seleccionadoActual}
+          onSeguirEnMapa={onSeguirEnMapa}
+          onMostrarRuta={onMostrarRuta}
+        />
+      )}
     </div>
   );
 }
