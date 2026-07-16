@@ -33,6 +33,7 @@ function areEqual(prevProps: GeoMapaVueloProps, nextProps: GeoMapaVueloProps): b
   const b = nextProps.vuelo;
   if (a.id !== b.id || a.estado !== b.estado) return false;
   if (a.carga_disponible !== b.carga_disponible) return false;
+  if (a.capacidad_carga !== b.capacidad_carga) return false;
   if (a.estado === 'EN_RUTA') {
     const pa = a.posicionActual;
     const pb = b.posicionActual;
