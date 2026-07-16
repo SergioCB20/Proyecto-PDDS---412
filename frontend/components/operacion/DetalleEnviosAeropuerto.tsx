@@ -8,6 +8,7 @@ import type { EnvioNodoDetalle, Maleta, NodoEnviosResponse, SegmentoResponse } f
 
 interface DetalleEnviosAeropuertoProps {
   iata: string;
+  sesionId?: string;
   onSeguirEnMapa?: (vueloId: string) => void;
   onMostrarRuta?: (segmentos: SegmentoResponse[]) => void;
 }
@@ -34,7 +35,7 @@ function fetchReducer(state: FetchState, action: FetchAction): FetchState {
   }
 }
 
-export function DetalleEnviosAeropuerto({ iata, onSeguirEnMapa, onMostrarRuta }: DetalleEnviosAeropuertoProps) {
+export function DetalleEnviosAeropuerto({ iata, sesionId, onSeguirEnMapa, onMostrarRuta }: DetalleEnviosAeropuertoProps) {
   const [{ data, loading, error }, dispatch] = useReducer(fetchReducer, {
     data: null, loading: true, error: null,
   });
@@ -46,7 +47,7 @@ export function DetalleEnviosAeropuerto({ iata, onSeguirEnMapa, onMostrarRuta }:
     let cancelled = false;
     dispatch({ type: 'START' });
 
-    fetchEnviosNodoConClasificacion(iata)
+    fetchEnviosNodoConClasificacion(iata, sesionId)
       .then(d => { if (!cancelled) dispatch({ type: 'SUCCESS', data: d }); })
       .catch(err => {
         if (!cancelled) {

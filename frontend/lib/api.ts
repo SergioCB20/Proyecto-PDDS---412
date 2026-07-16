@@ -199,6 +199,7 @@ export async function fetchPlanViaje(equipajeId: string): Promise<EquipajePlanVi
   return api.get<EquipajePlanViaje>(`/equipajes/${equipajeId}/plan-viaje`);
 }
 
-export async function fetchEnviosNodoConClasificacion(iata: string): Promise<NodoEnviosResponse> {
-  return api.get<NodoEnviosResponse>(`/nodos/${encodeURIComponent(iata)}/envios`);
+export async function fetchEnviosNodoConClasificacion(iata: string, sesionId?: string): Promise<NodoEnviosResponse> {
+  const params = sesionId ? `?sesionId=${encodeURIComponent(sesionId)}` : '';
+  return api.get<NodoEnviosResponse>(`/nodos/${encodeURIComponent(iata)}/envios${params}`);
 }

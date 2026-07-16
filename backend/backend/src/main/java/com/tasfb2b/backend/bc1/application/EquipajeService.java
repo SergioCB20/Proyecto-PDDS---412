@@ -744,7 +744,7 @@ public class EquipajeService {
             ConteoNodo conteo
     ) {}
 
-    public NodoEnviosResponse obtenerEnviosPorNodoConClasificacion(String nodoIata) {
+    public NodoEnviosResponse obtenerEnviosPorNodoConClasificacion(String nodoIata, UUID sesionId) {
         if (!nodoRepository.findByCodigoIata(nodoIata).isPresent()) {
             throw new NodoNoEncontradoException("Nodo no encontrado: " + nodoIata);
         }
@@ -752,19 +752,37 @@ public class EquipajeService {
         var limit = PageRequest.of(0, 200);
 
         java.util.Set<Equipaje> saliendoSet = new java.util.LinkedHashSet<>();
-        for (Equipaje e : equipajeRepository.findByEstadoAndOrigenIata(EstadoEquipaje.REGISTRADO, nodoIata)) {
-            saliendoSet.add(e);
-        }
-        for (Equipaje e : equipajeRepository.findEnRutadoSaliendo(nodoIata, limit)) {
-            saliendoSet.add(e);
+        if (sesionId != null) {
+            for (Equipaje e : equipajeRepository.findBySesionIdAndEstadoAndNodoIata(sesionId, EstadoEquipaje.REGISTRADO, nodoIata)) {
+                saliendoSet.add(e);
+            }
+            for (Equipaje e : equipajeRepository.findEnRutadoSaliendoBySesion(nodoIata, sesionId, limit)) {
+                saliendoSet.add(e);
+            }
+        } else {
+            for (Equipaje e : equipajeRepository.findByEstadoAndOrigenIata(EstadoEquipaje.REGISTRADO, nodoIata)) {
+                saliendoSet.add(e);
+            }
+            for (Equipaje e : equipajeRepository.findEnRutadoSaliendo(nodoIata, limit)) {
+                saliendoSet.add(e);
+            }
         }
 
         java.util.Set<Equipaje> llegandoSet = new java.util.LinkedHashSet<>();
-        for (Equipaje e : equipajeRepository.findEnAlmacenEnNodo(nodoIata, limit)) {
-            llegandoSet.add(e);
-        }
-        for (Equipaje e : equipajeRepository.findEnVueloLlegando(nodoIata, limit)) {
-            llegandoSet.add(e);
+        if (sesionId != null) {
+            for (Equipaje e : equipajeRepository.findEnAlmacenEnNodoBySesion(nodoIata, sesionId, limit)) {
+                llegandoSet.add(e);
+            }
+            for (Equipaje e : equipajeRepository.findEnVueloLlegandoBySesion(nodoIata, sesionId, limit)) {
+                llegandoSet.add(e);
+            }
+        } else {
+            for (Equipaje e : equipajeRepository.findEnAlmacenEnNodo(nodoIata, limit)) {
+                llegandoSet.add(e);
+            }
+            for (Equipaje e : equipajeRepository.findEnVueloLlegando(nodoIata, limit)) {
+                llegandoSet.add(e);
+            }
         }
 
         java.util.List<Equipaje> todos = new java.util.ArrayList<>();

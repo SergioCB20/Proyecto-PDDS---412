@@ -40,6 +40,7 @@ interface PanelAeropuertosOperacionProps {
   onFiltroColorChange?: (color: '' | ColorSemaforo) => void;
   onSeguirEnMapa?: (vueloId: string) => void;
   onMostrarRuta?: (segmentos: SegmentoResponse[]) => void;
+  sesionId?: string;
 }
 
 export function PanelAeropuertosOperacion({
@@ -56,6 +57,7 @@ export function PanelAeropuertosOperacion({
   onFiltroColorChange,
   onSeguirEnMapa,
   onMostrarRuta,
+  sesionId,
 }: PanelAeropuertosOperacionProps) {
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(true);
   const [filtroCodigo, setFiltroCodigo] = useState('');
@@ -377,6 +379,7 @@ export function PanelAeropuertosOperacion({
         <DetalleEnviosAeropuerto
           key={seleccionadoActual}
           iata={seleccionadoActual}
+          sesionId={sesionId}
           onSeguirEnMapa={onSeguirEnMapa}
           onMostrarRuta={onMostrarRuta}
         />
