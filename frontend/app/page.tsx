@@ -878,7 +878,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
             <PanelFlotante
               title="Control"
               onClose={() => toggleDockOp('control')}
-              className="w-80 shrink-0 pointer-events-auto"
+              className="w-[30rem] shrink-0 pointer-events-auto"
             >
               <div className="p-4">
                 <div className="flex items-center justify-between mb-2">
@@ -933,7 +933,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
             <PanelFlotante
               title="Registro de Equipaje"
               onClose={() => toggleDockOp('registro')}
-              className="w-80 shrink-0 pointer-events-auto"
+              className="w-[30rem] shrink-0 pointer-events-auto"
             >
               <div className="p-4">
                 <div className="flex gap-2 mb-3">
@@ -1391,7 +1391,7 @@ function SimulacionView({
             <PanelFlotante
               title="Cancelación (plantillas)"
               onClose={() => toggleDock('cancelacion')}
-              className="w-80 shrink-0 pointer-events-auto"
+              className="w-[30rem] shrink-0 pointer-events-auto"
             >
               {sesionId && plantillas.length > 0 ? (
                 <SeccionCancelacion
@@ -1430,7 +1430,7 @@ function SimulacionView({
             <PanelFlotante
               title="Sesión"
               onClose={() => toggleDock('sesion')}
-              className="w-80 shrink-0 pointer-events-auto"
+              className="w-[30rem] shrink-0 pointer-events-auto"
             >
               <div className="p-4 border-b border-slate-200 dark:border-slate-700">
                 <div className="flex items-center gap-2 mb-1">
@@ -1564,7 +1564,7 @@ function SimulacionView({
             <PanelFlotante
               title="Reportes"
               onClose={() => toggleDock('reportes')}
-              className="w-80 shrink-0 pointer-events-auto"
+              className="w-[30rem] shrink-0 pointer-events-auto"
             >
               {reporte ? (
                 <div className="p-4">
@@ -1892,7 +1892,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
             <PanelFlotante
               title="Sesión"
               onClose={() => toggleDock('sesion')}
-              className="w-80 shrink-0 pointer-events-auto"
+              className="w-[30rem] shrink-0 pointer-events-auto"
             >
               <div className="p-4 border-b border-slate-200 dark:border-slate-700">
                 <div className="flex items-center gap-2 mb-1">
@@ -2135,7 +2135,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
             <PanelFlotante
               title="Cancelación (plantillas)"
               onClose={() => toggleDock('cancelacion')}
-              className="w-80 shrink-0 pointer-events-auto"
+              className="w-[30rem] shrink-0 pointer-events-auto"
             >
               {sesionId && plantillas.length > 0 ? (
                 <SeccionCancelacion
@@ -2153,7 +2153,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
             <PanelFlotante
               title="Reportes"
               onClose={() => toggleDock('reportes')}
-              className="w-80 shrink-0 pointer-events-auto"
+              className="w-[30rem] shrink-0 pointer-events-auto"
             >
               {reporte ? (
                 <div className="p-4">

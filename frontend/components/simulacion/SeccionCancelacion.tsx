@@ -259,11 +259,6 @@ export function SeccionCancelacion({
             </table>
           </div>
 
-          <p className="text-xs text-slate-600 dark:text-slate-300 leading-tight">
-            <strong>Regla:</strong> &gt;1h antes de la salida → cancela hoy y replanifica.
-            ≤1h antes (o ya despegado) → cancela la instancia del día siguiente sin replan.
-            Filtra por código o por rango de fechas de salida para acotar la lista.
-          </p>
         </div>
       )}
 
