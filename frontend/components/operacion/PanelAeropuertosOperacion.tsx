@@ -292,7 +292,7 @@ export function PanelAeropuertosOperacion({
               const pais = paisDe(n.codigo_iata);
               const ubicacion = [pais, continenteLabel].filter(Boolean).join(' · ');
               const zebra = idx % 2 === 0 ? 'bg-white/40 dark:bg-slate-900/20' : '';
-              const seleccionado = seleccionadoId === n.codigo_iata;
+              const seleccionado = seleccionadoActual === n.codigo_iata;
               const rowCls = `${zebra} ${seleccionado ? '!bg-blue-50 dark:!bg-blue-900/30 ring-1 ring-blue-300 dark:ring-blue-700' : ''} ${onAeropuertoClick ? 'cursor-pointer hover:bg-blue-50/50 dark:hover:bg-blue-900/20' : ''}`;
               const estado = ESTILO_POR_ESTADO[determinarColorSemaforo(n.ocupacion_pct, umbralesConfig) as ColorSemaforo];
               return (

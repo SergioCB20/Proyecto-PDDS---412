@@ -1,7 +1,7 @@
 'use client';
 
 import { MapContainer, TileLayer, useMap, Polyline } from 'react-leaflet';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EyeOff, X } from 'lucide-react';
 import type { AeropuertoEnMapa, VueloEnMapa, RutaDestacada } from '@/lib/types';
 import type { UmbralesConfig } from './ConfigUmbrales';
@@ -185,35 +185,39 @@ export default function GeoMapa({
 }: GeoMapaProps) {
   const [legendaVisible, setLegendaVisible] = useState(true);
 
-  const aeropuertosFiltrados = (seguidoAeropuertoId
-    ? aeropuertos.filter(a => a.codigo_iata === seguidoAeropuertoId)
-    : seguidoVueloId
-      ? (() => {
-          const v = vuelos.find(v => v.id === seguidoVueloId);
-          if (v) {
-            const iatas = new Set([v.origen.codigo_iata, v.destino.codigo_iata]);
-            return aeropuertos.filter(a => iatas.has(a.codigo_iata));
-          }
-          return aeropuertos;
-        })()
-      : aeropuertos
-  ).filter(a => {
-    if (!filtroColorAeropuerto) return true;
-    return determinarColorSemaforo(a.ocupacionPorcentaje, umbralesConfig) === filtroColorAeropuerto;
-  });
+  const aeropuertosFiltrados = useMemo(() => {
+    const base = seguidoAeropuertoId
+      ? aeropuertos.filter(a => a.codigo_iata === seguidoAeropuertoId)
+      : seguidoVueloId
+        ? (() => {
+            const v = vuelos.find(v => v.id === seguidoVueloId);
+            if (v) {
+              const iatas = new Set([v.origen.codigo_iata, v.destino.codigo_iata]);
+              return aeropuertos.filter(a => iatas.has(a.codigo_iata));
+            }
+            return aeropuertos;
+          })()
+        : aeropuertos;
+    if (!filtroColorAeropuerto) return base;
+    return base.filter(a =>
+      determinarColorSemaforo(a.ocupacionPorcentaje, umbralesConfig) === filtroColorAeropuerto
+    );
+  }, [aeropuertos, seguidoAeropuertoId, seguidoVueloId, vuelos, filtroColorAeropuerto, umbralesConfig]);
 
-  const vuelosFiltrados = (seguidoAeropuertoId
-    ? vuelos.filter(v => v.origen.codigo_iata === seguidoAeropuertoId || v.destino.codigo_iata === seguidoAeropuertoId)
-    : seguidoVueloId
-      ? vuelos.filter(v => v.id === seguidoVueloId)
-      : vuelos
-  ).filter(v => {
-    if (!filtroColorVuelo) return true;
-    const pct = v.capacidad_carga > 0
-      ? ((v.capacidad_carga - v.carga_disponible) / v.capacidad_carga) * 100
-      : 0;
-    return determinarColorSemaforo(pct, umbralesConfig) === filtroColorVuelo;
-  });
+  const vuelosFiltrados = useMemo(() => {
+    const base = seguidoAeropuertoId
+      ? vuelos.filter(v => v.origen.codigo_iata === seguidoAeropuertoId || v.destino.codigo_iata === seguidoAeropuertoId)
+      : seguidoVueloId
+        ? vuelos.filter(v => v.id === seguidoVueloId)
+        : vuelos;
+    if (!filtroColorVuelo) return base;
+    return base.filter(v => {
+      const pct = v.capacidad_carga > 0
+        ? ((v.capacidad_carga - v.carga_disponible) / v.capacidad_carga) * 100
+        : 0;
+      return determinarColorSemaforo(pct, umbralesConfig) === filtroColorVuelo;
+    });
+  }, [vuelos, seguidoAeropuertoId, seguidoVueloId, filtroColorVuelo, umbralesConfig]);
 
   // Mantiene el overlay un poco más tras cargar para que la flota se pinte completa.
   // `settling` solo cubre la ventana de gracia posterior a la carga; el estado durante
