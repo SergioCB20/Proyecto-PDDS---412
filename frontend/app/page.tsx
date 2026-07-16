@@ -24,6 +24,7 @@ import {
   X,
   BarChart3,
   ZoomIn,
+  Download,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { api } from "@/lib/api";
@@ -794,7 +795,9 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
       <div className="absolute left-2 top-1/2 -translate-y-1/2 z-[1002] flex flex-col bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 rounded-xl">
           <DockIconos
             secciones={[
-              { id: 'datos', icon: Plane, label: 'Aeropuertos, Vuelos, Envíos' },
+              { id: 'aeropuertos', icon: Warehouse, label: 'Aeropuertos' },
+              { id: 'vuelos', icon: Plane, label: 'Vuelos' },
+              { id: 'envios', icon: Luggage, label: 'Envíos' },
               { id: 'control', icon: Activity, label: 'Control' },
               { id: 'registro', icon: Package, label: 'Registro Equipaje' },
               { id: 'metricas', icon: BarChart3, label: 'Métricas' },
@@ -809,32 +812,42 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
         </div>
 
         <div className="absolute left-16 top-4 z-1001 flex flex-col gap-2 max-h-[calc(100vh-8rem)] overflow-y-auto pointer-events-none">
-          {dockAbiertas.has('datos') && (
+          {dockAbiertas.has('aeropuertos') && (
             <PanelFlotante
-              title="Aeropuertos, Vuelos, Envíos"
-              onClose={() => toggleDockOp('datos')}
-              className="w-120 shrink-0 pointer-events-auto"
+              title="Aeropuertos"
+              onClose={() => toggleDockOp('aeropuertos')}
+              className="w-[30rem] shrink-0 pointer-events-auto"
             >
-              <PanelTabs
+              <PanelAeropuertosOperacion
                 aeropuertos={telemetria?.nodos ?? []}
-                vuelosAeropuerto={telemetria?.vuelos ?? []}
+                vuelos={telemetria?.vuelos ?? []}
                 onAeropuertoClick={() => {}}
+                onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
+                onMostrarRuta={handleMostrarRutaOp}
+                onVerEnMapa={(id) => {
+                  setSeguidoAeropuertoId(id);
+                  setSeguidoVueloId(null);
+                }}
+                seguidoId={seguidoAeropuertoId ?? undefined}
+                seleccionadoId={aeroSeleccionado ?? undefined}
+                filtroContinente={filtroContinenteOp}
+                onFiltroContinenteChange={setFiltroContinenteOp}
+                filtroColor={filtroColorAeroOp}
+                onFiltroColorChange={setFiltroColorAeroOp}
+              />
+            </PanelFlotante>
+          )}
+          {dockAbiertas.has('vuelos') && (
+            <PanelFlotante
+              title="Vuelos"
+              onClose={() => toggleDockOp('vuelos')}
+              className="w-[30rem] shrink-0 pointer-events-auto"
+            >
+              <PanelVuelosOperacion
                 vuelos={telemetria?.vuelos ?? []}
                 onVueloClick={(id, codigo) =>
                   setSelectedEnvio({ tipo: "vuelo", id, codigo })
                 }
-                onVerEnMapa={(id) => {
-                  setSeguidoVueloId(id);
-                  setSeguidoAeropuertoId(null);
-                }}
-                seguidoVueloId={seguidoVueloId ?? undefined}
-                onAeropuertoVerEnMapa={(id) => {
-                  setSeguidoAeropuertoId(id);
-                  setSeguidoVueloId(null);
-                }}
-                seguidoAeropuertoId={seguidoAeropuertoId ?? undefined}
-                aeropuertoSeleccionadoId={aeroSeleccionado ?? undefined}
-                vueloSeleccionadoId={vueloSeleccionadoOp ?? undefined}
                 onDownloadManifiesto={async (id, codigo) => {
                   try {
                     const blob = await api.downloadBlob(`/manifiestos/${id}`);
@@ -851,26 +864,38 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                   }
                 }}
                 onCancelVuelo={handleCancelarVuelo}
-                vueloFilterOrigen={vueloFilterOrigen}
-                vueloFilterDestino={vueloFilterDestino}
-                onVueloFilterChange={({ origen, destino }) => {
+                onVerEnMapa={(id) => {
+                  setSeguidoVueloId(id);
+                  setSeguidoAeropuertoId(null);
+                }}
+                seguidoId={seguidoVueloId ?? undefined}
+                seleccionadoId={vueloSeleccionadoOp ?? undefined}
+                filtroColor={filtroColorVueloOp}
+                onFiltroColorChange={setFiltroColorVueloOp}
+                origenFilter={vueloFilterOrigen}
+                destinoFilter={vueloFilterDestino}
+                onFilterChange={({ origen, destino }) => {
                   setVueloFilterOrigen(origen);
                   setVueloFilterDestino(destino);
                 }}
-                enviosActivo={estadoSesion === "EN_CURSO"}
+              />
+            </PanelFlotante>
+          )}
+          {dockAbiertas.has('envios') && (
+            <PanelFlotante
+              title="Envíos de Maletas"
+              onClose={() => toggleDockOp('envios')}
+              className="w-[30rem] shrink-0 pointer-events-auto"
+            >
+              <PanelEnviosMaletas
                 nodos={aeropuertos.map((n) => ({
                   codigo_iata: n.codigo_iata,
                   nombre: n.nombre,
                 }))}
+                activo={estadoSesion === "EN_CURSO"}
+                sesionId={sesionId ?? undefined}
                 onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
                 onMostrarRuta={handleMostrarRutaOp}
-                umbralesConfig={configUmbrales}
-                filtroContinente={filtroContinenteOp}
-                onFiltroContinenteChange={setFiltroContinenteOp}
-                filtroColorAeropuerto={filtroColorAeroOp}
-                onFiltroColorAeropuertoChange={setFiltroColorAeroOp}
-                filtroColorVuelo={filtroColorVueloOp}
-                onFiltroColorVueloChange={setFiltroColorVueloOp}
               />
             </PanelFlotante>
           )}
@@ -1012,6 +1037,14 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                 <Upload size={32} className="mx-auto text-slate-600 mb-2" />
                 <p className="text-sm text-slate-600 dark:text-slate-300">{csvFile ? csvFile.name : "Subir archivo CSV"}</p>
               </label>
+            </div>
+            <div className="text-center">
+              <a href="/ejemplo-carga-masiva.csv" download
+                className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline inline-flex items-center gap-1"
+              >
+                <Download size={12} />
+                Descargar ejemplo CSV
+              </a>
             </div>
             {csvLoading && <div className="text-center text-sm text-slate-600">Procesando...</div>}
             {csvError && (
