@@ -316,7 +316,6 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
 
   const handleVueloSeleccionadoOp = useCallback((id: string, codigo: string) => {
     setVueloSeleccionadoOp(id);
-    setSelectedEnvio({ tipo: 'vuelo', id, codigo });
   }, []);
 
   const handleMostrarRutaOp = useCallback((segmentos: SegmentoResponse[]) => {
@@ -1146,7 +1145,6 @@ function SimulacionView({
 
   const handleVueloSeleccionadoSim = useCallback((id: string, codigo: string) => {
     setVueloSeleccionadoSim(id);
-    setSelectedEnvio({ tipo: 'vuelo', id, codigo });
   }, []);
 
   const handleMostrarRutaSim = useCallback((segmentos: SegmentoResponse[]) => {
@@ -1749,7 +1747,6 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
 
   const handleVueloSeleccionadoCol = useCallback((id: string, codigo: string) => {
     setVueloSeleccionadoCol(id);
-    setSelectedEnvio({ tipo: 'vuelo', id, codigo });
   }, []);
 
   const handleMostrarRutaCol = useCallback((segmentos: SegmentoResponse[]) => {
