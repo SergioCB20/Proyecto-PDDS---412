@@ -1319,6 +1319,7 @@ function SimulacionView({
                   <PanelAeropuertosOperacion
                     aeropuertos={telemetria?.nodos ?? []}
                     vuelos={telemetria?.vuelos ?? []}
+                    onVerEnvios={(iata) => setSelectedEnvio({ tipo: 'nodo', id: iata, codigo: iata })}
                     onAeropuertoClick={() => {}}
                     onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
                     onMostrarRuta={handleMostrarRutaSim}
