@@ -124,6 +124,7 @@ export function PanelTabs({
             onFiltroColorChange={onFiltroColorAeropuertoChange}
             onSeguirEnMapa={onSeguirEnMapa}
             onMostrarRuta={onMostrarRuta}
+            sesionId={sesionId}
           />
       )}
 

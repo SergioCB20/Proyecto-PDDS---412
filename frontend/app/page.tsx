@@ -1332,6 +1332,7 @@ function SimulacionView({
                     onFiltroContinenteChange={setFiltroContinenteSim}
                     filtroColor={filtroColorAeroSim}
                     onFiltroColorChange={setFiltroColorAeroSim}
+                    sesionId={sesionId}
                   />
                 </div>
               ) : (
