@@ -20,9 +20,21 @@ interface MapControllerProps {
   onSalirSeguimientoAeropuerto?: () => void;
   rutaDestacada?: RutaDestacada | null;
   onLimpiarRuta?: () => void;
+  /** Si no es vacio, hace fitBounds a los aeropuerts cuyo continente coincida. */
+  continenteFiltro?: string;
 }
 
-function MapController({ aeropuertos, vuelos, seguidoVueloId, seguidoAeropuertoId, onSalirSeguimiento, onSalirSeguimientoAeropuerto, rutaDestacada, onLimpiarRuta }: MapControllerProps) {
+function MapController({
+  aeropuertos,
+  vuelos,
+  seguidoVueloId,
+  seguidoAeropuertoId,
+  onSalirSeguimiento,
+  onSalirSeguimientoAeropuerto,
+  rutaDestacada,
+  onLimpiarRuta,
+  continenteFiltro,
+}: MapControllerProps) {
   const map = useMap();
   const siguiendo = !!(seguidoVueloId || seguidoAeropuertoId);
   const previous = useRef<{ tipo: 'vuelo' | 'aero' | null; id: string | null }>({ tipo: null, id: null });
@@ -32,6 +44,7 @@ function MapController({ aeropuertos, vuelos, seguidoVueloId, seguidoAeropuertoI
       if (e.key === 'Escape') {
         if (rutaDestacada) {
           onLimpiarRuta?.();
+          map.flyTo(CENTRO, ZOOM, { duration: 0.8 });
           return;
         }
         if (siguiendo) {
@@ -72,12 +85,44 @@ function MapController({ aeropuertos, vuelos, seguidoVueloId, seguidoAeropuertoI
     }
   }, [rutaDestacada, map]);
 
+  // Filtro por continente: mueve la camara para encuadrar todos los aeropuerts del
+  // continente seleccionado. Si el filtro queda vacio y antes habia uno aplicado,
+  // vuelve al centro del mundo (mismo destino al que ESC lleva cuando se sale del
+  // seguimiento). Gana siempre sobre el seguimiento activo: la accion del usuario
+  // al elegir continente debe reubicar la camara.
+  const previousContinente = useRef<string | null>(null);
+  useEffect(() => {
+    const previo = previousContinente.current;
+    if (previo === continenteFiltro) return;
+
+    if (continenteFiltro) {
+      const coords = aeropuertos
+        .filter(
+          (a) => (a.continente || a.zona_horaria) === continenteFiltro,
+        )
+        .map<[number, number]>((a) => [a.latitud, a.longitud]);
+      if (coords.length === 1) {
+        // Un solo aeropuert: fitBounds sobre-zoomea hasta maxZoom=18. Fallback a
+        // flyTo con zoom 7, mismo nivel que el click-marker (Precedent en L63).
+        map.flyTo(coords[0], 7, { duration: 1 });
+      } else if (coords.length > 1) {
+        map.fitBounds(coords, { padding: [50, 50], duration: 1 });
+      }
+    } else if (previo) {
+      // Filtro limpiado: volver a la vista global del mundo (mismo flyTo que ESC).
+      map.flyTo(CENTRO, ZOOM, { duration: 0.8 });
+    }
+
+    previousContinente.current = continenteFiltro ?? null;
+  }, [continenteFiltro, aeropuertos, map]);
+
   return null;
 }
 
 const GeoMapaAeropuerto = dynamic(() => import('./GeoMapaAeropuerto'), { ssr: false });
 const GeoMapaVuelo = dynamic(() => import('./GeoMapaVuelo'), { ssr: false });
 const GeoMapaLeyenda = dynamic(() => import('./GeoMapaLeyenda'), { ssr: false });
+const GeoMapaEtiquetasPaises = dynamic(() => import('./GeoMapaEtiquetasPaises'), { ssr: false });
 
 interface GeoMapaProps {
   aeropuertos: AeropuertoEnMapa[];
@@ -93,13 +138,20 @@ interface GeoMapaProps {
   seguidoVueloId?: string;
   onSalirSeguimiento?: () => void;
   onSeguirVuelo?: (id: string) => void;
-  onVueloSeleccionado?: (id: string) => void;
+  onVueloSeleccionado?: (id: string, codigo: string) => void;
   seguidoAeropuertoId?: string;
   onSalirSeguimientoAeropuerto?: () => void;
   rutaDestacada?: RutaDestacada | null;
   onLimpiarRuta?: () => void;
-  filtroColor?: string;
+  /** Filtro por semáforo de almacenes, sincronizado con el panel. */
+  filtroColorAeropuerto?: string;
+  /** Filtro por semáforo de unidades de transporte, sincronizado con el panel. */
+  filtroColorVuelo?: string;
   onAeropuertoClick?: (codigoIata: string) => void;
+  /** Filtro por continente que se representa en el mapa con fitBounds. */
+  continenteFiltro?: string;
+  mostrarZoom?: boolean;
+  onCerrarZoom?: () => void;
 }
 
 // Gracia tras `cargando=false` para que los marcadores terminen de montarse
@@ -124,8 +176,12 @@ export default function GeoMapa({
   onSalirSeguimientoAeropuerto,
   rutaDestacada,
   onLimpiarRuta,
-  filtroColor,
+  filtroColorAeropuerto,
+  filtroColorVuelo,
   onAeropuertoClick,
+  continenteFiltro,
+  mostrarZoom = true,
+  onCerrarZoom,
 }: GeoMapaProps) {
   const [legendaVisible, setLegendaVisible] = useState(true);
 
@@ -142,8 +198,8 @@ export default function GeoMapa({
         })()
       : aeropuertos
   ).filter(a => {
-    if (!filtroColor) return true;
-    return determinarColorSemaforo(a.ocupacionPorcentaje, umbralesConfig) === filtroColor;
+    if (!filtroColorAeropuerto) return true;
+    return determinarColorSemaforo(a.ocupacionPorcentaje, umbralesConfig) === filtroColorAeropuerto;
   });
 
   const vuelosFiltrados = (seguidoAeropuertoId
@@ -152,11 +208,11 @@ export default function GeoMapa({
       ? vuelos.filter(v => v.id === seguidoVueloId)
       : vuelos
   ).filter(v => {
-    if (!filtroColor) return true;
+    if (!filtroColorVuelo) return true;
     const pct = v.capacidad_carga > 0
       ? ((v.capacidad_carga - v.carga_disponible) / v.capacidad_carga) * 100
       : 0;
-    return determinarColorSemaforo(pct, umbralesConfig) === filtroColor;
+    return determinarColorSemaforo(pct, umbralesConfig) === filtroColorVuelo;
   });
 
   // Mantiene el overlay un poco más tras cargar para que la flota se pinte completa.
@@ -181,11 +237,11 @@ export default function GeoMapa({
   const siguiendo = !!(seguidoVueloId || seguidoAeropuertoId);
 
   return (
-    <div className={`relative ${className}`} style={{ padding: '10px' }}>
+    <div className={`relative ${className}`}>
       <MapContainer
         center={CENTRO}
         zoom={ZOOM}
-        className="w-full h-full rounded-xl z-0"
+        className="w-full h-full z-0"
         zoomControl={false}
         scrollWheelZoom={true}
         attributionControl={false}
@@ -195,8 +251,9 @@ export default function GeoMapa({
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png"
         />
+        <GeoMapaEtiquetasPaises />
         {aeropuertosFiltrados.map((aeropuerto) => (
           <GeoMapaAeropuerto key={aeropuerto.codigo_iata} aeropuerto={aeropuerto} onClick={onAeropuertoClick} />
         ))}
@@ -220,7 +277,7 @@ export default function GeoMapa({
             pathOptions={{ color: '#2563eb', weight: 5, opacity: 0.8 }}
           />
         )}
-        <ControlZoom />
+        {mostrarZoom && <ControlZoom onClose={onCerrarZoom} />}
         <MapController
           aeropuertos={aeropuertos}
           vuelos={vuelos}
@@ -230,6 +287,7 @@ export default function GeoMapa({
           onSalirSeguimientoAeropuerto={onSalirSeguimientoAeropuerto}
           rutaDestacada={rutaDestacada}
           onLimpiarRuta={onLimpiarRuta}
+          continenteFiltro={continenteFiltro}
         />
         {legendaVisible && <GeoMapaLeyenda umbralesConfig={umbralesConfig} onClose={() => setLegendaVisible(false)} />}
         {children}
@@ -242,14 +300,14 @@ export default function GeoMapa({
           className="absolute bottom-4 right-4 z-40 p-2 rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
           title="Mostrar leyenda"
         >
-          <EyeOff size={16} className="text-slate-500 dark:text-slate-400" />
+          <EyeOff size={16} className="text-slate-600 dark:text-slate-300" />
         </button>
       )}
 
       {/* Contenido flotante (filtros desde el padre via children + seguido overlay) */}
       {rutaDestacada && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 pointer-events-none">
-          <div className="pointer-events-auto inline-flex items-center gap-2 rounded-xl bg-blue-600/90 backdrop-blur-sm px-3 py-1.5 text-[11px] font-medium text-white shadow-lg">
+          <div className="pointer-events-auto inline-flex items-center gap-2 rounded-xl bg-blue-600/90 backdrop-blur-sm px-3 py-1.5 text-sm font-medium text-white shadow-lg">
             <span>Ruta destacada</span>
             <button
               onClick={() => onLimpiarRuta?.()}
@@ -263,7 +321,7 @@ export default function GeoMapa({
       )}
       {siguiendo && (
         <div className="absolute top-4 left-4 z-40 pointer-events-none">
-          <div className="pointer-events-auto rounded-xl bg-blue-100/90 dark:bg-blue-900/40 backdrop-blur-sm px-3 py-1.5 text-[11px] font-medium text-blue-700 dark:text-blue-300 shadow-lg border border-blue-200 dark:border-blue-800">
+          <div className="pointer-events-auto rounded-xl bg-blue-100/90 dark:bg-blue-900/40 backdrop-blur-sm px-3 py-1.5 text-sm font-medium text-blue-700 dark:text-blue-300 shadow-lg border border-blue-200 dark:border-blue-800">
             Siguiendo elemento — ESC para salir
           </div>
         </div>

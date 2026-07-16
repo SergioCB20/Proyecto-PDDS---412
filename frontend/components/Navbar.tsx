@@ -37,7 +37,7 @@ export function Navbar() {
         ))}
       </div>
 
-      <div className="flex items-center gap-2 text-xs text-slate-400">
+      <div className="flex items-center gap-2 text-xs text-slate-600">
         <Monitor size={14} />
         <span>Device: {deviceId}</span>
       </div>

@@ -99,9 +99,9 @@ public class SesionController {
             @RequestParam String tipo,
             @RequestParam(required = false) String origen_iata,
             @RequestParam(required = false) String destino_iata,
-            @RequestParam(required = false) String codigo_equipaje) {
+            @RequestParam(required = false) String codigo_maleta) {
         try {
-            return ResponseEntity.ok(sesionService.obtenerEnviosPanelSesion(id, tipo, origen_iata, destino_iata, codigo_equipaje));
+            return ResponseEntity.ok(sesionService.obtenerEnviosPanelSesion(id, tipo, origen_iata, destino_iata, codigo_maleta));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest()
                     .body(Map.of("status", 400, "error", "PARAMETRO_INVALIDO", "mensaje", e.getMessage()));

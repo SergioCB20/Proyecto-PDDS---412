@@ -1,15 +1,12 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect } from 'react';
-import { Upload, XCircle, Map as MapIcon, PlaneTakeoff, PlaneLanding, X, Copy, Check, Briefcase } from 'lucide-react';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { Map as MapIcon, ChevronDown, ChevronUp } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import { Modal } from '@/components/ui/Modal';
-import { Button } from '@/components/ui/Button';
-import { colorVueloPorEstado, determinarColorSemaforo } from '@/lib/colors';
-import type { VueloTelemetria, Maleta } from '@/lib/types';
+import { colorVueloPorEstado, colorVueloPorOcupacion, determinarColorSemaforo, type ColorSemaforo } from '@/lib/colors';
+import type { VueloTelemetria } from '@/lib/types';
 import { formatearFechaHoraSeparado } from '@/lib/formatearHora';
-import { fetchMaletasVuelo } from '@/lib/api';
 import { ciudadDe, etiquetaFiltroAeropuerto } from '@/lib/aeropuertos';
 
 interface PanelVuelosOperacionProps {
@@ -23,77 +20,34 @@ interface PanelVuelosOperacionProps {
   origenFilter?: string;
   destinoFilter?: string;
   onFilterChange?: (filters: { origen: string; destino: string }) => void;
-  filtroColor?: string;
   umbralesConfig?: { verdeMax: number; ambarMax: number };
+  /** Filtro por semáforo controlado desde la vista, para reflejarlo en el mapa. */
+  filtroColor?: '' | ColorSemaforo;
+  onFiltroColorChange?: (color: '' | ColorSemaforo) => void;
 }
 
-// Tope de tarjetas montadas en el DOM. El filtrado opera sobre la lista
-// completa; solo se acota cuántas se renderizan a la vez para no saturar la
-// pestaña cuando la telemetría trae muchos vuelos.
-const MAX_RENDER = 100;
+const MAX_RENDER = 500;
 
-export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiesto, onCancelVuelo, onVerEnMapa, seguidoId, seleccionadoId, origenFilter = '', destinoFilter = '', onFilterChange, filtroColor, umbralesConfig }: PanelVuelosOperacionProps) {
+export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiesto, onCancelVuelo, onVerEnMapa, seguidoId, seleccionadoId, origenFilter = '', destinoFilter = '', onFilterChange, umbralesConfig, filtroColor, onFiltroColorChange }: PanelVuelosOperacionProps) {
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(true);
   const [filtroCodigo, setFiltroCodigo] = useState('');
-  const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  // Controlado si la vista pasa filtroColor (para reflejarlo en el mapa); si no,
+  // mantiene el filtro local al panel.
+  const [filtroColorInterno, setFiltroColorInterno] = useState<'' | ColorSemaforo>('');
+  const filtroColorLocal = filtroColor ?? filtroColorInterno;
+  const setFiltroColorLocal = (v: '' | ColorSemaforo) => {
+    if (onFiltroColorChange) onFiltroColorChange(v);
+    else setFiltroColorInterno(v);
+  };
+  const [seleccionadoLocal, setSeleccionadoLocal] = useState<string | null>(null);
+  const itemRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
   useEffect(() => {
     if (seleccionadoId && itemRefs.current[seleccionadoId]) {
       itemRefs.current[seleccionadoId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setSeleccionadoLocal(seleccionadoId);
     }
   }, [seleccionadoId]);
   const [orden, setOrden] = useState('');
-
-  // Estado del modal "Ver Maletas"
-  const [maletasModal, setMaletasModal] = useState<{ vueloId: string; vueloCodigo: string } | null>(null);
-  const [maletas, setMaletas] = useState<Maleta[]>([]);
-  const [maletasLoading, setMaletasLoading] = useState(false);
-  const [maletasError, setMaletasError] = useState<string | null>(null);
-  const [maletaCopiada, setMaletaCopiada] = useState<string | null>(null);
-
-  const handleAbrirMaletas = async (vueloId: string, vueloCodigo: string) => {
-    setMaletasModal({ vueloId, vueloCodigo });
-    setMaletas([]);
-    setMaletasLoading(true);
-    setMaletasError(null);
-    try {
-      const lista = await fetchMaletasVuelo(vueloId);
-      setMaletas(lista);
-    } catch (err) {
-      const e = err as { mensaje?: string; message?: string };
-      setMaletasError(e.mensaje || e.message || 'Error al cargar las maletas del vuelo');
-      setMaletas([]);
-    } finally {
-      setMaletasLoading(false);
-    }
-  };
-
-  const handleCerrarMaletas = () => {
-    setMaletasModal(null);
-    setMaletas([]);
-    setMaletasError(null);
-    setMaletaCopiada(null);
-  };
-
-  const handleCopiarMaleta = async (codigo: string) => {
-    try {
-      await navigator.clipboard.writeText(codigo);
-      setMaletaCopiada(codigo);
-      setTimeout(() => setMaletaCopiada((curr) => (curr === codigo ? null : curr)), 1500);
-    } catch {
-      // Browser sin clipboard API, fallback silencioso
-    }
-  };
-
-  // Agrupa las maletas por equipaje para presentacion clara.
-  const maletasPorEquipaje = useMemo(() => {
-    const map = new Map<string, Maleta[]>();
-    for (const m of maletas) {
-      const key = m.equipaje_id_externo ?? m.equipaje_id;
-      const existing = map.get(key);
-      if (existing) existing.push(m);
-      else map.set(key, [m]);
-    }
-    return Array.from(map.entries());
-  }, [maletas]);
 
   const opcionesOrigen = useMemo(() => {
     const set = new Set(vuelos.map(v => v.origen_iata));
@@ -110,12 +64,12 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
       if (filtroCodigo && !v.codigo_vuelo.toLowerCase().includes(filtroCodigo.toLowerCase())) return false;
       if (origenFilter && v.origen_iata !== origenFilter) return false;
       if (destinoFilter && v.destino_iata !== destinoFilter) return false;
-      if (filtroColor) {
-        if (determinarColorSemaforo(v.ocupacion_pct, umbralesConfig) !== filtroColor) return false;
+      if (filtroColorLocal) {
+        if (determinarColorSemaforo(v.ocupacion_pct, umbralesConfig) !== filtroColorLocal) return false;
       }
       return true;
     });
-  }, [vuelos, filtroCodigo, origenFilter, destinoFilter, filtroColor, umbralesConfig]);
+  }, [vuelos, filtroCodigo, origenFilter, destinoFilter, filtroColorLocal, umbralesConfig]);
 
   const opcionesOrden = [
     { value: '', label: 'Sin orden' },
@@ -157,18 +111,19 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
     [vuelosOrdenados]
   );
 
-  const hayFiltrosActivos = filtroCodigo || origenFilter || destinoFilter;
+  const hayFiltrosActivos = filtroCodigo || origenFilter || destinoFilter || filtroColorLocal;
 
   const limpiarFiltros = () => {
     setFiltroCodigo('');
     onFilterChange?.({ origen: '', destino: '' });
+    setFiltroColorLocal('');
   };
 
   if (vuelos.length === 0) {
     return (
       <div className="p-4 border-t border-slate-200 dark:border-slate-700">
         <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Vuelos</h3>
-        <p className="text-xs text-slate-400 italic text-center py-2">Sin datos de vuelos</p>
+        <p className="text-xs text-slate-600 italic text-center py-2">Sin datos de vuelos</p>
       </div>
     );
   }
@@ -176,12 +131,22 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
   return (
     <div className="p-4 border-t border-slate-200 dark:border-slate-700">
       <div className="flex items-center justify-between mb-1">
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Vuelos</h3>
-        <span className="text-xs text-slate-400">
-          Mostrando {vuelosFiltrados.length} de {vuelos.length} vuelos
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Vuelos</h3>
+          <button onClick={() => setFiltrosAbiertos(!filtrosAbiertos)}
+            className="p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 transition-colors"
+            title={filtrosAbiertos ? 'Ocultar filtros' : 'Mostrar filtros'}
+          >
+            {filtrosAbiertos ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+        </div>
+        <span className="text-xs text-slate-600">
+          Mostrando {vuelosFiltrados.length} de {vuelos.length}
         </span>
       </div>
 
+      {filtrosAbiertos && (
+      <>
       <div className="flex flex-wrap gap-2 mb-3">
         <div className="flex-1 min-w-[100px]">
           <Input
@@ -208,6 +173,24 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
         </div>
       </div>
 
+      <div className="flex items-center gap-1 mb-3 flex-wrap">
+        {(['', 'VACIO', 'VERDE', 'AMBAR', 'ROJO'] as const).map((opt) => (
+          <button key={opt} onClick={() => setFiltroColorLocal(filtroColorLocal === opt ? '' : opt)}
+            className={`px-2 py-1 text-xs font-medium rounded-md transition-colors flex items-center gap-1 ${
+              filtroColorLocal === opt
+                ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 ring-1 ring-blue-300 dark:ring-blue-700'
+                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            {opt === '' ? 'Todos' : (
+              <span className="w-2.5 h-2.5 rounded-full inline-block"
+                style={{ backgroundColor: opt === 'VACIO' ? '#9ca3af' : opt === 'VERDE' ? '#22c55e' : opt === 'AMBAR' ? '#eab308' : '#ef4444' }}
+              />
+            )}
+          </button>
+        ))}
+      </div>
+
       {hayFiltrosActivos && (
         <button
           onClick={limpiarFiltros}
@@ -225,227 +208,118 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
           onChange={e => setOrden(e.target.value)}
         />
       </div>
+      </>)}
 
       {vuelosFiltrados.length > MAX_RENDER && (
-        <p className="text-[11px] text-slate-400 mb-2">
+        <p className="text-sm text-slate-600 mb-2">
           Mostrando las primeras {MAX_RENDER}; refina los filtros para ver el resto.
         </p>
       )}
 
-      <div className="space-y-2 max-h-56 overflow-y-auto">
-        {vuelosVisibles.map(v => {
-          const ocupada = v.capacidad_carga - v.carga_disponible;
-          const pct = v.capacidad_carga > 0 ? (ocupada / v.capacidad_carga) * 100 : 0;
-          const colorHex = colorVueloPorEstado(v.estado);
-          return (
-            <div
-              key={v.id}
-              ref={el => { itemRefs.current[v.id] = el; }}
-              className={`py-2.5 px-3 rounded-lg bg-slate-50 dark:bg-slate-800/30 border ${
-                seleccionadoId === v.id
-                  ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-800'
-                  : 'border-slate-100 dark:border-slate-800/50'
-              } hover:border-slate-200 dark:hover:border-slate-700/50 transition-all duration-200 shadow-sm`}
-            >
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full shadow-sm animate-pulse" style={{ backgroundColor: colorHex }} />
-                  <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">{v.codigo_vuelo}</span>
-                  <span
-                    className="text-[9px] px-1.5 py-0.5 rounded-full font-medium"
-                    style={{ backgroundColor: `${colorHex}15`, color: colorHex }}
-                  >
-                    {v.estado === 'EN_RUTA' ? 'En Ruta' : v.estado === 'PROGRAMADO' ? 'Programado' : v.estado === 'CANCELADO' ? 'Cancelado' : 'Completado'}
-                  </span>
-                </div>
-                <span
-                  className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate max-w-[170px]"
-                  title={`${v.origen_iata} → ${v.destino_iata}`}
-                >
-                  {ciudadDe(v.origen_iata)} &rarr; {ciudadDe(v.destino_iata)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 mb-1">
-                <span>Carga: {ocupada} / {v.capacidad_carga}</span>
-                <span className="font-semibold" style={{ color: colorHex }}>{pct.toFixed(0)}%</span>
-              </div>
-              <div className="w-full h-1 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden mb-2">
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: colorHex }}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-2 mb-2">
-                {(() => {
-                  const salida = formatearFechaHoraSeparado(v.hora_salida);
-                  const llegada = formatearFechaHoraSeparado(v.hora_llegada);
-                  return (
-                    <>
-                      <div className="flex items-center gap-1.5 rounded-md bg-white/70 dark:bg-slate-900/40 border border-slate-200/70 dark:border-slate-700/50 px-2 py-1.5">
-                        <PlaneTakeoff size={11} className="text-slate-400 dark:text-slate-500 shrink-0" />
-                        <div className="flex flex-col leading-tight min-w-0">
-                          <span className="text-[9px] uppercase tracking-wide text-slate-400 dark:text-slate-500 font-medium">Salida</span>
-                          <span className="text-[11px] font-mono font-semibold text-slate-700 dark:text-slate-200 truncate">
-                            {salida.hora}
-                            <span className="text-slate-400 dark:text-slate-500 font-normal"> · {salida.fecha}</span>
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 rounded-md bg-white/70 dark:bg-slate-900/40 border border-slate-200/70 dark:border-slate-700/50 px-2 py-1.5">
-                        <PlaneLanding size={11} className="text-slate-400 dark:text-slate-500 shrink-0" />
-                        <div className="flex flex-col leading-tight min-w-0">
-                          <span className="text-[9px] uppercase tracking-wide text-slate-400 dark:text-slate-500 font-medium">Llegada</span>
-                          <span className="text-[11px] font-mono font-semibold text-slate-700 dark:text-slate-200 truncate">
-                            {llegada.hora}
-                            <span className="text-slate-400 dark:text-slate-500 font-normal"> · {llegada.fecha}</span>
-                          </span>
-                        </div>
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-              
-              <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800/80 pt-2 mt-1.5 gap-2">
-                <div className="flex gap-1.5">
-                  {onVueloClick && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onVueloClick(v.id, v.codigo_vuelo); }}
-                      className="px-2.5 py-0.5 rounded bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-[10px] font-medium transition-colors cursor-pointer border border-transparent dark:border-blue-900/30"
-                    >
-                      Ver Envíos
-                    </button>
-                  )}
-                  {onDownloadManifiesto && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleAbrirMaletas(v.id, v.codigo_vuelo); }}
-                      className="px-2.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 text-[10px] font-medium transition-colors cursor-pointer border border-transparent dark:border-emerald-900/30"
-                      title="Ver IDs individuales de las maletas asignadas a este vuelo"
-                    >
-                      Ver Maletas
-                    </button>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  {seguidoId === v.id ? (
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-medium whitespace-nowrap">
-                      En Mapa [ESC]
-                    </span>
-                  ) : onVerEnMapa && v.estado === 'EN_RUTA' && (
-                    <button
-                      onClick={e => { e.stopPropagation(); onVerEnMapa(v.id); }}
-                      className="p-1 rounded hover:bg-amber-100 dark:hover:bg-amber-900/30 text-amber-600 transition-colors cursor-pointer"
-                      title="Ver en mapa"
-                    >
-                      <MapIcon size={12} />
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-        {vuelosFiltrados.length === 0 && (
-          <p className="text-xs text-slate-400 italic text-center py-2">
-            Ningún vuelo coincide con los filtros
-          </p>
-        )}
-      </div>
-
-      <Modal
-        open={!!maletasModal}
-        onClose={handleCerrarMaletas}
-        title={
-          <div className="flex items-center gap-2">
-            <Briefcase size={16} className="text-emerald-600" />
-            <span>
-              Maletas del vuelo {maletasModal?.vueloCodigo ?? ''}
-            </span>
-          </div>
-        }
-      >
-        {maletasLoading && (
-          <div className="flex items-center gap-2 text-xs text-slate-500 py-4">
-            <span className="w-3 h-3 border-2 border-slate-300 border-t-emerald-500 rounded-full animate-spin" />
-            Cargando maletas...
-          </div>
-        )}
-
-        {!maletasLoading && maletasError && (
-          <div className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400 p-3 rounded">
-            {maletasError}
-          </div>
-        )}
-
-        {!maletasLoading && !maletasError && (
-          <>
-            <div className="flex items-center justify-between mb-3 text-xs text-slate-500">
-              <span>
-                {maletas.length === 0
-                  ? 'Este vuelo no tiene maletas asignadas todavía.'
-                  : `${maletas.length} maleta${maletas.length !== 1 ? 's' : ''} en ${maletasPorEquipaje.length} equipaje${maletasPorEquipaje.length !== 1 ? 's' : ''}.`}
-              </span>
-              {maletas.length > 0 && (
-                <Button
-                  size="sm"
-                  variant="secondary"
+      <div className="max-h-[28rem] overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700">
+        <table className="w-full text-xs border-collapse">
+          <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 uppercase tracking-wide z-10">
+            <tr>
+              <th className="text-left px-2 py-2 font-semibold">Código</th>
+              <th className="text-left px-2 py-2 font-semibold">Estado</th>
+              <th className="text-left px-2 py-2 font-semibold hidden lg:table-cell">Ruta</th>
+              <th className="text-right px-2 py-2 font-semibold">Carga</th>
+              <th className="text-left px-2 py-2 font-semibold">Sale</th>
+              <th className="text-left px-2 py-2 font-semibold">Llega</th>
+              <th className="text-right px-2 py-2 font-semibold w-24">—</th>
+            </tr>
+          </thead>
+          <tbody>
+            {vuelosVisibles.map((v, idx) => {
+              const ocupada = v.capacidad_carga - v.carga_disponible;
+              const pct = v.capacidad_carga > 0 ? (ocupada / v.capacidad_carga) * 100 : 0;
+              const colorHex = colorVueloPorEstado(v.estado);
+              const semaforoColor = colorVueloPorOcupacion(pct, umbralesConfig);
+              const salida = formatearFechaHoraSeparado(v.hora_salida);
+              const llegada = formatearFechaHoraSeparado(v.hora_llegada);
+              const zebra = idx % 2 === 0 ? 'bg-white/40 dark:bg-slate-900/20' : '';
+              const seleccionado = (seleccionadoLocal ?? seleccionadoId) === v.id;
+              const rowCls = `${zebra} ${seleccionado ? '!bg-blue-50 dark:!bg-blue-900/30 ring-1 ring-blue-300 dark:ring-blue-700' : ''} cursor-pointer hover:bg-blue-50/50 dark:hover:bg-blue-900/20`;
+              const estadoLabel = v.estado === 'EN_RUTA' ? 'En Ruta' : v.estado === 'PROGRAMADO' ? 'Programado' : v.estado === 'CANCELADO' ? 'Cancelado' : 'Completado';
+              const estadoBg = v.estado === 'PROGRAMADO' ? '#f1f5f9' : `${colorHex}15`;
+              const estadoFg = v.estado === 'PROGRAMADO' ? '#94a3b8' : colorHex;
+              return (
+                <tr
+                  key={v.id}
+                  ref={el => { itemRefs.current[v.id] = el; }}
+                  className={rowCls + ' border-t border-slate-100 dark:border-slate-800'}
                   onClick={() => {
-                    const all = maletas.map(m => m.codigo_maleta).join('\n');
-                    navigator.clipboard?.writeText(all);
+                    setSeleccionadoLocal(v.id);
+                    onVueloClick?.(v.id, v.codigo_vuelo);
                   }}
-                  title="Copiar todos los IDs al portapapeles"
                 >
-                  <Copy size={12} />
-                  Copiar todos
-                </Button>
-              )}
-            </div>
-
-            {maletas.length > 0 && (
-              <div className="space-y-3 max-h-96 overflow-y-auto">
-                {maletasPorEquipaje.map(([equipajeIdExt, lista]) => (
-                  <div key={equipajeIdExt} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40">
-                    <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 dark:border-slate-700 bg-white/60 dark:bg-slate-900/30">
-                      <div className="flex items-center gap-2">
-                        <span className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-[10px] font-semibold tracking-wide">
-                          EQUIPAJE
-                        </span>
-                        <span className="text-sm font-mono font-semibold text-slate-800 dark:text-slate-200">
-                          {equipajeIdExt}
-                        </span>
-                      </div>
-                      <span className="text-[11px] text-slate-500">
-                        {lista.length} maleta{lista.length !== 1 ? 's' : ''}
-                      </span>
+                  <td className="px-2 py-1.5 whitespace-nowrap">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className={`w-2 h-2 rounded-full shadow-sm shrink-0 ${v.estado !== 'PROGRAMADO' ? 'animate-pulse' : ''} ${v.estado === 'PROGRAMADO' ? 'ring-1 ring-slate-300' : ''}`} style={{ backgroundColor: semaforoColor }} />
+                      <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">{v.codigo_vuelo}</span>
                     </div>
-                    <ul className="divide-y divide-slate-200 dark:divide-slate-700">
-                      {lista.map((m) => (
-                        <li key={m.id} className="flex items-center justify-between px-3 py-1.5">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                            <span className="font-mono text-xs text-slate-700 dark:text-slate-300 truncate">
-                              {m.codigo_maleta}
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleCopiarMaleta(m.codigo_maleta)}
-                            className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors shrink-0"
-                            title="Copiar ID al portapapeles"
-                          >
-                            {maletaCopiada === m.codigo_maleta ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <span
+                      className="text-[10px] px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap"
+                      style={{ backgroundColor: estadoBg, color: estadoFg }}
+                    >
+                      {estadoLabel}
+                    </span>
+                  </td>
+                  <td className="px-2 py-1.5 text-slate-700 dark:text-slate-300 truncate hidden lg:table-cell max-w-[180px]" title={`${ciudadDe(v.origen_iata)} → ${ciudadDe(v.destino_iata)}`}>
+                    {ciudadDe(v.origen_iata)} <span className="text-slate-400">→</span> {ciudadDe(v.destino_iata)}
+                  </td>
+                  <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                    <span className="text-slate-600 dark:text-slate-400">{ocupada}/{v.capacidad_carga}</span>
+                    <span className="ml-2 font-bold" style={{ color: semaforoColor }}>{pct.toFixed(0)}%</span>
+                    <div className="w-16 h-1 mt-0.5 ml-auto bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: semaforoColor }} />
+                    </div>
+                  </td>
+                  <td className="px-2 py-1.5 font-mono text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                    {salida.hora}
+                  </td>
+                  <td className="px-2 py-1.5 font-mono text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                    {llegada.hora}
+                  </td>
+                  <td className="px-2 py-1.5 text-right">
+                    <div className="flex items-center justify-end gap-1.5">
+                      {seguidoId === v.id ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-medium whitespace-nowrap">En Mapa</span>
+                      ) : onVerEnMapa && v.estado === 'EN_RUTA' && (
+                        <button
+                          onClick={e => { e.stopPropagation(); onVerEnMapa(v.id); }}
+                          className="p-1 rounded hover:bg-amber-100 dark:hover:bg-amber-900/30 text-amber-600"
+                          title="Ver en mapa"
+                        >
+                          <MapIcon size={12} />
+                        </button>
+                      )}
+                      {onVueloClick && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onVueloClick(v.id, v.codigo_vuelo); }}
+                          className="px-2 py-0.5 rounded bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-xs font-medium transition-colors cursor-pointer border border-transparent dark:border-blue-900/30"
+                          title="Ver envíos y maletas de este vuelo"
+                        >
+                          Envíos
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+            {vuelosFiltrados.length === 0 && (
+              <tr>
+                <td colSpan={7} className="text-xs text-slate-600 italic text-center py-4">
+                  Ningún vuelo coincide con los filtros
+                </td>
+              </tr>
             )}
-          </>
-        )}
-      </Modal>
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

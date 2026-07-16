@@ -13,6 +13,7 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -67,6 +68,9 @@ public interface VueloRepository extends JpaRepository<Vuelo, UUID>, JpaSpecific
     boolean existsByFechaOperacionAndEstadoInAndEsPlantilla(LocalDate fechaOperacion, List<EstadoVuelo> estados, Boolean esPlantilla);
     long countByFechaOperacionAndEsPlantilla(LocalDate fechaOperacion, Boolean esPlantilla);
 
+    Optional<Vuelo> findFirstByCodigoVueloAndEsPlantillaFalseAndFechaOperacion(
+            String codigoVuelo, LocalDate fechaOperacion);
+
     @Modifying
     @Query("UPDATE Vuelo v SET v.cargaDisponible = v.cargaDisponible - :cantidad WHERE v.id = :id AND v.cargaDisponible >= :cantidad")
     int decrementarCargaDisponible(@Param("id") UUID id, @Param("cantidad") int cantidad);
@@ -74,4 +78,10 @@ public interface VueloRepository extends JpaRepository<Vuelo, UUID>, JpaSpecific
     @Modifying
     @Query("UPDATE Vuelo v SET v.cargaDisponible = v.cargaDisponible + :cantidad WHERE v.id = :id")
     int incrementarCargaDisponible(@Param("id") UUID id, @Param("cantidad") int cantidad);
+
+    @Query("SELECT COUNT(v) FROM Vuelo v WHERE v.fechaOperacion = :fecha AND v.esPlantilla = false AND v.estado <> com.tasfb2b.backend.bc1.domain.EstadoVuelo.PROGRAMADO")
+    long countByFechaOperacionAndEstadoNotProgramado(@Param("fecha") LocalDate fecha);
+
+    @Query("SELECT COUNT(v) FROM Vuelo v WHERE v.fechaOperacion = :fecha AND v.esPlantilla = false AND v.estado = :estado")
+    long countByFechaOperacionAndEstado(@Param("fecha") LocalDate fecha, @Param("estado") EstadoVuelo estado);
 }

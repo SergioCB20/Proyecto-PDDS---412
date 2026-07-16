@@ -1,4 +1,4 @@
-import type { ApiError, EnvioEntregadoResponse, EnvioItemResponse, EnvioPanelResponse, EquipajePlanViaje, Maleta, MetricasOperacion, ReporteSesion } from './types';
+import type { ApiError, EnvioEntregadoResponse, EnvioItemResponse, EnvioPanelResponse, EquipajePlanViaje, Maleta, MetricasOperacion, NodoEnviosResponse, ReporteSesion } from './types';
 import { device } from './device';
 
 function getBaseUrl(): string {
@@ -171,19 +171,19 @@ export async function descargarPlanViajePdf(equipajeId: string): Promise<void> {
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
-export async function fetchEnviosPanel(tipo: string, origen?: string, destino?: string, codigoEquipaje?: string): Promise<EnvioPanelResponse[]> {
+export async function fetchEnviosPanel(tipo: string, origen?: string, destino?: string, codigoMaleta?: string): Promise<EnvioPanelResponse[]> {
   let url = `/equipajes/envios-panel?tipo=${encodeURIComponent(tipo)}`;
   if (origen) url += `&origen_iata=${encodeURIComponent(origen)}`;
   if (destino) url += `&destino_iata=${encodeURIComponent(destino)}`;
-  if (codigoEquipaje) url += `&codigo_equipaje=${encodeURIComponent(codigoEquipaje)}`;
+  if (codigoMaleta) url += `&codigo_maleta=${encodeURIComponent(codigoMaleta)}`;
   return api.get<EnvioPanelResponse[]>(url);
 }
 
-export async function fetchEnviosPanelSesion(sesionId: string, tipo: string, origen?: string, destino?: string, codigoEquipaje?: string): Promise<EnvioPanelResponse[]> {
+export async function fetchEnviosPanelSesion(sesionId: string, tipo: string, origen?: string, destino?: string, codigoMaleta?: string): Promise<EnvioPanelResponse[]> {
   let url = `/sesiones/${sesionId}/envios/envios-panel?tipo=${encodeURIComponent(tipo)}`;
   if (origen) url += `&origen_iata=${encodeURIComponent(origen)}`;
   if (destino) url += `&destino_iata=${encodeURIComponent(destino)}`;
-  if (codigoEquipaje) url += `&codigo_equipaje=${encodeURIComponent(codigoEquipaje)}`;
+  if (codigoMaleta) url += `&codigo_maleta=${encodeURIComponent(codigoMaleta)}`;
   return api.get<EnvioPanelResponse[]>(url);
 }
 
@@ -197,4 +197,9 @@ export async function fetchMaletasEquipaje(idExternoEquipaje: string): Promise<M
 
 export async function fetchPlanViaje(equipajeId: string): Promise<EquipajePlanViaje> {
   return api.get<EquipajePlanViaje>(`/equipajes/${equipajeId}/plan-viaje`);
+}
+
+export async function fetchEnviosNodoConClasificacion(iata: string, sesionId?: string): Promise<NodoEnviosResponse> {
+  const params = sesionId ? `?sesionId=${encodeURIComponent(sesionId)}` : '';
+  return api.get<NodoEnviosResponse>(`/nodos/${encodeURIComponent(iata)}/envios${params}`);
 }

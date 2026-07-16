@@ -118,13 +118,21 @@ public class SesionService {
     }
 
     public SesionResponse crearSesion(CrearSesionRequest request, String dispositivoId) {
-        LocalDate fecha = (request.fecha_inicio_virtual() != null)
-            ? LocalDate.parse(request.fecha_inicio_virtual())
-            : FECHA_BASE_ARCHIVO;
-        LocalTime hora = (request.hora_inicio_virtual() != null)
-            ? LocalTime.parse(request.hora_inicio_virtual())
-            : LocalTime.MIDNIGHT;
-        if (fecha.isBefore(FECHA_BASE_ARCHIVO)) {
+        TipoSesion tipo = TipoSesion.valueOf(request.tipo());
+        boolean esEnVivo = tipo == TipoSesion.EN_VIVO;
+
+        LocalDate fecha = esEnVivo
+            ? LocalDate.now()
+            : (request.fecha_inicio_virtual() != null
+                ? LocalDate.parse(request.fecha_inicio_virtual())
+                : FECHA_BASE_ARCHIVO);
+        LocalTime hora = esEnVivo
+            ? LocalTime.now()
+            : (request.hora_inicio_virtual() != null
+                ? LocalTime.parse(request.hora_inicio_virtual())
+                : LocalTime.MIDNIGHT);
+
+        if (!esEnVivo && fecha.isBefore(FECHA_BASE_ARCHIVO)) {
             throw new IllegalArgumentException(
                 "fecha_inicio_virtual debe ser >= " + FECHA_BASE_ARCHIVO +
                 " (fecha base de los archivos de envíos)");
@@ -132,46 +140,47 @@ public class SesionService {
 
         SesionEjecucion sesion = new SesionEjecucion(
             UUID.randomUUID(),
-            TipoSesion.valueOf(request.tipo()),
+            tipo,
             fecha,
             hora
         );
 
-        if (request.prob_cancelacion() != null) {
-            sesion.setProbCancelacion(request.prob_cancelacion());
-        }
-
-        if (request.tipo_simulacion() != null) {
-            sesion.setTipoSimulacion(TipoSimulacion.valueOf(request.tipo_simulacion()));
-        }
-        // Simulación siempre 5 días; ignorar duracion_dias del request
-        sesion.setDuracionDias(5);
-
-        if (request.k() != null) {
-            double k = request.k();
-            if (k < 120 || k > 240) {
-                throw new IllegalArgumentException("k debe estar entre 120 (60 min) y 240 (30 min)");
+        if (!esEnVivo) {
+            if (request.prob_cancelacion() != null) {
+                sesion.setProbCancelacion(request.prob_cancelacion());
             }
-            sesion.setK(k);
-        }
-        if (request.sa_segundos() != null) {
-            sesion.setSaSegundos(request.sa_segundos());
-        }
 
-        if (request.umbrales_almacen() != null) {
-            var u = request.umbrales_almacen();
-            sesion.setAlmacenVerdeMin(u.verde_min() != null ? u.verde_min() : BigDecimal.ZERO);
-            sesion.setAlmacenVerdeMax(u.verde_max() != null ? u.verde_max() : new BigDecimal("70"));
-            sesion.setAlmacenAmbarMin(u.ambar_min() != null ? u.ambar_min() : new BigDecimal("70"));
-            sesion.setAlmacenAmbarMax(u.ambar_max() != null ? u.ambar_max() : new BigDecimal("90"));
-        }
+            if (request.tipo_simulacion() != null) {
+                sesion.setTipoSimulacion(TipoSimulacion.valueOf(request.tipo_simulacion()));
+            }
+            sesion.setDuracionDias(5);
 
-        if (request.umbrales_vuelo() != null) {
-            var u = request.umbrales_vuelo();
-            sesion.setVueloVerdeMin(u.verde_min() != null ? u.verde_min() : BigDecimal.ZERO);
-            sesion.setVueloVerdeMax(u.verde_max() != null ? u.verde_max() : new BigDecimal("70"));
-            sesion.setVueloAmbarMin(u.ambar_min() != null ? u.ambar_min() : new BigDecimal("70"));
-            sesion.setVueloAmbarMax(u.ambar_max() != null ? u.ambar_max() : new BigDecimal("90"));
+            if (request.k() != null) {
+                double k = request.k();
+                if (k < 120 || k > 240) {
+                    throw new IllegalArgumentException("k debe estar entre 120 (60 min) y 240 (30 min)");
+                }
+                sesion.setK(k);
+            }
+            if (request.sa_segundos() != null) {
+                sesion.setSaSegundos(request.sa_segundos());
+            }
+
+            if (request.umbrales_almacen() != null) {
+                var u = request.umbrales_almacen();
+                sesion.setAlmacenVerdeMin(u.verde_min() != null ? u.verde_min() : BigDecimal.ZERO);
+                sesion.setAlmacenVerdeMax(u.verde_max() != null ? u.verde_max() : new BigDecimal("70"));
+                sesion.setAlmacenAmbarMin(u.ambar_min() != null ? u.ambar_min() : new BigDecimal("70"));
+                sesion.setAlmacenAmbarMax(u.ambar_max() != null ? u.ambar_max() : new BigDecimal("90"));
+            }
+
+            if (request.umbrales_vuelo() != null) {
+                var u = request.umbrales_vuelo();
+                sesion.setVueloVerdeMin(u.verde_min() != null ? u.verde_min() : BigDecimal.ZERO);
+                sesion.setVueloVerdeMax(u.verde_max() != null ? u.verde_max() : new BigDecimal("70"));
+                sesion.setVueloAmbarMin(u.ambar_min() != null ? u.ambar_min() : new BigDecimal("70"));
+                sesion.setVueloAmbarMax(u.ambar_max() != null ? u.ambar_max() : new BigDecimal("90"));
+            }
         }
 
         if (dispositivoId != null && !dispositivoId.isBlank()) {
@@ -219,21 +228,20 @@ public class SesionService {
             throw new IllegalStateException("Ya existe una sesion EN_CURSO. Detenela antes de iniciar otra.");
         }
 
-        // Calcular delta de fechas (rápido, sin UPDATE masivo)
         if (sesion.getTipo() == TipoSesion.SIMULADA && sesion.getFechaAlineadaA() == null) {
             alinearFechasEquipajes(sesion);
         }
 
         SesionIniciarResponse response = activarSesion(sesion);
 
-        // Lanzar preparacion async DESPUES de que la transaccion commitee
-        // para que el async vea la sesion en estado EN_CURSO en la BD
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                taskExecutor.execute(() -> sesionPreparacionAsync.preparar(id));
-            }
-        });
+        if (sesion.getTipo() == TipoSesion.SIMULADA) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    taskExecutor.execute(() -> sesionPreparacionAsync.preparar(id));
+                }
+            });
+        }
 
         return response;
     }
@@ -405,34 +413,53 @@ public class SesionService {
                 log.warn("detenerSesion {}: lock no obtenido en 60s; limpieza best-effort", id);
             }
 
-        // Generar reporte + CSV ANTES de borrar planes/segmentos/instancias. Si se hace después
-        // (o solo vía el evento async, que corre tras la limpieza) el reporte sale vacío.
+        boolean esEnVivo = sesion.getTipo() == TipoSesion.EN_VIVO;
+
+        if (esEnVivo) {
+            log.info("Sesion EN_VIVO {} finalizada. Preservando datos reales.", id);
+        }
+
         try {
             reporteService.generarReporte(id, "FINALIZADA");
             reporteService.exportarCsvRutas(id);
+            if (esEnVivo) {
+                reporteService.exportarCsvOperacionDiaria(id);
+            }
         } catch (Exception e) {
             log.warn("Error generando reporte al detener sesion {}: {}", id, e.getMessage());
         }
 
-        if (sesion.getTipo() == TipoSesion.SIMULADA) {
-            LocalDate desde = sesion.getFechaInicioVirtual();
-            LocalDate hasta = desde.plusDays(sesion.getDuracionDias() != null ? sesion.getDuracionDias() : 30);
+        if (!esEnVivo) {
+            if (sesion.getTipo() == TipoSesion.SIMULADA) {
+                LocalDate desde = sesion.getFechaInicioVirtual();
+                LocalDate hasta = desde.plusDays(sesion.getDuracionDias() != null ? sesion.getDuracionDias() : 30);
 
-            log.info("Limpiando instancias de simulacion para sesion {} entre {} y {}", id, desde, hasta);
-            try {
-                vueloService.eliminarInstanciasPorFecha(desde, hasta);
-            } catch (Exception e) {
-                log.warn("Error limpiando instancias al detener sesion {}: {}", id, e.getMessage());
-            }
+                log.info("Limpiando instancias de simulacion para sesion {} entre {} y {}", id, desde, hasta);
+                try {
+                    vueloService.eliminarInstanciasPorFecha(desde, hasta);
+                } catch (Exception e) {
+                    log.warn("Error limpiando instancias al detener sesion {}: {}", id, e.getMessage());
+                }
 
-            // Completar cualquier EN_RUTA residual fuera de este rango (huérfanos
-            // de otras sesiones), para que no aparezca la próxima vez que arranque
-            // una sesion con fecha_inicio_virtual distinta.
-            try {
-                vueloService.completarEnRutaHuerfanos(desde, hasta);
-            } catch (Exception e) {
-                log.warn("Error limpiando EN_RUTA huerfanos al detener sesion {}: {}", id, e.getMessage());
+                try {
+                    vueloService.completarEnRutaHuerfanos(desde, hasta);
+                } catch (Exception e) {
+                    log.warn("Error limpiando EN_RUTA huerfanos al detener sesion {}: {}", id, e.getMessage());
+                }
             }
+        }
+
+        if (esEnVivo) {
+            // EN_VIVO: preservar datos reales, solo limpiar Redis
+            try {
+                redisCacheService.setEstadoSesion(id, "FINALIZADA");
+                redisCacheService.eliminarMetricasSesion(id);
+            } catch (Exception e) {
+                log.warn("Redis no disponible al detener sesion {}: {}", id, e.getMessage());
+            }
+            eventPublisher.publishEvent(new SesionFinalizada(
+                    id, "FINALIZADA", OffsetDateTime.now()));
+            return;
         }
 
         log.info("Reseteando equipajes de la sesion {} a REGISTRADO", id);
@@ -458,7 +485,6 @@ public class SesionService {
 
         log.info("Reseteando ocupacion de nodos de la sesion {}", id);
         try {
-            // Solo la ocupación de ESTA sesión, no el global (que antes borraba también la operación).
             ocupacionNodoService.reset(id);
         } catch (Exception e) {
             log.warn("Error reseteando ocupacion de nodos: {}", e.getMessage());
@@ -593,7 +619,7 @@ public class SesionService {
             .toList();
     }
 
-    public List<EnvioPanelResponse> obtenerEnviosPanelSesion(UUID sesionId, String tipo, String origenIata, String destinoIata, String codigoEquipaje) {
+    public List<EnvioPanelResponse> obtenerEnviosPanelSesion(UUID sesionId, String tipo, String origenIata, String destinoIata, String codigoMaleta) {
         sesionRepository.findById(sesionId)
             .orElseThrow(() -> new IllegalArgumentException("Sesion no encontrada: " + sesionId));
 
@@ -605,10 +631,9 @@ public class SesionService {
         };
         String o = (origenIata != null && !origenIata.isBlank()) ? origenIata : null;
         String d = (destinoIata != null && !destinoIata.isBlank()) ? destinoIata : null;
-        String ce = (codigoEquipaje != null && !codigoEquipaje.isBlank()) ? "%" + codigoEquipaje + "%" : null;
-        List<Equipaje> equipajes = equipajeRepository.findEnviosPanel(estados, o, d, ce, PageRequest.of(0, 100));
+        String cm = (codigoMaleta != null && !codigoMaleta.isBlank()) ? "%" + codigoMaleta + "%" : null;
+        List<Equipaje> equipajes = equipajeRepository.findEnviosPanelBySesion(sesionId, estados, o, d, cm, PageRequest.of(0, 100));
         return equipajes.stream()
-                .filter(e -> e.getPlanViaje() != null && sesionId.equals(e.getPlanViaje().getSesionId()))
                 .map(e -> {
                     String codigoVuelo = "";
                     if (e.getEstado() == EstadoEquipaje.EN_VUELO && e.getVueloActual() != null) {
@@ -628,6 +653,7 @@ public class SesionService {
                     }
                     return new EnvioPanelResponse(
                             e.getId(),
+                            e.getIdExterno(),
                             e.getOrigenIata(),
                             e.getDestinoIata(),
                             codigoVuelo,
@@ -676,7 +702,8 @@ public class SesionService {
                 s.getTipoSimulacion() != null ? s.getTipoSimulacion().name() : "VENTANA_FIJA",
                 s.getEstado().name(),
                 s.getFechaInicioVirtual().toString(),
-                s.getCreatedAt() != null ? s.getCreatedAt().toString() : null
+                s.getCreatedAt() != null ? s.getCreatedAt().toString() : null,
+                s.getDispositivoId()
             ))
             .toList();
     }

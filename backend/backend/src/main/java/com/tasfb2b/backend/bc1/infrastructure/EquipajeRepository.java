@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -87,14 +88,98 @@ public interface EquipajeRepository extends JpaRepository<Equipaje, UUID> {
             nativeQuery = true)
     boolean existsIncumplimientoSla(@Param("limite") java.time.OffsetDateTime limite);
 
-    @Query("SELECT e FROM Equipaje e WHERE e.estado IN :estados " +
+    @Query("SELECT DISTINCT e FROM Equipaje e LEFT JOIN e.maletas m WHERE e.estado IN :estados " +
            "AND (:origenIata IS NULL OR e.origenIata = :origenIata) " +
            "AND (:destinoIata IS NULL OR e.destinoIata = :destinoIata) " +
-           "AND (:codigoEquipaje IS NULL OR e.idExterno LIKE :codigoEquipaje) " +
+           "AND (:codigoMaleta IS NULL OR m.codigoMaleta LIKE :codigoMaleta) " +
            "ORDER BY e.fechaIngreso DESC")
     List<Equipaje> findEnviosPanel(@Param("estados") List<EstadoEquipaje> estados,
                                    @Param("origenIata") String origenIata,
                                    @Param("destinoIata") String destinoIata,
-                                   @Param("codigoEquipaje") String codigoEquipaje,
+                                   @Param("codigoMaleta") String codigoMaleta,
                                    Pageable pageable);
+
+    @Query("SELECT COUNT(e) FROM Equipaje e WHERE e.fechaIngreso BETWEEN :desde AND :hasta")
+    long countByFechaIngresoBetween(@Param("desde") OffsetDateTime desde, @Param("hasta") OffsetDateTime hasta);
+
+    @Query("SELECT COUNT(e) FROM Equipaje e WHERE e.estado = :estado AND e.fechaIngreso BETWEEN :desde AND :hasta")
+    long countByEstadoAndFechaIngresoBetween(@Param("estado") EstadoEquipaje estado,
+                                             @Param("desde") OffsetDateTime desde,
+                                             @Param("hasta") OffsetDateTime hasta);
+
+    @Query("SELECT COUNT(e) FROM Equipaje e WHERE e.estado = :estado AND e.fechaIngreso < :hasta")
+    long countByEstadoAndFechaIngresoBefore(@Param("estado") EstadoEquipaje estado,
+                                            @Param("hasta") OffsetDateTime hasta);
+
+    @Query("SELECT DISTINCT e FROM Equipaje e " +
+           "JOIN PlanViaje pv ON pv.equipaje = e " +
+           "JOIN SegmentoPlan sp ON sp.planViaje = pv " +
+           "WHERE e.estado = 'ENRUTADO' AND sp.orden = 1 AND sp.estado = 'PENDIENTE' " +
+           "AND sp.nodoOrigen.codigoIata = :nodoIata " +
+           "ORDER BY e.fechaIngreso DESC")
+    List<Equipaje> findEnRutadoSaliendo(@Param("nodoIata") String nodoIata, Pageable pageable);
+
+    @Query("SELECT e FROM Equipaje e " +
+           "WHERE e.estado = 'EN_VUELO' AND e.vueloActual.destino.codigoIata = :nodoIata " +
+           "ORDER BY e.fechaIngreso DESC")
+    List<Equipaje> findEnVueloLlegando(@Param("nodoIata") String nodoIata, Pageable pageable);
+
+    @Query("SELECT DISTINCT e FROM Equipaje e " +
+           "JOIN PlanViaje pv ON pv.equipaje = e " +
+           "JOIN SegmentoPlan sp ON sp.planViaje = pv " +
+           "WHERE e.estado = 'EN_ALMACEN' AND sp.estado = 'COMPLETADO' " +
+           "AND sp.nodoDestino.codigoIata = :nodoIata " +
+           "AND sp.orden = (SELECT MAX(sp2.orden) FROM SegmentoPlan sp2 " +
+           "               WHERE sp2.planViaje = pv AND sp2.estado = 'COMPLETADO') " +
+           "ORDER BY e.fechaIngreso DESC")
+    List<Equipaje> findEnAlmacenEnNodo(@Param("nodoIata") String nodoIata, Pageable pageable);
+
+    @Query("SELECT DISTINCT e FROM Equipaje e " +
+           "JOIN PlanViaje pv ON pv.equipaje = e " +
+           "LEFT JOIN e.maletas m " +
+           "WHERE e.estado IN :estados " +
+           "AND pv.sesionId = :sesionId " +
+           "AND (:origenIata IS NULL OR e.origenIata = :origenIata) " +
+           "AND (:destinoIata IS NULL OR e.destinoIata = :destinoIata) " +
+           "AND (:codigoMaleta IS NULL OR m.codigoMaleta LIKE :codigoMaleta) " +
+           "ORDER BY e.fechaIngreso DESC")
+    List<Equipaje> findEnviosPanelBySesion(@Param("sesionId") UUID sesionId,
+                                           @Param("estados") List<EstadoEquipaje> estados,
+                                           @Param("origenIata") String origenIata,
+                                           @Param("destinoIata") String destinoIata,
+                                           @Param("codigoMaleta") String codigoMaleta,
+                                           Pageable pageable);
+
+    @Query("SELECT DISTINCT e FROM Equipaje e " +
+           "JOIN PlanViaje pv ON pv.equipaje = e " +
+           "JOIN SegmentoPlan sp ON sp.planViaje = pv " +
+           "WHERE e.estado = 'ENRUTADO' AND sp.orden = 1 AND sp.estado = 'PENDIENTE' " +
+           "AND sp.nodoOrigen.codigoIata = :nodoIata " +
+           "AND pv.sesionId = :sesionId " +
+           "ORDER BY e.fechaIngreso DESC")
+    List<Equipaje> findEnRutadoSaliendoBySesion(@Param("nodoIata") String nodoIata,
+                                                @Param("sesionId") UUID sesionId,
+                                                Pageable pageable);
+
+    @Query("SELECT DISTINCT e FROM Equipaje e " +
+           "JOIN PlanViaje pv ON pv.equipaje = e " +
+           "JOIN SegmentoPlan sp ON sp.planViaje = pv " +
+           "WHERE e.estado = 'EN_ALMACEN' AND sp.estado = 'COMPLETADO' " +
+           "AND sp.nodoDestino.codigoIata = :nodoIata " +
+           "AND sp.orden = (SELECT MAX(sp2.orden) FROM SegmentoPlan sp2 " +
+           "               WHERE sp2.planViaje = pv AND sp2.estado = 'COMPLETADO') " +
+           "AND pv.sesionId = :sesionId " +
+           "ORDER BY e.fechaIngreso DESC")
+    List<Equipaje> findEnAlmacenEnNodoBySesion(@Param("nodoIata") String nodoIata,
+                                               @Param("sesionId") UUID sesionId,
+                                               Pageable pageable);
+
+    @Query("SELECT DISTINCT e FROM Equipaje e " +
+           "JOIN PlanViaje pv ON pv.equipaje = e " +
+           "WHERE e.estado = 'EN_VUELO' AND e.vueloActual.destino.codigoIata = :nodoIata " +
+           "AND pv.sesionId = :sesionId " +
+           "ORDER BY e.fechaIngreso DESC")
+    List<Equipaje> findEnVueloLlegandoBySesion(@Param("nodoIata") String nodoIata,
+                                               @Param("sesionId") UUID sesionId,
+                                               Pageable pageable);
 }

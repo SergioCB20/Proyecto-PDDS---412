@@ -47,6 +47,41 @@ export interface VueloPageResponse {
   totalPages: number;
 }
 
+export interface PlantillaResumen {
+  id: string;
+  codigo_vuelo: string;
+  origen_iata: string;
+  destino_iata: string;
+  hora_salida: string;
+  hora_llegada: string;
+}
+
+export interface ResultadoCancelacion {
+  vuelo_solicitado_id: string;
+  vuelo_cancelado_id: string;
+  fue_diferido: boolean;
+  fecha_operacion_cancelada: string | null;
+  hora_salida_cancelada: string | null;
+  estado_nuevo: string;
+  equipajes_afectados: number;
+  lote_replanificacion_id: string | null;
+}
+
+export interface CancelResultResponse {
+  vuelo_id: string;
+  estado_nuevo: string;
+  equipajes_afectados: number;
+  lote_replanificacion_id: string | null;
+  equipajes: Array<{
+    id: string;
+    codigo: string;
+    origen_iata: string;
+    destino_iata: string;
+  }>;
+  fecha_operacion?: string | null;
+  hora_salida_cancelada?: string | null;
+}
+
 export interface SegmentoResponse {
   orden: number;
   vuelo_codigo: string;
@@ -146,6 +181,19 @@ export interface ReporteSesion {
   nodo_colapso_ref_id: string | null;
   causa_colapso: string | null;
   serie_sla: PuntoSLA[];
+}
+
+export interface ReporteOperacion {
+  sesion_id: string;
+  total_equipajes: number;
+  equipajes_registrados: number;
+  equipajes_en_vuelo: number;
+  equipajes_en_almacen: number;
+  equipajes_entregados: number;
+  vuelos_programados: number;
+  vuelos_en_ruta: number;
+  vuelos_completados: number;
+  vuelos_cancelados: number;
 }
 
 export interface CrearEquipajeRequest {
@@ -255,6 +303,7 @@ export interface MetricasOperacion {
 
 export interface EnvioPanelResponse {
   equipaje_id: string;
+  codigo_equipaje: string;
   origen_iata: string;
   destino_iata: string;
   codigo_vuelo: string;
@@ -270,6 +319,32 @@ export interface EquipajeListItem {
   destino_iata: string;
   fecha_ingreso: string;
   cantidad: number;
+}
+
+export interface EnvioNodoDetalle {
+  id: string;
+  codigo_equipaje: string;
+  origen_iata: string;
+  destino_iata: string;
+  cantidad: number;
+  estado: string;
+  codigo_vuelo: string;
+  fecha_ingreso: string;
+  maletas: Maleta[];
+}
+
+export interface ConteoNodo {
+  saliendo_envios: number;
+  saliendo_maletas: number;
+  llegando_envios: number;
+  llegando_maletas: number;
+}
+
+export interface NodoEnviosResponse {
+  nodo_iata: string;
+  saliendo: EnvioNodoDetalle[];
+  llegando: EnvioNodoDetalle[];
+  conteo: ConteoNodo;
 }
 
 export interface RutaDestacada {

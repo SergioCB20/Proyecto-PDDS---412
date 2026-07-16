@@ -374,3 +374,65 @@ npm install recharts
 npm install react-leaflet leaflet     # solo si se implementa el mapa
 npm install @types/leaflet            # solo si se implementa el mapa
 ```
+
+---
+
+## Componente: DetalleEnviosAeropuerto
+
+**Ubicación:** `frontend/components/operacion/DetalleEnviosAeropuerto.tsx`
+
+Renderiza el panel de detalle de envíos para un aeropuerto seleccionado.
+
+### Props
+- `iata: string` — Código IATA del aeropuerto
+- `onSeguirEnMapa?: (vueloId: string) => void`
+- `onMostrarRuta?: (segmentos: SegmentoResponse[]) => void`
+
+### Estados
+- **Carga:** Spinner + "Cargando envíos..."
+- **Vacío:** "Sin envíos registrados en este aeropuerto"
+- **Error:** Mensaje de error con el detalle
+
+### Estructura
+- Contenedor con borde y fondo distintivo
+- Título: "Aeropuerto {iata} — Detalle de Envíos"
+- Subsección "Saliendo" con encabezado "🔴 Saliendo (X envíos · Y maletas)"
+- Subsección "Llegando" con encabezado "🟢 Llegando (X envíos · Y maletas)"
+- Cada envío expandible para ver maletas individuales
+- Botones de acción: Seguir, Ruta, PDF
+
+## Nuevos tipos en types.ts
+
+```typescript
+interface EnvioNodoDetalle {
+  id: string;
+  codigo_equipaje: string;
+  origen_iata: string;
+  destino_iata: string;
+  cantidad: number;
+  estado: string;
+  codigo_vuelo: string;
+  fecha_ingreso: string;
+  maletas: Maleta[];
+}
+
+interface ConteoNodo {
+  saliendo_envios: number;
+  saliendo_maletas: number;
+  llegando_envios: number;
+  llegando_maletas: number;
+}
+
+interface NodoEnviosResponse {
+  nodo_iata: string;
+  saliendo: EnvioNodoDetalle[];
+  llegando: EnvioNodoDetalle[];
+  conteo: ConteoNodo;
+}
+```
+
+### Nueva función en api.ts
+```typescript
+fetchEnviosNodoConClasificacion(iata: string): Promise<NodoEnviosResponse>
+```
+Hace `GET /api/nodos/{iata}/envios` y retorna `NodoEnviosResponse`.

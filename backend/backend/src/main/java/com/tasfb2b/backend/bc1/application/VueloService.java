@@ -294,6 +294,61 @@ public class VueloService {
         return plantillas.size();
     }
 
+    /**
+     * Devuelve la instancia (es_plantilla=false) del vuelo con codigoVuelo en la fecha dada.
+     * Si la instancia no existe pero hay una PLANTILLA con ese codigo_vuelo, la clona al
+     * vuelo y la persiste (misma logica de clonarPlantillas, sin barrer todas las plantillas).
+     * Devuelve null si no existe ni la instancia ni la plantilla original.
+     */
+    @Transactional
+    public Vuelo obtenerInstanciaDelDia(String codigoVuelo, LocalDate fechaOperacion) {
+        var existente = vueloRepository.findFirstByCodigoVueloAndEsPlantillaFalseAndFechaOperacion(
+                codigoVuelo, fechaOperacion);
+        if (existente.isPresent()) {
+            return existente.get();
+        }
+
+        List<Vuelo> plantillas = vueloRepository.findDistinctPlantillas().stream()
+                .filter(p -> codigoVuelo.equals(p.getCodigoVuelo()))
+                .toList();
+        if (plantillas.isEmpty()) {
+            return null;
+        }
+        Vuelo plantilla = plantillas.get(0);
+
+        OffsetDateTime nuevaSalida = OffsetDateTime.of(
+                fechaOperacion,
+                plantilla.getHoraSalida().toLocalTime(),
+                plantilla.getHoraSalida().getOffset());
+        java.time.Duration duracion = java.time.Duration.between(
+                plantilla.getHoraSalida(), plantilla.getHoraLlegada());
+        OffsetDateTime nuevaLlegada = nuevaSalida.plus(duracion)
+                .withOffsetSameInstant(plantilla.getHoraLlegada().getOffset());
+
+        Vuelo instancia = new Vuelo();
+        instancia.setId(UUID.randomUUID());
+        instancia.setPlanVuelos(plantilla.getPlanVuelos());
+        instancia.setCodigoVuelo(plantilla.getCodigoVuelo());
+        instancia.setOrigen(plantilla.getOrigen());
+        instancia.setDestino(plantilla.getDestino());
+        instancia.setOrigenLat(plantilla.getOrigenLat());
+        instancia.setOrigenLon(plantilla.getOrigenLon());
+        instancia.setDestinoLat(plantilla.getDestinoLat());
+        instancia.setDestinoLon(plantilla.getDestinoLon());
+        instancia.setCapacidadCarga(plantilla.getCapacidadCarga());
+        instancia.setCargaDisponible(plantilla.getCapacidadCarga());
+        instancia.setHoraSalida(nuevaSalida);
+        instancia.setHoraLlegada(nuevaLlegada);
+        instancia.setEstado(EstadoVuelo.PROGRAMADO);
+        instancia.setEsPlantilla(false);
+        instancia.setFechaOperacion(fechaOperacion);
+
+        vueloRepository.save(instancia);
+        log.info("Plantilla {} clonada al vuelo para fecha {} (id={})",
+                codigoVuelo, fechaOperacion, instancia.getId());
+        return instancia;
+    }
+
     @Transactional
     public void eliminarInstanciasPorFecha(LocalDate desde, LocalDate hasta) {
         // Contar instancias sin cargarlas en memoria

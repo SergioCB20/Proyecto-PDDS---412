@@ -10,6 +10,32 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  /* Escala de tipografia ampliada para accesibilidad (clientes con baja
+     vision). Cada nivel sube ~2px respecto al default de Tailwind v4. */
+  --text-xs: 0.875rem;
+  --text-xs--line-height: 1.3;
+  --text-sm: 1rem;
+  --text-sm--line-height: 1.4;
+  --text-base: 1.125rem;
+  --text-base--line-height: 1.5;
+  --text-lg: 1.25rem;
+  --text-lg--line-height: 1.5;
+}
+
+/* Colores semánticos de estado — única fuente de verdad para éxito, advertencia,
+   error e información. Generan utilidades Tailwind: text-success, bg-danger,
+   border-info, etc. Reemplazan a los hex/slate hardcodeados repartidos por la UI.
+   Los tonos "soft" son para fondos/rellenos; los base para texto/iconos (mejor
+   contraste sobre superficies claras). */
+@theme {
+  --color-success: #16a34a;
+  --color-success-soft: #22c55e;
+  --color-warning: #d97706;
+  --color-warning-soft: #eab308;
+  --color-danger: #dc2626;
+  --color-danger-soft: #ef4444;
+  --color-info: #2563eb;
+  --color-info-soft: #3b82f6;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -33,7 +59,7 @@ body {
   box-shadow: none;
   padding: 0 3px;
   margin: 0;
-  font-size: 10px;
+  font-size: 13px;
   line-height: 1.2;
   white-space: nowrap;
   border-radius: 4px;
@@ -52,4 +78,14 @@ body {
 }
 .salir-vuelo-tooltip::before {
   display: none;
+}
+
+.pais-hitarea {
+  background: transparent !important;
+  border: none !important;
+}
+.pais-tooltip {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
 }

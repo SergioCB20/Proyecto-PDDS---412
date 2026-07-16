@@ -5,6 +5,7 @@ import { PanelAeropuertosOperacion } from '@/components/operacion/PanelAeropuert
 import { PanelVuelosOperacion } from '@/components/operacion/PanelVuelosOperacion';
 import { PanelEnviosMaletas } from '@/components/shared/PanelEnviosMaletas';
 import type { AeropuertoTelemetria, VueloTelemetria, SegmentoResponse } from '@/lib/types';
+import type { ColorSemaforo } from '@/lib/colors';
 
 type TabName = 'aeropuertos' | 'vuelos' | 'envios';
 
@@ -30,9 +31,14 @@ interface PanelTabsProps {
   nodos: { codigo_iata: string; nombre: string }[];
   onSeguirEnMapa?: (vueloId: string) => void;
   onMostrarRuta?: (segmentos: SegmentoResponse[]) => void;
-  filtroColor?: string;
-  onFilterColorChange?: (color: string) => void;
   umbralesConfig?: { verdeMax: number; ambarMax: number };
+  filtroContinente?: string;
+  onFiltroContinenteChange?: (continente: string) => void;
+  /** Filtros por semáforo controlados por la vista, para reflejarlos en el mapa. */
+  filtroColorAeropuerto?: '' | ColorSemaforo;
+  onFiltroColorAeropuertoChange?: (color: '' | ColorSemaforo) => void;
+  filtroColorVuelo?: '' | ColorSemaforo;
+  onFiltroColorVueloChange?: (color: '' | ColorSemaforo) => void;
 }
 
 const TAB_LABELS: Record<TabName, string> = {
@@ -63,9 +69,13 @@ export function PanelTabs({
   nodos,
   onSeguirEnMapa,
   onMostrarRuta,
-  filtroColor,
-  onFilterColorChange,
   umbralesConfig,
+  filtroContinente,
+  onFiltroContinenteChange,
+  filtroColorAeropuerto,
+  onFiltroColorAeropuertoChange,
+  filtroColorVuelo,
+  onFiltroColorVueloChange,
 }: PanelTabsProps) {
   const [tab, setTab] = useReducer((_: TabName, next: TabName) => next, 'aeropuertos' as TabName);
 
@@ -88,10 +98,10 @@ export function PanelTabs({
           <button
             key={key}
             onClick={() => setTab(key)}
-            className={`flex-1 text-[11px] font-medium py-1.5 px-1 rounded-md transition-colors ${
+            className={`flex-1 text-sm font-medium py-1.5 px-1 rounded-md transition-colors ${
               tab === key
                 ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 hover:text-slate-700 dark:hover:text-slate-300'
             }`}
           >
             {label}
@@ -100,35 +110,42 @@ export function PanelTabs({
       </div>
 
       {tab === 'aeropuertos' && (
-        <PanelAeropuertosOperacion
-          aeropuertos={aeropuertos}
-          onAeropuertoClick={onAeropuertoClick}
-          onVerEnMapa={onAeropuertoVerEnMapa}
-          seguidoId={seguidoAeropuertoId}
-          seleccionadoId={aeropuertoSeleccionadoId}
-          filtroColor={filtroColor}
-          onFilterColorChange={onFilterColorChange}
-          umbralesConfig={umbralesConfig}
-        />
+          <PanelAeropuertosOperacion
+            aeropuertos={aeropuertos}
+            vuelos={vuelosAeropuerto}
+            onAeropuertoClick={onAeropuertoClick}
+            onVerEnMapa={onAeropuertoVerEnMapa}
+            seguidoId={seguidoAeropuertoId}
+            seleccionadoId={aeropuertoSeleccionadoId}
+            umbralesConfig={umbralesConfig}
+            filtroContinente={filtroContinente}
+            onFiltroContinenteChange={onFiltroContinenteChange}
+            filtroColor={filtroColorAeropuerto}
+            onFiltroColorChange={onFiltroColorAeropuertoChange}
+            onSeguirEnMapa={onSeguirEnMapa}
+            onMostrarRuta={onMostrarRuta}
+            sesionId={sesionId}
+          />
       )}
 
       {tab === 'vuelos' && (
-        <PanelVuelosOperacion
-          vuelos={vuelos}
-          onVueloClick={onVueloClick}
-          onDownloadManifiesto={onDownloadManifiesto}
-          onCancelVuelo={onCancelVuelo}
-          onVerEnMapa={onVerEnMapa}
-          seguidoId={seguidoVueloId}
-          seleccionadoId={vueloSeleccionadoId}
-          origenFilter={vueloFilterOrigen}
-          destinoFilter={vueloFilterDestino}
-          onFilterChange={onVueloFilterChange}
-          filtroColor={filtroColor}
-          umbralesConfig={umbralesConfig}
-        />
-      )}
-
+        <>
+          <PanelVuelosOperacion
+            vuelos={vuelos}
+            onVueloClick={onVueloClick}
+            onDownloadManifiesto={onDownloadManifiesto}
+            onCancelVuelo={onCancelVuelo}
+            onVerEnMapa={onVerEnMapa}
+            seguidoId={seguidoVueloId}
+            seleccionadoId={vueloSeleccionadoId}
+            origenFilter={vueloFilterOrigen}
+            destinoFilter={vueloFilterDestino}
+            onFilterChange={onVueloFilterChange}
+            umbralesConfig={umbralesConfig}
+            filtroColor={filtroColorVuelo}
+            onFiltroColorChange={onFiltroColorVueloChange}
+          />
+        </>)}
       {tab === 'envios' && (
         <PanelEnviosMaletas
           sesionId={sesionId}
@@ -136,6 +153,7 @@ export function PanelTabs({
           nodos={nodos}
           onSeguirEnMapa={onSeguirEnMapa}
           onMostrarRuta={onMostrarRuta}
+          onVerAeropuertoEnMapa={onAeropuertoVerEnMapa}
         />
       )}
     </div>

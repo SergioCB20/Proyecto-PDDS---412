@@ -6,8 +6,8 @@ export const COLOR_AEROPUERTO = {
 } as const;
 
 export const COLOR_VUELO = {
-  PROGRAMADO: '#3b82f6',
-  EN_RUTA: '#22c55e',
+  PROGRAMADO: '#ffffff',
+  EN_RUTA: '#f97316',
   CANCELADO: '#ef4444',
   COMPLETADO: '#6b7280',
   VACIO: '#9ca3af',
@@ -17,6 +17,13 @@ const UMBRALES_DEFAULT = { verdeMax: 70, ambarMax: 90 } as const;
 
 export function colorVueloPorEstado(estado: string | null | undefined): string {
   return COLOR_VUELO[estado as keyof typeof COLOR_VUELO] ?? COLOR_VUELO.VACIO;
+}
+
+export function colorVueloPorOcupacion(
+  pct: number,
+  umbrales?: { verdeMax?: number; ambarMax?: number }
+): string {
+  return colorAeropuertoPorOcupacion(pct, umbrales);
 }
 
 export function colorAeropuertoPorOcupacion(
