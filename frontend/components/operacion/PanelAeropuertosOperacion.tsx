@@ -68,13 +68,11 @@ export function PanelAeropuertosOperacion({
     if (onFiltroColorChange) onFiltroColorChange(v);
     else setFiltroColorInterno(v);
   };
+  const seleccionadoActual = aeropuertoSeleccionado ?? seleccionadoId;
   const itemRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
   useEffect(() => {
-    if (seleccionadoId) {
-      setAeropuertoSeleccionado(seleccionadoId);
-      if (itemRefs.current[seleccionadoId]) {
-        itemRefs.current[seleccionadoId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+    if (seleccionadoId && itemRefs.current[seleccionadoId]) {
+      itemRefs.current[seleccionadoId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }, [seleccionadoId]);
   const [orden, setOrden] = useState('');
@@ -375,10 +373,10 @@ export function PanelAeropuertosOperacion({
         </table>
       </div>
 
-      {aeropuertoSeleccionado && (
+      {seleccionadoActual && (
         <DetalleEnviosAeropuerto
-          key={aeropuertoSeleccionado}
-          iata={aeropuertoSeleccionado}
+          key={seleccionadoActual}
+          iata={seleccionadoActual}
           onSeguirEnMapa={onSeguirEnMapa}
           onMostrarRuta={onMostrarRuta}
         />
