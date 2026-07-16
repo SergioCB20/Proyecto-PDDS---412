@@ -632,7 +632,8 @@ public class SesionService {
         String o = (origenIata != null && !origenIata.isBlank()) ? origenIata : null;
         String d = (destinoIata != null && !destinoIata.isBlank()) ? destinoIata : null;
         String cm = (codigoMaleta != null && !codigoMaleta.isBlank()) ? "%" + codigoMaleta + "%" : null;
-        List<Equipaje> equipajes = equipajeRepository.findEnviosPanelBySesion(sesionId, estados, o, d, cm, PageRequest.of(0, 100));
+        String rcm = (codigoMaleta != null && !codigoMaleta.isBlank()) ? codigoMaleta : null;
+        List<Equipaje> equipajes = equipajeRepository.findEnviosPanelBySesion(sesionId, estados, o, d, cm, rcm, PageRequest.of(0, 100));
         return equipajes.stream()
                 .map(e -> {
                     String codigoVuelo = "";
