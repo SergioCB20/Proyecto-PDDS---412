@@ -18,6 +18,7 @@ import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -25,6 +26,9 @@ public class SimulacionEnrutamientoService {
 
     private static final Logger log = LoggerFactory.getLogger(SimulacionEnrutamientoService.class);
     private static final int SUB_BATCH_SIZE = 2000;
+
+    /** Último diagnóstico de ventana por sesión, para telemetría WebSocket. */
+    private final ConcurrentHashMap<UUID, VentanaDiagnostico> ultimoDiagnostico = new ConcurrentHashMap<>();
 
     private final JdbcTemplate jdbcTemplate;
     private final MotorEnrutamiento motorEnrutamiento;
@@ -51,17 +55,14 @@ public class SimulacionEnrutamientoService {
     }
 
     @Transactional
-    public ResultadoVentana enrutarVentana(UUID sesionId, OffsetDateTime inicioVentana, OffsetDateTime finVentana, long deltaDias) {
-        OffsetDateTime inicioAjustado = inicioVentana.minusDays(deltaDias);
-        OffsetDateTime finAjustado = finVentana.minusDays(deltaDias);
-
+    public ResultadoVentana enrutarVentana(UUID sesionId, OffsetDateTime inicioVentana, OffsetDateTime finVentana) {
         List<Equipaje> backlog = jdbcTemplate.query(
                 "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad, fecha_ingreso " +
                         "FROM equipajes" +
                         " WHERE estado = 'REGISTRADO' AND fecha_operacion < ? " +
                         "ORDER BY fecha_operacion",
                 this::mapEquipaje,
-                inicioAjustado);
+                inicioVentana);
 
         List<Equipaje> window = jdbcTemplate.query(
                 "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad, fecha_ingreso " +
@@ -69,15 +70,7 @@ public class SimulacionEnrutamientoService {
                         " WHERE estado = 'REGISTRADO' AND fecha_operacion >= ? AND fecha_operacion < ? " +
                         "ORDER BY fecha_operacion",
                 this::mapEquipaje,
-                inicioAjustado, finAjustado);
-
-        // Shift sla_comprometido by delta to match virtual time
-        for (Equipaje e : backlog) {
-            e.setSlaComprometido(e.getSlaComprometido().plusDays(deltaDias));
-        }
-        for (Equipaje e : window) {
-            e.setSlaComprometido(e.getSlaComprometido().plusDays(deltaDias));
-        }
+                inicioVentana, finVentana);
 
         if (!backlog.isEmpty()) {
             log.info("Backlog: {} equipajes atrasados en ventana {}-{}", backlog.size(), inicioVentana, finVentana);
@@ -88,7 +81,26 @@ public class SimulacionEnrutamientoService {
         equipajes.addAll(window);
 
         if (equipajes.isEmpty()) {
+            log.info("VENTANA [{}-{}]: 0 equipajes REGISTRADOS en ventana virtual",
+                    inicioVentana, finVentana);
             return new ResultadoVentana(0, false, null, null, List.of());
+        }
+
+        // Diagnostic log + telemetría: verify equipaje dates match virtual window
+        OffsetDateTime minFecha = equipajes.get(0).getFechaOperacion();
+        OffsetDateTime maxFecha = equipajes.get(equipajes.size() - 1).getFechaOperacion();
+        ultimoDiagnostico.put(sesionId, new VentanaDiagnostico(
+                inicioVentana, finVentana, backlog.size(), window.size(), equipajes.size(), minFecha, maxFecha));
+        log.info("VENTANA [{}-{}]: backlog={} window={} total={} | fecha_op min={} max={}",
+                inicioVentana, finVentana, backlog.size(), window.size(), equipajes.size(),
+                minFecha, maxFecha);
+
+        int muestra = Math.min(3, equipajes.size());
+        for (int s = 0; s < muestra; s++) {
+            Equipaje e = equipajes.get(s);
+            log.debug("VENTANA muestra[{}]: id={} fecha_op={} sla={} ruta={}->{} cant={}",
+                    s, e.getId(), e.getFechaOperacion(), e.getSlaComprometido(),
+                    e.getOrigenIata(), e.getDestinoIata(), e.getCantidad());
         }
 
         // Cargar vuelos programados UNA SOLA VEZ para todos los sub-lotes
@@ -311,4 +323,18 @@ public class SimulacionEnrutamientoService {
             UUID equipajeColapsoId,
             List<UUID> equipajesEnrutados
     ) {}
+
+    public record VentanaDiagnostico(
+            OffsetDateTime inicioVentana,
+            OffsetDateTime finVentana,
+            int backlog,
+            int window,
+            int total,
+            OffsetDateTime minFechaOp,
+            OffsetDateTime maxFechaOp
+    ) {}
+
+    public VentanaDiagnostico obtenerUltimoDiagnostico(UUID sesionId) {
+        return ultimoDiagnostico.get(sesionId);
+    }
 }
