@@ -51,17 +51,14 @@ public class SimulacionEnrutamientoService {
     }
 
     @Transactional
-    public ResultadoVentana enrutarVentana(UUID sesionId, OffsetDateTime inicioVentana, OffsetDateTime finVentana, long deltaDias) {
-        OffsetDateTime inicioAjustado = inicioVentana.minusDays(deltaDias);
-        OffsetDateTime finAjustado = finVentana.minusDays(deltaDias);
-
+    public ResultadoVentana enrutarVentana(UUID sesionId, OffsetDateTime inicioVentana, OffsetDateTime finVentana) {
         List<Equipaje> backlog = jdbcTemplate.query(
                 "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad, fecha_ingreso " +
                         "FROM equipajes" +
                         " WHERE estado = 'REGISTRADO' AND fecha_operacion < ? " +
                         "ORDER BY fecha_operacion",
                 this::mapEquipaje,
-                inicioAjustado);
+                inicioVentana);
 
         List<Equipaje> window = jdbcTemplate.query(
                 "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad, fecha_ingreso " +
@@ -69,15 +66,7 @@ public class SimulacionEnrutamientoService {
                         " WHERE estado = 'REGISTRADO' AND fecha_operacion >= ? AND fecha_operacion < ? " +
                         "ORDER BY fecha_operacion",
                 this::mapEquipaje,
-                inicioAjustado, finAjustado);
-
-        // Shift sla_comprometido by delta to match virtual time
-        for (Equipaje e : backlog) {
-            e.setSlaComprometido(e.getSlaComprometido().plusDays(deltaDias));
-        }
-        for (Equipaje e : window) {
-            e.setSlaComprometido(e.getSlaComprometido().plusDays(deltaDias));
-        }
+                inicioVentana, finVentana);
 
         if (!backlog.isEmpty()) {
             log.info("Backlog: {} equipajes atrasados en ventana {}-{}", backlog.size(), inicioVentana, finVentana);

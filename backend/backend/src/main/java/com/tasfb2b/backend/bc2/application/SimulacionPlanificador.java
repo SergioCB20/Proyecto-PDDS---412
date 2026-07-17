@@ -16,9 +16,7 @@ import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
 
-import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -28,9 +26,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public class SimulacionPlanificador {
 
     private static final Logger log = LoggerFactory.getLogger(SimulacionPlanificador.class);
-
-    // Fecha base de los archivos _envios_*.txt
-    private static final LocalDate FECHA_BASE_ARCHIVO = LocalDate.of(2026, 1, 2);
 
     private final SesionRepository sesionRepository;
     private final SimulacionEnrutamientoService enrutamientoService;
@@ -131,12 +126,10 @@ public class SimulacionPlanificador {
         OffsetDateTime inicioVentana = virtual;
         OffsetDateTime finVentana = virtual.plusHours(ventanaHorasApp);
 
-        long deltaDias = ChronoUnit.DAYS.between(FECHA_BASE_ARCHIVO, sesion.getFechaInicioVirtual());
-
         long start = System.nanoTime();
 
         var resultado = enrutamientoService.enrutarVentana(
-                sesion.getId(), inicioVentana, finVentana, deltaDias);
+                sesion.getId(), inicioVentana, finVentana);
 
         long elapsedMs = (System.nanoTime() - start) / 1_000_000;
 
