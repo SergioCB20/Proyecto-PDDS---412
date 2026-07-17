@@ -27,6 +27,11 @@ public class SimulacionEnrutamientoService {
     private static final Logger log = LoggerFactory.getLogger(SimulacionEnrutamientoService.class);
     private static final int SUB_BATCH_SIZE = 2000;
 
+    /** Máximo equipajes a procesar en un solo ciclo del planificador.
+     *  Evita que el planificador bloquee el tick por minutos procesando
+     *  millones de equipajes atrasados en una sola transacción. */
+    private static final int MAX_EQUIPAJES_PER_CYCLE = 100_000;
+
     /** Último diagnóstico de ventana por sesión, para telemetría WebSocket. */
     private final ConcurrentHashMap<UUID, VentanaDiagnostico> ultimoDiagnostico = new ConcurrentHashMap<>();
 
@@ -60,17 +65,20 @@ public class SimulacionEnrutamientoService {
                 "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad, fecha_ingreso " +
                         "FROM equipajes" +
                         " WHERE estado = 'REGISTRADO' AND fecha_operacion < ? " +
-                        "ORDER BY fecha_operacion",
+                        "ORDER BY fecha_operacion LIMIT ?",
                 this::mapEquipaje,
-                inicioVentana);
+                inicioVentana, MAX_EQUIPAJES_PER_CYCLE);
 
-        List<Equipaje> window = jdbcTemplate.query(
-                "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad, fecha_ingreso " +
-                        "FROM equipajes" +
-                        " WHERE estado = 'REGISTRADO' AND fecha_operacion >= ? AND fecha_operacion < ? " +
-                        "ORDER BY fecha_operacion",
-                this::mapEquipaje,
-                inicioVentana, finVentana);
+        int remaining = MAX_EQUIPAJES_PER_CYCLE - backlog.size();
+        List<Equipaje> window = remaining > 0
+                ? jdbcTemplate.query(
+                    "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad, fecha_ingreso " +
+                            "FROM equipajes" +
+                            " WHERE estado = 'REGISTRADO' AND fecha_operacion >= ? AND fecha_operacion < ? " +
+                            "ORDER BY fecha_operacion LIMIT ?",
+                    this::mapEquipaje,
+                    inicioVentana, finVentana, remaining)
+                : Collections.emptyList();
 
         if (!backlog.isEmpty()) {
             log.info("Backlog: {} equipajes atrasados en ventana {}-{}", backlog.size(), inicioVentana, finVentana);

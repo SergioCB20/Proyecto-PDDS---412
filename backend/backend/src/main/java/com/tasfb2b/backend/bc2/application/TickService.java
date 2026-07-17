@@ -124,12 +124,12 @@ public class TickService {
         }
         if (!adquirido) {
             // Planificador ocupado — avanzar reloj para que el timer del frontend
-            // no se congele. El trabajo pesado (vuelos, SLA, telemetría) se salta
-            // para no interferir con el planificador; el próximo tick que adquiera
-            // el lock ejecutará normal.
+            // no se congele. Emitimos telemetría básica (sin procesar vuelos)
+            // para que el panel no se quede congelado.
             log.debug("[SIM {}] Planificador ocupado, tick salteado (solo reloj)", idCorto(sesion.getId()));
             avanzarRelojVirtual(sesion);
             sesionRepository.save(sesion);
+            telemetriaService.emitirTelemetria(sesion);
             return;
         }
         try {
