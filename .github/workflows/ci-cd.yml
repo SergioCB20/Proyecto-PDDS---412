@@ -180,7 +180,18 @@ jobs:
             sudo chmod a+w /opt/tomcat11/logs/ 2>/dev/null || true
             sudo rm -f /opt/tomcat11/logs/catalina.out 2>/dev/null || true
 
-            # 11. Iniciar Tomcat
+            # 11. Matar zombies en puertos de Tomcat (8080=HTTP, 8005=shutdown)
+            #     Previene BindException cuando un proceso viejo sobrevive a systemctl stop
+            for port in 8005 8080; do
+                zombie_pid=$(sudo ss -tlnp 2>/dev/null | grep ":$port " | grep -oP 'pid=\K[0-9]+')
+                if [ -n "$zombie_pid" ]; then
+                    echo "⚰️ Matando zombie PID $zombie_pid en puerto $port"
+                    sudo kill -9 "$zombie_pid" 2>/dev/null || true
+                    sleep 2
+                fi
+            done
+
+            # 12. Iniciar Tomcat
             echo "=== Arrancando Tomcat ==="
             sudo systemctl reset-failed tomcat11 2>/dev/null || true
             sudo systemctl start tomcat11 || {
