@@ -170,7 +170,7 @@ jobs:
 
               # 9. Reparar checksums Flyway (evita mismatch si se modificó una migración ya aplicada)
               echo "🛠️ Reparando checksums de Flyway..."
-              PGPASSWORD="${DB_PASSWORD:-postgres}" /usr/bin/psql -h localhost -U postgres \
+              PGPASSWORD="pass123" /usr/bin/psql -h localhost -U postgres \
                 -d "tasfb2b_db" -c \
                 "UPDATE flyway_schema_history SET checksum = -350889692 WHERE version = '35';" \
                 2>&1 || echo "⚠️ flyway:repair falló, se intentará igual"

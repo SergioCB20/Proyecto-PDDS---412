@@ -30,7 +30,7 @@ public class SimulacionEnrutamientoService {
     /** Máximo equipajes a procesar en un solo ciclo del planificador.
      *  Evita que el planificador bloquee el tick por minutos procesando
      *  millones de equipajes atrasados en una sola transacción. */
-    private static final int MAX_EQUIPAJES_PER_CYCLE = 10_000;
+    private static final int MAX_EQUIPAJES_PER_CYCLE = 2_500;
 
     /** Último diagnóstico de ventana por sesión, para telemetría WebSocket. */
     private final ConcurrentHashMap<UUID, VentanaDiagnostico> ultimoDiagnostico = new ConcurrentHashMap<>();
