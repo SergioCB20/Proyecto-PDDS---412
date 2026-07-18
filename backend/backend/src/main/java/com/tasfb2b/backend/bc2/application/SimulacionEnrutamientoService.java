@@ -30,7 +30,7 @@ public class SimulacionEnrutamientoService {
     /** Máximo equipajes a procesar en un solo ciclo del planificador.
      *  Evita que el planificador bloquee el tick por minutos procesando
      *  millones de equipajes atrasados en una sola transacción. */
-    private static final int MAX_EQUIPAJES_PER_CYCLE = 100_000;
+    private static final int MAX_EQUIPAJES_PER_CYCLE = 10_000;
 
     /** Último diagnóstico de ventana por sesión, para telemetría WebSocket. */
     private final ConcurrentHashMap<UUID, VentanaDiagnostico> ultimoDiagnostico = new ConcurrentHashMap<>();
@@ -62,7 +62,7 @@ public class SimulacionEnrutamientoService {
     @Transactional
     public ResultadoVentana enrutarVentana(UUID sesionId, OffsetDateTime inicioVentana, OffsetDateTime finVentana) {
         List<Equipaje> backlog = jdbcTemplate.query(
-                "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad, fecha_ingreso " +
+                "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad, fecha_ingreso, fecha_operacion " +
                         "FROM equipajes" +
                         " WHERE estado = 'REGISTRADO' AND fecha_operacion < ? " +
                         "ORDER BY fecha_operacion LIMIT ?",
@@ -72,7 +72,7 @@ public class SimulacionEnrutamientoService {
         int remaining = MAX_EQUIPAJES_PER_CYCLE - backlog.size();
         List<Equipaje> window = remaining > 0
                 ? jdbcTemplate.query(
-                    "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad, fecha_ingreso " +
+                    "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad, fecha_ingreso, fecha_operacion " +
                             "FROM equipajes" +
                             " WHERE estado = 'REGISTRADO' AND fecha_operacion >= ? AND fecha_operacion < ? " +
                             "ORDER BY fecha_operacion LIMIT ?",
@@ -319,6 +319,10 @@ public class SimulacionEnrutamientoService {
         Timestamp ingTs = rs.getTimestamp("fecha_ingreso");
         if (ingTs != null) {
             eq.setFechaIngreso(OffsetDateTime.ofInstant(ingTs.toInstant(), ZoneOffset.UTC));
+        }
+        Timestamp opTs = rs.getTimestamp("fecha_operacion");
+        if (opTs != null) {
+            eq.setFechaOperacion(OffsetDateTime.ofInstant(opTs.toInstant(), ZoneOffset.UTC));
         }
         eq.setCantidad(rs.getInt("cantidad"));
         return eq;
