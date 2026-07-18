@@ -147,9 +147,12 @@ public class CargaSimulacionService {
                     });
 
                     if (equipajesBatch.size() >= BATCH_SIZE) {
-                        insertarBatch(equipajesBatch);
-                        insertados += equipajesBatch.size();
-                        equipajesBatch.clear();
+                        try {
+                            insertarBatch(equipajesBatch);
+                            insertados += equipajesBatch.size();
+                        } finally {
+                            equipajesBatch.clear();
+                        }
                     }
                 } catch (Exception e) {
                     log.warn("Error procesando línea {}: {}", lineasProcesadas, e.getMessage());

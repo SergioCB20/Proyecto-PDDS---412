@@ -137,12 +137,13 @@ jobs:
             # ── Backend ──────────────────────────
             cd backend/backend
 
-            # 1. Detener Tomcat limpiamente (espera hasta que realmente pare)
+            # 1. Detener Tomcat a la fuerza
+            #     systemctl stop manda SIGTERM (graceful), pero si HikariCP no cierra
+            #     a tiempo las conexiones PostgreSQL quedan colgadas y luego
+            #     el pipeline falla con "too many clients already".
             sudo systemctl stop tomcat11 || true
-            for i in $(seq 1 12); do
-                if ! sudo systemctl is-active --quiet tomcat11 2>/dev/null; then break; fi
-                sleep 5
-            done
+            sudo systemctl kill --signal=SIGKILL tomcat11 2>/dev/null || true
+            sleep 5
 
             # 2. Limpiar build anterior (evita error de maven-clean-plugin)
             sudo rm -rf target/
@@ -167,12 +168,12 @@ jobs:
             # 8. Verificar que PostgreSQL esté listo
             sudo pg_isready -q 2>/dev/null || sudo systemctl start postgresql@16-main 2>/dev/null || echo "⚠️ PostgreSQL check skipped"
 
-            # 9. Reparar checksums Flyway (evita mismatch si se modificó una migración ya aplicada)
-            echo "🛠️ Reparando checksums de Flyway..."
-            PGPASSWORD="${DB_PASSWORD:-postgres}" /usr/bin/psql -h localhost -U postgres \
-              -d "${DB_NAME}" -c \
-              "UPDATE flyway_schema_history SET checksum = -350889692 WHERE version = '35';" \
-              2>&1 || echo "⚠️ flyway:repair falló, se intentará igual"
+              # 9. Reparar checksums Flyway (evita mismatch si se modificó una migración ya aplicada)
+              echo "🛠️ Reparando checksums de Flyway..."
+              PGPASSWORD="${DB_PASSWORD:-postgres}" /usr/bin/psql -h localhost -U postgres \
+                -d "tasfb2b_db" -c \
+                "UPDATE flyway_schema_history SET checksum = -350889692 WHERE version = '35';" \
+                2>&1 || echo "⚠️ flyway:repair falló, se intentará igual"
 
             # 10. Fijar permisos de logs del Tomcat
             # (sudo cp de WAR o deploys previos pueden dejar dueño=root,
