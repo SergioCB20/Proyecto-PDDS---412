@@ -1,5 +1,6 @@
 package com.tasfb2b.backend.bc2.application;
 
+import com.tasfb2b.backend.bc1.application.VueloService;
 import com.tasfb2b.backend.bc2.domain.EstadoSesion;
 import com.tasfb2b.backend.bc2.domain.SesionEjecucion;
 import com.tasfb2b.backend.bc2.domain.TipoSimulacion;
@@ -16,7 +17,9 @@ import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -33,6 +36,7 @@ public class SimulacionPlanificador {
     private final SesionLockManager lockManager;
     private final RedisCacheService redisCacheService;
     private final ApplicationEventPublisher eventPublisher;
+    private final VueloService vueloService;
 
     // sa_segundos global de fallback (application.properties)
     private final long saSegundosFallback;
@@ -54,6 +58,7 @@ public class SimulacionPlanificador {
                                   SesionLockManager lockManager,
                                   RedisCacheService redisCacheService,
                                   ApplicationEventPublisher eventPublisher,
+                                  VueloService vueloService,
                                   @Value("${app.simulacion.sa-segundos}") long saSegundosFallback,
                                   @Value("${app.simulacion.ventana-horas:4}") int ventanaHorasApp) {
         this.sesionRepository = sesionRepository;
@@ -62,6 +67,7 @@ public class SimulacionPlanificador {
         this.lockManager = lockManager;
         this.redisCacheService = redisCacheService;
         this.eventPublisher = eventPublisher;
+        this.vueloService = vueloService;
         this.saSegundosFallback = saSegundosFallback;
         this.ventanaHorasApp = ventanaHorasApp;
     }
@@ -125,6 +131,28 @@ public class SimulacionPlanificador {
         long saMs = (sesion.getSaSegundos() != null ? sesion.getSaSegundos() : saSegundosFallback) * 1000L;
         OffsetDateTime inicioVentana = virtual;
         OffsetDateTime finVentana = virtual.plusHours(ventanaHorasApp);
+
+        // Pre-clonar vuelos para todos los dias que caigan dentro de la ventana.
+        // El planificador puede ejecutarse ANTES de que el tick clone el siguiente
+        // dia (p.ej. ventana 23:30Z-03:30Z con reloj aun en el dia anterior).
+        // Sin la pre-clonacion, el grafo solo tiene vuelos del dia actual (muchos
+        // ya despegados), el enrutamiento falla para TODO el backlog.
+        // Usamos UTC para el chequeo porque dia_hora_virtual puede venir en cualquier offset
+        // dependiendo de como el driver JDBC devuelva TIMESTAMPTZ.
+        LocalDate hoyUtc = inicioVentana.withOffsetSameInstant(ZoneOffset.UTC).toLocalDate();
+        LocalDate finVentanaUtc = finVentana.withOffsetSameInstant(ZoneOffset.UTC).toLocalDate();
+        if (!finVentanaUtc.equals(hoyUtc)) {
+            LocalDate fechaClonar = hoyUtc.plusDays(1);
+            while (!fechaClonar.isAfter(finVentanaUtc)) {
+                if (!vueloService.existenInstanciasParaFecha(fechaClonar)) {
+                    int creadas = vueloService.clonarPlantillas(fechaClonar);
+                    if (creadas > 0) {
+                        log.info("Pre-clone para planificador: {} vuelos creados para fecha {}", creadas, fechaClonar);
+                    }
+                }
+                fechaClonar = fechaClonar.plusDays(1);
+            }
+        }
 
         long start = System.nanoTime();
 
