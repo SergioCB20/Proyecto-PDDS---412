@@ -174,28 +174,25 @@ jobs:
               "UPDATE flyway_schema_history SET checksum = -350889692 WHERE version = '35';" \
               2>&1 || echo "⚠️ flyway:repair falló, se intentará igual"
 
-            # 10. Iniciar Tomcat
-            echo "=== Service unit ==="
-            sudo systemctl cat tomcat11 2>&1 | head -20 || true
-            echo "=== journalctl previo ==="
-            sudo journalctl -u tomcat11 --no-pager -n 8 --no-hostname 2>&1 || true
+            # 10. Fijar permisos de logs del Tomcat
+            # (sudo cp de WAR o deploys previos pueden dejar dueño=root,
+            #  pero Tomcat corre como usuario 'tomcat' y no puede escribir)
+            sudo chmod a+w /opt/tomcat11/logs/ 2>/dev/null || true
+            sudo rm -f /opt/tomcat11/logs/catalina.out 2>/dev/null || true
+
+            # 11. Iniciar Tomcat
             echo "=== Arrancando Tomcat ==="
             sudo systemctl reset-failed tomcat11 2>/dev/null || true
             sudo systemctl start tomcat11 || {
-                echo "❌ systemctl start falló. Diagnóstico completo:"
-                echo "--- status ---"
-                sudo systemctl status tomcat11 --no-pager 2>&1 | head -20
+                echo "❌ systemctl start falló. Diagnóstico:"
+                sudo systemctl status tomcat11 --no-pager 2>&1 | head -15
                 echo "--- journalctl ---"
-                sudo journalctl -u tomcat11 --no-pager -n 50 --no-hostname 2>&1
-                echo "--- catalina.out ---"
-                sudo cat /opt/tomcat11/logs/catalina.out 2>&1 | tail -30
-                echo "--- version.sh (with sudo) ---"
-                sudo /opt/tomcat11/bin/version.sh 2>&1 || true
+                sudo journalctl -u tomcat11 --no-pager -n 40 --no-hostname 2>&1
                 exit 1
             }
-            sleep 10
+            sleep 15
             sudo systemctl is-active --quiet tomcat11 || {
-                echo "❌ Tomcat active check falló"
+                echo "❌ Tomcat no está activo tras 15s"
                 sudo systemctl status tomcat11 --no-pager 2>&1 | head -10
                 exit 1
             }
