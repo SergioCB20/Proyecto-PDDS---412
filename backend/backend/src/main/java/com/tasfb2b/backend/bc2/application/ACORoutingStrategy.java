@@ -30,8 +30,8 @@ public class ACORoutingStrategy implements RoutingStrategy {
     private static final double BONUS_MALETA_ACEPTADA = 100_000.0;
     private static final double COSTO_ESPERA_POR_HORA = 10.0;
     private static final double COSTO_VUELO_POR_HORA = 5.0;
-    private static final int MAX_ITERACIONES = 5;
-    private static final int NUM_HORMIGAS = 3;
+    private static final int MAX_ITERACIONES = 3;
+    private static final int NUM_HORMIGAS = 2;
     private static final int MAX_ESCALAS_BUSQUEDA = 4;
 
     private Map<String, Map<String, ArcoVueloInterno>> grafo;
