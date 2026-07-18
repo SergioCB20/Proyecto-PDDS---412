@@ -138,7 +138,13 @@ jobs:
             cd backend/backend
 
             # 1. Detener Tomcat primero para liberar locks
-            sudo systemctl stop tomcat11
+            sudo systemctl stop tomcat11 || true
+            # Forzar muerte de cualquier proceso Java zombie de Tomcat
+            sudo pkill -f "catalina" 2>/dev/null || true
+            sudo pkill -f "tomcat" 2>/dev/null || true
+            sleep 3
+            # Limpiar PID file stale
+            sudo rm -f /opt/tomcat11/temp/catalina.pid /opt/tomcat11/work/catalina.pid 2>/dev/null || true
 
             # 2. Limpiar build anterior (evita error de maven-clean-plugin)
             sudo rm -rf target/
@@ -170,8 +176,22 @@ jobs:
               "UPDATE flyway_schema_history SET checksum = -350889692 WHERE version = '35';" \
               2>&1 || echo "⚠️ flyway:repair falló, se intentará igual"
 
-            # 10. Iniciar Tomcat
-            sudo systemctl start tomcat11
+            # 10. Iniciar Tomcat con reintento
+            sudo systemctl start tomcat11 || {
+                echo "⚠️ systemctl start falló, reintentando con limpieza extra..."
+                sudo fuser -k 8080/tcp 2>/dev/null || sudo ss -tlnp | grep 8080 | awk '{print $NF}' | xargs -r kill -9 2>/dev/null || true
+                sudo rm -f /opt/tomcat11/temp/catalina.pid /opt/tomcat11/work/catalina.pid 2>/dev/null || true
+                sleep 3
+                sudo systemctl start tomcat11
+            }
+            # Verificar que realmente arrancó
+            sleep 5
+            sudo systemctl is-active --quiet tomcat11 || {
+                echo "❌ Tomcat no arrancó después de reintento. Diagnóstico:"
+                sudo journalctl -u tomcat11 --no-pager -n 30 --no-hostname 2>&1
+                sudo ss -tlnp | grep 8080 || echo "Puerto 8080 libre"
+                exit 1
+            }
             echo "✅ Backend WAR deployed. Tomcat started."
 
             # ── Liberar espacio para build frontend ──
