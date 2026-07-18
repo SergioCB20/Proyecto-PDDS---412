@@ -183,8 +183,10 @@ jobs:
 
             # 11. Matar zombies en puertos de Tomcat (8080=HTTP, 8005=shutdown)
             #     Previene BindException cuando un proceso viejo sobrevive a systemctl stop
+            #
+            # NOTA: set -e + grep sin match = exit 1. `|| true` evita que `set -e` mate el script.
             for port in 8005 8080; do
-                zombie_pid=$(sudo ss -tlnp 2>/dev/null | grep ":$port " | grep -oP 'pid=\K[0-9]+')
+                zombie_pid=$(sudo ss -tlnp 2>/dev/null | grep ":$port " | grep -oP 'pid=\K[0-9]+' || true)
                 if [ -n "$zombie_pid" ]; then
                     echo "⚰️ Matando zombie PID $zombie_pid en puerto $port"
                     sudo kill -9 "$zombie_pid" 2>/dev/null || true
