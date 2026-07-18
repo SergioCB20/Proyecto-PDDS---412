@@ -137,14 +137,12 @@ jobs:
             # ── Backend ──────────────────────────
             cd backend/backend
 
-            # 1. Detener Tomcat primero para liberar locks
+            # 1. Detener Tomcat limpiamente (espera hasta que realmente pare)
             sudo systemctl stop tomcat11 || true
-            # Forzar muerte de cualquier proceso Java zombie de Tomcat
-            sudo pkill -f "catalina" 2>/dev/null || true
-            sudo pkill -f "tomcat" 2>/dev/null || true
-            sleep 3
-            # Limpiar PID file stale
-            sudo rm -f /opt/tomcat11/temp/catalina.pid /opt/tomcat11/work/catalina.pid 2>/dev/null || true
+            for i in $(seq 1 12); do
+                if ! sudo systemctl is-active --quiet tomcat11 2>/dev/null; then break; fi
+                sleep 5
+            done
 
             # 2. Limpiar build anterior (evita error de maven-clean-plugin)
             sudo rm -rf target/
@@ -177,23 +175,28 @@ jobs:
               2>&1 || echo "⚠️ flyway:repair falló, se intentará igual"
 
             # 10. Iniciar Tomcat
-            echo "=== Pre-start checks ==="
-            /opt/tomcat11/bin/version.sh 2>&1 || echo "version.sh failed"
+            echo "=== Service unit ==="
+            sudo systemctl cat tomcat11 2>&1 | head -20 || true
             echo "=== journalctl previo ==="
-            sudo journalctl -u tomcat11 --no-pager -n 10 --no-hostname 2>&1 || true
+            sudo journalctl -u tomcat11 --no-pager -n 8 --no-hostname 2>&1 || true
             echo "=== Arrancando Tomcat ==="
             sudo systemctl reset-failed tomcat11 2>/dev/null || true
-            sudo systemctl start tomcat11
-            sleep 15
-            sudo systemctl is-active --quiet tomcat11 || {
-                echo "❌ Tomcat no arrancó. Diagnóstico:"
+            sudo systemctl start tomcat11 || {
+                echo "❌ systemctl start falló. Diagnóstico completo:"
+                echo "--- status ---"
                 sudo systemctl status tomcat11 --no-pager 2>&1 | head -20
                 echo "--- journalctl ---"
-                sudo journalctl -u tomcat11 --no-pager -n 40 --no-hostname 2>&1
+                sudo journalctl -u tomcat11 --no-pager -n 50 --no-hostname 2>&1
                 echo "--- catalina.out ---"
                 sudo cat /opt/tomcat11/logs/catalina.out 2>&1 | tail -30
-                echo "--- ss puerto 8080 ---"
-                ss -tlnp | grep 8080 || echo "puerto 8080 libre"
+                echo "--- version.sh (with sudo) ---"
+                sudo /opt/tomcat11/bin/version.sh 2>&1 || true
+                exit 1
+            }
+            sleep 10
+            sudo systemctl is-active --quiet tomcat11 || {
+                echo "❌ Tomcat active check falló"
+                sudo systemctl status tomcat11 --no-pager 2>&1 | head -10
                 exit 1
             }
             echo "✅ Backend WAR deployed. Tomcat started."
