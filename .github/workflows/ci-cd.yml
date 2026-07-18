@@ -148,8 +148,8 @@ jobs:
             /opt/apache-maven-3.9.16/bin/mvn package -DskipTests
 
             # 4. Verificar integridad del WAR
-            unzip -t target/*.war > /dev/null 2>&1
-            echo "✅ WAR integrity verified"
+            WAR_FILE=$(ls target/*.war 2>/dev/null | head -1)
+            unzip -t "$WAR_FILE" > /dev/null 2>&1 && echo "✅ WAR integrity verified" || { echo "❌ WAR not found"; exit 1; }
 
             # 5. Asegurar que PostgreSQL esté listo
             sudo pg_isready -q 2>/dev/null || sudo systemctl start postgresql@16-main 2>/dev/null || echo "⚠️ PostgreSQL check skipped"
@@ -158,7 +158,7 @@ jobs:
             sudo rm -rf /opt/tomcat11/webapps/ROOT /opt/tomcat11/webapps/ROOT.war
 
             # 7. Copiar nuevo WAR como ROOT.war (context-path /)
-            sudo cp target/*.war /opt/tomcat11/webapps/ROOT.war
+            sudo cp "$WAR_FILE" /opt/tomcat11/webapps/ROOT.war
 
             # 8. Verificar que PostgreSQL esté listo
             sudo pg_isready -q 2>/dev/null || sudo systemctl start postgresql@16-main 2>/dev/null || echo "⚠️ PostgreSQL check skipped"
