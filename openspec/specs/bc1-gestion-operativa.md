@@ -121,6 +121,10 @@ VALUES (gen_random_uuid(), 'Plan operativo inicial', '2025-06-01', '2025-12-31')
 | GRU | São Paulo Guarulhos | -23.4356 | -46.4731 | 700 |
 | SCL | Arturo Merino Benítez | -33.3930 | -70.7858 | 400 |
 
+> **Nota (V50, vigente en producción)**: los 30 nodos del seed se inicializan
+> uniformes en `capacidad_almacen = 800`. La tabla anterior describe sólo el
+> esqueleto mínimo de ejemplo y puede mostrar valores variados a propósito.
+
 **10 vuelos mínimos entre esos nodos** cubriendo los 5 días de simulación (fechas relativas a `fecha_inicio_virtual` de la sesión).
 
 ---
