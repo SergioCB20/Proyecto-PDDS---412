@@ -84,9 +84,22 @@ public class SimulacionEnrutamientoService {
             log.info("Backlog: {} equipajes atrasados en ventana {}-{}", backlog.size(), inicioVentana, finVentana);
         }
 
-        List<Equipaje> equipajes = new ArrayList<>(backlog.size() + window.size());
-        equipajes.addAll(backlog);
-        equipajes.addAll(window);
+        List<Equipaje> combinados = new ArrayList<>(backlog.size() + window.size());
+        combinados.addAll(backlog);
+        combinados.addAll(window);
+
+        java.util.Set<String> ventanasVistas = new java.util.HashSet<>();
+        List<Equipaje> equipajes = new ArrayList<>();
+        for (Equipaje e : combinados) {
+            OffsetDateTime op = e.getFechaOperacion();
+            int minutos = op.getHour() * 60 + op.getMinute();
+            int ventana90 = minutos / 90;
+            String key = e.getOrigenIata() + "|" + e.getDestinoIata() + "|"
+                    + op.toLocalDate().toString() + "|" + ventana90;
+            if (ventanasVistas.add(key)) {
+                equipajes.add(e);
+            }
+        }
 
         if (equipajes.isEmpty()) {
             log.info("VENTANA [{}-{}]: 0 equipajes REGISTRADOS en ventana virtual",
