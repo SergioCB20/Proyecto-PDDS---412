@@ -92,7 +92,7 @@
     "nombre": "Aeropuerto Jorge Chavez",
     "latitud": -12.0219,
     "longitud": -77.1143,
-    "capacidad_almacen": 500,
+    "capacidad_almacen": 800,
     "ocupacion_actual": 120
   }
 ]
