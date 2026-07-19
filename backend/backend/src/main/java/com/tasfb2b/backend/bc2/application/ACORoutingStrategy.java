@@ -30,8 +30,8 @@ public class ACORoutingStrategy implements RoutingStrategy {
     private static final double BONUS_MALETA_ACEPTADA = 100_000.0;
     private static final double COSTO_ESPERA_POR_HORA = 10.0;
     private static final double COSTO_VUELO_POR_HORA = 5.0;
-    private static final int MAX_ITERACIONES = 3;
-    private static final int NUM_HORMIGAS = 2;
+    private static final int MAX_ITERACIONES = 2;
+    private static final int NUM_HORMIGAS = 1;
     private static final int MAX_ESCALAS_BUSQUEDA = 4;
 
     private Map<String, Map<String, ArcoVueloInterno>> grafo;
@@ -294,7 +294,7 @@ public class ACORoutingStrategy implements RoutingStrategy {
                 break;
             }
 
-            ArcoVueloInterno elegido = seleccionarVuelo(candidatos, maleta.destinoId, horaActual, capVuelo, maleta.cantidad);
+            ArcoVueloInterno elegido = seleccionarVuelo(candidatos, maleta.destinoId, horaActual, capVuelo, maleta.cantidad, capAeroTemporal);
             ruta.add(elegido);
             visitados.add(elegido.destinoId);
 
@@ -320,7 +320,8 @@ public class ACORoutingStrategy implements RoutingStrategy {
     }
 
     private ArcoVueloInterno seleccionarVuelo(List<ArcoVueloInterno> candidatos, String destinoFinal,
-                                               int horaActual, Map<String, Integer> capVuelo, int cantidad) {
+                                               int horaActual, Map<String, Integer> capVuelo, int cantidad,
+                                               Map<String, int[]> capAeroTemporal) {
         double[] pesos = new double[candidatos.size()];
         double suma = 0;
         for (int i = 0; i < candidatos.size(); i++) {
@@ -331,6 +332,21 @@ public class ACORoutingStrategy implements RoutingStrategy {
             double ocupacion = (double) (capVuelo.getOrDefault(v.id, 0) + cantidad) / v.capacidad;
             double factorCapacidad = Math.max(0.1, 1.0 - ocupacion);
             double eta = factorCapacidad / (1.0 + espera + v.duracionHoras);
+
+            if (!v.destinoId.equals(destinoFinal)) {
+                int[] timeline = capAeroTemporal.get(v.destinoId);
+                if (timeline != null) {
+                    int horaDest = v.horaLlegada;
+                    if (horaDest < v.horaSalida) horaDest += 24;
+                    double maxAero = capacidadAlmacen.getOrDefault(v.destinoId, 100);
+                    if (maxAero > 0) {
+                        double ocupacionNodo = timeline[horaDest % 48] / maxAero;
+                        double factorNodo = Math.max(0.1, 1.0 - ocupacionNodo);
+                        eta *= factorNodo;
+                    }
+                }
+            }
+
             if (v.destinoId.equals(destinoFinal)) eta *= 50.0;
             pesos[i] = Math.pow(tau, ALPHA) * Math.pow(eta, BETA);
             suma += pesos[i];
