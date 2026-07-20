@@ -7,7 +7,7 @@ import { Map as MapIcon, ChevronDown, ChevronUp } from 'lucide-react';
 import type { AeropuertoTelemetria, SegmentoResponse, VueloTelemetria } from '@/lib/types';
 import { ciudadDe, paisDe } from '@/lib/aeropuertos';
 import { determinarColorSemaforo, type ColorSemaforo } from '@/lib/colors';
-import { formatearHoraLima } from '@/lib/formatearHora';
+import { formatearFechaHoraSeparado } from '@/lib/formatearHora';
 import { DetalleEnviosAeropuerto } from '@/components/operacion/DetalleEnviosAeropuerto';
 
 interface EstiloEstado {
@@ -329,10 +329,10 @@ export function PanelAeropuertosOperacion({
                       return (
                         <span className="flex gap-2">
                           <span title="Próxima salida">
-                            ↑ {s ? formatearHoraLima(s).slice(0, 5) : '—'}
+                            ↑ {s ? (() => { const f = formatearFechaHoraSeparado(s); return `${f.fecha} ${f.hora}`; })() : '—'}
                           </span>
                           <span title="Próxima llegada">
-                            ↓ {l ? formatearHoraLima(l).slice(0, 5) : '—'}
+                            ↓ {l ? (() => { const f = formatearFechaHoraSeparado(l); return `${f.fecha} ${f.hora}`; })() : '—'}
                           </span>
                         </span>
                       );

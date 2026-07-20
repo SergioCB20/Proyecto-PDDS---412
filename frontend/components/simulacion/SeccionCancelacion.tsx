@@ -9,6 +9,7 @@ import {
   type CancelResultResponse,
 } from "@/lib/types";
 import { minutosHastaSalidaPlantilla } from "@/lib/horasVirtuales";
+import { formatearFechaHoraSeparado } from "@/lib/formatearHora";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -21,9 +22,8 @@ interface SeccionCancelacionProps {
 }
 
 function fmtHora(iso: string): string {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const f = formatearFechaHoraSeparado(iso);
+  return `${f.fecha} ${f.hora}`;
 }
 
 function fmtFechaCorta(iso: string | null | undefined): string {

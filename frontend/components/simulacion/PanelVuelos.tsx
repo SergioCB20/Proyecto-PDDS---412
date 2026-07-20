@@ -257,10 +257,10 @@ export function PanelVuelos({ vuelos, onVueloClick, origenFilter = '', destinoFi
                     </div>
                   </td>
                   <td className="px-2 py-1.5 font-mono text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                    {salida.hora}
+                    {salida.fecha} {salida.hora}
                   </td>
                   <td className="px-2 py-1.5 font-mono text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                    {llegada.hora}
+                    {llegada.fecha} {llegada.hora}
                   </td>
                 </tr>
               );

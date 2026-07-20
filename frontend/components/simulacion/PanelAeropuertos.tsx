@@ -252,10 +252,10 @@ export function PanelAeropuertos({ aeropuertos, vuelos, onAeropuertoClick, onVer
                     <span className={`ml-2 font-bold ${estado.textCls}`}>{n.ocupacion_pct.toFixed(0)}%</span>
                   </td>
                   <td className="px-2 py-1.5 font-mono text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                    {fmtSalida.hora || '—'}
+                    {fmtSalida.fecha && fmtSalida.hora ? `${fmtSalida.fecha} ${fmtSalida.hora}` : '—'}
                   </td>
                   <td className="px-2 py-1.5 font-mono text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                    {fmtLlegada.hora || '—'}
+                    {fmtLlegada.fecha && fmtLlegada.hora ? `${fmtLlegada.fecha} ${fmtLlegada.hora}` : '—'}
                   </td>
                   <td className="px-2 py-1.5 text-right">
                     {seguidoId === n.codigo_iata ? (
