@@ -91,12 +91,14 @@ public interface EquipajeRepository extends JpaRepository<Equipaje, UUID> {
     @Query("SELECT DISTINCT e FROM Equipaje e LEFT JOIN e.maletas m WHERE e.estado IN :estados " +
            "AND (:origenIata IS NULL OR e.origenIata = :origenIata) " +
            "AND (:destinoIata IS NULL OR e.destinoIata = :destinoIata) " +
-           "AND (:codigoMaleta IS NULL OR m.codigoMaleta LIKE :codigoMaleta) " +
+           "AND (:codigoMaleta IS NULL OR m.codigoMaleta LIKE :codigoMaleta " +
+           "     OR (:rawCodigoMaleta IS NOT NULL AND :rawCodigoMaleta LIKE CONCAT('%', e.idExterno, '%'))) " +
            "ORDER BY e.fechaIngreso DESC")
     List<Equipaje> findEnviosPanel(@Param("estados") List<EstadoEquipaje> estados,
                                    @Param("origenIata") String origenIata,
                                    @Param("destinoIata") String destinoIata,
                                    @Param("codigoMaleta") String codigoMaleta,
+                                   @Param("rawCodigoMaleta") String rawCodigoMaleta,
                                    Pageable pageable);
 
     @Query("SELECT COUNT(e) FROM Equipaje e WHERE e.fechaIngreso BETWEEN :desde AND :hasta")
@@ -141,13 +143,15 @@ public interface EquipajeRepository extends JpaRepository<Equipaje, UUID> {
            "AND pv.sesionId = :sesionId " +
            "AND (:origenIata IS NULL OR e.origenIata = :origenIata) " +
            "AND (:destinoIata IS NULL OR e.destinoIata = :destinoIata) " +
-           "AND (:codigoMaleta IS NULL OR m.codigoMaleta LIKE :codigoMaleta) " +
+           "AND (:codigoMaleta IS NULL OR m.codigoMaleta LIKE :codigoMaleta " +
+           "     OR (:rawCodigoMaleta IS NOT NULL AND :rawCodigoMaleta LIKE CONCAT('%', e.idExterno, '%'))) " +
            "ORDER BY e.fechaIngreso DESC")
     List<Equipaje> findEnviosPanelBySesion(@Param("sesionId") UUID sesionId,
                                            @Param("estados") List<EstadoEquipaje> estados,
                                            @Param("origenIata") String origenIata,
                                            @Param("destinoIata") String destinoIata,
                                            @Param("codigoMaleta") String codigoMaleta,
+                                           @Param("rawCodigoMaleta") String rawCodigoMaleta,
                                            Pageable pageable);
 
     @Query("SELECT DISTINCT e FROM Equipaje e " +

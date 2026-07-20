@@ -38,18 +38,21 @@ public class TelemetriaService {
     private final EquipajeRepository equipajeRepository;
     private final TelemetriaWebSocket telemetriaWebSocket;
     private final OcupacionNodoService ocupacionNodoService;
+    private final SimulacionEnrutamientoService enrutamientoService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public TelemetriaService(NodoLogisticoRepository nodoRepository,
                              VueloRepository vueloRepository,
                              EquipajeRepository equipajeRepository,
                              TelemetriaWebSocket telemetriaWebSocket,
-                             OcupacionNodoService ocupacionNodoService) {
+                             OcupacionNodoService ocupacionNodoService,
+                             SimulacionEnrutamientoService enrutamientoService) {
         this.nodoRepository = nodoRepository;
         this.vueloRepository = vueloRepository;
         this.equipajeRepository = equipajeRepository;
         this.telemetriaWebSocket = telemetriaWebSocket;
         this.ocupacionNodoService = ocupacionNodoService;
+        this.enrutamientoService = enrutamientoService;
     }
 
     public void emitirTelemetria(SesionEjecucion sesion) {
@@ -163,6 +166,19 @@ public class TelemetriaService {
         metrics.put("k", sesion.getK() != null ? sesion.getK() : 120.0);
         metrics.put("fecha_inicio_real", sesion.getFechaInicioReal() != null
                 ? sesion.getFechaInicioReal().toString() : null);
+
+        // Diagnostic: última ventana de planificación
+        var diag = enrutamientoService.obtenerUltimoDiagnostico(sesion.getId());
+        if (diag != null) {
+            ObjectNode d = metrics.putObject("ventana_planificacion");
+            d.put("inicio", diag.inicioVentana().toString());
+            d.put("fin", diag.finVentana().toString());
+            d.put("backlog", diag.backlog());
+            d.put("window", diag.window());
+            d.put("total", diag.total());
+            d.put("min_fecha_op", diag.minFechaOp().toString());
+            d.put("max_fecha_op", diag.maxFechaOp().toString());
+        }
 
         try {
             return objectMapper.writeValueAsString(root);

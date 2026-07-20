@@ -147,9 +147,12 @@ public class CargaSimulacionService {
                     });
 
                     if (equipajesBatch.size() >= BATCH_SIZE) {
-                        insertarBatch(equipajesBatch);
-                        insertados += equipajesBatch.size();
-                        equipajesBatch.clear();
+                        try {
+                            insertarBatch(equipajesBatch);
+                            insertados += equipajesBatch.size();
+                        } finally {
+                            equipajesBatch.clear();
+                        }
                     }
                 } catch (Exception e) {
                     log.warn("Error procesando línea {}: {}", lineasProcesadas, e.getMessage());
@@ -176,15 +179,18 @@ public class CargaSimulacionService {
                 equipajes);
 
         // Cada equipaje crea `cantidad` maletas hijas con codigo_maleta UNIQUE
-        // patron "MAL-{id_externo}-NN" para trazabilidad individual.
+        // patron "MAL-{origen}-{id_externo}-NN" (origen incluido para evitar
+        // colisiones entre archivos de distintos aeropuertos).
         List<Object[]> maletasBatch = new ArrayList<>(equipajes.size() * 2);
         OffsetDateTime ahora = OffsetDateTime.now();
         java.util.Set<String> codigosVistos = new java.util.HashSet<>();
         for (Object[] row : equipajes) {
             UUID equipajeId = (UUID) row[0];
+            String origen = (String) row[1];
             String idExterno = (String) row[3];
             int cantidad = ((Number) row[4]).intValue();
-            String prefijo = idExterno.length() > 20 ? idExterno.substring(0, 20) : idExterno;
+            String prefijo = (origen + "-" + idExterno);
+            if (prefijo.length() > 24) prefijo = prefijo.substring(0, 24);
             int ancho = String.valueOf(cantidad).length();
             for (int i = 1; i <= cantidad; i++) {
                 String codigo = String.format("MAL-%s-%0" + ancho + "d", prefijo, i);

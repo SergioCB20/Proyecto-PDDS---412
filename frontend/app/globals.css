@@ -89,3 +89,24 @@ body {
   font-weight: 600;
   white-space: nowrap;
 }
+/* Etiqueta de país escrita directamente sobre el mapa (permanente, no interactiva). */
+.pais-label {
+  background: transparent !important;
+  border: none !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.pais-label span {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155; /* slate-700 */
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  text-shadow:
+    -1px -1px 2px #fff, 1px -1px 2px #fff,
+    -1px 1px 2px #fff, 1px 1px 2px #fff,
+    0 0 4px #fff;
+}

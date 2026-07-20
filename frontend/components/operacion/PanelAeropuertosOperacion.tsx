@@ -40,6 +40,7 @@ interface PanelAeropuertosOperacionProps {
   onFiltroColorChange?: (color: '' | ColorSemaforo) => void;
   onSeguirEnMapa?: (vueloId: string) => void;
   onMostrarRuta?: (segmentos: SegmentoResponse[]) => void;
+  onVerEnvios?: (iata: string) => void;
   sesionId?: string;
 }
 
@@ -57,6 +58,7 @@ export function PanelAeropuertosOperacion({
   onFiltroColorChange,
   onSeguirEnMapa,
   onMostrarRuta,
+  onVerEnvios,
   sesionId,
 }: PanelAeropuertosOperacionProps) {
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(true);
@@ -290,7 +292,7 @@ export function PanelAeropuertosOperacion({
               const pais = paisDe(n.codigo_iata);
               const ubicacion = [pais, continenteLabel].filter(Boolean).join(' · ');
               const zebra = idx % 2 === 0 ? 'bg-white/40 dark:bg-slate-900/20' : '';
-              const seleccionado = seleccionadoId === n.codigo_iata;
+              const seleccionado = seleccionadoActual === n.codigo_iata;
               const rowCls = `${zebra} ${seleccionado ? '!bg-blue-50 dark:!bg-blue-900/30 ring-1 ring-blue-300 dark:ring-blue-700' : ''} ${onAeropuertoClick ? 'cursor-pointer hover:bg-blue-50/50 dark:hover:bg-blue-900/20' : ''}`;
               const estado = ESTILO_POR_ESTADO[determinarColorSemaforo(n.ocupacion_pct, umbralesConfig) as ColorSemaforo];
               return (
@@ -347,19 +349,30 @@ export function PanelAeropuertosOperacion({
                     <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">—</span>
                   </td>
                   <td className="px-2 py-1.5 text-right">
-                    {seguidoId === n.codigo_iata ? (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-medium">ESC</span>
-                    ) : (
-                      onVerEnMapa && (
+                    <div className="flex items-center justify-end gap-1">
+                      {onVerEnvios && (
                         <button
-                          onClick={e => { e.stopPropagation(); onVerEnMapa(n.codigo_iata); }}
-                          className="p-1 rounded hover:bg-amber-100 dark:hover:bg-amber-900/30 text-amber-600"
-                          title="Ver en mapa"
+                          onClick={e => { e.stopPropagation(); onVerEnvios(n.codigo_iata); }}
+                          className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors border border-blue-200 dark:border-blue-800 whitespace-nowrap"
+                          title="Ver envíos del aeropuerto"
                         >
-                          <MapIcon size={12} />
+                          Ver envíos
                         </button>
-                      )
-                    )}
+                      )}
+                      {seguidoId === n.codigo_iata ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-medium">ESC</span>
+                      ) : (
+                        onVerEnMapa && (
+                          <button
+                            onClick={e => { e.stopPropagation(); onVerEnMapa(n.codigo_iata); }}
+                            className="p-1 rounded hover:bg-amber-100 dark:hover:bg-amber-900/30 text-amber-600"
+                            title="Ver en mapa"
+                          >
+                            <MapIcon size={12} />
+                          </button>
+                        )
+                      )}
+                    </div>
                   </td>
                 </tr>
               );

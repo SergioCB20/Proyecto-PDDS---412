@@ -5,12 +5,18 @@ import com.tasfb2b.backend.bc1.domain.Vuelo;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.time.OffsetDateTime;
 import java.util.*;
 
 @Component
 @Qualifier("acoRoutingStrategy")
 public class ACORoutingStrategy implements RoutingStrategy {
+
+    private static final Logger log = LoggerFactory.getLogger(ACORoutingStrategy.class);
+    /** Traza el primer equipaje de cada lote para diagnosticar fallos de enrutamiento. */
+    private final ThreadLocal<Boolean> trazaActiva = ThreadLocal.withInitial(() -> false);
 
     private static final double ALPHA = 1.0;
     private static final double BETA = 2.5;
@@ -24,9 +30,9 @@ public class ACORoutingStrategy implements RoutingStrategy {
     private static final double BONUS_MALETA_ACEPTADA = 100_000.0;
     private static final double COSTO_ESPERA_POR_HORA = 10.0;
     private static final double COSTO_VUELO_POR_HORA = 5.0;
-    private static final int MAX_ITERACIONES = 10;
-    private static final int NUM_HORMIGAS = 5;
-    private static final int MAX_ESCALAS_BUSQUEDA = 6;
+    private static final int MAX_ITERACIONES = 2;
+    private static final int NUM_HORMIGAS = 1;
+    private static final int MAX_ESCALAS_BUSQUEDA = 4;
 
     private Map<String, Map<String, ArcoVueloInterno>> grafo;
     private Map<String, Integer> capacidadVuelos;
@@ -55,6 +61,14 @@ public class ACORoutingStrategy implements RoutingStrategy {
         construirGrafo(vuelosProgramados);
         inicializarFeromonas();
 
+        // Traza solo el primer equipaje del primer lote para diagnosticar fallos
+        trazaActiva.set(true);
+
+        log.info("ACO: {} parametros, {} vuelos programados, horaVirtual={}, aeropuertos={}",
+                parametros.size(), vuelosProgramados.size(),
+                horaVirtual != null ? horaVirtual : "null",
+                grafo.size());
+
         // Si no se recibe hora virtual (replanificación sin sesión), usar now()
         OffsetDateTime refVirtual = horaVirtual != null ? horaVirtual : OffsetDateTime.now();
         int horaSolicitudDia = refVirtual.getHour();
@@ -76,6 +90,8 @@ public class ACORoutingStrategy implements RoutingStrategy {
 
         List<ResultadoInterno> mejorSolucionGlobal = null;
         double mejorCostoGlobal = Double.MAX_VALUE;
+        int iteracionesSinMejora = 0;
+        double mejorCostoAnterior = Double.MAX_VALUE;
 
         for (int iter = 0; iter < MAX_ITERACIONES; iter++) {
             cacheAlcanzable.clear();
@@ -132,6 +148,15 @@ public class ACORoutingStrategy implements RoutingStrategy {
             if (mejorSolucionGlobal != null && mejorCostoGlobal < mejorCostoIter) {
                 depositarFeromonas(mejorSolucionGlobal, mejorCostoGlobal, ELITE_FACTOR);
             }
+
+            // Early convergence: stop if global best hasn't improved for 2 iterations
+            if (mejorCostoGlobal < mejorCostoAnterior) {
+                mejorCostoAnterior = mejorCostoGlobal;
+                iteracionesSinMejora = 0;
+            } else {
+                iteracionesSinMejora++;
+                if (iteracionesSinMejora >= 2) break;
+            }
         }
 
         Map<String, ResultadoInterno> porId = new HashMap<>();
@@ -166,6 +191,7 @@ public class ACORoutingStrategy implements RoutingStrategy {
         capacidadVuelos = new HashMap<>();
         capacidadAlmacen = new HashMap<>();
 
+        int capCero = 0;
         for (Vuelo v : vuelos) {
             String origenId = v.getOrigen().getId().toString();
             String destinoId = v.getDestino().getId().toString();
@@ -181,7 +207,10 @@ public class ACORoutingStrategy implements RoutingStrategy {
             capacidadVuelos.putIfAbsent(v.getId().toString(), v.getCargaDisponible());
             capacidadAlmacen.putIfAbsent(origenId, v.getOrigen().getCapacidadAlmacen());
             capacidadAlmacen.putIfAbsent(destinoId, v.getDestino().getCapacidadAlmacen());
+            if (v.getCargaDisponible() != null && v.getCargaDisponible() == 0) capCero++;
         }
+        log.info("Grafo construido: {} aeropuertos, {} arcos, {} arcos con carga=0",
+                grafo.size(), vuelos.size(), capCero);
     }
 
     private int calcularDuracion(Vuelo v) {
@@ -219,22 +248,30 @@ public class ACORoutingStrategy implements RoutingStrategy {
         Set<String> visitados = new HashSet<>();
         visitados.add(actualId);
 
+        boolean traza = Boolean.TRUE.equals(trazaActiva.get());
+        if (traza) trazaActiva.set(false); // solo traza el primer equipaje
+
         while (!actualId.equals(maleta.destinoId)) {
             List<ArcoVueloInterno> candidatos = new ArrayList<>();
             Map<String, ArcoVueloInterno> desde = grafo.get(actualId);
-            if (desde == null) break;
+            if (desde == null) {
+                if (traza) log.debug(">>> TRACE[id={}] SIN_SALIDAS aeropuerto",
+                        maleta.id, maleta.origenIata, maleta.destinoIata);
+                break;
+            }
 
+            int filtEspera=0, filtTiempo=0, filtCap=0, filtVisit=0, filtAero=0, filtAlcanz=0;
             for (ArcoVueloInterno v : desde.values()) {
                 int esperaV = v.horaSalida - horaActual;
                 if (esperaV < 0) esperaV += 24;
-                if (esperaV < 1 || esperaV > 24) continue;
+                if (esperaV < 1 || esperaV > 24) { filtEspera++; continue; }
 
                 int horaLlegadaV = v.horaLlegada;
                 if (horaLlegadaV < v.horaSalida) horaLlegadaV += 24;
                 int tiempoSegmento = esperaV + v.duracionHoras;
-                if (tiempoUsado + tiempoSegmento > presupuesto + 6) continue;
-                if (capVuelo.getOrDefault(v.id, 0) + maleta.cantidad > v.capacidad) continue;
-                if (visitados.contains(v.destinoId)) continue;
+                if (tiempoUsado + tiempoSegmento > presupuesto + 6) { filtTiempo++; continue; }
+                if (capVuelo.getOrDefault(v.id, 0) + maleta.cantidad > v.capacidad) { filtCap++; continue; }
+                if (visitados.contains(v.destinoId)) { filtVisit++; continue; }
 
                 if (!v.destinoId.equals(maleta.destinoId)) {
                     int maxAero = capacidadAlmacen.getOrDefault(v.destinoId, 100);
@@ -242,17 +279,22 @@ public class ACORoutingStrategy implements RoutingStrategy {
                     if (timeline != null) {
                         int hLlegadaV = v.horaLlegada;
                         if (hLlegadaV < v.horaSalida) hLlegadaV += 24;
-                        if (timeline[hLlegadaV % 48] + maleta.cantidad > maxAero) continue;
+                        if (timeline[hLlegadaV % 48] + maleta.cantidad > maxAero) { filtAero++; continue; }
                     }
                     if (!esAlcanzable(v.destinoId, maleta.destinoId, horaLlegadaV + 1, ruta.size() + 1))
-                        continue;
+                        { filtAlcanz++; continue; }
                 }
                 candidatos.add(v);
             }
 
-            if (candidatos.isEmpty()) break;
+            if (candidatos.isEmpty()) {
+                if (traza) log.debug(">>> TRACE[id={}] ori={} dest={} candidatos=0 | filtros: espera={} tiempo={} cap={} visit={} aero={} alcanz={}",
+                        maleta.id, maleta.origenIata, maleta.destinoIata,
+                        filtEspera, filtTiempo, filtCap, filtVisit, filtAero, filtAlcanz);
+                break;
+            }
 
-            ArcoVueloInterno elegido = seleccionarVuelo(candidatos, maleta.destinoId, horaActual, capVuelo, maleta.cantidad);
+            ArcoVueloInterno elegido = seleccionarVuelo(candidatos, maleta.destinoId, horaActual, capVuelo, maleta.cantidad, capAeroTemporal);
             ruta.add(elegido);
             visitados.add(elegido.destinoId);
 
@@ -267,13 +309,19 @@ public class ACORoutingStrategy implements RoutingStrategy {
 
         if (actualId.equals(maleta.destinoId) && !ruta.isEmpty()) {
             double costo = evaluarRuta(maleta, ruta, capVuelo, capAeroTemporal);
+            if (traza) log.debug(">>> TRACE[id={}] EXITO ruta={} segmentos, costo={}",
+                    maleta.id, ruta.size(), costo);
             return new ResultadoInterno(maleta.id, ruta, costo, true);
         }
+        boolean llegoDestino = actualId.equals(maleta.destinoId);
+        if (traza) log.debug(">>> TRACE[id={}] FALLO llegoDestino={} rutaVacia={}",
+                maleta.id, llegoDestino, ruta.isEmpty());
         return new ResultadoInterno(maleta.id, List.of(), PENALIDAD_INVALIDA, false);
     }
 
     private ArcoVueloInterno seleccionarVuelo(List<ArcoVueloInterno> candidatos, String destinoFinal,
-                                               int horaActual, Map<String, Integer> capVuelo, int cantidad) {
+                                               int horaActual, Map<String, Integer> capVuelo, int cantidad,
+                                               Map<String, int[]> capAeroTemporal) {
         double[] pesos = new double[candidatos.size()];
         double suma = 0;
         for (int i = 0; i < candidatos.size(); i++) {
@@ -284,6 +332,21 @@ public class ACORoutingStrategy implements RoutingStrategy {
             double ocupacion = (double) (capVuelo.getOrDefault(v.id, 0) + cantidad) / v.capacidad;
             double factorCapacidad = Math.max(0.1, 1.0 - ocupacion);
             double eta = factorCapacidad / (1.0 + espera + v.duracionHoras);
+
+            if (!v.destinoId.equals(destinoFinal)) {
+                int[] timeline = capAeroTemporal.get(v.destinoId);
+                if (timeline != null) {
+                    int horaDest = v.horaLlegada;
+                    if (horaDest < v.horaSalida) horaDest += 24;
+                    double maxAero = capacidadAlmacen.getOrDefault(v.destinoId, 100);
+                    if (maxAero > 0) {
+                        double ocupacionNodo = timeline[horaDest % 48] / maxAero;
+                        double factorNodo = Math.max(0.1, 1.0 - ocupacionNodo);
+                        eta *= factorNodo;
+                    }
+                }
+            }
+
             if (v.destinoId.equals(destinoFinal)) eta *= 50.0;
             pesos[i] = Math.pow(tau, ALPHA) * Math.pow(eta, BETA);
             suma += pesos[i];

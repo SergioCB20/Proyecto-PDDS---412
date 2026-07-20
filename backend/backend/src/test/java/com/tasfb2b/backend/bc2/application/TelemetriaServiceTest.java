@@ -38,6 +38,7 @@ class TelemetriaServiceTest {
     @Mock private EquipajeRepository equipajeRepository;
     @Mock private TelemetriaWebSocket telemetriaWebSocket;
     @Mock private OcupacionNodoService ocupacionNodoService;
+    @Mock private SimulacionEnrutamientoService enrutamientoService;
 
     private ObjectMapper objectMapper;
     private TelemetriaService telemetriaService;
@@ -51,7 +52,8 @@ class TelemetriaServiceTest {
     void setUp() {
         objectMapper = new ObjectMapper();
         telemetriaService = new TelemetriaService(
-                nodoRepository, vueloRepository, equipajeRepository, telemetriaWebSocket, ocupacionNodoService);
+                nodoRepository, vueloRepository, equipajeRepository, telemetriaWebSocket, ocupacionNodoService, enrutamientoService);
+        lenient().when(enrutamientoService.obtenerUltimoDiagnostico(any())).thenReturn(null);
 
         // La ocupación ahora se lee por contexto; el stub devuelve lo que cada test fija en el nodo.
         lenient().when(ocupacionNodoService.mapa(any())).thenAnswer(inv -> {

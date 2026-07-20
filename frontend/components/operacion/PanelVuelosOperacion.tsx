@@ -250,7 +250,6 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onDownloadManifiest
                   className={rowCls + ' border-t border-slate-100 dark:border-slate-800'}
                   onClick={() => {
                     setSeleccionadoLocal(v.id);
-                    onVueloClick?.(v.id, v.codigo_vuelo);
                   }}
                 >
                   <td className="px-2 py-1.5 whitespace-nowrap">

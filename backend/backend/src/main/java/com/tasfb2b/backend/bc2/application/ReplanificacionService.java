@@ -1,5 +1,6 @@
 package com.tasfb2b.backend.bc2.application;
 
+import com.tasfb2b.backend.bc1.application.OcupacionNodoService;
 import com.tasfb2b.backend.bc1.domain.*;
 import com.tasfb2b.backend.bc1.infrastructure.*;
 import com.tasfb2b.backend.bc2.domain.*;
@@ -36,6 +37,7 @@ public class ReplanificacionService {
     private final SegmentoPlanRepository segmentoPlanRepository;
     private final PlanViajeRepository planViajeRepository;
     private final MotorEnrutamiento motorEnrutamiento;
+    private final OcupacionNodoService ocupacionNodoService;
 
     public ReplanificacionService(EquipajeRepository equipajeRepository,
                                   VueloRepository vueloRepository,
@@ -48,7 +50,8 @@ public class ReplanificacionService {
                                   ApplicationEventPublisher eventPublisher,
                                   SegmentoPlanRepository segmentoPlanRepository,
                                   PlanViajeRepository planViajeRepository,
-                                  MotorEnrutamiento motorEnrutamiento) {
+                                  MotorEnrutamiento motorEnrutamiento,
+                                  OcupacionNodoService ocupacionNodoService) {
         this.equipajeRepository = equipajeRepository;
         this.vueloRepository = vueloRepository;
         this.nodoRepository = nodoRepository;
@@ -61,6 +64,7 @@ public class ReplanificacionService {
         this.segmentoPlanRepository = segmentoPlanRepository;
         this.planViajeRepository = planViajeRepository;
         this.motorEnrutamiento = motorEnrutamiento;
+        this.ocupacionNodoService = ocupacionNodoService;
     }
 
     @Transactional
@@ -106,6 +110,27 @@ public class ReplanificacionService {
                     if (v != null) {
                         v.setCargaDisponible(v.getCargaDisponible() + entry.getValue());
                         vueloRepository.save(v);
+                    }
+                }
+
+                // Si el eq estaba esperando abordar el vuelo cancelado (segmento PENDIENTE),
+                // liberamos también su plaza en el almacén origen. Si ya estaba abordo
+                // (EN_CURSO), el contador se decrementó al abordar vía TickService y no
+                // debemos tocarlo aquí.
+                int cantidadEq = eq.getCantidad() != null ? eq.getCantidad() : 1;
+                boolean estabaEnAlmacenOrigen = false;
+                for (SegmentoPlan sp : segmentosPrevios) {
+                    if (sp.getVuelo() != null
+                            && vueloId.equals(sp.getVuelo().getId())
+                            && sp.getEstado() == EstadoSegmento.PENDIENTE) {
+                        estabaEnAlmacenOrigen = true;
+                        break;
+                    }
+                }
+                if (estabaEnAlmacenOrigen) {
+                    NodoLogistico origenCancelado = vuelo.getOrigen();
+                    if (origenCancelado != null) {
+                        ocupacionNodoService.ajustar(origenCancelado.getId(), sesionId, -cantidadEq);
                     }
                 }
             }
@@ -200,22 +225,36 @@ public class ReplanificacionService {
         if (!planesNuevos.isEmpty()) {
             planViajeRepository.saveAll(planesNuevos);
             segmentoPlanRepository.saveAll(segmentosNuevos);
+            Map<UUID, Integer> nodosReserva = new HashMap<>();
             for (PlanViaje plan : planesNuevos) {
                 if (plan.getEquipaje() == null || plan.getSegmentos() == null) continue;
                 Equipaje eq = plan.getEquipaje();
                 int cantidad = eq.getCantidad() != null ? eq.getCantidad() : 1;
                 Vuelo primerVuelo = null;
+                NodoLogistico primerOrigen = null;
                 for (SegmentoPlan seg : plan.getSegmentos()) {
                     if (seg.getVuelo() != null) {
                         seg.getVuelo().setCargaDisponible(
                             seg.getVuelo().getCargaDisponible() - cantidad);
                         vueloRepository.save(seg.getVuelo());
-                        if (primerVuelo == null) primerVuelo = seg.getVuelo();
+                        if (primerVuelo == null) {
+                            primerVuelo = seg.getVuelo();
+                            primerOrigen = seg.getNodoOrigen();
+                        }
                     }
                 }
                 eq.setEstado(EstadoEquipaje.ENRUTADO);
                 eq.setVueloActual(primerVuelo);
                 equipajeRepository.save(eq);
+                if (primerOrigen != null) {
+                    nodosReserva.merge(primerOrigen.getId(), cantidad, Integer::sum);
+                }
+            }
+            // Reserva de almacén en el nuevo origen: el envío vuelve a esperar el primer
+            // vuelo (mismo criterio que SimulacionEnrutamientoService al planificar
+            // por primera vez, y PlanificacionWorker en la operación día a día).
+            if (!nodosReserva.isEmpty()) {
+                ocupacionNodoService.ajustarLote(nodosReserva, sesionId);
             }
         }
 

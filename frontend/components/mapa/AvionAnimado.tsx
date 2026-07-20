@@ -69,7 +69,21 @@ interface AvionAnimadoProps {
   onVueloSeleccionado?: (id: string, codigo: string) => void;
 }
 
-const AvionAnimado = React.memo(function AvionAnimado({
+interface FlightState {
+  progreso: number;
+  displayed: number;
+  lastTickTime: number;
+  lastFrameTime: number;
+  horaSalidaMs: number;
+  horaLlegadaMs: number;
+  k: number;
+  lastBearingT: number;
+  lastEstelaT: number;
+  syncProgreso: number;
+  syncTime: number;
+}
+
+function AvionAnimado({
   vuelo,
   animacionActiva = false,
   k = 120,
@@ -181,19 +195,18 @@ const AvionAnimado = React.memo(function AvionAnimado({
    * Single ref that holds all animation state so the rAF closure never goes stale.
    * Updated from effects; never causes re-renders.
    */
-  const flightRef = useRef({
-    progreso: vuelo.progreso ?? 0,    // server-confirmed progreso at lastTickTime
-    displayed: vuelo.progreso ?? 0,   // progreso realmente pintado (velocidad acotada)
-    lastTickTime: performance.now(),  // real time of last server confirmation
-    lastFrameTime: performance.now(), // real time of last rendered frame (for dt)
+  const flightRef = useRef<FlightState>({
+    progreso: vuelo.progreso ?? 0,
+    displayed: vuelo.progreso ?? 0,
+    lastTickTime: 0,
+    lastFrameTime: 0,
     horaSalidaMs: vuelo.hora_salida ? new Date(vuelo.hora_salida).getTime() : 0,
     horaLlegadaMs: vuelo.hora_llegada ? new Date(vuelo.hora_llegada).getTime() : 0,
     k,
-    lastBearingT: -1,                 // last t at which we updated the bearing icon
-    lastEstelaT: -1,                  // last t at which we redrew the fading trail
-    /** Tiempo real de sincronización para modo tiempo-real (k≤1). */
+    lastBearingT: -1,
+    lastEstelaT: -1,
     syncProgreso: vuelo.progreso ?? 0,
-    syncTime: 0, // 0 = no sync yet; set on first EN_RUTA server tick
+    syncTime: 0,
   });
 
   // Sync flight metadata; never move the plane backward when a server tick arrives
@@ -239,12 +252,12 @@ const AvionAnimado = React.memo(function AvionAnimado({
   useEffect(() => {
     setIcono(crearIconoAvion(colorAvion, bearingRef.current, iconSizeRef.current, seguidoRef.current, destacado));
     flightRef.current.lastBearingT = -1; // force bearing refresh
-  }, [vuelo.estado, vuelo.carga_disponible, vuelo.capacidad_carga]);
+  }, [vuelo.estado, vuelo.carga_disponible, vuelo.capacidad_carga, umbralesConfig]);
 
   // Recreate icon when zoom changes (keeps current bearing)
   useEffect(() => {
     setIcono(crearIconoAvion(colorAvion, bearingRef.current, iconSize, seguido, destacado));
-  }, [iconSize, vuelo.estado, seguido, destacado, vuelo.carga_disponible, vuelo.capacidad_carga]);
+  }, [iconSize, vuelo.estado, seguido, destacado, vuelo.carga_disponible, vuelo.capacidad_carga, umbralesConfig]);
 
   /**
    * Continuous rAF loop.
@@ -387,6 +400,7 @@ const AvionAnimado = React.memo(function AvionAnimado({
     vuelo.origen_lat, vuelo.origen_lon,
     vuelo.destino_lat, vuelo.destino_lon,
     vuelo.carga_disponible, vuelo.capacidad_carga,
+    umbralesConfig,
     ctrlLat, ctrlLon,
     samples,
     // NOTE: vuelo.progreso / k intentionally excluded — handled via flightRef
@@ -503,6 +517,6 @@ const AvionAnimado = React.memo(function AvionAnimado({
     </Marker>
     </>
   );
-});
+}
 
 export default AvionAnimado;

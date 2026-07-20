@@ -33,23 +33,27 @@ public interface VueloRepository extends JpaRepository<Vuelo, UUID>, JpaSpecific
     List<Vuelo> findByEstadoInAndEsPlantilla(List<EstadoVuelo> estados, Boolean esPlantilla);
     List<Vuelo> findByEstadoInAndEsPlantillaAndFechaOperacion(List<EstadoVuelo> estados, Boolean esPlantilla, LocalDate fechaOperacion);
 
-    /**
-     * Vuelos relevantes para la telemetría en tiempo real.
-     *
-     * Para evitar que vuelos "huérfanos" de sesiones anteriores (que quedaron EN_RUTA sin
-     * procesarse al colapsar/finalizar y cuyo virtual time ya no aplica) contaminen el mapa
-     * como duplicados, limitamos los EN_RUTA a la ventana virtual ± 1 día alrededor del
-     * virtual actual. Los PROGRAMADO se siguen filtrando por hora_salida <= ventana.
-     *
-     * El parámetro {@code desde} representa el virtual actual − 1 día y {@code hasta}
-     * el virtual actual + 1 día. La pequeña holgura evita flickering cuando un vuelo sale
-     * minutos antes de medianoche virtual.
-     */
-    @Query("SELECT v FROM Vuelo v WHERE v.esPlantilla = false AND ("
+     /**
+      * Vuelos relevantes para la telemetría en tiempo real.
+      *
+      * Para evitar que vuelos "huérfanos" de sesiones anteriores (que quedaron EN_RUTA sin
+      * procesarse al colapsar/finalizar y cuyo virtual time ya no aplica) contaminen el mapa
+      * como duplicados, limitamos los EN_RUTA a la ventana virtual ± 1 día alrededor del
+      * virtual actual. Los PROGRAMADO se siguen filtrando por hora_salida <= ventana.
+      * Los CANCELADO se incluyen dentro de la ventana de fechaOperacion para que el panel
+      * pueda mostrar el estado "Cancelado" y confirmar visualmente la cancelación.
+      *
+      * El parámetro {@code desde} representa el virtual actual − 1 día y {@code hasta}
+      * el virtual actual + 1 día. La pequeña holgura evita flickering cuando un vuelo sale
+      * minutos antes de medianoche virtual.
+      */
+     @Query("SELECT v FROM Vuelo v WHERE v.esPlantilla = false AND ("
             + "(v.estado = com.tasfb2b.backend.bc1.domain.EstadoVuelo.EN_RUTA "
             + "  AND v.fechaOperacion >= :desde AND v.fechaOperacion <= :hastaHasta) "
             + "OR (v.estado = com.tasfb2b.backend.bc1.domain.EstadoVuelo.PROGRAMADO "
-            + "  AND v.horaSalida <= :hasta))")
+            + "  AND v.horaSalida <= :hasta) "
+            + "OR (v.estado = com.tasfb2b.backend.bc1.domain.EstadoVuelo.CANCELADO "
+            + "  AND v.fechaOperacion >= :desde AND v.fechaOperacion <= :hastaHasta))")
     List<Vuelo> findTelemetriaVuelos(@Param("desde") LocalDate desde,
                                      @Param("hastaHasta") LocalDate hastaHasta,
                                      @Param("hasta") OffsetDateTime hasta);

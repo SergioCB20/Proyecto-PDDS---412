@@ -3,6 +3,8 @@ package com.tasfb2b.backend.bc2.application;
 import com.tasfb2b.backend.bc1.application.OcupacionNodoService;
 import com.tasfb2b.backend.bc1.domain.*;
 import com.tasfb2b.backend.bc1.infrastructure.*;
+import com.tasfb2b.backend.bc2.domain.SesionEjecucion;
+import com.tasfb2b.backend.bc2.infrastructure.SesionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Pageable;
@@ -18,6 +20,7 @@ import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -26,6 +29,14 @@ public class SimulacionEnrutamientoService {
     private static final Logger log = LoggerFactory.getLogger(SimulacionEnrutamientoService.class);
     private static final int SUB_BATCH_SIZE = 2000;
 
+    /** Máximo equipajes a procesar en un solo ciclo del planificador.
+     *  Evita que el planificador bloquee el tick por minutos procesando
+     *  millones de equipajes atrasados en una sola transacción. */
+    private static final int MAX_EQUIPAJES_PER_CYCLE = 2_500;
+
+    /** Último diagnóstico de ventana por sesión, para telemetría WebSocket. */
+    private final ConcurrentHashMap<UUID, VentanaDiagnostico> ultimoDiagnostico = new ConcurrentHashMap<>();
+
     private final JdbcTemplate jdbcTemplate;
     private final MotorEnrutamiento motorEnrutamiento;
     private final NodoLogisticoRepository nodoRepository;
@@ -33,6 +44,7 @@ public class SimulacionEnrutamientoService {
     private final PlanViajeRepository planViajeRepository;
     private final SegmentoPlanRepository segmentoPlanRepository;
     private final OcupacionNodoService ocupacionNodoService;
+    private final SesionRepository sesionRepository;
 
     public SimulacionEnrutamientoService(JdbcTemplate jdbcTemplate,
                                          MotorEnrutamiento motorEnrutamiento,
@@ -40,7 +52,8 @@ public class SimulacionEnrutamientoService {
                                          VueloRepository vueloRepository,
                                          PlanViajeRepository planViajeRepository,
                                          SegmentoPlanRepository segmentoPlanRepository,
-                                         OcupacionNodoService ocupacionNodoService) {
+                                         OcupacionNodoService ocupacionNodoService,
+                                         SesionRepository sesionRepository) {
         this.jdbcTemplate = jdbcTemplate;
         this.motorEnrutamiento = motorEnrutamiento;
         this.nodoRepository = nodoRepository;
@@ -48,35 +61,41 @@ public class SimulacionEnrutamientoService {
         this.planViajeRepository = planViajeRepository;
         this.segmentoPlanRepository = segmentoPlanRepository;
         this.ocupacionNodoService = ocupacionNodoService;
+        this.sesionRepository = sesionRepository;
     }
 
     @Transactional
-    public ResultadoVentana enrutarVentana(UUID sesionId, OffsetDateTime inicioVentana, OffsetDateTime finVentana, long deltaDias) {
-        OffsetDateTime inicioAjustado = inicioVentana.minusDays(deltaDias);
-        OffsetDateTime finAjustado = finVentana.minusDays(deltaDias);
+    public ResultadoVentana enrutarVentana(UUID sesionId, OffsetDateTime inicioVentana, OffsetDateTime finVentana) {
+        SesionEjecucion sesion = sesionRepository.findById(sesionId).orElse(null);
+        OffsetDateTime filtroDesde = sesion != null ? sesion.getFechaFiltroDesde() : null;
+        OffsetDateTime filtroHasta = sesion != null ? sesion.getFechaFiltroHasta() : null;
+        boolean filtrar = filtroDesde != null && filtroHasta != null;
 
-        List<Equipaje> backlog = jdbcTemplate.query(
-                "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad, fecha_ingreso " +
-                        "FROM equipajes" +
-                        " WHERE estado = 'REGISTRADO' AND fecha_operacion < ? " +
-                        "ORDER BY fecha_operacion",
-                this::mapEquipaje,
-                inicioAjustado);
+        String sqlBacklogBase =
+                "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad, fecha_ingreso, fecha_operacion " +
+                        "FROM equipajes " +
+                        "WHERE estado = 'REGISTRADO' AND fecha_operacion < ? " +
+                        (filtrar ? "AND fecha_operacion BETWEEN ? AND ? " : "") +
+                        "ORDER BY fecha_operacion LIMIT ?";
+        Object[] argsBacklog = filtrar
+                ? new Object[]{inicioVentana, filtroDesde, filtroHasta, MAX_EQUIPAJES_PER_CYCLE}
+                : new Object[]{inicioVentana, MAX_EQUIPAJES_PER_CYCLE};
 
-        List<Equipaje> window = jdbcTemplate.query(
-                "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad, fecha_ingreso " +
-                        "FROM equipajes" +
-                        " WHERE estado = 'REGISTRADO' AND fecha_operacion >= ? AND fecha_operacion < ? " +
-                        "ORDER BY fecha_operacion",
-                this::mapEquipaje,
-                inicioAjustado, finAjustado);
+        List<Equipaje> backlog = jdbcTemplate.query(sqlBacklogBase, this::mapEquipaje, argsBacklog);
 
-        // Shift sla_comprometido by delta to match virtual time
-        for (Equipaje e : backlog) {
-            e.setSlaComprometido(e.getSlaComprometido().plusDays(deltaDias));
-        }
-        for (Equipaje e : window) {
-            e.setSlaComprometido(e.getSlaComprometido().plusDays(deltaDias));
+        int remaining = MAX_EQUIPAJES_PER_CYCLE - backlog.size();
+        List<Equipaje> window = Collections.emptyList();
+        if (remaining > 0) {
+            String sqlWindow =
+                    "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad, fecha_ingreso, fecha_operacion " +
+                            "FROM equipajes " +
+                            "WHERE estado = 'REGISTRADO' AND fecha_operacion >= ? AND fecha_operacion < ? " +
+                            (filtrar ? "AND fecha_operacion BETWEEN ? AND ? " : "") +
+                            "ORDER BY fecha_operacion LIMIT ?";
+            Object[] argsWindow = filtrar
+                    ? new Object[]{inicioVentana, finVentana, filtroDesde, filtroHasta, remaining}
+                    : new Object[]{inicioVentana, finVentana, remaining};
+            window = jdbcTemplate.query(sqlWindow, this::mapEquipaje, argsWindow);
         }
 
         if (!backlog.isEmpty()) {
@@ -88,7 +107,26 @@ public class SimulacionEnrutamientoService {
         equipajes.addAll(window);
 
         if (equipajes.isEmpty()) {
+            log.info("VENTANA [{}-{}]: 0 equipajes REGISTRADOS en ventana virtual",
+                    inicioVentana, finVentana);
             return new ResultadoVentana(0, false, null, null, List.of());
+        }
+
+        // Diagnostic log + telemetría: verify equipaje dates match virtual window
+        OffsetDateTime minFecha = equipajes.get(0).getFechaOperacion();
+        OffsetDateTime maxFecha = equipajes.get(equipajes.size() - 1).getFechaOperacion();
+        ultimoDiagnostico.put(sesionId, new VentanaDiagnostico(
+                inicioVentana, finVentana, backlog.size(), window.size(), equipajes.size(), minFecha, maxFecha));
+        log.info("VENTANA [{}-{}]: backlog={} window={} total={} | fecha_op min={} max={}",
+                inicioVentana, finVentana, backlog.size(), window.size(), equipajes.size(),
+                minFecha, maxFecha);
+
+        int muestra = Math.min(3, equipajes.size());
+        for (int s = 0; s < muestra; s++) {
+            Equipaje e = equipajes.get(s);
+            log.debug("VENTANA muestra[{}]: id={} fecha_op={} sla={} ruta={}->{} cant={}",
+                    s, e.getId(), e.getFechaOperacion(), e.getSlaComprometido(),
+                    e.getOrigenIata(), e.getDestinoIata(), e.getCantidad());
         }
 
         // Cargar vuelos programados UNA SOLA VEZ para todos los sub-lotes
@@ -300,7 +338,11 @@ public class SimulacionEnrutamientoService {
         if (ingTs != null) {
             eq.setFechaIngreso(OffsetDateTime.ofInstant(ingTs.toInstant(), ZoneOffset.UTC));
         }
-        eq.setCantidad(rs.getInt("cantidad"));
+        Timestamp opTs = rs.getTimestamp("fecha_operacion");
+        if (opTs != null) {
+            eq.setFechaOperacion(OffsetDateTime.ofInstant(opTs.toInstant(), ZoneOffset.UTC));
+        }
+        eq.setCantidad(1);
         return eq;
     }
 
@@ -311,4 +353,18 @@ public class SimulacionEnrutamientoService {
             UUID equipajeColapsoId,
             List<UUID> equipajesEnrutados
     ) {}
+
+    public record VentanaDiagnostico(
+            OffsetDateTime inicioVentana,
+            OffsetDateTime finVentana,
+            int backlog,
+            int window,
+            int total,
+            OffsetDateTime minFechaOp,
+            OffsetDateTime maxFechaOp
+    ) {}
+
+    public VentanaDiagnostico obtenerUltimoDiagnostico(UUID sesionId) {
+        return ultimoDiagnostico.get(sesionId);
+    }
 }

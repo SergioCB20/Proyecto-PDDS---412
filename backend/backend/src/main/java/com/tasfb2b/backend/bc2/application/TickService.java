@@ -24,7 +24,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
+
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -35,9 +35,6 @@ public class TickService {
     private static final Logger log = LoggerFactory.getLogger(TickService.class);
     private static final long TICK_INTERVAL_MS = 5000;
     private static final Random RANDOM = new Random();
-
-    // Fecha base de la línea temporal de los archivos _envios_*.txt (sla_comprometido / fecha_operacion).
-    private static final LocalDate FECHA_BASE_ARCHIVO = LocalDate.of(2026, 1, 2);
 
     private final SesionRepository sesionRepository;
     private final VueloRepository vueloRepository;
@@ -127,12 +124,12 @@ public class TickService {
         }
         if (!adquirido) {
             // Planificador ocupado — avanzar reloj para que el timer del frontend
-            // no se congele. El trabajo pesado (vuelos, SLA, telemetría) se salta
-            // para no interferir con el planificador; el próximo tick que adquiera
-            // el lock ejecutará normal.
+            // no se congele. Emitimos telemetría básica (sin procesar vuelos)
+            // para que el panel no se quede congelado.
             log.debug("[SIM {}] Planificador ocupado, tick salteado (solo reloj)", idCorto(sesion.getId()));
             avanzarRelojVirtual(sesion);
             sesionRepository.save(sesion);
+            telemetriaService.emitirTelemetria(sesion);
             return;
         }
         try {
@@ -647,11 +644,7 @@ public class TickService {
         OffsetDateTime virtual = sesion.getDiaHoraVirtual();
         if (virtual == null || sesion.getFechaInicioVirtual() == null) return false;
 
-        // sla_comprometido / fecha_operacion viven en la línea temporal base de los archivos
-        // (FECHA_BASE_ARCHIVO); el reloj virtual corre desde fechaInicioVirtual. Se compara en
-        // la base restando el delta de días.
-        long delta = ChronoUnit.DAYS.between(FECHA_BASE_ARCHIVO, sesion.getFechaInicioVirtual());
-        OffsetDateTime limite = virtual.minusDays(delta);
+        OffsetDateTime limite = virtual;
 
         if (!equipajeRepository.existsIncumplimientoSla(limite)) return false;
 
