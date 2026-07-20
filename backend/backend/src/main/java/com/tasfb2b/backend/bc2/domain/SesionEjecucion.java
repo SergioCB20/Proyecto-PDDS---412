@@ -107,6 +107,12 @@ public class SesionEjecucion {
     @Column(name = "fecha_alineada_a")
     private LocalDate fechaAlineadaA;
 
+    @Column(name = "fecha_filtro_desde")
+    private OffsetDateTime fechaFiltroDesde;
+
+    @Column(name = "fecha_filtro_hasta")
+    private OffsetDateTime fechaFiltroHasta;
+
     @Column(name = "dispositivo_id", length = 36)
     private String dispositivoId;
 
@@ -223,4 +229,10 @@ public class SesionEjecucion {
 
     public LocalDate getFechaAlineadaA() { return fechaAlineadaA; }
     public void setFechaAlineadaA(LocalDate fechaAlineadaA) { this.fechaAlineadaA = fechaAlineadaA; }
+
+    public OffsetDateTime getFechaFiltroDesde() { return fechaFiltroDesde; }
+    public void setFechaFiltroDesde(OffsetDateTime fechaFiltroDesde) { this.fechaFiltroDesde = fechaFiltroDesde; }
+
+    public OffsetDateTime getFechaFiltroHasta() { return fechaFiltroHasta; }
+    public void setFechaFiltroHasta(OffsetDateTime fechaFiltroHasta) { this.fechaFiltroHasta = fechaFiltroHasta; }
 }
