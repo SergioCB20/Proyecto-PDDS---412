@@ -287,9 +287,10 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
 
   const [dockAbiertas, setDockAbiertas] = useState<Set<string>>(new Set());
   const [dockCollapsed, setDockCollapsed] = useState(false);
-  const [metricaVisibleOp, setMetricaVisibleOp] = useState(true);
-  const [relojVisibleOp, setRelojVisibleOp] = useState(true);
-  const [zoomVisibleOp, setZoomVisibleOp] = useState(true);
+  // Arrancan ocultos: el mapa inicia sin overlays levantados (re-abribles desde el dock).
+  const [metricaVisibleOp, setMetricaVisibleOp] = useState(false);
+  const [relojVisibleOp, setRelojVisibleOp] = useState(false);
+  const [zoomVisibleOp, setZoomVisibleOp] = useState(false);
   const [selectedEnvio, setSelectedEnvio] =
     useState<SelectedEnvioConsolidado | null>(null);
   const [vueloFilterOrigen, setVueloFilterOrigen] = useState("");
@@ -1126,9 +1127,10 @@ function SimulacionView({
   // Estado de UI propio de esta vista (paneles, filtros, selección) — no compartido.
   const [dockAbiertas, setDockAbiertas] = useState<Set<string>>(new Set());
   const [dockCollapsed, setDockCollapsed] = useState(false);
-  const [metricaVisibleSim, setMetricaVisibleSim] = useState(true);
-  const [relojVisibleSim, setRelojVisibleSim] = useState(true);
-  const [zoomVisibleSim, setZoomVisibleSim] = useState(true);
+  // Arrancan ocultos: el mapa inicia sin overlays levantados (re-abribles desde el dock).
+  const [metricaVisibleSim, setMetricaVisibleSim] = useState(false);
+  const [relojVisibleSim, setRelojVisibleSim] = useState(false);
+  const [zoomVisibleSim, setZoomVisibleSim] = useState(false);
   const [selectedEnvio, setSelectedEnvio] = useState<SelectedEnvioConsolidado | null>(
     null,
   );
@@ -1713,9 +1715,10 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   // Estado de UI propio de esta vista (paneles, filtros, selección) — no compartido.
   const [dockAbiertas, setDockAbiertas] = useState<Set<string>>(new Set());
   const [dockCollapsed, setDockCollapsed] = useState(false);
-  const [metricaVisibleCol, setMetricaVisibleCol] = useState(true);
-  const [relojVisibleCol, setRelojVisibleCol] = useState(true);
-  const [zoomVisibleCol, setZoomVisibleCol] = useState(true);
+  // Arrancan ocultos: el mapa inicia sin overlays levantados (re-abribles desde el dock).
+  const [metricaVisibleCol, setMetricaVisibleCol] = useState(false);
+  const [relojVisibleCol, setRelojVisibleCol] = useState(false);
+  const [zoomVisibleCol, setZoomVisibleCol] = useState(false);
   const [selectedEnvio, setSelectedEnvio] = useState<SelectedEnvioConsolidado | null>(
     null,
   );
