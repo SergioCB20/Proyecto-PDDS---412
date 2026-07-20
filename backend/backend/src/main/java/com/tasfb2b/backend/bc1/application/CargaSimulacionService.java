@@ -15,6 +15,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -27,6 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -52,49 +54,11 @@ public class CargaSimulacionService {
     }
 
     public ResultadoCarga cargarTodos() {
-        Integer existentes = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM equipajes", Integer.class);
-        if (existentes != null && existentes > 0) {
-            log.info("Equipajes ya cargados ({} registros), omitiendo carga", existentes);
-            return new ResultadoCarga(0, 0, 0);
-        }
+        return cargarTodos(false);
+    }
 
-        File dir = new File(rutaArchivos);
-        if (!dir.exists() || !dir.isDirectory()) {
-            throw new CargaException("Directorio no encontrado: " + rutaArchivos);
-        }
-
-        File[] archivos = dir.listFiles((d, name) -> name.startsWith("_envios_") && name.endsWith(".txt"));
-        if (archivos == null || archivos.length == 0) {
-            throw new CargaException("No se encontraron archivos _envios_*.txt en " + rutaArchivos);
-        }
-
-        Map<String, NodoLogistico> nodosPorCodigo = new ConcurrentHashMap<>();
-        nodoRepository.findAll().forEach(n -> nodosPorCodigo.put(n.getCodigoIata(), n));
-
-        int totalEquipajes = 0;
-        int totalLineas = 0;
-        int errores = 0;
-
-        for (File archivo : archivos) {
-            Matcher matcher = FILE_PATTERN.matcher(archivo.getName());
-            if (!matcher.matches()) continue;
-
-            String origenCodigo = matcher.group(1);
-            NodoLogistico nodoOrigen = nodosPorCodigo.get(origenCodigo);
-            if (nodoOrigen == null) {
-                log.warn("Origen {} no encontrado en BD, saltando archivo {}", origenCodigo, archivo.getName());
-                errores++;
-                continue;
-            }
-
-            log.info("Procesando {} (origen={})", archivo.getName(), origenCodigo);
-            ResultadoArchivo result = procesarArchivo(archivo, nodoOrigen, nodosPorCodigo);
-            totalEquipajes += result.equipajesInsertados;
-            totalLineas += result.lineasProcesadas;
-            errores += result.lineasError;
-        }
-
-        return new ResultadoCarga(totalEquipajes, totalLineas, errores);
+    public ResultadoCarga cargarTodos(boolean force) {
+        return cargarTodos(force, null);
     }
 
     private ResultadoArchivo procesarArchivo(File archivo, NodoLogistico nodoOrigen,
@@ -263,5 +227,138 @@ public class CargaSimulacionService {
 
     public static class CargaException extends RuntimeException {
         public CargaException(String msg) { super(msg); }
+    }
+
+    // --- Progreso async ---
+
+    private final ConcurrentHashMap<String, CargaProgreso> progresos = new ConcurrentHashMap<>();
+
+    public static class CargaProgreso {
+        private String taskId;
+        private String estado; // INICIANDO, TRUNCADO, CARGANDO, COMPLETADO, ERROR
+        private String archivoActual;
+        private int archivosCompletados;
+        private int archivosTotal;
+        private int archivosSaltados;
+        private long lineasProcesadas;
+        private long equipajesInsertados;
+        private long errores;
+        private String errorMensaje;
+        private Instant iniciadoEn;
+        private Instant actualizadoEn;
+
+        public String getTaskId() { return taskId; }
+        public String getEstado() { return estado; }
+        public String getArchivoActual() { return archivoActual; }
+        public int getArchivosCompletados() { return archivosCompletados; }
+        public int getArchivosTotal() { return archivosTotal; }
+        public int getArchivosSaltados() { return archivosSaltados; }
+        public long getLineasProcesadas() { return lineasProcesadas; }
+        public long getEquipajesInsertados() { return equipajesInsertados; }
+        public long getErrores() { return errores; }
+        public String getErrorMensaje() { return errorMensaje; }
+        public Instant getIniciadoEn() { return iniciadoEn; }
+        public Instant getActualizadoEn() { return actualizadoEn; }
+    }
+
+    public CargaProgreso getProgreso(String taskId) {
+        return progresos.get(taskId);
+    }
+
+    public String iniciarCargaAsync(boolean force) {
+        String taskId = UUID.randomUUID().toString();
+        CargaProgreso p = new CargaProgreso();
+        p.taskId = taskId;
+        p.estado = "INICIANDO";
+        p.iniciadoEn = Instant.now();
+        progresos.put(taskId, p);
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                cargarTodos(force, p);
+            } catch (Exception e) {
+                log.error("Carga async falló: {}", e.getMessage(), e);
+                p.estado = "ERROR";
+                p.errorMensaje = e.getMessage();
+                p.actualizadoEn = Instant.now();
+            }
+        });
+
+        return taskId;
+    }
+
+    private ResultadoCarga cargarTodos(boolean force, CargaProgreso p) {
+        if (!force) {
+            Integer existentes = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM equipajes", Integer.class);
+            if (existentes != null && existentes > 0) {
+                log.info("Equipajes ya cargados ({} registros), omitiendo carga", existentes);
+                return new ResultadoCarga(0, 0, 0);
+            }
+        } else {
+            log.warn("Recarga forzada: truncando equipajes (CASCADE -> maletas, cola_planificacion)...");
+            if (p != null) { p.estado = "TRUNCADO"; p.actualizadoEn = Instant.now(); }
+            jdbcTemplate.execute("TRUNCATE TABLE equipajes CASCADE");
+            log.warn("Tablas truncadas, iniciando recarga completa...");
+        }
+
+        File dir = new File(rutaArchivos);
+        if (!dir.exists() || !dir.isDirectory()) {
+            throw new CargaException("Directorio no encontrado: " + rutaArchivos);
+        }
+
+        File[] archivos = dir.listFiles((d, name) -> name.startsWith("_envios_") && name.endsWith(".txt"));
+        if (archivos == null || archivos.length == 0) {
+            throw new CargaException("No se encontraron archivos _envios_*.txt en " + rutaArchivos);
+        }
+
+        Map<String, NodoLogistico> nodosPorCodigo = new ConcurrentHashMap<>();
+        nodoRepository.findAll().forEach(n -> nodosPorCodigo.put(n.getCodigoIata(), n));
+
+        int totalEquipajes = 0;
+        int totalLineas = 0;
+        int errores = 0;
+
+        if (p != null) {
+            p.estado = "CARGANDO";
+            p.archivosTotal = archivos.length;
+            p.actualizadoEn = Instant.now();
+        }
+
+        for (File archivo : archivos) {
+            Matcher matcher = FILE_PATTERN.matcher(archivo.getName());
+            if (!matcher.matches()) continue;
+
+            if (p != null) { p.archivoActual = archivo.getName(); p.actualizadoEn = Instant.now(); }
+
+            String origenCodigo = matcher.group(1);
+            NodoLogistico nodoOrigen = nodosPorCodigo.get(origenCodigo);
+            if (nodoOrigen == null) {
+                log.warn("Origen {} no encontrado en BD, saltando archivo {}", origenCodigo, archivo.getName());
+                errores++;
+                if (p != null) { p.archivosSaltados++; p.archivosCompletados++; p.actualizadoEn = Instant.now(); }
+                continue;
+            }
+
+            log.info("Procesando {} (origen={})", archivo.getName(), origenCodigo);
+            ResultadoArchivo result = procesarArchivo(archivo, nodoOrigen, nodosPorCodigo);
+            totalEquipajes += result.equipajesInsertados;
+            totalLineas += result.lineasProcesadas;
+            errores += result.lineasError;
+
+            if (p != null) {
+                p.archivosCompletados++;
+                p.lineasProcesadas += result.lineasProcesadas;
+                p.equipajesInsertados += result.equipajesInsertados;
+                p.errores += result.lineasError;
+                p.actualizadoEn = Instant.now();
+            }
+        }
+
+        if (p != null) {
+            p.estado = "COMPLETADO";
+            p.actualizadoEn = Instant.now();
+        }
+
+        return new ResultadoCarga(totalEquipajes, totalLineas, errores);
     }
 }
