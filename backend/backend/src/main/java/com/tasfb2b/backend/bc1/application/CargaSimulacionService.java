@@ -354,7 +354,8 @@ public class CargaSimulacionService {
                     log.warn("{} incompleto: {} en BD vs {} en archivo. Recargando...",
                             archivo.getName(), existing, fileLines);
                     jdbcTemplate.update(
-                            "DELETE FROM cola_planificacion WHERE equipaje_id IN (SELECT id FROM equipajes WHERE origen_iata = ?)",
+                            "DELETE FROM cola_planificacion USING equipajes " +
+                            "WHERE cola_planificacion.equipaje_id = equipajes.id AND equipajes.origen_iata = ?",
                             origenCodigo);
                     jdbcTemplate.update("DELETE FROM equipajes WHERE origen_iata = ?", origenCodigo);
                 }
