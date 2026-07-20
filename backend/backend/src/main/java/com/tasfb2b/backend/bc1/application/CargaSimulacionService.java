@@ -25,6 +25,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -235,7 +236,7 @@ public class CargaSimulacionService {
 
     public static class CargaProgreso {
         private String taskId;
-        private String estado; // INICIANDO, TRUNCADO, CARGANDO, COMPLETADO, ERROR
+        private String estado; // INICIANDO, CARGANDO, COMPLETADO, ERROR
         private String archivoActual;
         private int archivosCompletados;
         private int archivosTotal;
@@ -246,6 +247,8 @@ public class CargaSimulacionService {
         private String errorMensaje;
         private Instant iniciadoEn;
         private Instant actualizadoEn;
+        private final List<String> archivosCompletosPrevios = new ArrayList<>();
+        private final List<String> archivosCargadosAhora = new ArrayList<>();
 
         public String getTaskId() { return taskId; }
         public String getEstado() { return estado; }
@@ -259,6 +262,8 @@ public class CargaSimulacionService {
         public String getErrorMensaje() { return errorMensaje; }
         public Instant getIniciadoEn() { return iniciadoEn; }
         public Instant getActualizadoEn() { return actualizadoEn; }
+        public List<String> getArchivosCompletosPrevios() { return archivosCompletosPrevios; }
+        public List<String> getArchivosCargadosAhora() { return archivosCargadosAhora; }
     }
 
     public CargaProgreso getProgreso(String taskId) {
@@ -294,11 +299,6 @@ public class CargaSimulacionService {
                 log.info("Equipajes ya cargados ({} registros), omitiendo carga", existentes);
                 return new ResultadoCarga(0, 0, 0);
             }
-        } else {
-            log.warn("Recarga forzada: truncando equipajes (CASCADE -> maletas, cola_planificacion)...");
-            if (p != null) { p.estado = "TRUNCADO"; p.actualizadoEn = Instant.now(); }
-            jdbcTemplate.execute("TRUNCATE TABLE equipajes CASCADE");
-            log.warn("Tablas truncadas, iniciando recarga completa...");
         }
 
         File dir = new File(rutaArchivos);
@@ -317,9 +317,10 @@ public class CargaSimulacionService {
         int totalEquipajes = 0;
         int totalLineas = 0;
         int errores = 0;
+        int archivosSaltados = 0;
 
         if (p != null) {
-            p.estado = "CARGANDO";
+            p.estado = force ? "CARGANDO" : "CARGANDO";
             p.archivosTotal = archivos.length;
             p.actualizadoEn = Instant.now();
         }
@@ -339,7 +340,28 @@ public class CargaSimulacionService {
                 continue;
             }
 
+            if (force) {
+                long fileLines = countLines(archivo);
+                Integer existing = jdbcTemplate.queryForObject(
+                        "SELECT COUNT(1) FROM equipajes WHERE origen_iata = ?", Integer.class, origenCodigo);
+                if (existing != null && fileLines > 0 && existing >= fileLines) {
+                    log.info("{} ya completo ({} lineas)", archivo.getName(), existing);
+                    archivosSaltados++;
+                    if (p != null) { p.archivosCompletados++; p.archivosCompletosPrevios.add(archivo.getName()); p.actualizadoEn = Instant.now(); }
+                    continue;
+                }
+                if (existing != null && existing > 0) {
+                    log.warn("{} incompleto: {} en BD vs {} en archivo. Recargando...",
+                            archivo.getName(), existing, fileLines);
+                    jdbcTemplate.update(
+                            "DELETE FROM cola_planificacion WHERE equipaje_id IN (SELECT id FROM equipajes WHERE origen_iata = ?)",
+                            origenCodigo);
+                    jdbcTemplate.update("DELETE FROM equipajes WHERE origen_iata = ?", origenCodigo);
+                }
+            }
+
             log.info("Procesando {} (origen={})", archivo.getName(), origenCodigo);
+            if (p != null && force) { p.archivosCargadosAhora.add(archivo.getName()); }
             ResultadoArchivo result = procesarArchivo(archivo, nodoOrigen, nodosPorCodigo);
             totalEquipajes += result.equipajesInsertados;
             totalLineas += result.lineasProcesadas;
@@ -356,9 +378,20 @@ public class CargaSimulacionService {
 
         if (p != null) {
             p.estado = "COMPLETADO";
+            p.archivosSaltados = archivosSaltados;
             p.actualizadoEn = Instant.now();
         }
 
         return new ResultadoCarga(totalEquipajes, totalLineas, errores);
+    }
+
+    private long countLines(File file) {
+        try (BufferedReader r = new BufferedReader(new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8))) {
+            long count = 0;
+            while (r.readLine() != null) count++;
+            return count;
+        } catch (Exception e) {
+            return 0;
+        }
     }
 }

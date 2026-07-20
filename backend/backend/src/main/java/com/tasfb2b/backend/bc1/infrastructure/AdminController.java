@@ -60,6 +60,8 @@ public class AdminController {
         body.put("archivos_completados", p.getArchivosCompletados());
         body.put("archivos_total", p.getArchivosTotal());
         body.put("archivos_saltados", p.getArchivosSaltados());
+        body.put("archivos_completos_previos", p.getArchivosCompletosPrevios());
+        body.put("archivos_cargados_ahora", p.getArchivosCargadosAhora());
         body.put("lineas_procesadas", p.getLineasProcesadas());
         body.put("equipajes_insertados", p.getEquipajesInsertados());
         body.put("errores", p.getErrores());
