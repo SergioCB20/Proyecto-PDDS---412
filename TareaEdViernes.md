@@ -1211,3 +1211,296 @@ Eliminar el botón de cancelar vuelo (icono `XCircle`) que aparecía en cada tar
 - **Pruebas automatizadas (frontend):** No existe infraestructura de tests unitarios ni de integración. Solo se ejecuta `next build` + `eslint` en CI. Agregar tests (Vitest, Playwright) para evitar regressiones visuales y de lógica.
 - **TypeScript errors ignorados en build:** `next.config.ts` tiene `ignoreBuildErrors: true`. Si se requiere validación estricta de tipos en CI, cambiar a `false` y agregar script `typecheck` en package.json.
 - **Refactor de time panels:** El JSX del panel de tiempos está duplicado en SimulacionView y ColapsoView. Extraer a un componente `<PanelTiempo>` compartido para evitar divergencia futura.
+
+---
+
+# Tarea: UMBRAL CANCELACION - Corregir límite de 1 hora para cancelación de vuelo
+
+## Comentarios del cliente
+
+> Una cancelación de vuelo, es la no disponibilidad de un vuelo concreto, inmediato siguiente a cuando se realizó la cancelación.
+>
+> Por ejemplo. Para el vuelo (imaginario) que sale de PQRS con destino a ABCD de las 18:25 horas en PQRS.
+>
+> 1. Si se cancela a las 13:30 (antes de la hora de inicio) entonces el vuelo de ese día PQRS-ABCD-18:25 se cancela por únicamente ese día. Es decir, no debe planificarse y en caso tenga maletas asignadas, deben quedar como disponibles para ser nuevamente planificadas.
+> 2. Si se cancela a las 20:02 (después de la hora de inicio) entonces el vuelo del día siguiente de PQRS-ABCD-18:25 se cancela por únicamente ese día.
+> 3. Para cancelar un vuelo el mismo día debe ser registrado hasta 1 hora antes. Para el caso sería:
+>    a. Si cancela a las 17:25, entonces es una cancelación que aplica al mismo día.
+>    b. Si cancela a las 17:26, entonces es una cancelación que aplica al día siguiente.
+
+## Contexto / Problema detectado
+
+El umbral que decide si una cancelación de plantilla aplica al vuelo de **hoy** (frío, con replanificación) o al de **mañana** (caliente, sin replanificación) era incorrecto en el borde exacto de 60 minutos.
+
+**Comportamiento anterior (incorrecto):**
+- `minutosHastaSalida > 60` → frío (hoy)
+- `minutosHastaSalida <= 60` → caliente (mañana)
+
+Esto provocaba que una cancelación registrada **exactamente a 1 hora** de la salida (ej. 17:25 para un vuelo de 18:25) se tratara como "caliente", cancelando el día siguiente en lugar del mismo día.
+
+**Comportamiento corregido:**
+- `minutosHastaSalida >= 60` → frío (hoy)
+- `minutosHastaSalida < 60` → caliente (mañana)
+
+Con el nuevo umbral, el cliente puede cancelar hasta el último minuto de la hora previa (incluyendo el minuto 60) y la cancelación aplica al mismo día.
+
+## Archivos modificados
+
+### 1. `backend/.../bc1/application/CancelacionService.java` (línea 253)
+
+```java
+// Antes:
+if (minutosHastaSalida > 60) {
+// Después:
+if (minutosHastaSalida >= 60) {
+```
+
+### 2. `frontend/components/simulacion/SeccionCancelacion.tsx` (línea 203)
+
+```typescript
+// Antes:
+const caliente = min !== null && min <= 60;
+// Después:
+const caliente = min !== null && min < 60;
+```
+
+Esto asegura que el botón muestre "Cancelar" (rojo) cuando faltan ≥60 min, y "→ Mañana" (ámbar) solo cuando faltan <60 min.
+
+### 3. `frontend/lib/horasVirtuales.ts` (línea 52)
+
+```typescript
+// Antes:
+return min !== null && min <= 60;
+// Después:
+return min !== null && min < 60;
+```
+
+Consistencia en el helper `esPlantillaCaliente` (aunque hoy no se usa en producción).
+
+## Notas de implementación
+
+- El único flujo activo de cancelación es el panel **"Cancelación (plantillas)"** (`SeccionCancelacion`). El callback `onCancelVuelo` en `PanelVuelosOperacion` es código muerto (nunca se renderiza un botón de cancelar ahí).
+- La cancelación directa desde `handleCancelarVuelo` en `useSimulacionSesion.ts` y `page.tsx` no aplica la regla horaria porque el usuario selecciona explícitamente una instancia concreta.
+- No se modificaron controladores, repositorios, ni la lógica de replanificación.
+
+## Casos de borde verificados
+
+| Tiempo virtual vs salida (18:25) | Diferencia (min) | Resultado esperado |
+|---|---|---|
+| 13:30 | +295 | **Hoy** — frío, replanifica |
+| 17:25 | +60 | **Hoy** — frío, replanifica ✅ *(corregido)* |
+| 17:26 | +59 | **Mañana** — caliente, sin replan |
+| 18:25 | 0 | **Mañana** — caliente, sin replan |
+| 20:02 | -97 | **Mañana** — caliente, sin replan |
+
+---
+
+# Anexo: Plan de pruebas de cancelación (conversación posterior)
+
+## Contexto de la conversación
+
+Luego de implementar el cambio de umbral, se dialogó sobre cómo probar la cancelación de vuelos según los lineamientos del cliente. A continuación se documentan todos los hallazgos, decisiones y el plan de prueba acordado para retomarlo posteriormente.
+
+---
+
+## 1. Mecanismos de cancelación en el sistema
+
+Existen **dos caminos independientes** para cancelar un vuelo:
+
+### A. Cancelación automática (probabilística — TickService)
+
+- Se ejecuta cada tick (~5s reales) dentro de `TickService.evaluarCancelaciones()`.
+- Evalúa vuelos `PROGRAMADO` cuya salida cae en la siguiente ventana virtual (próximos 10 min virtuales con k=120).
+- Por cada vuelo, lanza `Random.nextDouble() < prob_cancelacion`.
+- Si acierta, llama a `replanificacionService.replanificarEnSesion()`.
+- **No usa el umbral de 1 hora.** Es puramente aleatorio.
+- Se configura con el campo `prob_cancelacion` al crear la sesión (0.0 = desactivado).
+
+### B. Cancelación manual (vía plantillas — SeccionCancelacion)
+
+- Único flujo activo de cancelación manual en la UI.
+- Accesible desde el dock izquierdo de Simulación/Colapso → ícono `XCircle` "Cancelación".
+- Muestra una tabla con todas las plantillas (`es_plantilla = true`).
+- Cada fila tiene un botón: **"Cancelar"** (rojo, rama fría) o **"→ Mañana"** (ámbar, rama caliente).
+- Usa el umbral de 1 hora (`>= 60` frío, `< 60` caliente) — **este es el umbral que se corrigió**.
+- Envía `POST /api/simulacion/cancelacion` con `aplicar_regla_plantilla: true`.
+
+### C. Cancelación directa desde panel de vuelos (código muerto)
+
+- `PanelVuelosOperacion.tsx` acepta la prop `onCancelVuelo` pero **nunca renderiza un botón de cancelar**.
+- Solo renderiza botones "En Mapa" y "Envíos".
+- El callback se pasa desde `page.tsx` y `useSimulacionSesion.ts` pero nunca se ejecuta.
+- **Este camino no se usa en producción.**
+
+---
+
+## 2. Datos relevantes descubiertos
+
+### Vuelos plantilla desde Perú/Colombia en ventana 16:00-23:00 UTC
+
+| Vuelo | Origen | Destino | Salida UTC | Llegada UTC |
+|---|---|---|---|---|
+| **TAS0024** | SPIM (Lima) | SKBO (Bogotá) | 18:09 | 20:25 |
+| TAS0208 | SPIM (Lima) | SEQM (Quito) | 17:11 | 18:52 |
+| TAS0210 | SPIM (Lima) | SEQM (Quito) | 21:09 | 22:50 |
+| TAS0005 | SKBO (Bogotá) | SEQM (Quito) | 19:01 | 19:48 |
+| TAS0011 | SKBO (Bogotá) | SVMI (Caracas) | 19:18 | 21:41 |
+| TAS0017 | SKBO (Bogotá) | SBBR (Brasilia) | 20:22 | 02:57+1 |
+| TAS0023 | SKBO (Bogotá) | SPIM (Lima) | 22:45 | 01:01+1 |
+| TAS0047 | SKBO (Bogotá) | SGAS (Asunción) | 17:38 | 23:18 |
+| TAS0033 | SKBO (Bogotá) | SCEL (Santiago) | 19:18 | 02:30+1 |
+
+**Recomendado para prueba:** TAS0024 (Perú → Colombia, origen preferente del cliente, 18:09 UTC).
+
+### Factor de tiempo (k) y progresión virtual
+
+| k | Minutos virtuales por tick (5s reales) | Duración real aprox. para 5D |
+|---|---|---|
+| 60 | 5 min | ~120 min |
+| **120 (default)** | **10 min** | **~60 min** |
+| 240 | 20 min | ~30 min |
+
+Fórmula: `virtualMinutos_por_tick = k / 12`
+
+### Creación de equipajes (envíos)
+
+- El endpoint es `POST /api/equipajes` con header `X-Device-Nodo-Id`.
+- **No se puede asignar un vuelo directamente.** El `MotorEnrutamiento` asigna el vuelo óptimo de forma asíncrona según origen/destino.
+- Para que una maleta termine en TAS0024, debe crearse desde Lima (nodo SPIM) con `destino_iata = "SKBO"`.
+- El procesamiento asíncrono toma hasta ~30s (configurable via `sa_segundos`, default 30).
+- Para verificar asignación: `GET /api/equipajes?vuelo_id={vuelo-uuid}` o `GET /api/equipajes/{id}/plan-viaje`.
+- **La UI de creación de equipajes solo está disponible en la vista Operación** (dock "Registro Equipaje"). En la vista Simulación no hay formulario de registro; se puede usar la API directamente o crear los equipajes antes en Operación.
+
+---
+
+## 3. Procedimiento de prueba completo
+
+### Prerrequisitos
+
+| Ítem | Valor |
+|---|---|
+| Vuelo objetivo | TAS0024 (SPIM Lima → SKBO Bogotá, 18:09 UTC) |
+| k | 120 (default) |
+| prob_cancelacion | 0.0 (solo manual) |
+| Sesión inicia | 2026-07-15 02:00 UTC |
+| Operador | operador@tasfb2b.com (nodo: SPIM/Lima) |
+
+### Timeline estimado (k=120)
+
+| Tiempo real | Tiempo virtual | Acción |
+|---|---|---|
+| T+0:00 | 02:00 | Crear sesión e iniciar |
+| T+1:00 | ~14:00 | Crear ≥2 equipajes SPIM→SKBO vía API o UI Operación |
+| T+1:30 | ~15:00 | Esperar ruteo asíncrono (~30s) |
+| T+2:00 | ~16:00 | Verificar equipajes asignados a TAS0024 |
+| T+7:30 | ~17:09 | **Cancelar TAS0024** (60 min antes → rama fría) |
+| T+8:00 | ~17:30 | Verificar modal verde "Cancelación aplicada al vuelo de hoy" |
+| T+8:30+ | ~18:09+ | Verificar TAS0024 no despega + equipajes re-enrutados |
+
+### Paso a paso detallado
+
+#### Fase 0: Identificar el vuelo
+```bash
+# Listar aeropuertos
+GET /api/nodos
+# Buscar plantilla TAS0024
+GET /api/vuelos?es_plantilla=true&size=500
+```
+
+#### Fase 1: Iniciar simulación
+```json
+POST /api/sesiones
+{
+  "tipo": "SIMULADA",
+  "fecha_inicio_virtual": "2026-07-15",
+  "hora_inicio_virtual": "02:00",
+  "prob_cancelacion": 0.0,
+  "k": 120,
+  "tipo_simulacion": "VENTANA_FIJA",
+  "duracion_dias": 5
+}
+→ Anotar sesion_id
+
+POST /api/sesiones/{sesion_id}/iniciar
+```
+
+#### Fase 2: Crear equipajes
+```bash
+POST /api/equipajes
+Headers: { "X-Device-Nodo-Id": "<uuid-de-SPIM>" }
+Body: { "destino_iata": "SKBO", "cantidad": 1 }
+# Repetir 2-3 veces
+```
+
+#### Fase 3: Verificar asignación
+```bash
+GET /api/equipajes?vuelo_id=<uuid-de-TAS0024>
+# Debe devolver los equipajes con estado ENRUTADO
+```
+
+#### Fase 4: Cancelar
+- En Simulación, dock izquierdo → ícono Cancelación (XCircle)
+- Buscar TAS0024 en la tabla
+- Verificar botón: si ≥60 min antes → "Cancelar" (rojo); si <60 min → "→ Mañana" (ámbar)
+- Hacer clic
+- Verificar modal de resultado
+
+#### Fase 5: Verificar post-cancelación
+- TAS0024 debe estar CANCELADO en el mapa
+- Equipajes deben tener nuevo `vuelo_actual_id` (consultar plan-viaje)
+- (Opcional) Descargar PDF del lote: `GET /sesiones/{id}/replanificaciones/{lote_id}/pdf`
+
+### Block de notas template (para usar durante la prueba)
+
+```
+=== FASE 0 ===
+Vuelo: _____________ | Ruta: _____________ → _____________
+Hora salida: _____________ UTC | UUID: _____________
+
+=== FASE 1 ===
+Sesion ID: _____________
+Inicio virtual: _____________
+k: _____________ | prob_cancelacion: _____________
+
+=== FASE 2 ===
+Eq1 ID: _____________ | Código: _____________ | Cant: _____
+Eq2 ID: _____________ | Código: _____________ | Cant: _____
+
+=== FASE 3 ===
+Eq1 asignado a: _____________
+Eq2 asignado a: _____________
+
+=== FASE 4 ===
+Hora virtual al cancelar: _____________
+minutosHastaSalida: _____________
+Rama: [FRÍA / CALIENTE]
+Botón mostrado: [Cancelar / → Mañana]
+Modal título: ____________________________________
+Equipajes afectados: _____________
+Lote ID: _____________
+
+=== FASE 5 ===
+Vuelo cancelado despegó: [Sí / No]
+Eq1 nuevo vuelo: _____________
+Eq2 nuevo vuelo: _____________
+PDF descargado: [Sí / No]
+```
+
+### Prueba de rama caliente (opcional)
+
+Repetir el mismo procedimiento pero esperar a que el reloj virtual esté dentro de la ventana <60 min antes de la salida (virtual entre 17:10 y 18:09, o después de 18:09). En ese caso:
+- El botón debe mostrar "→ Mañana" (ámbar)
+- El modal debe ser ámbar: "Cancelación diferida al día siguiente"
+- 0 equipajes afectados
+- La instancia de hoy de TAS0024 debe despegar normalmente
+- La instancia de mañana debe aparecer CANCELADA
+
+---
+
+## 4. Pendientes y observaciones
+
+- **`onCancelVuelo` en `PanelVuelosOperacion`:** Es código muerto — la prop existe pero nunca se renderiza ningún botón. Si el cliente quiere cancelar desde el panel de vuelos (no solo desde plantillas), habría que implementar ese botón.
+- **Creación de equipajes en Simulación:** No hay UI de registro en la vista de simulación. Solo está en Operación. Para flujos 100% dentro de simulación, se requiere usar la API directamente o agregar el formulario en Simulación.
+- **Verificación visual en el mapa:** La confirmación de que un vuelo "no despega" es visual (observar que el avión no se mueve del aeropuerto origen). No hay un indicador programático para esto más allá del estado CANCELADO.
+- **Tiempo de la simulación:** Con k=120 la simulación 5D dura ~60 min reales. Si se quiere acortar a ~30 min, usar k=240. El cliente sugiere "al menos 30 minutos" para poder observar con calma.
+- **Prueba de humo rápida:** Para validar el cambio de umbral sin toda la simulación, se puede crear una sesión con fecha_inicio_virtual = 2026-07-15T17:00 (justo antes de las 18:09 de TAS0024) y cancelar inmediatamente. Con eso se cae en rama fría por 9 minutos de margen.

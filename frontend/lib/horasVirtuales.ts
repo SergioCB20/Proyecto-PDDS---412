@@ -49,5 +49,5 @@ export function esPlantillaCaliente(
     plantillaHoraSalidaIso,
     momentoVirtualIso,
   );
-  return min !== null && min <= 60;
+  return min !== null && min < 60;
 }
