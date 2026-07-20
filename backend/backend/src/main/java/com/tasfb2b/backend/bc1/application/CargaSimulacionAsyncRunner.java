@@ -19,7 +19,7 @@ public class CargaSimulacionAsyncRunner {
     @Async
     public void cargar() {
         try {
-            var resultado = cargaSimulacionService.cargarTodos();
+            var resultado = cargaSimulacionService.cargarTodos(false);
             log.info("Carga automatica completada: {} equipajes insertados desde {} lineas ({} errores)",
                     resultado.totalEquipajes(), resultado.totalLineas(), resultado.lineasError());
         } catch (CargaSimulacionService.CargaException e) {
