@@ -36,8 +36,11 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -154,6 +157,14 @@ public class SesionService {
                 sesion.setTipoSimulacion(TipoSimulacion.valueOf(request.tipo_simulacion()));
             }
             sesion.setDuracionDias(5);
+
+            ZoneOffset offsetLima = ZoneId.of("America/Lima").getRules()
+                    .getOffset(LocalDateTime.of(fecha, sesion.getHoraInicioVirtual()));
+            sesion.setFechaFiltroDesde(
+                OffsetDateTime.of(fecha, sesion.getHoraInicioVirtual(), offsetLima));
+            sesion.setFechaFiltroHasta(
+                sesion.getFechaFiltroDesde().plusDays(sesion.getDuracionDias() != null
+                    ? sesion.getDuracionDias() : 5));
 
             if (request.k() != null) {
                 double k = request.k();

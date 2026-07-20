@@ -3,6 +3,8 @@ package com.tasfb2b.backend.bc2.application;
 import com.tasfb2b.backend.bc1.application.OcupacionNodoService;
 import com.tasfb2b.backend.bc1.domain.*;
 import com.tasfb2b.backend.bc1.infrastructure.*;
+import com.tasfb2b.backend.bc2.domain.SesionEjecucion;
+import com.tasfb2b.backend.bc2.infrastructure.SesionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Pageable;
@@ -42,6 +44,7 @@ public class SimulacionEnrutamientoService {
     private final PlanViajeRepository planViajeRepository;
     private final SegmentoPlanRepository segmentoPlanRepository;
     private final OcupacionNodoService ocupacionNodoService;
+    private final SesionRepository sesionRepository;
 
     public SimulacionEnrutamientoService(JdbcTemplate jdbcTemplate,
                                          MotorEnrutamiento motorEnrutamiento,
@@ -49,7 +52,8 @@ public class SimulacionEnrutamientoService {
                                          VueloRepository vueloRepository,
                                          PlanViajeRepository planViajeRepository,
                                          SegmentoPlanRepository segmentoPlanRepository,
-                                         OcupacionNodoService ocupacionNodoService) {
+                                         OcupacionNodoService ocupacionNodoService,
+                                         SesionRepository sesionRepository) {
         this.jdbcTemplate = jdbcTemplate;
         this.motorEnrutamiento = motorEnrutamiento;
         this.nodoRepository = nodoRepository;
@@ -57,28 +61,42 @@ public class SimulacionEnrutamientoService {
         this.planViajeRepository = planViajeRepository;
         this.segmentoPlanRepository = segmentoPlanRepository;
         this.ocupacionNodoService = ocupacionNodoService;
+        this.sesionRepository = sesionRepository;
     }
 
     @Transactional
     public ResultadoVentana enrutarVentana(UUID sesionId, OffsetDateTime inicioVentana, OffsetDateTime finVentana) {
-        List<Equipaje> backlog = jdbcTemplate.query(
+        SesionEjecucion sesion = sesionRepository.findById(sesionId).orElse(null);
+        OffsetDateTime filtroDesde = sesion != null ? sesion.getFechaFiltroDesde() : null;
+        OffsetDateTime filtroHasta = sesion != null ? sesion.getFechaFiltroHasta() : null;
+        boolean filtrar = filtroDesde != null && filtroHasta != null;
+
+        String sqlBacklogBase =
                 "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad, fecha_ingreso, fecha_operacion " +
-                        "FROM equipajes" +
-                        " WHERE estado = 'REGISTRADO' AND fecha_operacion < ? " +
-                        "ORDER BY fecha_operacion LIMIT ?",
-                this::mapEquipaje,
-                inicioVentana, MAX_EQUIPAJES_PER_CYCLE);
+                        "FROM equipajes " +
+                        "WHERE estado = 'REGISTRADO' AND fecha_operacion < ? " +
+                        (filtrar ? "AND fecha_operacion BETWEEN ? AND ? " : "") +
+                        "ORDER BY fecha_operacion LIMIT ?";
+        Object[] argsBacklog = filtrar
+                ? new Object[]{inicioVentana, filtroDesde, filtroHasta, MAX_EQUIPAJES_PER_CYCLE}
+                : new Object[]{inicioVentana, MAX_EQUIPAJES_PER_CYCLE};
+
+        List<Equipaje> backlog = jdbcTemplate.query(sqlBacklogBase, this::mapEquipaje, argsBacklog);
 
         int remaining = MAX_EQUIPAJES_PER_CYCLE - backlog.size();
-        List<Equipaje> window = remaining > 0
-                ? jdbcTemplate.query(
+        List<Equipaje> window = Collections.emptyList();
+        if (remaining > 0) {
+            String sqlWindow =
                     "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad, fecha_ingreso, fecha_operacion " +
-                            "FROM equipajes" +
-                            " WHERE estado = 'REGISTRADO' AND fecha_operacion >= ? AND fecha_operacion < ? " +
-                            "ORDER BY fecha_operacion LIMIT ?",
-                    this::mapEquipaje,
-                    inicioVentana, finVentana, remaining)
-                : Collections.emptyList();
+                            "FROM equipajes " +
+                            "WHERE estado = 'REGISTRADO' AND fecha_operacion >= ? AND fecha_operacion < ? " +
+                            (filtrar ? "AND fecha_operacion BETWEEN ? AND ? " : "") +
+                            "ORDER BY fecha_operacion LIMIT ?";
+            Object[] argsWindow = filtrar
+                    ? new Object[]{inicioVentana, finVentana, filtroDesde, filtroHasta, remaining}
+                    : new Object[]{inicioVentana, finVentana, remaining};
+            window = jdbcTemplate.query(sqlWindow, this::mapEquipaje, argsWindow);
+        }
 
         if (!backlog.isEmpty()) {
             log.info("Backlog: {} equipajes atrasados en ventana {}-{}", backlog.size(), inicioVentana, finVentana);
