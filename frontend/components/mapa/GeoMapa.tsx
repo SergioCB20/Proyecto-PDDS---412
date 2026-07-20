@@ -355,7 +355,7 @@ export default function GeoMapa({
         {rutaDestacada && rutaDestacada.coordenadas.length > 1 && (
           <Polyline
             positions={rutaDestacada.coordenadas}
-            pathOptions={{ color: '#2563eb', weight: 5, opacity: 0.8 }}
+            pathOptions={{ color: '#94a3b8', weight: 2, opacity: 0.4, dashArray: '4, 4' }}
           />
         )}
         {mostrarZoom && <ControlZoom onClose={onCerrarZoom} />}

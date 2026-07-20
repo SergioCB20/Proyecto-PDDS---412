@@ -428,9 +428,10 @@ function AvionAnimado({
         ref={polylineRef}
         positions={estelaInicial}
         pathOptions={{
-          color: '#000',
-          weight: destacado ? 6 : 1,
-          opacity: vuelo.estado === 'EN_RUTA' ? (destacado ? 0.9 : 0.6) : 0,
+          color: '#94a3b8',
+          weight: destacado ? 2 : 1,
+          opacity: vuelo.estado === 'EN_RUTA' ? (destacado ? 0.5 : 0.25) : 0,
+          dashArray: '4, 4',
         }}
       />
       <Marker ref={markerRef} position={frozenPos} icon={icono}
