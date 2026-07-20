@@ -28,11 +28,16 @@ function recentrarVista(map: L.Map, aeropuertos: AeropuertoEnMapa[], animar = tr
   const lngs = aeropuertos.map((a) => a.longitud);
   const sur = Math.min(...lats);
   const norte = Math.max(...lats);
-  const centroLat = (sur + norte) / 2;
   const centroLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
+  // Bounds de ancho ~0 (solo latitud): el alto manda, así el rango N–S llena la vertical.
   const boundsLat = L.latLngBounds([sur, centroLng], [norte, centroLng]);
-  const zoom = map.getBoundsZoom(boundsLat, false, L.point(20, 40));
-  map.setView([centroLat, centroLng], zoom, { animate: animar });
+  // Padding vertical asimétrico: más arriba (headroom para que Dinamarca no quede
+  // tapada por las barras/controles) y menos abajo (Argentina baja hacia el borde).
+  map.fitBounds(boundsLat, {
+    paddingTopLeft: L.point(20, 72),
+    paddingBottomRight: L.point(20, 16),
+    animate: animar,
+  });
 }
 
 /** Captura la instancia del mapa de Leaflet y la eleva al componente padre. */
