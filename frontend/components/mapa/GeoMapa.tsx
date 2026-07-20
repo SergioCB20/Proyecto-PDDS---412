@@ -1,8 +1,9 @@
 'use client';
 
 import { MapContainer, TileLayer, useMap, Polyline } from 'react-leaflet';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { EyeOff, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { EyeOff, X, Locate } from 'lucide-react';
+import L from 'leaflet';
 import type { AeropuertoEnMapa, VueloEnMapa, RutaDestacada } from '@/lib/types';
 import type { UmbralesConfig } from './ConfigUmbrales';
 import { determinarColorSemaforo } from '@/lib/colors';
@@ -10,6 +11,38 @@ import 'leaflet/dist/leaflet.css';
 import dynamic from 'next/dynamic';
 import ControlZoom from './ControlZoom';
 import { CENTRO, ZOOM } from './mapaConfig';
+
+/**
+ * Encuadra la vista para que el aeropuerto más al norte (Dinamarca) quede lo más arriba
+ * posible y el más al sur (Argentina) lo más abajo, ocupando verticalmente el alto
+ * disponible. Se centra horizontalmente en el punto medio de longitudes de los aeropuertos.
+ * Al construir un bounds de ancho ~0 (solo latitud) el zoom queda limitado por el alto,
+ * de modo que el rango norte–sur llena la vista verticalmente.
+ */
+function recentrarVista(map: L.Map, aeropuertos: AeropuertoEnMapa[], animar = true) {
+  if (aeropuertos.length === 0) {
+    map.flyTo(CENTRO, ZOOM, { duration: animar ? 0.6 : 0 });
+    return;
+  }
+  const lats = aeropuertos.map((a) => a.latitud);
+  const lngs = aeropuertos.map((a) => a.longitud);
+  const sur = Math.min(...lats);
+  const norte = Math.max(...lats);
+  const centroLat = (sur + norte) / 2;
+  const centroLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
+  const boundsLat = L.latLngBounds([sur, centroLng], [norte, centroLng]);
+  const zoom = map.getBoundsZoom(boundsLat, false, L.point(20, 40));
+  map.setView([centroLat, centroLng], zoom, { animate: animar });
+}
+
+/** Captura la instancia del mapa de Leaflet y la eleva al componente padre. */
+function MapRefCapture({ onReady }: { onReady: (m: L.Map) => void }) {
+  const map = useMap();
+  useEffect(() => {
+    onReady(map);
+  }, [map, onReady]);
+  return null;
+}
 
 interface MapControllerProps {
   aeropuertos: AeropuertoEnMapa[];
@@ -44,19 +77,19 @@ function MapController({
       if (e.key === 'Escape') {
         if (rutaDestacada) {
           onLimpiarRuta?.();
-          map.flyTo(CENTRO, ZOOM, { duration: 0.8 });
+          recentrarVista(map, aeropuertos);
           return;
         }
         if (siguiendo) {
           if (seguidoAeropuertoId) onSalirSeguimientoAeropuerto?.();
           if (seguidoVueloId) onSalirSeguimiento?.();
-          map.flyTo(CENTRO, ZOOM, { duration: 0.8 });
+          recentrarVista(map, aeropuertos);
         }
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [map, siguiendo, seguidoVueloId, seguidoAeropuertoId, onSalirSeguimiento, onSalirSeguimientoAeropuerto, rutaDestacada, onLimpiarRuta]);
+  }, [map, siguiendo, seguidoVueloId, seguidoAeropuertoId, onSalirSeguimiento, onSalirSeguimientoAeropuerto, rutaDestacada, onLimpiarRuta, aeropuertos]);
 
   useEffect(() => {
     if (seguidoVueloId && seguidoVueloId !== previous.current.id && previous.current.tipo !== 'vuelo') {
@@ -109,8 +142,8 @@ function MapController({
         map.fitBounds(coords, { padding: [50, 50], duration: 1 });
       }
     } else if (previo) {
-      // Filtro limpiado: volver a la vista global del mundo (mismo flyTo que ESC).
-      map.flyTo(CENTRO, ZOOM, { duration: 0.8 });
+      // Filtro limpiado: volver a la vista encuadrada Dinamarca–Argentina (misma que ESC).
+      recentrarVista(map, aeropuertos);
     }
 
     previousContinente.current = continenteFiltro ?? null;
@@ -183,7 +216,22 @@ export default function GeoMapa({
   mostrarZoom = true,
   onCerrarZoom,
 }: GeoMapaProps) {
-  const [legendaVisible, setLegendaVisible] = useState(true);
+  // Arranca oculta: el mapa debe iniciar sin overlays levantados (re-abrible con el botón).
+  const [legendaVisible, setLegendaVisible] = useState(false);
+  const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
+
+  // Encuadre inicial Dinamarca↑–Argentina↓ una vez que el mapa y los aeropuertos existen.
+  const fitInicialHecho = useRef(false);
+  useEffect(() => {
+    if (mapInstance && aeropuertos.length > 0 && !fitInicialHecho.current) {
+      fitInicialHecho.current = true;
+      recentrarVista(mapInstance, aeropuertos, false);
+    }
+  }, [mapInstance, aeropuertos]);
+
+  const handleRecentrar = useCallback(() => {
+    if (mapInstance) recentrarVista(mapInstance, aeropuertos, true);
+  }, [mapInstance, aeropuertos]);
 
   const aeropuertosFiltrados = useMemo(() => {
     const base = seguidoAeropuertoId
@@ -257,6 +305,7 @@ export default function GeoMapa({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png"
         />
+        <MapRefCapture onReady={setMapInstance} />
         <GeoMapaEtiquetasPaises />
         {aeropuertosFiltrados.map((aeropuerto) => (
           <GeoMapaAeropuerto key={aeropuerto.codigo_iata} aeropuerto={aeropuerto} onClick={onAeropuertoClick} />
@@ -296,6 +345,15 @@ export default function GeoMapa({
         {legendaVisible && <GeoMapaLeyenda umbralesConfig={umbralesConfig} onClose={() => setLegendaVisible(false)} />}
         {children}
       </MapContainer>
+
+      {/* Botón para re-centrar la vista Dinamarca–Argentina tras mover el mapa */}
+      <button
+        onClick={handleRecentrar}
+        className="absolute top-4 right-4 z-40 p-2 rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+        title="Centrar vista"
+      >
+        <Locate size={16} className="text-slate-600 dark:text-slate-300" />
+      </button>
 
       {/* Botón re-abrir leyenda cuando está oculta */}
       {!legendaVisible && (
