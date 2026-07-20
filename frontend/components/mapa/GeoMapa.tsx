@@ -6,7 +6,10 @@ import { EyeOff, X, Locate } from 'lucide-react';
 import L from 'leaflet';
 import type { AeropuertoEnMapa, VueloEnMapa, RutaDestacada } from '@/lib/types';
 import type { UmbralesConfig } from './ConfigUmbrales';
-import { determinarColorSemaforo } from '@/lib/colors';
+import { determinarColorSemaforo, type ColorSemaforo } from '@/lib/colors';
+
+// Colores de ocupación que existen como marcador de aeropuerto (excluye no aplicables).
+const COLORES_OCUPACION: ColorSemaforo[] = ['VACIO', 'VERDE', 'AMBAR', 'ROJO'];
 import 'leaflet/dist/leaflet.css';
 import dynamic from 'next/dynamic';
 import ControlZoom from './ControlZoom';
@@ -225,6 +228,20 @@ export default function GeoMapa({
   const [legendaVisible, setLegendaVisible] = useState(false);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
 
+  // Filtro multi-select (checkboxes) de aeropuertos/almacenes por color de ocupación.
+  // Arranca con todos visibles → sin efecto hasta que el usuario destilde alguno.
+  const [coloresAeroVisibles, setColoresAeroVisibles] = useState<Set<ColorSemaforo>>(
+    () => new Set(COLORES_OCUPACION),
+  );
+  const toggleColorAero = useCallback((color: ColorSemaforo) => {
+    setColoresAeroVisibles((prev) => {
+      const next = new Set(prev);
+      if (next.has(color)) next.delete(color);
+      else next.add(color);
+      return next;
+    });
+  }, []);
+
   // Encuadre inicial Dinamarca↑–Argentina↓ una vez que el mapa y los aeropuertos existen.
   const fitInicialHecho = useRef(false);
   useEffect(() => {
@@ -251,11 +268,17 @@ export default function GeoMapa({
             return aeropuertos;
           })()
         : aeropuertos;
-    if (!filtroColorAeropuerto) return base;
-    return base.filter(a =>
+    // Filtro por checkboxes de ocupación (multi-select) — solo aplica si hay alguno oculto.
+    const porCheckbox = coloresAeroVisibles.size < COLORES_OCUPACION.length
+      ? base.filter(a =>
+          coloresAeroVisibles.has(determinarColorSemaforo(a.ocupacionPorcentaje, umbralesConfig)))
+      : base;
+    // Filtro single-select heredado del panel (semáforo puntual), AND con lo anterior.
+    if (!filtroColorAeropuerto) return porCheckbox;
+    return porCheckbox.filter(a =>
       determinarColorSemaforo(a.ocupacionPorcentaje, umbralesConfig) === filtroColorAeropuerto
     );
-  }, [aeropuertos, seguidoAeropuertoId, seguidoVueloId, vuelos, filtroColorAeropuerto, umbralesConfig]);
+  }, [aeropuertos, seguidoAeropuertoId, seguidoVueloId, vuelos, filtroColorAeropuerto, umbralesConfig, coloresAeroVisibles]);
 
   const vuelosFiltrados = useMemo(() => {
     const base = seguidoAeropuertoId
@@ -347,7 +370,14 @@ export default function GeoMapa({
           onLimpiarRuta={onLimpiarRuta}
           continenteFiltro={continenteFiltro}
         />
-        {legendaVisible && <GeoMapaLeyenda umbralesConfig={umbralesConfig} onClose={() => setLegendaVisible(false)} />}
+        {legendaVisible && (
+          <GeoMapaLeyenda
+            umbralesConfig={umbralesConfig}
+            onClose={() => setLegendaVisible(false)}
+            coloresVisibles={coloresAeroVisibles}
+            onToggleColor={toggleColorAero}
+          />
+        )}
         {children}
       </MapContainer>
 
