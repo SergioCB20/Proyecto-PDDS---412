@@ -125,6 +125,16 @@ export function PanelAeropuertosOperacion({
     return { salida, llegada };
   }, [vuelos]);
 
+  const enviosCounts = useMemo(() => {
+    const saliendo = new Map<string, number>();
+    const llegando = new Map<string, number>();
+    for (const v of vuelos) {
+      saliendo.set(v.origen_iata, (saliendo.get(v.origen_iata) ?? 0) + 1);
+      llegando.set(v.destino_iata, (llegando.get(v.destino_iata) ?? 0) + 1);
+    }
+    return { saliendo, llegando };
+  }, [vuelos]);
+
   /** Ordena por hora ascendente; los almacenes sin vuelo próximo quedan al final. */
   const porHora = (mapa: Map<string, string>) => (a: AeropuertoTelemetria, b: AeropuertoTelemetria) => {
     const ta = mapa.get(a.codigo_iata);
@@ -272,7 +282,6 @@ export function PanelAeropuertosOperacion({
             <tr>
               <th className="text-left px-2 py-2 font-semibold">IATA</th>
               <th className="text-left px-2 py-2 font-semibold">Ciudad</th>
-              <th className="text-left px-2 py-2 font-semibold hidden md:table-cell">País · Cont.</th>
               <th
                 className="text-left px-2 py-2 font-semibold hidden lg:table-cell"
                 title="Próxima UT en salir (↑) y en llegar (↓)"
@@ -315,11 +324,8 @@ export function PanelAeropuertosOperacion({
                       </div>
                     </div>
                   </td>
-                  <td className="px-2 py-1.5 text-slate-700 dark:text-slate-300 truncate max-w-[140px]" title={ciudad}>
+                  <td className="px-2 py-1.5 text-slate-700 dark:text-slate-300 truncate max-w-[140px]" title={`${ciudad} — ${ubicacion}`}>
                     {ciudad && ciudad !== n.codigo_iata ? ciudad : '—'}
-                  </td>
-                  <td className="px-2 py-1.5 text-slate-600 dark:text-slate-400 truncate hidden md:table-cell max-w-[200px]" title={ubicacion}>
-                    {ubicacion || '—'}
                   </td>
                   <td className="px-2 py-1.5 hidden lg:table-cell whitespace-nowrap font-mono text-[11px] text-slate-600 dark:text-slate-400">
                     {(() => {
@@ -343,10 +349,14 @@ export function PanelAeropuertosOperacion({
                     <span className={`ml-2 font-bold ${estado.textCls}`}>{n.ocupacion_pct.toFixed(0)}%</span>
                   </td>
                   <td className="px-2 py-1.5 text-right hidden sm:table-cell">
-                    <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">—</span>
+                    <span className="text-xs text-amber-600 dark:text-amber-400 font-medium tabular-nums">
+                      {enviosCounts.saliendo.get(n.codigo_iata) ?? 0}
+                    </span>
                   </td>
                   <td className="px-2 py-1.5 text-right hidden sm:table-cell">
-                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">—</span>
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium tabular-nums">
+                      {enviosCounts.llegando.get(n.codigo_iata) ?? 0}
+                    </span>
                   </td>
                   <td className="px-2 py-1.5 text-right">
                     <div className="flex items-center justify-end gap-1">
@@ -379,7 +389,7 @@ export function PanelAeropuertosOperacion({
             })}
             {aeropuertosOrdenados.length === 0 && (
               <tr>
-                <td colSpan={8} className="text-xs text-slate-600 italic text-center py-4">
+                <td colSpan={7} className="text-xs text-slate-600 italic text-center py-4">
                   Ningún aeropuerto coincide con los filtros
                 </td>
               </tr>
