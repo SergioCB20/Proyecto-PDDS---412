@@ -34,11 +34,12 @@ function recentrarVista(map: L.Map, aeropuertos: AeropuertoEnMapa[], animar = tr
   const centroLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
   // Bounds de ancho ~0 (solo latitud): el alto manda, así el rango N–S llena la vertical.
   const boundsLat = L.latLngBounds([sur, centroLng], [norte, centroLng]);
-  // Padding vertical asimétrico: más arriba (headroom para que Dinamarca no quede
-  // tapada por las barras/controles) y menos abajo (Argentina baja hacia el borde).
+  // Padding vertical asimétrico manteniendo el total (~mismo zoom): sube el encuadre
+  // ~1cm respecto al centrado simétrico dejando algo de headroom arriba (Dinamarca)
+  // y más margen abajo (Argentina sube un poco desde el borde).
   map.fitBounds(boundsLat, {
-    paddingTopLeft: L.point(20, 72),
-    paddingBottomRight: L.point(20, 16),
+    paddingTopLeft: L.point(20, 40),
+    paddingBottomRight: L.point(20, 48),
     animate: animar,
   });
 }

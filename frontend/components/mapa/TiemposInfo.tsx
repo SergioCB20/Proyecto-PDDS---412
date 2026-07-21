@@ -1,7 +1,7 @@
 'use client';
 
 import { X } from 'lucide-react';
-import { formatearFechaHora, formatearFechaHoraSinSeg, formatearDiaYHora } from '@/lib/formatearHora';
+import { formatearFechaHora, formatearFechaHoraSinSeg } from '@/lib/formatearHora';
 
 interface TiemposInfoProps {
   inicioRealMs: number;
@@ -61,7 +61,8 @@ export default function TiemposInfo({ inicioRealMs, inicioSimuladoISO, actualSim
   const duracionReal = inicioRealMs > 0 ? formatearDuracion(nowMs - inicioRealMs) : '-';
 
   const inicioSimuladoStr = formatearFechaHoraSinSeg(inicioSimuladoISO);
-  const actualSimuladoStr = formatearDiaYHora(inicioSimuladoISO, actualSimulado);
+  // Misma presentación que "Inicio" (fecha + hora), no el formato "Día N".
+  const actualSimuladoStr = actualSimulado ? formatearFechaHoraSinSeg(actualSimulado) : '—';
   const inicioSimMs = new Date(inicioSimuladoISO).getTime();
   const actualSimMs = actualSimulado ? new Date(actualSimulado).getTime() : inicioSimMs;
   const duracionSim = isFinite(inicioSimMs) && isFinite(actualSimMs)

@@ -84,7 +84,6 @@ export default function CommandBarSimulacion({
   finalizando = false,
   esDuenio = true,
   onIniciar,
-  onPausar,
   onReanudar,
   onDetener,
   onAbrirConfig,
@@ -96,7 +95,7 @@ export default function CommandBarSimulacion({
     : '—';
 
   return (
-    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[1002] pointer-events-none">
+    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1002] pointer-events-none">
       <div className="pointer-events-auto flex items-center gap-3 py-1.5 pl-3 pr-2 rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-lg border border-slate-200 dark:border-slate-700">
         {/* Estado */}
         <div className="flex items-center gap-1.5">
@@ -147,17 +146,7 @@ export default function CommandBarSimulacion({
           </div>
         ) : esDuenio ? (
           <div className="flex items-center gap-1.5">
-            {estado === 'EN_CURSO' ? (
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={onPausar}
-                disabled={loading}
-              >
-                <Pause size={14} className="mr-1" />
-                Pausar
-              </Button>
-            ) : (
+            {estado === 'PAUSADA' && (
               <Button size="sm" onClick={onReanudar} disabled={loading}>
                 <Play size={14} className="mr-1" />
                 Reanudar
