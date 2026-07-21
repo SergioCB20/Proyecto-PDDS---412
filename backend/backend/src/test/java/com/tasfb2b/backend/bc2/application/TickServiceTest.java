@@ -177,8 +177,6 @@ class TickServiceTest {
         when(segmentoPlanRepository.findByVueloIdInAndEstado(
                 anyList(), eq(EstadoSegmento.PENDIENTE)))
                 .thenReturn(List.of(segmento));
-        when(nodoRepository.findAllByOrderByCodigoIataAsc())
-                .thenReturn(List.of(nodoOrigen, nodoDestino));
 
         tickService.tick();
 
