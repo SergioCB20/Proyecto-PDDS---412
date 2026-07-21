@@ -78,14 +78,15 @@ public class SesionPreparacionAsync {
                 // finalizó por tiempo no pasa por detenerSesion(), así que deja planes/segmentos,
                 // equipajes ENRUTADO y ocupación de nodos saturada. Sin esto, la siguiente sesión
                 // colapsa en el tick 0 al heredar nodos por encima del umbral rojo.
+                // Solo se limpian datos de esta sesión (no hay sesiones concurrentes).
+                // Con sesion_id scoped, el subquery retorna 0 filas para una sesión nueva,
+                // evitando escanear 44M equipajes.
                 try {
+                    jdbcTemplate.update("DELETE FROM segmentos_plan WHERE plan_viaje_id IN (SELECT id FROM planes_viaje WHERE sesion_id = ?)", id);
+                    int planes = jdbcTemplate.update("DELETE FROM planes_viaje WHERE sesion_id = ?", id);
                     int eqReset = jdbcTemplate.update(
                         "UPDATE equipajes SET estado = 'REGISTRADO', vuelo_actual_id = NULL " +
-                        "WHERE id IN (SELECT equipaje_id FROM planes_viaje)");
-                    jdbcTemplate.update("DELETE FROM segmentos_plan");
-                    int planes = jdbcTemplate.update("DELETE FROM planes_viaje");
-                    // Ocupación por contexto: limpia solo la de ESTA sesión (una sesión nueva ya
-                    // arranca en 0, no hereda la de otras sesiones ni la de la operación).
+                        "WHERE id IN (SELECT equipaje_id FROM planes_viaje WHERE sesion_id = ?)", id);
                     ocupacionNodoService.reset(id);
                     log.info("Reset estado inicial sesion {}: {} equipajes a REGISTRADO, {} planes eliminados, nodos en 0",
                             id, eqReset, planes);
