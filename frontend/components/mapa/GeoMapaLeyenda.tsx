@@ -2,7 +2,7 @@
 
 import { X } from 'lucide-react';
 import type { UmbralesConfig } from './ConfigUmbrales';
-import { COLOR_AEROPUERTO, type ColorSemaforo } from '@/lib/colors';
+import { COLOR_AEROPUERTO, COLOR_RUTA, type ColorSemaforo } from '@/lib/colors';
 
 interface Props {
   umbralesConfig?: UmbralesConfig;
@@ -25,14 +25,13 @@ function Swatch({ color }: { color: string }) {
   );
 }
 
-/** Muestra de estela: los rastros de vuelo se dibujan como líneas oscuras
- *  (sólida = en ruta, punteada = completado). Color slate-500 visible en claro y
- *  oscuro. */
-function LineSwatch({ dashed = false }: { dashed?: boolean }) {
+/** Muestra de estela: punteado verde = en ruta, punteado gris = completado,
+ *  punteado gris tenue = planificado. */
+function LineSwatch({ dashed = false, color = '#94a3b8' }: { dashed?: boolean; color?: string }) {
   return (
     <span
       className="inline-block shrink-0 w-3.5"
-      style={{ borderTop: `2px ${dashed ? 'dashed' : 'solid'} #94a3b8` }}
+      style={{ borderTop: `2px ${dashed ? 'dashed' : 'solid'} ${color}` }}
     />
   );
 }
@@ -93,12 +92,16 @@ export default function GeoMapaLeyenda({ umbralesConfig, onClose, coloresVisible
         </div>
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center gap-2">
-            <LineSwatch />
+            <LineSwatch dashed color={COLOR_RUTA.EN_RUTA} />
             <span className="text-slate-600 dark:text-slate-300">En ruta</span>
           </div>
           <div className="flex items-center gap-2">
             <LineSwatch dashed />
             <span className="text-slate-600 dark:text-slate-300">Completado</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <LineSwatch dashed />
+            <span className="text-slate-600 dark:text-slate-300">Planificado</span>
           </div>
         </div>
       </div>
