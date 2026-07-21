@@ -1,10 +1,20 @@
 'use client';
 
 import { useCallback, useEffect, useReducer, useState } from 'react';
-import { Briefcase, ChevronDown, ChevronRight, Loader2, MapPin, Route } from 'lucide-react';
+import { Briefcase, ChevronDown, ChevronRight, Loader2, MapPin, Route, Plane, Warehouse, CheckCircle, RefreshCw, AlertTriangle, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { fetchEnviosNodoConClasificacion, fetchPlanViaje, descargarPlanViajePdf } from '@/lib/api';
 import type { EnvioNodoDetalle, Maleta, NodoEnviosResponse, SegmentoResponse } from '@/lib/types';
+
+const ICONO_ESTADO_EQUIPAJE: Record<string, React.ReactNode> = {
+  REGISTRADO: <FileText size={11} />,
+  ENRUTADO: <Route size={11} />,
+  EN_REPLANIFICACION: <RefreshCw size={11} />,
+  EN_VUELO: <Plane size={11} />,
+  EN_ALMACEN: <Warehouse size={11} />,
+  ENTREGADO: <CheckCircle size={11} />,
+  INCUMPLIMIENTO_SLA: <AlertTriangle size={11} />,
+};
 
 interface DetalleEnviosAeropuertoProps {
   iata: string;
@@ -119,12 +129,13 @@ export function DetalleEnviosAeropuerto({ iata, sesionId, onSeguirEnMapa, onMost
             {item.codigo_vuelo && (
               <span className="text-xs font-mono text-slate-500">{item.codigo_vuelo}</span>
             )}
-            <span className="text-xs px-1.5 py-0.5 rounded font-medium"
+            <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded font-medium"
               style={{
                 backgroundColor: item.estado === 'EN_VUELO' ? '#dbeafe' : item.estado === 'EN_ALMACEN' ? '#d1fae5' : item.estado === 'ENRUTADO' ? '#fef3c7' : '#f3e8ff',
                 color: item.estado === 'EN_VUELO' ? '#1d4ed8' : item.estado === 'EN_ALMACEN' ? '#047857' : item.estado === 'ENRUTADO' ? '#b45309' : '#6b21a8',
               }}
             >
+              {ICONO_ESTADO_EQUIPAJE[item.estado] ?? null}
               {item.estado}
             </span>
             <span className="text-sm text-slate-600 whitespace-nowrap">

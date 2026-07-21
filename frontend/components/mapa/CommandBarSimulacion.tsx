@@ -1,6 +1,6 @@
 'use client';
 
-import { Play, Pause, Square, Clock, Settings } from 'lucide-react';
+import { Play, Pause, Square, Clock, Settings, AlertTriangle, CheckCircle, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { formatearFechaHoraSinSeg } from '@/lib/formatearHora';
 
@@ -31,37 +31,42 @@ interface CommandBarSimulacionProps {
 
 const STATUS: Record<
   EstadoSesionSim,
-  { label: string; dot: string; text: string; pulse: boolean }
+  { label: string; dot: string; text: string; pulse: boolean; icon: React.ReactNode }
 > = {
   CONFIGURADA: {
     label: 'Sin iniciar',
     dot: 'bg-slate-400',
     text: 'text-slate-600 dark:text-slate-300',
     pulse: false,
+    icon: <Settings size={14} />,
   },
   EN_CURSO: {
     label: 'En ejecución',
     dot: 'bg-success',
     text: 'text-success',
     pulse: true,
+    icon: <Activity size={14} />,
   },
   PAUSADA: {
     label: 'Pausada',
     dot: 'bg-warning',
     text: 'text-warning',
     pulse: false,
+    icon: <Pause size={14} />,
   },
   FINALIZADA: {
     label: 'Detenida',
     dot: 'bg-slate-400',
     text: 'text-slate-500 dark:text-slate-400',
     pulse: false,
+    icon: <CheckCircle size={14} />,
   },
   COLAPSADA: {
     label: 'Colapsada',
     dot: 'bg-danger',
     text: 'text-danger',
     pulse: false,
+    icon: <AlertTriangle size={14} />,
   },
 };
 
@@ -103,6 +108,7 @@ export default function CommandBarSimulacion({
               className={`relative inline-flex rounded-full h-2.5 w-2.5 ${st.dot}`}
             />
           </span>
+          <span className={`${st.text}`}>{st.icon}</span>
           <span className={`text-xs font-semibold ${st.text}`}>{st.label}</span>
         </div>
 

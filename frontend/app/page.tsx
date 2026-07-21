@@ -777,8 +777,9 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                 )}
                 <div className="flex justify-between gap-2">
                   <span>Estado:</span>
-                  <span className={`font-mono font-medium ${estadoSesion === "EN_CURSO" ? "text-green-600" : estadoSesion === "PAUSADA" ? "text-amber-600" : "text-slate-600"}`}>
-                    {estadoSesion === "EN_CURSO" ? "ACTIVO" : estadoSesion === "PAUSADA" ? "PAUSADO" : "INACTIVO"}
+                  <span className={`inline-flex items-center gap-1 font-mono font-medium ${estadoSesion === "EN_CURSO" ? "text-green-600" : estadoSesion === "PAUSADA" ? "text-amber-600" : "text-slate-600"}`}>
+                    {estadoSesion === "EN_CURSO" ? <Activity size={12} /> : estadoSesion === "PAUSADA" ? <Pause size={12} /> : estadoSesion === "FINALIZADA" ? <CheckCircle size={12} /> : <Settings size={12} />}
+                    {estadoSesion === "EN_CURSO" ? "ACTIVO" : estadoSesion === "PAUSADA" ? "PAUSADO" : estadoSesion === "FINALIZADA" ? "FINALIZADO" : "INACTIVO"}
                   </span>
                 </div>
                 <div className="flex justify-between gap-2">
@@ -999,7 +1000,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                     <div className="flex items-center gap-2 mb-2"><CheckCircle size={16} className="text-green-600 dark:text-green-400" /><span className="font-medium text-sm text-green-900 dark:text-green-100">Equipaje registrado</span></div>
                     <div className="space-y-1 text-xs">
                       <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-300">Código:</span><span className="font-medium text-slate-900 dark:text-slate-100">{formSuccess.id_externo || formSuccess.id.slice(0, 8)}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-300">Estado:</span><Badge variant="green">{formSuccess.estado}</Badge></div>
+                      <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-300">Estado:</span><Badge variant="green"><FileText size={11} className="mr-1" />{formSuccess.estado}</Badge></div>
                     </div>
                   </div>
                 )}
