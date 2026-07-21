@@ -100,7 +100,7 @@ public class ReporteService {
     public ReporteSesionResponse generarReporte(UUID sesionId, String estadoFinal) {
         java.util.Optional<ReporteSesion> existente = reporteRepository.findBySesionId(sesionId);
 
-        long totalEquipajes = planViajeRepository.countConEquipajeBySesionId(sesionId);
+        long totalEquipajes = planViajeRepository.sumCantidadBySesionId(sesionId);
 
         // No recomputar con ceros cuando ya no quedan planes: detenerSesion genera el reporte
         // SINCRONICAMENTE antes de borrar los planes, y luego el evento async vuelve a entrar
@@ -115,7 +115,7 @@ public class ReporteService {
 
         // SLA incumplido = maletas NO entregadas al cerrar la simulacion, sobre el total
         // con equipaje. Mismo origen de datos que TickService.actualizarSla (entregados/total).
-        long entregados = planViajeRepository.countEntregadosBySesionId(sesionId);
+        long entregados = planViajeRepository.sumCantidadEntregadosBySesionId(sesionId);
         long incumplidos = Math.max(0, totalEquipajes - entregados);
 
         // Replanificadas = contador acumulado en la sesion (lo incrementa ReplanificacionService).

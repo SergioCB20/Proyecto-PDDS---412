@@ -84,7 +84,8 @@ public class MotorEnrutamiento {
             if (destino == null) continue;
 
             params.add(new RoutingStrategy.ParametroRuta(
-                    origen, destino, e.getSlaComprometido()));
+                    origen, destino, e.getSlaComprometido(),
+                    e.getCantidad() != null ? e.getCantidad() : 1));
         }
 
         if (params.isEmpty()) return List.of();
