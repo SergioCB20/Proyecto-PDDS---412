@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Calendar, Plane, XCircle, CheckCircle } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { colorVueloPorEstado, colorVueloPorOcupacion, determinarColorSemaforo, type ColorSemaforo } from '@/lib/colors';
@@ -17,6 +17,13 @@ interface PanelVuelosProps {
 }
 
 const MAX_RENDER = 500;
+
+const ICONO_ESTADO_VUELO: Record<string, React.ReactNode> = {
+  PROGRAMADO: <Calendar size={11} />,
+  EN_RUTA: <Plane size={11} className="rotate-45" />,
+  CANCELADO: <XCircle size={11} />,
+  COMPLETADO: <CheckCircle size={11} />,
+};
 
 export function PanelVuelos({ vuelos, onVueloClick, origenFilter = '', destinoFilter = '', onFilterChange }: PanelVuelosProps) {
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(true);
@@ -240,9 +247,10 @@ export function PanelVuelos({ vuelos, onVueloClick, origenFilter = '', destinoFi
                   </td>
                   <td className="px-2 py-1.5">
                     <span
-                      className="text-[10px] px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap"
+                      className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap"
                       style={{ backgroundColor: estadoBg, color: estadoFg }}
                     >
+                      {ICONO_ESTADO_VUELO[v.estado] ?? null}
                       {estadoLabel}
                     </span>
                   </td>
@@ -257,10 +265,10 @@ export function PanelVuelos({ vuelos, onVueloClick, origenFilter = '', destinoFi
                     </div>
                   </td>
                   <td className="px-2 py-1.5 font-mono text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                    {salida.hora}
+                    {salida.fecha} {salida.hora}
                   </td>
                   <td className="px-2 py-1.5 font-mono text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                    {llegada.hora}
+                    {llegada.fecha} {llegada.hora}
                   </td>
                 </tr>
               );

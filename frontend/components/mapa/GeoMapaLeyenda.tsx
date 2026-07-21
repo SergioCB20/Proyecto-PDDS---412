@@ -32,7 +32,7 @@ function LineSwatch({ dashed = false }: { dashed?: boolean }) {
   return (
     <span
       className="inline-block shrink-0 w-3.5"
-      style={{ borderTop: `2px ${dashed ? 'dashed' : 'solid'} #64748b` }}
+      style={{ borderTop: `2px ${dashed ? 'dashed' : 'solid'} #94a3b8` }}
     />
   );
 }
