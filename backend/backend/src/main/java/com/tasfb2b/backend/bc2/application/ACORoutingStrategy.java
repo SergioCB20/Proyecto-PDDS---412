@@ -49,7 +49,7 @@ public class ACORoutingStrategy implements RoutingStrategy {
     @Override
     public RutaResult calcularRuta(NodoLogistico origen, NodoLogistico destino,
                                    OffsetDateTime slaComprometido, List<Vuelo> vuelosProgramados) {
-        List<ParametroRuta> params = List.of(new ParametroRuta(origen, destino, slaComprometido));
+        List<ParametroRuta> params = List.of(new ParametroRuta(origen, destino, slaComprometido, 1));
         List<RutaResult> resultados = optimizarLote(params, vuelosProgramados, (OffsetDateTime) null);
         return resultados.isEmpty() ? RutaResult.sinRuta("Error en ACO") : resultados.get(0);
     }
@@ -76,13 +76,14 @@ public class ACORoutingStrategy implements RoutingStrategy {
         List<MaletaInterna> maletas = new ArrayList<>();
         int idx = 0;
         for (ParametroRuta p : parametros) {
+            int cant = Math.max(1, p.cantidad());
             maletas.add(new MaletaInterna(
                     "maleta-" + idx,
                     p.origen().getId().toString(),
                     p.destino().getId().toString(),
                     p.origen().getCodigoIata(),
                     p.destino().getCodigoIata(),
-                    horaSolicitudDia, 1,
+                    horaSolicitudDia, cant,
                     calcularTiempoMaximo(p.slaComprometido(), refVirtual)
             ));
             idx++;

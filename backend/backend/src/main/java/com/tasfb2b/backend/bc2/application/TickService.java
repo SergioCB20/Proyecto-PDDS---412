@@ -16,6 +16,8 @@ import com.tasfb2b.backend.shared.infrastructure.RedisCacheService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -27,13 +29,15 @@ import java.time.ZoneOffset;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 import java.util.concurrent.TimeUnit;
 
 @Service
 public class TickService {
 
     private static final Logger log = LoggerFactory.getLogger(TickService.class);
-    private static final long TICK_INTERVAL_MS = 5000;
+    private static final long TICK_INTERVAL_MS = 7000;
+    private static final int MAX_EVENTOS_POR_TICK = 400;
     private static final Random RANDOM = new Random();
 
     private final SesionRepository sesionRepository;
@@ -126,7 +130,7 @@ public class TickService {
             // Planificador ocupado — avanzar reloj para que el timer del frontend
             // no se congele. Emitimos telemetría básica (sin procesar vuelos)
             // para que el panel no se quede congelado.
-            log.debug("[SIM {}] Planificador ocupado, tick salteado (solo reloj)", idCorto(sesion.getId()));
+            log.info("[SIM {}] Planificador ocupado, tick saltado (solo reloj)", idCorto(sesion.getId()));
             avanzarRelojVirtual(sesion);
             sesionRepository.save(sesion);
             telemetriaService.emitirTelemetria(sesion);
@@ -172,8 +176,8 @@ public class TickService {
 
         clonarParaNuevoDia(sesion);
         registrarPuntoSla(sesion);
-        int salidas = procesarVuelosSalida(sesion);
-        int llegadas = procesarVuelosLlegada(sesion);
+        int salidas = procesarVuelosSalida(sesion, virtualAntes);
+        int llegadas = procesarVuelosLlegada(sesion, virtualAntes);
         int cancelados = evaluarCancelaciones(sesion, now);
         actualizarSla(sesion);
 
@@ -400,12 +404,26 @@ public class TickService {
                 sesionId, horaVirtual, punto.getSlaPct());
     }
 
-    private int procesarVuelosSalida(SesionEjecucion sesion) {
+    private int procesarVuelosSalida(SesionEjecucion sesion, OffsetDateTime virtualAntes) {
         OffsetDateTime virtual = sesion.getDiaHoraVirtual();
-        List<Vuelo> saliendo = vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaLessThanEqual(
-                EstadoVuelo.PROGRAMADO, false, virtual);
+        List<Vuelo> saliendo;
+
+        if (virtualAntes == null) {
+            Page<Vuelo> page = vueloRepository.findByEstadoAndEsPlantilla(
+                    EstadoVuelo.PROGRAMADO, false, PageRequest.of(0, MAX_EVENTOS_POR_TICK));
+            saliendo = new ArrayList<>(page.getContent());
+            saliendo.sort(Comparator.comparing(Vuelo::getHoraSalida, Comparator.nullsLast(Comparator.naturalOrder())));
+        } else {
+            saliendo = vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaBetween(
+                    EstadoVuelo.PROGRAMADO, false, virtualAntes, virtual);
+        }
 
         if (saliendo.isEmpty()) return 0;
+
+        List<UUID> vueloIds = saliendo.stream().map(Vuelo::getId).toList();
+        Map<UUID, List<SegmentoPlan>> segsPorVuelo = segmentoPlanRepository
+                .findByVueloIdInAndEstado(vueloIds, EstadoSegmento.PENDIENTE)
+                .stream().collect(Collectors.groupingBy(sp -> sp.getVuelo().getId()));
 
         List<Vuelo> vuelosActualizar = new ArrayList<>();
         List<SegmentoPlan> segmentosActualizar = new ArrayList<>();
@@ -414,15 +432,9 @@ public class TickService {
 
         for (Vuelo vuelo : saliendo) {
             vuelo.setEstado(EstadoVuelo.EN_RUTA);
-
             NodoLogistico origen = vuelo.getOrigen();
+            List<SegmentoPlan> segmentos = segsPorVuelo.getOrDefault(vuelo.getId(), List.of());
 
-            List<SegmentoPlan> segmentos = segmentoPlanRepository.findByVueloIdAndEstado(
-                    vuelo.getId(), EstadoSegmento.PENDIENTE);
-
-            // Carga real que aborda este vuelo al despegar — fija la ocupación del
-            // vuelo de forma determinista, independiente del contador carga_disponible
-            // que el planificador ajusta/restaura ciclo a ciclo.
             int abordando = 0;
             for (SegmentoPlan seg : segmentos) {
                 seg.setEstado(EstadoSegmento.EN_CURSO);
@@ -439,7 +451,6 @@ public class TickService {
                 }
             }
 
-            // Ocupación = capacidad - lo que realmente abordó. Visible en el mapa.
             int capacidad = vuelo.getCapacidadCarga() != null ? vuelo.getCapacidadCarga() : 0;
             vuelo.setCargaDisponible(Math.max(0, capacidad - abordando));
             vuelosActualizar.add(vuelo);
@@ -449,8 +460,6 @@ public class TickService {
         segmentoPlanRepository.saveAll(segmentosActualizar);
         equipajeRepository.saveAll(equipajesActualizar);
 
-        // Al abordar, las maletas dejan el almacén de origen: se descuenta de la ocupación
-        // de ESTA sesión (contexto propio, no el contador global compartido).
         for (Map.Entry<UUID, Integer> entry : nodosCarga.entrySet()) {
             ocupacionNodoService.ajustar(entry.getKey(), sesion.getId(), -entry.getValue());
         }
@@ -470,12 +479,26 @@ public class TickService {
         return saliendo.size();
     }
 
-    private int procesarVuelosLlegada(SesionEjecucion sesion) {
+    private int procesarVuelosLlegada(SesionEjecucion sesion, OffsetDateTime virtualAntes) {
         OffsetDateTime virtual = sesion.getDiaHoraVirtual();
-        List<Vuelo> llegando = vueloRepository.findByEstadoAndEsPlantillaAndHoraLlegadaLessThanEqual(
-                EstadoVuelo.EN_RUTA, false, virtual);
+        List<Vuelo> llegando;
+
+        if (virtualAntes == null) {
+            Page<Vuelo> page = vueloRepository.findByEstadoAndEsPlantilla(
+                    EstadoVuelo.EN_RUTA, false, PageRequest.of(0, MAX_EVENTOS_POR_TICK));
+            llegando = new ArrayList<>(page.getContent());
+            llegando.sort(Comparator.comparing(Vuelo::getHoraLlegada, Comparator.nullsLast(Comparator.naturalOrder())));
+        } else {
+            llegando = vueloRepository.findByEstadoAndEsPlantillaAndHoraLlegadaLessThanEqual(
+                    EstadoVuelo.EN_RUTA, false, virtual);
+        }
 
         if (llegando.isEmpty()) return 0;
+
+        List<UUID> vueloIds = llegando.stream().map(Vuelo::getId).toList();
+        Map<UUID, List<SegmentoPlan>> segsPorVuelo = segmentoPlanRepository
+                .findByVueloIdInAndEstado(vueloIds, EstadoSegmento.EN_CURSO)
+                .stream().collect(Collectors.groupingBy(sp -> sp.getVuelo().getId()));
 
         List<Vuelo> vuelosActualizar = new ArrayList<>();
         List<SegmentoPlan> segmentosActualizar = new ArrayList<>();
@@ -487,9 +510,8 @@ public class TickService {
             vuelosActualizar.add(vuelo);
 
             NodoLogistico destino = vuelo.getDestino();
+            List<SegmentoPlan> segmentos = segsPorVuelo.getOrDefault(vuelo.getId(), List.of());
 
-            List<SegmentoPlan> segmentos = segmentoPlanRepository.findByVueloIdAndEstado(
-                    vuelo.getId(), EstadoSegmento.EN_CURSO);
             for (SegmentoPlan seg : segmentos) {
                 seg.setEstado(EstadoSegmento.COMPLETADO);
                 segmentosActualizar.add(seg);
@@ -498,7 +520,6 @@ public class TickService {
                     Equipaje eq = seg.getPlanViaje().getEquipaje();
                     int cantidad = eq.getCantidad() != null ? eq.getCantidad() : 1;
 
-                    // Último segmento = no quedan segmentos de mayor orden sin completar
                     boolean esUltimoSegmento = seg.getPlanViaje().getSegmentos().stream()
                             .noneMatch(s -> s.getOrden() > seg.getOrden()
                                     && s.getEstado() != EstadoSegmento.COMPLETADO);
@@ -519,8 +540,6 @@ public class TickService {
         segmentoPlanRepository.saveAll(segmentosActualizar);
         equipajeRepository.saveAll(equipajesActualizar);
 
-        // Las maletas que quedan en tránsito (EN_ALMACEN) ocupan el almacén de destino: se suma
-        // a la ocupación de ESTA sesión (contexto propio, no el contador global compartido).
         for (Map.Entry<UUID, Integer> entry : nodosCarga.entrySet()) {
             ocupacionNodoService.ajustar(entry.getKey(), sesion.getId(), entry.getValue());
         }
@@ -585,10 +604,10 @@ public class TickService {
 
     private void actualizarSla(SesionEjecucion sesion) {
         // Counts agregados en BD en lugar de materializar todos los planes+equipaje por tick.
-        long total = planViajeRepository.countConEquipajeBySesionId(sesion.getId());
+        long total = planViajeRepository.sumCantidadBySesionId(sesion.getId());
         if (total == 0) return;
 
-        long totalEntregados = planViajeRepository.countEntregadosBySesionId(sesion.getId());
+        long totalEntregados = planViajeRepository.sumCantidadEntregadosBySesionId(sesion.getId());
 
         double sla = (totalEntregados * 100.0) / total;
         sesion.setSlaAcumuladoPct(BigDecimal.valueOf(sla));
@@ -696,7 +715,7 @@ public class TickService {
             root.put("maletas_replanificadas",
                     sesion.getMaletasReplanificadas() != null ? sesion.getMaletasReplanificadas() : 0);
             root.put("maletas_entregadas",
-                    equipajeRepository.countByEstado(EstadoEquipaje.ENTREGADO));
+                    equipajeRepository.sumCantidadByEstado(EstadoEquipaje.ENTREGADO));
             root.put("fecha_inicio_real", sesion.getFechaInicioReal() != null
                     ? sesion.getFechaInicioReal().toString() : null);
             root.put("timestamp", now.toString());

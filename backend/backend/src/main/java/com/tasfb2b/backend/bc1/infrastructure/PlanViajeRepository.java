@@ -25,13 +25,12 @@ public interface PlanViajeRepository extends JpaRepository<PlanViaje, UUID> {
     List<PlanViaje> findBySesionIdWithEquipaje(@Param("sesionId") UUID sesionId);
 
     /** Total de planes con equipaje para la sesión (denominador del SLA). */
-    @Query("SELECT COUNT(pv) FROM PlanViaje pv WHERE pv.sesionId = :sesionId AND pv.equipaje IS NOT NULL")
-    long countConEquipajeBySesionId(@Param("sesionId") UUID sesionId);
+    @Query("SELECT COALESCE(SUM(e.cantidad), 0) FROM PlanViaje pv JOIN pv.equipaje e WHERE pv.sesionId = :sesionId AND e IS NOT NULL")
+    long sumCantidadBySesionId(@Param("sesionId") UUID sesionId);
 
-    /** Planes cuya maleta ya fue ENTREGADA (numerador del SLA). */
-    @Query("SELECT COUNT(pv) FROM PlanViaje pv WHERE pv.sesionId = :sesionId "
-            + "AND pv.equipaje.estado = com.tasfb2b.backend.bc1.domain.EstadoEquipaje.ENTREGADO")
-    long countEntregadosBySesionId(@Param("sesionId") UUID sesionId);
+    @Query("SELECT COALESCE(SUM(e.cantidad), 0) FROM PlanViaje pv JOIN pv.equipaje e WHERE pv.sesionId = :sesionId "
+            + "AND e.estado = com.tasfb2b.backend.bc1.domain.EstadoEquipaje.ENTREGADO")
+    long sumCantidadEntregadosBySesionId(@Param("sesionId") UUID sesionId);
 
     @Query("SELECT e FROM Equipaje e " +
            "JOIN PlanViaje pv ON pv.equipaje = e " +

@@ -342,7 +342,8 @@ public class SimulacionEnrutamientoService {
         if (opTs != null) {
             eq.setFechaOperacion(OffsetDateTime.ofInstant(opTs.toInstant(), ZoneOffset.UTC));
         }
-        eq.setCantidad(1);
+        int cant = rs.getInt("cantidad");
+        eq.setCantidad(rs.wasNull() ? 1 : Math.max(1, cant));
         return eq;
     }
 
