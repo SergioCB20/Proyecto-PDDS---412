@@ -13,6 +13,10 @@ export const COLOR_VUELO = {
   VACIO: '#9ca3af',
 } as const;
 
+export const COLOR_RUTA = {
+  EN_RUTA: '#22c55e',
+} as const;
+
 const UMBRALES_DEFAULT = { verdeMax: 70, ambarMax: 90 } as const;
 
 export function colorVueloPorEstado(estado: string | null | undefined): string {
