@@ -8,43 +8,42 @@
  */
 export interface InfoAeropuerto {
   ciudad: string;
-  pais: string;
 }
 
 export const AEROPUERTOS: Record<string, InfoAeropuerto> = {
   // América del Sur
-  SKBO: { ciudad: 'Bogotá', pais: 'Colombia' },
-  SEQM: { ciudad: 'Quito', pais: 'Ecuador' },
-  SVMI: { ciudad: 'Caracas', pais: 'Venezuela' },
-  SBBR: { ciudad: 'Brasilia', pais: 'Brasil' },
-  SPIM: { ciudad: 'Lima', pais: 'Perú' },
-  SLLP: { ciudad: 'La Paz', pais: 'Bolivia' },
-  SCEL: { ciudad: 'Santiago', pais: 'Chile' },
-  SABE: { ciudad: 'Buenos Aires', pais: 'Argentina' },
-  SGAS: { ciudad: 'Asunción', pais: 'Paraguay' },
-  SUAA: { ciudad: 'Montevideo', pais: 'Uruguay' },
+  SKBO: { ciudad: 'Bogotá' },
+  SEQM: { ciudad: 'Quito' },
+  SVMI: { ciudad: 'Caracas' },
+  SBBR: { ciudad: 'Brasilia' },
+  SPIM: { ciudad: 'Lima' },
+  SLLP: { ciudad: 'La Paz' },
+  SCEL: { ciudad: 'Santiago' },
+  SABE: { ciudad: 'Buenos Aires' },
+  SGAS: { ciudad: 'Asunción' },
+  SUAA: { ciudad: 'Montevideo' },
   // Europa
-  LATI: { ciudad: 'Tirana', pais: 'Albania' },
-  EDDI: { ciudad: 'Berlín', pais: 'Alemania' },
-  LOWW: { ciudad: 'Viena', pais: 'Austria' },
-  EBCI: { ciudad: 'Bruselas', pais: 'Bélgica' },
-  UMMS: { ciudad: 'Minsk', pais: 'Bielorrusia' },
-  LBSF: { ciudad: 'Sofía', pais: 'Bulgaria' },
-  LKPR: { ciudad: 'Praga', pais: 'Chequia' },
-  LDZA: { ciudad: 'Zagreb', pais: 'Croacia' },
-  EKCH: { ciudad: 'Copenhague', pais: 'Dinamarca' },
-  EHAM: { ciudad: 'Ámsterdam', pais: 'Países Bajos' },
+  LATI: { ciudad: 'Tirana' },
+  EDDI: { ciudad: 'Berlín' },
+  LOWW: { ciudad: 'Viena' },
+  EBCI: { ciudad: 'Bruselas' },
+  UMMS: { ciudad: 'Minsk' },
+  LBSF: { ciudad: 'Sofía' },
+  LKPR: { ciudad: 'Praga' },
+  LDZA: { ciudad: 'Zagreb' },
+  EKCH: { ciudad: 'Copenhague' },
+  EHAM: { ciudad: 'Ámsterdam' },
   // Asia / Medio Oriente
-  VIDP: { ciudad: 'Delhi', pais: 'India' },
-  OSDI: { ciudad: 'Damasco', pais: 'Siria' },
-  OERK: { ciudad: 'Riad', pais: 'Arabia Saudita' },
-  OMDB: { ciudad: 'Dubái', pais: 'Emiratos Árabes Unidos' },
-  OAKB: { ciudad: 'Kabul', pais: 'Afganistán' },
-  OOMS: { ciudad: 'Mascate', pais: 'Omán' },
-  OYSN: { ciudad: 'Saná', pais: 'Yemen' },
-  OPKC: { ciudad: 'Karachi', pais: 'Pakistán' },
-  UBBB: { ciudad: 'Bakú', pais: 'Azerbaiyán' },
-  OJAI: { ciudad: 'Amán', pais: 'Jordania' },
+  VIDP: { ciudad: 'Delhi' },
+  OSDI: { ciudad: 'Damasco' },
+  OERK: { ciudad: 'Riad' },
+  OMDB: { ciudad: 'Dubái' },
+  OAKB: { ciudad: 'Kabul' },
+  OOMS: { ciudad: 'Mascate' },
+  OYSN: { ciudad: 'Saná' },
+  OPKC: { ciudad: 'Karachi' },
+  UBBB: { ciudad: 'Bakú' },
+  OJAI: { ciudad: 'Amán' },
 };
 
 /** Info del aeropuerto por IATA, o undefined si no está en la tabla. */
@@ -58,15 +57,10 @@ export function ciudadDe(iata?: string | null): string {
   return infoAeropuerto(iata)?.ciudad ?? (iata ?? '');
 }
 
-/** País del aeropuerto (cadena vacía si se desconoce). */
-export function paisDe(iata?: string | null): string {
-  return infoAeropuerto(iata)?.pais ?? '';
-}
-
-/** "Ciudad, País" legible; si no se conoce, el propio código IATA. */
+/** "Ciudad" legible; si no se conoce, el propio código IATA. */
 export function etiquetaAeropuerto(iata?: string | null): string {
   const info = infoAeropuerto(iata);
-  return info ? `${info.ciudad}, ${info.pais}` : (iata ?? '');
+  return info ? `${info.ciudad}` : (iata ?? '');
 }
 
 /** Etiqueta para selects/filtros: "IATA — Ciudad" (o solo IATA si no se conoce). */
