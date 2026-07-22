@@ -8,6 +8,7 @@ public record SesionListaResponse(
     String tipo_simulacion,
     String estado,
     String fecha_inicio_virtual,
+    String hora_inicio_virtual,
     String created_at,
     String dispositivo_id
 ) {}
