@@ -146,6 +146,12 @@ export default function CommandBarSimulacion({
           </div>
         ) : esDuenio ? (
           <div className="flex items-center gap-1.5">
+            {estado === 'EN_CURSO' && (
+              <Button size="sm" variant="secondary" onClick={onPausar} disabled={loading}>
+                <Pause size={14} className="mr-1" />
+                Pausa
+              </Button>
+            )}
             {estado === 'PAUSADA' && (
               <Button size="sm" onClick={onReanudar} disabled={loading}>
                 <Play size={14} className="mr-1" />

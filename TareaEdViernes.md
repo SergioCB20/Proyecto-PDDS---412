@@ -1852,3 +1852,158 @@ DESPUES:
 - Buscar `"bog"` debe mostrar vuelos con destino SKBO/Bogota.
 - Filtrar por `"Cancelado"` debe mostrar solo cancelados.
 - Combinar busqueda `"tas"` + filtro `"Programado"` debe mostrar solo programados que contengan "tas".
+
+---
+
+# Tarea: REGISTRO SIMULACION - Agregar registro de equipaje a la vista Simulacion
+
+## Descripcion
+
+Agregar el formulario de registro de equipaje (individual) al dock de la vista **Simulacion**, replicando la misma funcionalidad que ya existe en la vista **Operacion**, sin modificar ni extraer nada de Operacion.
+
+## Problema
+
+- El plan de pruebas de cancelacion requiere crear equipajes durante la simulacion, pero la unica forma era cambiar a Operacion o usar API directa.
+- No existia forma de crear equipajes desde la vista Simulacion.
+
+## Archivos creados
+
+### 1. `frontend/components/simulacion/RegistroEquipajePanel.tsx`
+
+Nuevo componente autocontenido con:
+
+| Elemento | Detalle |
+|---|---|
+| Props | `aeropuertos: Aeropuerto[]`, `sesionId?: string` |
+| Estado interno | `formOpen`, `formData` (origenIata, destinoIata, cantidad), `formLoading`, `formSuccess`, `formError` |
+| `handleSubmit` | POST `/equipajes` con header `X-Device-Nodo-Id` + body `{ destino_iata, cantidad }` |
+| Formulario | Select origen, Select destino, Input cantidad, boton Registrar, mensajes de exito/error |
+
+Misma logica y estilo que el formulario inline en `OperacionView`.
+
+## Archivos modificados
+
+### 2. `frontend/app/page.tsx`
+
+| Cambio | Ubicacion | Detalle |
+|---|---|---|
+| Import | Linea ~49 | Agregado `import { RegistroEquipajePanel } from "@/components/simulacion/RegistroEquipajePanel"` |
+| Dock icono | Linea ~1273 | Agregado `{ id: 'registro', icon: Package, label: 'Registro Equipaje' }` al `DockIconos` de SimulacionView |
+| Panel flotante | Linea ~1386 | Agregado render condicional `{dockAbiertas.has('registro') && <PanelFlotante ...> <RegistroEquipajePanel aeropuertos={aeropuertosMapa} /> </PanelFlotante>}` |
+
+## Sin cambios en
+
+- `OperacionView` (el formulario inline original se conserva intacto)
+- `ColapsoView`
+- `useSimulacionSesion.ts`
+- `types.ts`
+- Backend
+- API
+
+## Flujo de uso
+
+```
+1. Vista Simulacion → dock izquierdo
+2. Hacer clic en icono 📦 Package "Registro Equipaje"
+3. Se abre PanelFlotante "Registro de Equipaje"
+4. Clic en "Individual" → se despliega formulario
+5. Seleccionar aeropuerto origen, destino, cantidad
+6. Presionar "Registrar"
+7. Aparece mensaje de exito con codigo y estado
+```
+
+## Verificacion
+
+- Al hacer clic en el icono Package del dock, se abre el panel de registro.
+- El formulario permite seleccionar origen, destino y cantidad.
+- Al registrar, se muestra el codigo del equipaje creado.
+- La funcionalidad es identica a la de Operacion.
+- TypeScript compila sin errores nuevos.
+
+---
+
+# Tarea: BOTON PAUSA - Agregar boton Pausa a la barra de comandos de Simulacion
+
+## Descripcion
+
+Agregar el boton **"Pausa"** (⏸️) a la barra flotante `CommandBarSimulacion` en la vista Simulacion y Colapso, permitiendo pausar la simulacion directamente desde la barra superior sin necesidad de abrir el panel de Sesion en el dock.
+
+## Problema
+
+- La barra `CommandBarSimulacion` mostraba el boton **Detener** cuando la sesion estaba `EN_CURSO`, pero no mostraba **Pausa**.
+- Para pausar la simulacion, el usuario debia abrir el panel Sesion en el dock izquierdo y hacer clic en "Pausar".
+- No habia un control rapido y visible de pausa en la barra principal.
+
+## Comportamiento esperado
+
+La pausa debe **congelar** completamente la simulacion:
+- Los vuelos se detienen en su posicion actual.
+- Los aeropuertos no modifican su capacidad/ocupacion.
+- El tiempo virtual no avanza.
+- No hay alteracion de la imagen ni logica interna.
+- Al reanudar, la simulacion continua exactamente desde donde se pauso.
+
+## Archivo modificado
+
+### 1. `frontend/components/mapa/CommandBarSimulacion.tsx`
+
+| Antes | Despues |
+|---|---|
+| `EN_CURSO` → solo [Detener] | `EN_CURSO` → **[Pausa]** + [Detener] |
+| `PAUSADA` → [Reanudar] + [Detener] | Sin cambio |
+| `CONFIGURADA` → ⚙️ + [Iniciar] | Sin cambio |
+
+### Detalle del cambio
+
+```tsx
+// Agregado entre ~linea 148 y 163
+{estado === 'EN_CURSO' && (
+  <Button size="sm" variant="secondary" onClick={onPausar} disabled={loading}>
+    <Pause size={14} className="mr-1" />
+    Pausa
+  </Button>
+)}
+```
+
+## Sin cambios en
+
+- `page.tsx` (ya pasaba `onPausar={handlePausar}`)
+- Backend (ya soporta `POST /sesiones/{id}/pausar`)
+- `useSimulacionSesion.ts`
+- Tipos
+- Otros componentes
+
+## Impacto visual
+
+```
+ANTES (EN_CURSO):
+┌────────────────────────────────────────────────┐
+│ 🟢 En ejecucion  🕐 2026-01-15 14:00  │  ⏹️ Detener │ WS
+└────────────────────────────────────────────────┘
+
+DESPUES (EN_CURSO):
+┌────────────────────────────────────────────────┐
+│ 🟢 En ejecucion  🕐 2026-01-15 14:00  │ ⏸️ Pausa │ ⏹️ Detener │ WS
+└────────────────────────────────────────────────┘
+```
+
+## Flujo de uso
+
+```
+1. Iniciar simulacion (barra muestra estado + reloj virtual)
+2. Durante la ejecucion, hacer clic en "Pausa" (⏸️)
+   → Simulacion se congela: vuelos detenidos, tiempo no avanza
+   → Barra muestra estado "Pausada" 🟡
+   → Boton cambia a "Reanudar" (▶️)
+3. Hacer clic en "Reanudar" → simulacion continua desde donde quedo
+4. Hacer clic en "Detener" → simulacion finaliza
+```
+
+## Verificacion
+
+- Con sesion `EN_CURSO` → el boton **"Pausa"** debe estar visible en la barra superior.
+- Al hacer clic en "Pausa" → la sesion debe pasar a `PAUSADA`, el tiempo se congela.
+- Con sesion `PAUSADA` → el boton debe cambiar a **"Reanudar"**.
+- Al hacer clic en "Reanudar" → la sesion vuelve a `EN_CURSO`.
+- `CommandBarSimulacion.onPausar` llama a `handlePausar` que hace `POST /sesiones/{id}/pausar`.
+- TypeScript compila sin errores nuevos.
