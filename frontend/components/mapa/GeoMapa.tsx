@@ -274,11 +274,12 @@ export default function GeoMapa({
   }, [aeropuertos, seguidoAeropuertoId, seguidoVueloId, vuelos, filtroColorAeropuerto, umbralesConfig, coloresAeropuertoVisibles]);
 
   const vuelosFiltrados = useMemo(() => {
+    // Al seguir un VUELO no se ocultan los demás: filtrarlos los desmontaba y, al salir
+    // del seguimiento, se re-montaban reiniciando su animación (aparecían en el origen).
+    // El vuelo seguido igual se resalta y la cámara lo enfoca mediante la prop `seguido`.
     const base = seguidoAeropuertoId
       ? vuelos.filter(v => v.origen.codigo_iata === seguidoAeropuertoId || v.destino.codigo_iata === seguidoAeropuertoId)
-      : seguidoVueloId
-        ? vuelos.filter(v => v.id === seguidoVueloId)
-        : vuelos;
+      : vuelos;
     const colorDe = (v: VueloEnMapa) => {
       const pct = v.capacidad_carga > 0
         ? ((v.capacidad_carga - v.carga_disponible) / v.capacidad_carga) * 100
@@ -292,7 +293,7 @@ export default function GeoMapa({
     // Filtro single-select heredado del panel, AND con lo anterior.
     if (!filtroColorVuelo) return porCheckbox;
     return porCheckbox.filter(v => colorDe(v) === filtroColorVuelo);
-  }, [vuelos, seguidoAeropuertoId, seguidoVueloId, filtroColorVuelo, umbralesConfig, coloresVueloVisibles]);
+  }, [vuelos, seguidoAeropuertoId, filtroColorVuelo, umbralesConfig, coloresVueloVisibles]);
 
   // Mantiene el overlay un poco más tras cargar para que la flota se pinte completa.
   // `settling` solo cubre la ventana de gracia posterior a la carga; el estado durante

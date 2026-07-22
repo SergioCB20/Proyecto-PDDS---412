@@ -228,6 +228,9 @@ function AvionAnimado({
     }
 
     const now = performance.now();
+    // Primer sync tras montar (p.ej. re-montaje por filtros): sin "último tick" previo,
+    // no extrapolar. Sin esto, elapsed = now − 0 es gigante y teletransporta el avión.
+    if (ref.lastTickTime === 0) ref.lastTickTime = now;
     const durVirtual = ref.horaLlegadaMs - ref.horaSalidaMs;
 
     if (ref.k <= 1) {
