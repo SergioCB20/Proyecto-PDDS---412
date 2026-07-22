@@ -98,10 +98,10 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onVerEnMapa, seguid
         lista.sort((a, b) => (b.capacidad_carga - b.carga_disponible) - (a.capacidad_carga - a.carga_disponible));
         break;
       case 'hora-salida':
-        lista.sort((a, b) => a.hora_salida.localeCompare(b.hora_salida));
+        lista.sort((a, b) => new Date(a.hora_salida).getTime() - new Date(b.hora_salida).getTime());
         break;
       case 'hora-llegada':
-        lista.sort((a, b) => a.hora_llegada.localeCompare(b.hora_llegada));
+        lista.sort((a, b) => new Date(a.hora_llegada).getTime() - new Date(b.hora_llegada).getTime());
         break;
       case 'origen-az':
         lista.sort((a, b) => a.origen_iata.localeCompare(b.origen_iata));
