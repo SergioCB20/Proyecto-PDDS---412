@@ -54,6 +54,7 @@ export interface PlantillaResumen {
   destino_iata: string;
   hora_salida: string;
   hora_llegada: string;
+  estado: string;
 }
 
 export interface ResultadoCancelacion {

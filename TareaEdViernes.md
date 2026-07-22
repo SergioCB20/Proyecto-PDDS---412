@@ -1546,3 +1546,309 @@ Repetir el procedimiento pero esperar a que el reloj virtual esté dentro de la 
 | k=240 | Para acortar a ~30 min en lugar de ~60 min. Cada tick = 20 min virtuales. |
 | Prueba de humo rápida | Crear sesión con `fecha_inicio_virtual=2026-07-15T17:00` y cancelar inmediatamente TAS0024. Caería en rama fría por 69 min de margen. |
 | Código muerto | `onCancelVuelo` en `PanelVuelosOperacion` nunca se renderiza. Si se necesita cancelar desde panel de vuelos, implementar botón. |
+
+---
+
+# Anexo B: Procedimiento genérico de prueba de cancelación (panel Simulación)
+
+Procedimiento paso a paso para demostrar la implementación de cancelación de vuelos según las reglas del cliente, usando cualquier vuelo plantilla existente en la data del sistema.
+
+## Objetivo
+
+Validar que la cancelación sigue la regla de negocio:
+
+| Condición | Resultado | Equipajes |
+|---|---|---|
+| Virtual ≥ 60 min antes de la salida | **Rama fría**: cancela instancia de HOY | Replanificados (> 0 afectados) |
+| Virtual < 60 min antes de la salida | **Rama caliente**: cancela instancia de MAÑANA | Sin replanificar (0 afectados) |
+
+## Paso 1 — Elegir el vuelo objetivo
+
+Criterios de selección (en orden de prioridad):
+
+1. **Origen**: Perú (código `SPIM`) como primera opción; Colombia (`SKBO`) como segunda
+2. **Salida**: entre **16:00 y 23:00 UTC** del mismo día virtual
+3. **Destino**: continental Sudamérica (Bogotá, Quito, Caracas, Brasilia, Santiago, Lima, etc.)
+4. **Tipo**: `es_plantilla = true`
+
+Si la simulación inicia a las **02:00 UTC**, un vuelo que salga entre 16:00–23:00 UTC cae en el mismo día virtual, dejando **14–21 horas virtuales** de margen.
+
+**Ejemplo con vuelos plantilla del seed (`fecha_operacion = 2026-01-15`):**
+
+| Vuelo | Origen | Destino | Salida UTC | Prioridad |
+|---|---|---|---|---|
+| **TAS0024** | SPIM (Lima) 🥇 | SKBO (Bogotá) | **18:09** | ✅ Perú, continental SA |
+| TAS0208 | SPIM (Lima) 🥇 | SEQM (Quito) | 17:11 | ✅ Perú, continental SA |
+| TAS0210 | SPIM (Lima) 🥇 | SEQM (Quito) | 21:09 | ✅ Perú, continental SA |
+| TAS0005 | SKBO (Bogotá) 🥈 | SEQM (Quito) | 19:01 | ✅ Colombia, continental SA |
+| TAS0011 | SKBO (Bogotá) 🥈 | SVMI (Caracas) | 19:18 | ✅ Colombia, continental SA |
+
+## Paso 2 — Configurar e iniciar la simulación
+
+| Parámetro | Valor recomendado | Razón |
+|---|---|---|
+| `fecha_inicio_virtual` | Día anterior a la `fecha_operacion` de las plantillas | El vuelo cae en el mismo día virtual |
+| `hora_inicio_virtual` | `02:00` | Suficiente margen antes de vuelos 16–23h |
+| `k` | `120` | 10 min virtuales cada 5s reales (~60 min reales para 5D) |
+| `prob_cancelacion` | `0.0` | Solo cancelación manual, no automática |
+| `tipo_simulacion` | `VENTANA_FIJA` | Duración fija de 5 días |
+| `duracion_dias` | `5` | Tiempo suficiente para observar |
+
+En la UI: Dock izquierdo → ⚙️ Sesión → completar formulario → **"Iniciar Simulación"**.
+
+## Paso 3 — Obtener UUIDs del vuelo y nodo origen
+
+```bash
+# Obtener UUID del nodo origen (ej: SPIM)
+GET /api/nodos
+
+# Obtener UUID del vuelo plantilla
+GET /api/vuelos?es_plantilla=true&size=500
+```
+
+Anotar en el block de notas.
+
+## Paso 4 — Crear equipajes (2+ de distintos envíos)
+
+⏸️ **Pausar** la simulación antes de crear equipajes.
+
+Crear **al menos 2 equipajes** como envíos independientes:
+
+```bash
+POST /api/equipajes
+Headers: { "X-Device-Nodo-Id": "<UUID del nodo origen>" }
+Body: { "destino_iata": "<código IATA del destino>", "cantidad": 1 }
+
+# Repetir para cada envío adicional
+```
+
+> **Nota:** Si no hay UI de registro en Simulación, usar la pestaña Operación o la API directamente.
+
+▶️ **Reanudar** y esperar ~30 segundos (ruteo asíncrono del `MotorEnrutamiento`).
+
+## Paso 5 — Verificar asignación pre-cancelación
+
+Dock izquierdo → 🧳 **Envíos** → pestaña **"Planificados"**. Verificar que cada maleta muestre el código del vuelo elegido.
+
+Opcional vía API:
+
+```bash
+GET /api/equipajes?vuelo_id=<UUID del vuelo>
+```
+
+## Paso 6 — Cancelar el vuelo
+
+⏸️ Pausar la simulación en el momento deseado.
+
+| Si el reloj virtual marca... | Botón visible | Acción |
+|---|---|---|
+| ≥ 60 min antes de la salida | **"Cancelar"** (rojo) | Rama fría → cancela hoy + replanifica |
+| < 60 min antes de la salida | **"→ Mañana"** (ámbar) | Rama caliente → cancela mañana, sin replan |
+
+Dock izquierdo → ❌ **Cancelación** → filtrar por código de vuelo → hacer clic en el botón correspondiente.
+
+### Interpretación del modal de resultado
+
+| Escenario | Color modal | Título | Equipajes afectados |
+|---|---|---|---|
+| Rama fría (hoy) | ✅ Verde | "Vuelo {código} cancelado" | > 0 (replanificados) |
+| Rama caliente (mañana) | 🟡 Ámbar | "Cancelación diferida al día siguiente" | 0 |
+
+## Paso 7 — Verificación post-cancelación
+
+> **Ambas acciones son obligatorias.** El orden es flexible según la conveniencia de la simulación.
+
+### Acción 5a — El vuelo cancelado NO despega
+
+1. ▶️ Reanudar la simulación
+2. Esperar a que el reloj virtual **supere la hora de salida** del vuelo
+3. Observar en el **mapa**: el avión en el aeropuerto origen **no debe moverse**
+4. En el dock ✈️ **Vuelos**: estado debe ser `CANCELADO`
+
+### Acción 5b — Equipajes reasignados a nuevo vuelo
+
+Puede realizarse antes o después de la 5a.
+
+1. Dock izquierdo → 🧳 **Envíos** → pestaña **"Planificados"**
+2. Cada maleta debe mostrar un **código de vuelo diferente** al cancelado
+3. Opcional: descargar PDF del lote de replanificación desde el modal de resultado
+
+## Planilla de block de notas
+
+```
+══════════════════════════════════════════════════════
+   PLANILLA DE PRUEBA — CANCELACIÓN DESDE SIMULACIÓN
+══════════════════════════════════════════════════════
+
+=== DATOS DEL VUELO ===
+Código: _______________
+Ruta: _______________ → _______________
+Hora salida UTC: _______________
+UUID vuelo: _______________
+UUID nodo origen: _______________
+
+=== CONFIGURACIÓN DE SIMULACIÓN ===
+Fecha inicio virtual: _______________
+Hora inicio virtual: _______________
+k: _______________
+prob_cancelacion: _______________
+
+=== EQUIPAJES CREADOS ===
+Envío 1 - ID: _______________ | Código: _______________
+Envío 2 - ID: _______________ | Código: _______________
+
+=== ASIGNACIÓN PRE-CANCELACIÓN ===
+Hora virtual: _______________
+¿Envío 1 asignado al vuelo elegido? [Sí / No]
+¿Envío 2 asignado al vuelo elegido? [Sí / No]
+
+=== CANCELACIÓN ===
+Hora virtual: _______________
+minutosHastaSalida: _______________
+Botón mostrado: [Cancelar / → Mañana]
+Modal - Color: [Verde / Ámbar]
+Modal - Título: ____________________________________
+Equipajes afectados: _______________
+Lote replan ID: _______________
+
+=== 5a: VUELO NO DESPEGA ===
+Hora virtual post-salida: _______________
+¿Avión despegó del origen? [Sí / No — esperado: No]
+Estado en panel Vuelos: [CANCELADO / EN_RUTA / PROGRAMADO]
+
+=== 5b: EQUIPAJES REASIGNADOS ===
+Nuevo vuelo de Envío 1: _______________
+Nuevo vuelo de Envío 2: _______________
+¿Ambos son DIFERENTES al vuelo cancelado? [Sí / No]
+¿PDF de lote descargado? [Sí / No]
+
+=== RESULTADO GENERAL ===
+¿Prueba exitosa? [Sí / No]
+Observaciones: ____________________________________
+```
+
+## Criterios de éxito
+
+| Indicador | Esperado |
+|---|---|---|
+| Botón "Cancelar" visible (rojo) | Cálculo `minutosHastaSalida >= 60` correcto |
+| Modal verde con equipajes > 0 | Backend ejecutó rama fría + replanificación |
+| Vuelo no despega (CANCELADO) | Vuelo efectivamente cancelado |
+| Equipajes en vuelo distinto | Replanificación exitosa: maletas reasignadas |
+
+---
+
+# Tarea: BUSQUEDA CANCELACIONES - Busqueda mejorada en panel de cancelaciones
+
+## Descripcion
+
+Mejorar la busqueda en el panel flotante de cancelaciones (`SeccionCancelacion`) para permitir buscar vuelos por codigo parcial o total, origen y destino, y filtrar por estado (PROGRAMADO, EN_RUTA, COMPLETADO, CANCELADO).
+
+## Problema
+
+- El input de busqueda solo filtraba por `codigo_vuelo`, no por ruta (origen/destino).
+- No habia forma de filtrar vuelos por estado.
+- La tabla no mostraba el estado de cada vuelo plantilla.
+- `PlantillaResumen` no tenia campo `estado`, aunque la API lo devolvia en `Vuelo.estado`.
+
+## Archivos modificados
+
+### 1. `frontend/lib/types.ts`
+
+Agregado campo `estado: string` a la interfaz `PlantillaResumen`.
+
+### 2. `frontend/lib/useSimulacionSesion.ts`
+
+Agregada linea `estado: v.estado` en el mapeo `r.content.map(...)` para que las plantillas incluyan el estado devuelto por el backend.
+
+### 3. `frontend/components/simulacion/SeccionCancelacion.tsx`
+
+| Cambio | Detalle |
+|---|---|
+| Input de busqueda unico | Reemplazado `filtroCodigo` por `busqueda` que busca en `codigo_vuelo`, `origen_iata` y `destino_iata` (case-insensitive). Placeholder: `"Buscar por codigo, origen o destino (ej: TAS, SPIM, BOG)..."` |
+| Filtro por estado | Agregados botones toggle: `[Todos] [Programado] [En ruta] [Completado] [Cancelado]`. Al seleccionar uno, solo se muestran plantillas con ese estado. |
+| Columna "Estado" | Nueva columna en la tabla con badge coloreado (azul PROGRAMADO, verde EN_RUTA, gris COMPLETADO, rojo CANCELADO). |
+| Limpiar filtros | El boton "Limpiar" resetea ambos filtros. |
+| Icono Search | Agregado icono de lupa dentro del input de busqueda. |
+| `colSpan` | Actualizado de 5 a 6 por la nueva columna. |
+
+## Comportamiento de busqueda
+
+- Busqueda **case-insensitive** (mayusculas/minusculas indistinto).
+- Busca coincidencia parcial en: codigo de vuelo, codigo IATA de origen, codigo IATA de destino.
+- Ejemplos: `"ta"` encuentra TAS0024, TAS0208; `"spim"` encuentra vuelos desde Lima; `"bog"` encuentra vuelos hacia Bogota.
+- Se puede combinar busqueda textual + filtro de estado.
+
+## Detalle tecnico
+
+```typescript
+// types.ts
+export interface PlantillaResumen {
+  // ... campos existentes
+  estado: string;  // ← nuevo
+}
+
+// useSimulacionSesion.ts — dentro del map
+estado: v.estado,
+
+// SeccionCancelacion.tsx — logica de filtro
+const plantillasFiltradas = plantillas.filter(p => {
+  const q = busqueda.trim().toLowerCase();
+  if (q) {
+    const coincideCodigo = p.codigo_vuelo.toLowerCase().includes(q);
+    const coincideOrigen = p.origen_iata.toLowerCase().includes(q);
+    const coincideDestino = p.destino_iata.toLowerCase().includes(q);
+    if (!coincideCodigo && !coincideOrigen && !coincideDestino) return false;
+  }
+  if (filtroEstado && p.estado !== filtroEstado) return false;
+  return true;
+});
+```
+
+## Impacto visual
+
+```
+ANTES:
+┌─ Cancelación ──────────────────────────┐
+│ ❌ Cancelación                  12 / 46  │
+│ ┌─ Código de vuelo ──────────────────┐ │
+│ │ [TAS0001..............................] │
+│ └────────────────────────────────────┘ │
+│ ┌───────┬──────────┬──────┬──────┬───┐ │
+│ │Código │ Ruta     │Salida│Llegad│Acc│ │
+│ ├───────┼──────────┼──────┼──────┼───┤ │
+│ TAS0024│SPIM→SKBO │18:09 │20:25 │Cxl│ │
+│ TAS0208│SPIM→SEQM │17:11 │18:52 │→Mñ│ │
+│ ...                                            │
+│ └───────┴──────────┴──────┴──────┴───┘ │
+└─────────────────────────────────────────┘
+
+DESPUES:
+┌─ Cancelación ───────────────────────────────────────────────┐
+│ ❌ Cancelación                                       12 / 46  │
+│ ┌─ 🔍 Buscar por código, origen o destino (ej: TAS, SPIM)... ┐│
+│ │ [tas.......................................................] ││
+│ └─────────────────────────────────────────────────────────────┘│
+│ [Todos] [Programado] [En ruta] [Completado] [Cancelado]        │
+│ ┌───────┬──────────┬──────────┬──────────┬──────────┬────────┐ │
+│ │Código │ Ruta     │ Salida   │ Llegada  │ Estado   │ Acción │ │
+│ ├───────┼──────────┼──────────┼──────────┼──────────┼────────┤ │
+│ │TAS0024│SPIM→SKBO │15/01 18:09│15/01 20:25│ 🟢 Prog  │Cancelar│ │
+│ │TAS0208│SPIM→SEQM │15/01 17:11│15/01 18:52│ 🔴 Cxl   │→Mañana │ │
+│ └───────┴──────────┴──────────┴──────────┴──────────┴────────┘ │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+## Prerrequisitos
+
+- TypeScript compila sin errores nuevos.
+- Backend ya devuelve `estado` en la respuesta de `GET /vuelos?es_plantilla=true`.
+- Sin cambios en backend, API, ni otros componentes.
+
+## Verificacion
+
+- Buscar `"ta"` debe mostrar vuelos TAS* (case-insensitive).
+- Buscar `"spim"` debe mostrar vuelos con origen SPIM.
+- Buscar `"bog"` debe mostrar vuelos con destino SKBO/Bogota.
+- Filtrar por `"Cancelado"` debe mostrar solo cancelados.
+- Combinar busqueda `"tas"` + filtro `"Programado"` debe mostrar solo programados que contengan "tas".

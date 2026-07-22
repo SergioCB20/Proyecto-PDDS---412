@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { XCircle, Clock, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  XCircle, Clock, AlertTriangle, CheckCircle2,
+  ChevronDown, ChevronUp, Search,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import {
   type PlantillaResumen,
@@ -20,6 +23,23 @@ interface SeccionCancelacionProps {
   momentoVirtual: string | null;
   onCancelado?: (r: ResultadoCancelacion) => void;
 }
+
+const ESTADOS = ["PROGRAMADO", "EN_RUTA", "COMPLETADO", "CANCELADO"] as const;
+type FiltroEstado = "" | (typeof ESTADOS)[number];
+
+const ETIQUETA_ESTADO: Record<string, string> = {
+  PROGRAMADO: "Programado",
+  EN_RUTA: "En ruta",
+  COMPLETADO: "Completado",
+  CANCELADO: "Cancelado",
+};
+
+const COLOR_ESTADO: Record<string, string> = {
+  PROGRAMADO: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+  EN_RUTA: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",
+  COMPLETADO: "bg-slate-100 text-slate-600 dark:bg-slate-800/40 dark:text-slate-400",
+  CANCELADO: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+};
 
 function fmtHora(iso: string): string {
   const f = formatearFechaHoraSeparado(iso);
@@ -43,35 +63,27 @@ export function SeccionCancelacion({
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resultado, setResultado] = useState<ResultadoCancelacion | null>(null);
-  const [filtroCodigo, setFiltroCodigo] = useState("");
-  const [filtroFechaDesde, setFiltroFechaDesde] = useState("");
-  const [filtroFechaHasta, setFiltroFechaHasta] = useState("");
+  const [busqueda, setBusqueda] = useState("");
+  const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>("");
 
-  // Re-anchora la hora de la plantilla al día virtual actual antes de medir la
-  // diferencia. Ver `lib/horasVirtuales.ts` para el razonamiento.
   const minutosHastaSalida = (p: PlantillaResumen): number | null => {
     if (!momentoVirtual) return null;
     return minutosHastaSalidaPlantilla(p.hora_salida, momentoVirtual);
   };
 
-  const plantillasFiltradas = (() => {
-    const q = filtroCodigo.trim().toLowerCase();
-    return plantillas.filter(p => {
-      if (q && !p.codigo_vuelo.toLowerCase().includes(q)) return false;
-      if (filtroFechaDesde || filtroFechaHasta) {
-        // Comparamos por la fecha virtual "anclada" de la plantilla: como las
-        // plantillas vienen con hora_salida absoluta del dia 1 (V20, 2026-01-15),
-        // el dia virtual del panel es lo que el usuario ve al filtrar. Si quiere
-        // ver las que salen entre el 5 y el 7 del mes, leemos ese patron.
-        const d = new Date(p.hora_salida);
-        if (isNaN(d.getTime())) return true;
-        const mes = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
-        if (filtroFechaDesde && mes < filtroFechaDesde) return false;
-        if (filtroFechaHasta && mes > filtroFechaHasta) return false;
-      }
-      return true;
-    });
-  })();
+  const hayFiltros = busqueda.trim() || filtroEstado;
+
+  const plantillasFiltradas = plantillas.filter(p => {
+    const q = busqueda.trim().toLowerCase();
+    if (q) {
+      const coincideCodigo = p.codigo_vuelo.toLowerCase().includes(q);
+      const coincideOrigen = p.origen_iata.toLowerCase().includes(q);
+      const coincideDestino = p.destino_iata.toLowerCase().includes(q);
+      if (!coincideCodigo && !coincideOrigen && !coincideDestino) return false;
+    }
+    if (filtroEstado && p.estado !== filtroEstado) return false;
+    return true;
+  });
 
   async function handleCancelar(p: PlantillaResumen) {
     if (!momentoVirtual) {
@@ -118,7 +130,7 @@ export function SeccionCancelacion({
           </h3>
           <button onClick={() => setOpen(!open)}
             className="p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 transition-colors"
-            title={open ? 'Ocultar filtros' : 'Mostrar filtros'}
+            title={open ? "Ocultar filtros" : "Mostrar filtros"}
           >
             {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
@@ -144,42 +156,47 @@ export function SeccionCancelacion({
             </div>
           )}
 
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="flex-1 min-w-[120px]">
-              <Input
-                placeholder="Código de vuelo (ej. TAS0001)..."
-                value={filtroCodigo}
-                onChange={e => setFiltroCodigo(e.target.value)}
-                className="text-sm"
-              />
-            </div>
-            <div className="flex items-end gap-1.5">
-              <Input
-                type="date"
-                aria-label="Fecha de salida desde"
-                value={filtroFechaDesde}
-                onChange={e => setFiltroFechaDesde(e.target.value)}
-                className="text-sm w-[130px]"
-                title="Salida desde (fecha virtual del reloj)"
-              />
-              <span className="text-xs text-slate-600 pb-1.5">→</span>
-              <Input
-                type="date"
-                aria-label="Fecha de salida hasta"
-                value={filtroFechaHasta}
-                onChange={e => setFiltroFechaHasta(e.target.value)}
-                className="text-sm w-[130px]"
-                title="Salida hasta (fecha virtual del reloj)"
-              />
-            </div>
-            {(filtroCodigo || filtroFechaDesde || filtroFechaHasta) && (
+          <div className="relative">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <Input
+              placeholder="Buscar por código, origen o destino (ej: TAS, SPIM, BOG)..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="text-sm pl-7"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              onClick={() => setFiltroEstado("")}
+              className={`text-xs px-2 py-1 rounded-full border transition-colors ${
+                !filtroEstado
+                  ? "bg-blue-100 border-blue-300 text-blue-700 dark:bg-blue-900/40 dark:border-blue-600 dark:text-blue-300"
+                  : "border-slate-300 text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-400 dark:hover:bg-slate-800"
+              }`}
+            >
+              Todos
+            </button>
+            {ESTADOS.map(est => {
+              const activo = filtroEstado === est;
+              return (
+                <button
+                  key={est}
+                  onClick={() => setFiltroEstado(activo ? "" : est)}
+                  className={`text-xs px-2 py-1 rounded-full border transition-colors ${
+                    activo
+                      ? `${COLOR_ESTADO[est]} border-current`
+                      : "border-slate-300 text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-400 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  {ETIQUETA_ESTADO[est]}
+                </button>
+              );
+            })}
+            {hayFiltros && (
               <button
-                onClick={() => {
-                  setFiltroCodigo("");
-                  setFiltroFechaDesde("");
-                  setFiltroFechaHasta("");
-                }}
-                className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline pb-1.5"
+                onClick={() => { setBusqueda(""); setFiltroEstado(""); }}
+                className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline ml-1"
               >
                 Limpiar
               </button>
@@ -194,6 +211,7 @@ export function SeccionCancelacion({
                   <th className="text-left px-2 py-1.5 font-medium text-slate-600">Ruta</th>
                   <th className="text-left px-2 py-1.5 font-medium text-slate-600">Salida</th>
                   <th className="text-left px-2 py-1.5 font-medium text-slate-600">Llegada</th>
+                  <th className="text-left px-2 py-1.5 font-medium text-slate-600">Estado</th>
                   <th className="text-left px-2 py-1.5 font-medium text-slate-600">Acción</th>
                 </tr>
               </thead>
@@ -223,6 +241,11 @@ export function SeccionCancelacion({
                         {fmtHora(p.hora_llegada)}
                       </td>
                       <td className="px-2 py-1.5">
+                        <span className={`inline-block text-xs px-1.5 py-0.5 rounded-full font-medium ${COLOR_ESTADO[p.estado] || "bg-slate-100 text-slate-600"}`}>
+                          {ETIQUETA_ESTADO[p.estado] || p.estado}
+                        </span>
+                      </td>
+                      <td className="px-2 py-1.5">
                         <Button
                           variant={caliente ? "secondary" : "danger"}
                           size="sm"
@@ -243,14 +266,14 @@ export function SeccionCancelacion({
                 })}
                 {plantillasFiltradas.length === 0 && plantillas.length > 0 && (
                   <tr>
-                    <td colSpan={5} className="px-2 py-3 text-center text-slate-600">
+                    <td colSpan={6} className="px-2 py-3 text-center text-slate-600">
                       Ningún vuelo coincide con los filtros.
                     </td>
                   </tr>
                 )}
                 {plantillas.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-2 py-3 text-center text-slate-600">
+                    <td colSpan={6} className="px-2 py-3 text-center text-slate-600">
                       No hay plantillas registradas.
                     </td>
                   </tr>
