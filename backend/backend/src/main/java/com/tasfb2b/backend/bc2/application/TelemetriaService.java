@@ -162,7 +162,7 @@ public class TelemetriaService {
         metrics.put("maletas_replanificadas",
                 sesion.getMaletasReplanificadas() != null ? sesion.getMaletasReplanificadas() : 0);
         metrics.put("maletas_entregadas",
-                equipajeRepository.sumCantidadByEstado(EstadoEquipaje.ENTREGADO));
+                equipajeRepository.sumCantidadByEstadoAndSesionId(EstadoEquipaje.ENTREGADO, sesion.getId()));
         metrics.put("k", sesion.getK() != null ? sesion.getK() : 120.0);
         metrics.put("fecha_inicio_real", sesion.getFechaInicioReal() != null
                 ? sesion.getFechaInicioReal().toString() : null);

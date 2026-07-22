@@ -35,6 +35,12 @@ public interface EquipajeRepository extends JpaRepository<Equipaje, UUID> {
     @Query("SELECT COALESCE(SUM(e.cantidad), 0) FROM Equipaje e WHERE e.estado = :estado")
     long sumCantidadByEstado(@Param("estado") EstadoEquipaje estado);
 
+    @Query("SELECT COALESCE(SUM(e.cantidad), 0) FROM Equipaje e " +
+           "JOIN PlanViaje pv ON pv.equipaje = e " +
+           "WHERE e.estado = :estado AND pv.sesionId = :sesionId")
+    long sumCantidadByEstadoAndSesionId(@Param("estado") EstadoEquipaje estado,
+                                        @Param("sesionId") UUID sesionId);
+
     @Query(value = "SELECT estado::text, COUNT(*)::bigint FROM equipajes GROUP BY estado", nativeQuery = true)
     List<Object[]> countByEstadoGrouped();
 
