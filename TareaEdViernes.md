@@ -2206,3 +2206,43 @@ El avion se renderiza en la ultima posicion conocida (congelada) sin animacion.
   - Aviones deben continuar desde donde se congelaron.
   - Datos deben seguir visibles y actualizarse.
 - TypeScript compila sin errores nuevos.
+
+---
+
+# Tarea: PLANTILLAS SIN LIMITE - Eliminar el tope de 500 plantillas en el panel de cancelaciones
+
+## Descripcion
+
+El panel flotante de cancelaciones solo cargaba los primeros 500 vuelos plantilla (`size=500`). Vuelos con ID superior a 500 no aparecian en busquedas ni filtros. Se eliminó el limite para que cargue todos.
+
+## Archivo modificado
+
+`frontend/lib/useSimulacionSesion.ts` linea 153
+
+## Cambio realizado
+
+```typescript
+// Antes:
+.get<VueloPageResponse>('/vuelos?es_plantilla=true&size=500')
+
+// Despues:
+.get<VueloPageResponse>('/vuelos?es_plantilla=true&size=100000')
+```
+
+`100000` es un limite practico suficiente para un sistema academico. Postgres maneja un `LIMIT 100000` sin penalizacion de rendimiento respecto a un `LIMIT 500` cuando hay indices adecuados.
+
+## Sin cambios en
+
+- Backend (soporta cualquier `size` via `@PageableDefault`)
+- `SeccionCancelacion.tsx` (el filtrado/busqueda ya funciona sobre el array completo)
+- Panel Vuelos (ya usaba `telemetria?.vuelos` sin limite)
+- Tipo `PlantillaResumen`
+- API, otros componentes
+
+## Verificacion
+
+- Abrir panel de cancelaciones en una sesion con >500 plantillas.
+- Buscar un vuelo con ID/codigo mayor a 500 → debe aparecer en resultados.
+- Filtrar por estado → todos los vuelos deben estar disponibles.
+- Cancelar un vuelo mas alla del 500 → debe funcionar correctamente.
+- TypeScript compila sin errores nuevos.
