@@ -128,54 +128,54 @@ export default function DashboardPage() {
   }, [configUmbrales]);
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)]">
+    <div className="flex h-[calc(100vh-2.75rem)]">
       <div className="flex-1 flex flex-col">
         <div
           className={`overflow-hidden transition-all duration-300 ${
-            modeBarVisible ? "max-h-16 opacity-100" : "max-h-0 opacity-0"
+            modeBarVisible ? "max-h-11 opacity-100" : "max-h-0 opacity-0"
           }`}
         >
-          <div className="flex items-center gap-1 px-4 pt-2 pb-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
+          <div className="flex items-center gap-1 px-3 py-1.5 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
             <button
               onClick={() => setMode("operacion")}
-              className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1 text-sm font-medium rounded-md transition-colors ${
                 mode === "operacion"
-                  ? "bg-info/10 text-info dark:text-info-soft border-b-2 border-info"
-                  : "text-slate-600 hover:text-slate-700 dark:hover:text-slate-300"
+                  ? "bg-info/10 text-info dark:text-info-soft"
+                  : "text-slate-600 hover:text-slate-700 hover:bg-slate-100 dark:hover:text-slate-300 dark:hover:bg-slate-800"
               }`}
             >
-              <Plane size={14} className="inline mr-1.5" />
+              <Plane size={14} />
               Operación
             </button>
             <button
               onClick={() => setMode("simulacion")}
-              className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1 text-sm font-medium rounded-md transition-colors ${
                 mode === "simulacion"
-                  ? "bg-info/10 text-info dark:text-info-soft border-b-2 border-info"
-                  : "text-slate-600 hover:text-slate-700 dark:hover:text-slate-300"
+                  ? "bg-info/10 text-info dark:text-info-soft"
+                  : "text-slate-600 hover:text-slate-700 hover:bg-slate-100 dark:hover:text-slate-300 dark:hover:bg-slate-800"
               }`}
             >
-              <Settings size={14} className="inline mr-1.5" />
+              <Settings size={14} />
               Simulación
             </button>
             <button
               onClick={() => setMode("colapso")}
-              className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1 text-sm font-medium rounded-md transition-colors ${
                 mode === "colapso"
-                  ? "bg-info/10 text-info dark:text-info-soft border-b-2 border-info"
-                  : "text-slate-600 hover:text-slate-700 dark:hover:text-slate-300"
+                  ? "bg-info/10 text-info dark:text-info-soft"
+                  : "text-slate-600 hover:text-slate-700 hover:bg-slate-100 dark:hover:text-slate-300 dark:hover:bg-slate-800"
               }`}
             >
-              <AlertTriangle size={14} className="inline mr-1.5" />
+              <AlertTriangle size={14} />
               Colapso
             </button>
             <div className="flex-1" />
             <button
               onClick={() => setModeBarVisible(false)}
-              className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-600"
+              className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-500"
               title="Ocultar barra de modos"
             >
-              <ChevronUp size={16} />
+              <ChevronUp size={15} />
             </button>
           </div>
         </div>
