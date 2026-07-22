@@ -200,7 +200,7 @@ export function SeccionCancelacion({
               <tbody>
                 {plantillasFiltradas.map((p) => {
                   const min = minutosHastaSalida(p);
-                  const caliente = min !== null && min <= 60;
+                  const caliente = min !== null && min < 60;
                   const deshabilitado = loadingId === p.id || !momentoVirtual;
                   return (
                     <tr

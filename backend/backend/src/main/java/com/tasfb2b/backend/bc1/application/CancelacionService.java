@@ -250,7 +250,7 @@ public class CancelacionService {
                     plantilla.getHoraSalida().getOffset());
             long minutosHastaSalida = Duration.between(virtual, plantillaEnHoy).toMinutes();
 
-            if (minutosHastaSalida > 60) {
+            if (minutosHastaSalida >= 60) {
                 // Caso FRIO: cancelar la instancia de hoy + replan (comportamiento existente).
                 Vuelo instanciaHoy = vueloService.obtenerInstanciaDelDia(
                         plantilla.getCodigoVuelo(), virtual.toLocalDate());
