@@ -2095,3 +2095,114 @@ El bug era exclusivamente del frontend: `useTelemetria(false)` destruia los dato
 - El tiempo virtual debe quedar congelado en el mismo valor.
 - Hacer clic en **"Reanudar"** → los aviones deben continuar desde donde se congelaron.
 - TypeScript compila sin errores nuevos.
+
+---
+
+# Tarea: MINIMIZAR PANELES FLOTANTES - Agregar boton minimizar (-/+) a todos los paneles flotantes
+
+## Descripcion
+
+Agregar un boton de minimizar/restaurar (`-` / `+`) a todos los paneles flotantes, al lado del boton de cerrar (`X`). Al minimizar, el panel se colapsa mostrando solo el header (titulo + botones), ocultando el contenido.
+
+## Archivo modificado
+
+`frontend/components/mapa/PanelFlotante.tsx`
+
+## Cambios realizados
+
+| Linea | Cambio |
+|---|---|
+| 3 | Import `Minus` y `Plus` de `lucide-react` |
+| 24 | Nuevo estado `const [minimized, setMinimized] = useState(false)` |
+| 82-95 | Nuevo `div` contenedor con boton minimizar (`-`) y boton cerrar (`X`) |
+| 87 | Icono condicional: `Minus` cuando expandido, `Plus` cuando minimizado |
+| 97-99 | Children envuelto en `{!minimized && (...)}` para ocultar contenido al minimizar |
+
+## Comportamiento
+
+| Estado | Header muestra | Contenido |
+|---|---|---|
+| Expandido | `Titulo` `-` `X` | Visible |
+| Minimizado | `Titulo` `+` `X` | Oculto |
+
+## Sin cambios en
+
+- Ningun otro archivo del frontend
+- Backend
+- Tipos
+- API
+- Logica de arrastre (drag)
+
+## Verificacion
+
+- Abrir cualquier panel flotante (vuelos, cancelaciones, envios, reportes, etc.).
+- Debe mostrar boton `-` al lado de la `X`.
+- Hacer clic en `-` → el panel se minimiza, solo queda el header con el boton `+`.
+- Hacer clic en `+` → el panel se expande mostrando el contenido completo.
+- El boton `X` debe seguir cerrando el panel normalmente.
+- TypeScript compila sin errores nuevos.
+
+---
+
+# Tarea: FIX PAUSA ANIMACION - Congelar aviones al pausar la simulacion
+
+## Descripcion
+
+Al pausar la simulacion, los aviones seguian moviendose en el mapa y eventualmente desaparecian. Este fix desactiva la animacion de vuelo durante el estado `PAUSADA`.
+
+## Causa raiz
+
+El fix anterior mantenia `wsConnected = true` durante `PAUSADA` (necesario para preservar datos), pero esto provocaba que `animacionActiva` tambien fuera `true`, activando el bucle `requestAnimationFrame` en `AvionAnimado.tsx`.
+
+En `AvionAnimado.tsx:327-331`, la extrapolacion continua:
+```javascript
+target = ref.progreso + velocity * (now - ref.lastTickTime)
+```
+
+Sin nuevos ticks del servidor durante la pausa, `elapsed` crece indefinidamente → el avion avanza solo hasta destino y desaparece del mapa.
+
+## Archivo modificado
+
+`frontend/app/page.tsx` — 3 lineas, una por cada vista.
+
+## Cambios realizados
+
+| Linea | Vista | Antes | Despues |
+|---|---|---|---|
+| 226 | OperacionView | `wsConnected && vuelos.some(EN_RUTA)` | `estadoSesion !== 'PAUSADA' && wsConnected && ...` |
+| 1153 | SimulacionView | `wsConnected && vuelosMapa.some(EN_RUTA)` | `estadoSesion !== 'PAUSADA' && wsConnected && ...` |
+| 1785 | ColapsoView | `wsConnected && vuelosMapa.some(EN_RUTA)` | `estadoSesion !== 'PAUSADA' && wsConnected && ...` |
+
+## Comportamiento corregido
+
+Cuando `animacionActiva = false` (PAUSADA), `AvionAnimado.tsx:274` ejecuta la rama estatica:
+```javascript
+if (!animacionActiva || vuelo.estado !== 'EN_RUTA') {
+  const t = Math.min(Math.max(flightRef.current.progreso, 0), 1);
+  // renderiza en posicion estatica congelada
+  return; // sin rAF loop
+}
+```
+
+El avion se renderiza en la ultima posicion conocida (congelada) sin animacion.
+
+## Fix completo de pausa (4 cambios en total)
+
+| # | Archivo | Que hace |
+|---|---|---|
+| 1 | `useSimulacionSesion.ts:111` | WebSocket activo durante PAUSADA |
+| 2 | `useMapaData.ts:84-87` | `enVivo` = true durante PAUSADA |
+| 3 | `page.tsx:197-198` | WebSocket activo durante PAUSADA (Operacion) |
+| 4 | `page.tsx:226, 1153, 1785` | `animacionActiva = false` durante PAUSADA |
+
+## Verificacion
+
+- Iniciar simulacion, esperar aviones en ruta.
+- Hacer clic en **"Pausa"**:
+  - Aviones deben **congelarse** en su posicion actual (no moverse ni desaparecer).
+  - Datos de vuelos y equipaje deben seguir visibles en los paneles.
+  - Tiempo virtual debe congelarse.
+- Hacer clic en **"Reanudar"**:
+  - Aviones deben continuar desde donde se congelaron.
+  - Datos deben seguir visibles y actualizarse.
+- TypeScript compila sin errores nuevos.

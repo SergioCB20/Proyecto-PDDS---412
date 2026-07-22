@@ -224,6 +224,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   }, []);
   const k = 1;
   const animacionActiva =
+    estadoSesion !== 'PAUSADA' &&
     wsConnected &&
     (telemetria?.vuelos?.some((v) => v.estado === "EN_RUTA") ?? false);
 
@@ -1151,7 +1152,7 @@ function SimulacionView({
 
   const k = useMemo(() => telemetria?.metricas_sesion?.k ?? 120, [telemetria]);
   const animacionActiva =
-    wsConnected && (vuelosMapa.some((v) => v.estado === "EN_RUTA") ?? false);
+    estadoSesion !== 'PAUSADA' && wsConnected && (vuelosMapa.some((v) => v.estado === "EN_RUTA") ?? false);
 
   const ocupacionGlobal = useMemo(() => {
     const sumOcup = aeropuertosMapa.reduce((s, a) => s + (a.ocupacion_actual || 0), 0);
@@ -1783,7 +1784,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
 
   const k = useMemo(() => telemetria?.metricas_sesion?.k ?? 120, [telemetria]);
   const animacionActiva =
-    wsConnected && (vuelosMapa.some((v) => v.estado === "EN_RUTA") ?? false);
+    estadoSesion !== 'PAUSADA' && wsConnected && (vuelosMapa.some((v) => v.estado === "EN_RUTA") ?? false);
 
   const toggleDock = useCallback((id: string) => {
     if (id === 'metricas') { setMetricaVisibleCol((v) => !v); return; }
