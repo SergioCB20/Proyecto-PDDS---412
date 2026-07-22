@@ -718,7 +718,7 @@ public class TickService {
             root.put("maletas_replanificadas",
                     sesion.getMaletasReplanificadas() != null ? sesion.getMaletasReplanificadas() : 0);
             root.put("maletas_entregadas",
-                    equipajeRepository.sumCantidadByEstado(EstadoEquipaje.ENTREGADO));
+                    equipajeRepository.sumCantidadByEstadoAndSesionId(EstadoEquipaje.ENTREGADO, sesion.getId()));
             root.put("fecha_inicio_real", sesion.getFechaInicioReal() != null
                     ? sesion.getFechaInicioReal().toString() : null);
             root.put("timestamp", now.toString());
