@@ -160,6 +160,7 @@ export function useSimulacionSesion({
             destino_iata: v.destino.codigo_iata,
             hora_salida: v.hora_salida,
             hora_llegada: v.hora_llegada,
+            estado: v.estado,
           })),
         );
       })
