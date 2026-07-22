@@ -500,23 +500,17 @@ function AvionAnimado({
             })()}
           </div>
           <div className="text-sm mb-1">
-            <span className="text-slate-600">Capacidad: </span>
-            <span className="font-semibold">{vuelo.capacidad_carga}</span>
-          </div>
-          <div className="text-sm mb-1">
             <span className="text-slate-600">Ocupado: </span>
-            <span className="font-semibold">{ocupada}</span>
+            <span className="font-semibold">{ocupada}/{vuelo.capacidad_carga}</span>
+            <span className="ml-1 font-semibold" style={{ color: colorVueloPorOcupacion(pctOcup, umbralesConfig) }}>
+              ({pctOcup.toFixed(0)}%)
+            </span>
           </div>
-          <div className="text-sm mb-2">
-            <span className="text-slate-600">Disponible: </span>
-            <span className="font-semibold">{vuelo.carga_disponible}</span>
-          </div>
-          <div
-            className="px-2 py-1 rounded text-white text-xs font-bold"
-            style={{ backgroundColor: colorVueloPorOcupacion(pctOcup, umbralesConfig) }}
-          >
-            {pctOcup.toFixed(0)}% ocupado
-          </div>
+          <OcupacionBarra
+            ocupada={ocupada}
+            total={vuelo.capacidad_carga}
+            umbralesConfig={umbralesConfig}
+          />
         </div>
       </Popup>
     </Marker>
