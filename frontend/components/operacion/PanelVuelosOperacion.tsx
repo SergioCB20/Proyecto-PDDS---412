@@ -231,7 +231,7 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onVerEnMapa, seguid
           const semaforoColor = colorVueloPorOcupacion(pct, umbralesConfig);
           const salida = formatearFechaHoraSeparado(v.hora_salida);
           const llegada = formatearFechaHoraSeparado(v.hora_llegada);
-          const seleccionado = (seleccionadoLocal ?? seleccionadoId) === v.id;
+          const seleccionado = seleccionadoId === v.id;
           const estadoLabel = v.estado === 'EN_RUTA' ? 'En ruta' : v.estado === 'PROGRAMADO' ? 'Programado' : v.estado === 'CANCELADO' ? 'Cancelado' : 'Completado';
           const estadoColor = v.estado === 'PROGRAMADO' ? '#94a3b8' : colorHex;
           return (

@@ -72,7 +72,7 @@ export function PanelAeropuertosOperacion({
     if (onFiltroColorChange) onFiltroColorChange(v);
     else setFiltroColorInterno(v);
   };
-  const seleccionadoActual = aeropuertoSeleccionado ?? seleccionadoId;
+  const seleccionadoActual = seleccionadoId ?? aeropuertoSeleccionado;
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
   useEffect(() => {
     if (seleccionadoId && itemRefs.current[seleccionadoId]) {
