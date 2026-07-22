@@ -33,6 +33,7 @@ import { useTelemetria } from "@/lib/useTelemetria";
 import { useMapaData, matchEstadoVuelo } from "@/lib/useMapaData";
 import { useSimulacionSesion } from "@/lib/useSimulacionSesion";
 import { useMode } from "@/lib/mode-context";
+import { useFiltrosColor } from "@/lib/useFiltrosColor";
 import { colorAeropuertoPorOcupacion, type ColorSemaforo } from "@/lib/colors";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -231,6 +232,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [metricaVisibleOp, setMetricaVisibleOp] = useState(false);
   const [relojVisibleOp, setRelojVisibleOp] = useState(false);
   const [zoomVisibleOp, setZoomVisibleOp] = useState(false);
+  const filtrosColor = useFiltrosColor();
   const [selectedEnvio, setSelectedEnvio] =
     useState<SelectedEnvioConsolidado | null>(null);
   const [vueloFilterOrigen, setVueloFilterOrigen] = useState("");
@@ -661,6 +663,8 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
           continenteFiltro={filtroContinenteOp || undefined}
           filtroColorAeropuerto={filtroColorAeroOp || undefined}
           filtroColorVuelo={filtroColorVueloOp || undefined}
+          coloresAeropuertoVisibles={filtrosColor.aeropuerto}
+          coloresVueloVisibles={filtrosColor.vuelo}
           mostrarZoom={zoomVisibleOp}
           onCerrarZoom={() => setZoomVisibleOp(false)}
         >
@@ -677,6 +681,10 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               vuelosProgramados={vuelosProgramadosOp}
               equipajeFilter={equipajeFilter}
               onEquipajeFilterChange={setEquipajeFilter}
+              coloresAeropuerto={filtrosColor.aeropuerto}
+              onToggleColorAeropuerto={filtrosColor.toggleAeropuerto}
+              coloresVuelo={filtrosColor.vuelo}
+              onToggleColorVuelo={filtrosColor.toggleVuelo}
               onClose={() => setMetricaVisibleOp(false)}
             />
           )}
@@ -1073,6 +1081,7 @@ function SimulacionView({
   const [metricaVisibleSim, setMetricaVisibleSim] = useState(false);
   const [relojVisibleSim, setRelojVisibleSim] = useState(false);
   const [zoomVisibleSim, setZoomVisibleSim] = useState(false);
+  const filtrosColor = useFiltrosColor();
   const [selectedEnvio, setSelectedEnvio] = useState<SelectedEnvioConsolidado | null>(
     null,
   );
@@ -1181,7 +1190,23 @@ function SimulacionView({
   }, [dockAbiertas, metricaVisibleSim, relojVisibleSim, zoomVisibleSim]);
 
   return (
-    <div className="relative h-full overflow-hidden">
+    <div className="relative h-full overflow-hidden flex flex-col">
+      <CommandBarSimulacion
+        estado={estadoSesion}
+        wsConnected={wsConnected}
+        diaHoraVirtual={metricas?.dia_hora_virtual}
+        loading={loading}
+        finalizando={finalizandoId === sesionId}
+        esDuenio={!!isDuenioSesionActual}
+        onIniciar={handleIniciar}
+        onPausar={handlePausar}
+        onReanudar={handleReanudar}
+        onDetener={() => {
+          if (sesionId) handleDetener(sesionId);
+        }}
+        onAbrirConfig={() => toggleDock("sesion")}
+      />
+      <div className="relative flex-1 min-h-0 overflow-hidden">
       <GeoMapa
           aeropuertos={aeropuertosMapa}
           vuelos={vuelosVisibles}
@@ -1212,6 +1237,8 @@ function SimulacionView({
           continenteFiltro={filtroContinenteSim || undefined}
           filtroColorAeropuerto={filtroColorAeroSim || undefined}
           filtroColorVuelo={filtroColorVueloSim || undefined}
+          coloresAeropuertoVisibles={filtrosColor.aeropuerto}
+          coloresVueloVisibles={filtrosColor.vuelo}
           mostrarZoom={zoomVisibleSim}
           onCerrarZoom={() => setZoomVisibleSim(false)}
         >
@@ -1229,6 +1256,10 @@ function SimulacionView({
               maletasEntregadas={metricas.maletas_entregadas}
               equipajeFilter={equipajeFilter}
               onEquipajeFilterChange={setEquipajeFilter}
+              coloresAeropuerto={filtrosColor.aeropuerto}
+              onToggleColorAeropuerto={filtrosColor.toggleAeropuerto}
+              coloresVuelo={filtrosColor.vuelo}
+              onToggleColorVuelo={filtrosColor.toggleVuelo}
               onClose={() => setMetricaVisibleSim(false)}
             />
           )}
@@ -1243,21 +1274,6 @@ function SimulacionView({
             </div>
           )}
         </GeoMapa>
-        <CommandBarSimulacion
-          estado={estadoSesion}
-          wsConnected={wsConnected}
-          diaHoraVirtual={metricas?.dia_hora_virtual}
-          loading={loading}
-          finalizando={finalizandoId === sesionId}
-          esDuenio={!!isDuenioSesionActual}
-          onIniciar={handleIniciar}
-          onPausar={handlePausar}
-          onReanudar={handleReanudar}
-          onDetener={() => {
-            if (sesionId) handleDetener(sesionId);
-          }}
-          onAbrirConfig={() => toggleDock("sesion")}
-        />
         {sesionId && estadoSesion === "EN_CURSO" && !simReady && (
           <div className="absolute inset-0 z-50">
             <SimulacionLoadingOverlay visible={true} />
@@ -1617,6 +1633,7 @@ function SimulacionView({
             )}
           </Modal>
         )}
+      </div>
     </div>
   );
 }
@@ -1666,6 +1683,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [metricaVisibleCol, setMetricaVisibleCol] = useState(false);
   const [relojVisibleCol, setRelojVisibleCol] = useState(false);
   const [zoomVisibleCol, setZoomVisibleCol] = useState(false);
+  const filtrosColor = useFiltrosColor();
   const [selectedEnvio, setSelectedEnvio] = useState<SelectedEnvioConsolidado | null>(
     null,
   );
@@ -1774,7 +1792,23 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   }, [dockAbiertas, metricaVisibleCol, relojVisibleCol, zoomVisibleCol]);
 
   return (
-    <div className="relative h-full overflow-hidden">
+    <div className="relative h-full overflow-hidden flex flex-col">
+      <CommandBarSimulacion
+        estado={estadoSesion}
+        wsConnected={wsConnected}
+        diaHoraVirtual={metricas?.dia_hora_virtual}
+        loading={loading}
+        finalizando={finalizandoId === sesionId}
+        esDuenio={!!isDuenioSesionActual}
+        onIniciar={handleIniciar}
+        onPausar={handlePausar}
+        onReanudar={handleReanudar}
+        onDetener={() => {
+          if (sesionId) handleDetener(sesionId);
+        }}
+        onAbrirConfig={() => toggleDock("sesion")}
+      />
+      <div className="relative flex-1 min-h-0 overflow-hidden">
       <GeoMapa
           aeropuertos={aeropuertosMapa}
           vuelos={vuelosVisibles}
@@ -1805,6 +1839,8 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
           continenteFiltro={filtroContinenteCol || undefined}
           filtroColorAeropuerto={filtroColorAeroCol || undefined}
           filtroColorVuelo={filtroColorVueloCol || undefined}
+          coloresAeropuertoVisibles={filtrosColor.aeropuerto}
+          coloresVueloVisibles={filtrosColor.vuelo}
           mostrarZoom={zoomVisibleCol}
           onCerrarZoom={() => setZoomVisibleCol(false)}
         >
@@ -1822,6 +1858,10 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               maletasEntregadas={metricas.maletas_entregadas}
               equipajeFilter={equipajeFilter}
               onEquipajeFilterChange={setEquipajeFilter}
+              coloresAeropuerto={filtrosColor.aeropuerto}
+              onToggleColorAeropuerto={filtrosColor.toggleAeropuerto}
+              coloresVuelo={filtrosColor.vuelo}
+              onToggleColorVuelo={filtrosColor.toggleVuelo}
               onClose={() => setMetricaVisibleCol(false)}
             />
           )}
@@ -1836,21 +1876,6 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
             </div>
           )}
         </GeoMapa>
-        <CommandBarSimulacion
-          estado={estadoSesion}
-          wsConnected={wsConnected}
-          diaHoraVirtual={metricas?.dia_hora_virtual}
-          loading={loading}
-          finalizando={finalizandoId === sesionId}
-          esDuenio={!!isDuenioSesionActual}
-          onIniciar={handleIniciar}
-          onPausar={handlePausar}
-          onReanudar={handleReanudar}
-          onDetener={() => {
-            if (sesionId) handleDetener(sesionId);
-          }}
-          onAbrirConfig={() => toggleDock("sesion")}
-        />
 
         <div className="absolute left-2 top-1/2 -translate-y-1/2 z-[1002] flex flex-col bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm shadow-lg border border-slate-200 dark:border-slate-700 rounded-xl">
           <DockIconos
@@ -2219,6 +2244,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
             )}
           </Modal>
         )}
+      </div>
       </div>
     );
   };
