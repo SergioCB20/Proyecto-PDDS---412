@@ -84,6 +84,7 @@ export default function CommandBarSimulacion({
   finalizando = false,
   esDuenio = true,
   onIniciar,
+  onPausar,
   onReanudar,
   onDetener,
   onAbrirConfig,
