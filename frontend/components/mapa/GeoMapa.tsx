@@ -189,6 +189,10 @@ interface GeoMapaProps {
   filtroColorAeropuerto?: string;
   /** Filtro por semáforo de unidades de transporte, sincronizado con el panel. */
   filtroColorVuelo?: string;
+  /** Colores de ocupación de almacenes visibles (checkboxes multi-select en métricas). */
+  coloresAeropuertoVisibles?: Set<ColorSemaforo>;
+  /** Colores de ocupación de vuelos visibles (checkboxes multi-select en métricas). */
+  coloresVueloVisibles?: Set<ColorSemaforo>;
   onAeropuertoClick?: (codigoIata: string) => void;
   /** Filtro por continente que se representa en el mapa con fitBounds. */
   continenteFiltro?: string;
@@ -220,6 +224,8 @@ export default function GeoMapa({
   onLimpiarRuta,
   filtroColorAeropuerto,
   filtroColorVuelo,
+  coloresAeropuertoVisibles,
+  coloresVueloVisibles,
   onAeropuertoClick,
   continenteFiltro,
   mostrarZoom = true,
@@ -228,20 +234,6 @@ export default function GeoMapa({
   // Arranca oculta: el mapa debe iniciar sin overlays levantados (re-abrible con el botón).
   const [legendaVisible, setLegendaVisible] = useState(false);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
-
-  // Filtro multi-select (checkboxes) de aeropuertos/almacenes por color de ocupación.
-  // Arranca con todos visibles → sin efecto hasta que el usuario destilde alguno.
-  const [coloresAeroVisibles, setColoresAeroVisibles] = useState<Set<ColorSemaforo>>(
-    () => new Set(COLORES_OCUPACION),
-  );
-  const toggleColorAero = useCallback((color: ColorSemaforo) => {
-    setColoresAeroVisibles((prev) => {
-      const next = new Set(prev);
-      if (next.has(color)) next.delete(color);
-      else next.add(color);
-      return next;
-    });
-  }, []);
 
   // Encuadre inicial Dinamarca↑–Argentina↓ una vez que el mapa y los aeropuertos existen.
   const fitInicialHecho = useRef(false);
@@ -270,31 +262,38 @@ export default function GeoMapa({
           })()
         : aeropuertos;
     // Filtro por checkboxes de ocupación (multi-select) — solo aplica si hay alguno oculto.
-    const porCheckbox = coloresAeroVisibles.size < COLORES_OCUPACION.length
+    const porCheckbox = coloresAeropuertoVisibles && coloresAeropuertoVisibles.size < COLORES_OCUPACION.length
       ? base.filter(a =>
-          coloresAeroVisibles.has(determinarColorSemaforo(a.ocupacionPorcentaje, umbralesConfig)))
+          coloresAeropuertoVisibles.has(determinarColorSemaforo(a.ocupacionPorcentaje, umbralesConfig)))
       : base;
     // Filtro single-select heredado del panel (semáforo puntual), AND con lo anterior.
     if (!filtroColorAeropuerto) return porCheckbox;
     return porCheckbox.filter(a =>
       determinarColorSemaforo(a.ocupacionPorcentaje, umbralesConfig) === filtroColorAeropuerto
     );
-  }, [aeropuertos, seguidoAeropuertoId, seguidoVueloId, vuelos, filtroColorAeropuerto, umbralesConfig, coloresAeroVisibles]);
+  }, [aeropuertos, seguidoAeropuertoId, seguidoVueloId, vuelos, filtroColorAeropuerto, umbralesConfig, coloresAeropuertoVisibles]);
 
   const vuelosFiltrados = useMemo(() => {
+    // Al seguir un VUELO no se ocultan los demás: filtrarlos los desmontaba y, al salir
+    // del seguimiento, se re-montaban reiniciando su animación (aparecían en el origen).
+    // El vuelo seguido igual se resalta y la cámara lo enfoca mediante la prop `seguido`.
     const base = seguidoAeropuertoId
       ? vuelos.filter(v => v.origen.codigo_iata === seguidoAeropuertoId || v.destino.codigo_iata === seguidoAeropuertoId)
-      : seguidoVueloId
-        ? vuelos.filter(v => v.id === seguidoVueloId)
-        : vuelos;
-    if (!filtroColorVuelo) return base;
-    return base.filter(v => {
+      : vuelos;
+    const colorDe = (v: VueloEnMapa) => {
       const pct = v.capacidad_carga > 0
         ? ((v.capacidad_carga - v.carga_disponible) / v.capacidad_carga) * 100
         : 0;
-      return determinarColorSemaforo(pct, umbralesConfig) === filtroColorVuelo;
-    });
-  }, [vuelos, seguidoAeropuertoId, seguidoVueloId, filtroColorVuelo, umbralesConfig]);
+      return determinarColorSemaforo(pct, umbralesConfig);
+    };
+    // Filtro por checkboxes de ocupación de vuelos (multi-select) — solo si hay alguno oculto.
+    const porCheckbox = coloresVueloVisibles && coloresVueloVisibles.size < COLORES_OCUPACION.length
+      ? base.filter(v => coloresVueloVisibles.has(colorDe(v)))
+      : base;
+    // Filtro single-select heredado del panel, AND con lo anterior.
+    if (!filtroColorVuelo) return porCheckbox;
+    return porCheckbox.filter(v => colorDe(v) === filtroColorVuelo);
+  }, [vuelos, seguidoAeropuertoId, filtroColorVuelo, umbralesConfig, coloresVueloVisibles]);
 
   // Mantiene el overlay un poco más tras cargar para que la flota se pinte completa.
   // `settling` solo cubre la ventana de gracia posterior a la carga; el estado durante
@@ -375,8 +374,6 @@ export default function GeoMapa({
           <GeoMapaLeyenda
             umbralesConfig={umbralesConfig}
             onClose={() => setLegendaVisible(false)}
-            coloresVisibles={coloresAeroVisibles}
-            onToggleColor={toggleColorAero}
           />
         )}
         {children}

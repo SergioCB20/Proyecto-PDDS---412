@@ -95,8 +95,7 @@ export default function CommandBarSimulacion({
     : '—';
 
   return (
-    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1002] pointer-events-none">
-      <div className="pointer-events-auto flex items-center gap-3 py-1.5 pl-3 pr-2 rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-lg border border-slate-200 dark:border-slate-700">
+    <div className="w-full flex flex-wrap items-center justify-center gap-x-3 gap-y-1 py-1.5 px-3 bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-700 shadow-sm">
         {/* Estado */}
         <div className="flex items-center gap-1.5">
           <span className="relative flex h-2.5 w-2.5">
@@ -183,7 +182,6 @@ export default function CommandBarSimulacion({
             WS
           </span>
         </div>
-      </div>
     </div>
   );
 }

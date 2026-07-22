@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo } from 'react';
-import { Marker, Tooltip, Popup } from 'react-leaflet';
+import { useEffect, useMemo, useState } from 'react';
+import { Marker, Tooltip, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import type { AeropuertoEnMapa } from '@/lib/types';
 import { ciudadDe, paisDe } from '@/lib/aeropuertos';
@@ -9,6 +9,13 @@ import { ciudadDe, paisDe } from '@/lib/aeropuertos';
 interface GeoMapaAeropuertoProps {
   aeropuerto: AeropuertoEnMapa;
   onClick?: (codigoIata: string) => void;
+}
+
+// Tamaño reactivo al zoom, mantenido ~1.5x el icono de avión (calcularTamaño en
+// AvionAnimado usa (zoom*1.8+6)*2) para que un avión posado en el aeropuerto —p.ej.
+// un vuelo PROGRAMADO en su origen— no lo cubra por completo: siempre asoma el borde.
+function tamañoAeropuerto(zoom: number): number {
+  return Math.max(34, Math.min(88, Math.round((zoom * 1.8 + 6) * 3)));
 }
 
 /**
@@ -33,9 +40,17 @@ function crearIconoAeropuerto(color: string, size: number = 28) {
 }
 
 export default function GeoMapaAeropuerto({ aeropuerto, onClick }: GeoMapaAeropuertoProps) {
+  const map = useMap();
+  const [size, setSize] = useState(() => tamañoAeropuerto(map.getZoom()));
+  useEffect(() => {
+    const onZoom = () => setSize(tamañoAeropuerto(map.getZoom()));
+    map.on('zoomend', onZoom);
+    return () => { map.off('zoomend', onZoom); };
+  }, [map]);
+
   const icono = useMemo(
-    () => crearIconoAeropuerto(aeropuerto.color, 32),
-    [aeropuerto.color]
+    () => crearIconoAeropuerto(aeropuerto.color, size),
+    [aeropuerto.color, size]
   );
 
   return (

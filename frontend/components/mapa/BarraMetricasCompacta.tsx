@@ -11,7 +11,45 @@ import {
   CheckCircle,
   X,
 } from 'lucide-react';
-import { colorAeropuertoPorOcupacion, colorVueloPorOcupacion } from '@/lib/colors';
+import { colorAeropuertoPorOcupacion, colorVueloPorOcupacion, COLOR_AEROPUERTO, type ColorSemaforo } from '@/lib/colors';
+import { COLORES_OCUPACION } from '@/lib/useFiltrosColor';
+
+const BANDA_LABEL: Record<ColorSemaforo, string> = {
+  VACIO: 'Vacío',
+  VERDE: 'Verde',
+  AMBAR: 'Ámbar',
+  ROJO: 'Rojo',
+};
+
+/** Grupo compacto de checkboxes de color de ocupación (el propio checkbox va coloreado). */
+function ColorChecks({
+  icon,
+  title,
+  visibles,
+  onToggle,
+}: {
+  icon: ReactNode;
+  title: string;
+  visibles: Set<ColorSemaforo>;
+  onToggle: (c: ColorSemaforo) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1" title={title}>
+      <span className="text-slate-500 dark:text-slate-400">{icon}</span>
+      {COLORES_OCUPACION.map((c) => (
+        <label key={c} className="flex items-center cursor-pointer" title={`${BANDA_LABEL[c]}`}>
+          <input
+            type="checkbox"
+            checked={visibles.has(c)}
+            onChange={() => onToggle(c)}
+            className="w-3.5 h-3.5 cursor-pointer"
+            style={{ accentColor: COLOR_AEROPUERTO[c] }}
+          />
+        </label>
+      ))}
+    </div>
+  );
+}
 
 interface BarraMetricasCompactaProps {
   sla: number;
@@ -28,6 +66,12 @@ interface BarraMetricasCompactaProps {
   maletasEntregadas?: number;
   equipajeFilter: 'todos' | 'con_equipaje' | 'sin_equipaje';
   onEquipajeFilterChange: (v: 'todos' | 'con_equipaje' | 'sin_equipaje') => void;
+  /** Colores de ocupación visibles de almacenes (aeropuertos) y su toggle. */
+  coloresAeropuerto?: Set<ColorSemaforo>;
+  onToggleColorAeropuerto?: (c: ColorSemaforo) => void;
+  /** Colores de ocupación visibles de vuelos y su toggle. */
+  coloresVuelo?: Set<ColorSemaforo>;
+  onToggleColorVuelo?: (c: ColorSemaforo) => void;
   onClose?: () => void;
 }
 
@@ -84,6 +128,10 @@ export default function BarraMetricasCompacta({
   maletasEntregadas,
   equipajeFilter,
   onEquipajeFilterChange,
+  coloresAeropuerto,
+  onToggleColorAeropuerto,
+  coloresVuelo,
+  onToggleColorVuelo,
   onClose,
 }: BarraMetricasCompactaProps) {
   // Semáforo de ocupación: MISMA función que los marcadores del mapa, para que el
@@ -194,28 +242,47 @@ export default function BarraMetricasCompacta({
         />
       </div>
 
-      {/* Filtro de equipaje — control segmentado compacto */}
-      <div className="pointer-events-auto flex items-center gap-1.5 py-1 px-2 rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-lg border border-slate-200 dark:border-slate-700">
-        <Luggage size={13} className="text-slate-500 dark:text-slate-400" />
-        <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800">
-          {(['todos', 'con_equipaje', 'sin_equipaje'] as const).map((opt) => (
-            <button
-              key={opt}
-              onClick={() => onEquipajeFilterChange(opt)}
-              className={`px-2.5 py-0.5 text-xs font-medium rounded-md transition-colors ${
-                equipajeFilter === opt
-                  ? 'bg-white dark:bg-slate-700 text-info shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-              }`}
-            >
-              {opt === 'todos'
-                ? 'Todos'
-                : opt === 'con_equipaje'
-                  ? 'Con eq'
-                  : 'Sin eq'}
-            </button>
-          ))}
+      {/* Filtro de equipaje + filtros de color por ocupación (almacenes / vuelos) */}
+      <div className="pointer-events-auto flex flex-wrap items-center gap-x-3 gap-y-1.5 py-1 px-2 rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-lg border border-slate-200 dark:border-slate-700">
+        <div className="flex items-center gap-1.5">
+          <Luggage size={13} className="text-slate-500 dark:text-slate-400" />
+          <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800">
+            {(['todos', 'con_equipaje', 'sin_equipaje'] as const).map((opt) => (
+              <button
+                key={opt}
+                onClick={() => onEquipajeFilterChange(opt)}
+                className={`px-2.5 py-0.5 text-xs font-medium rounded-md transition-colors ${
+                  equipajeFilter === opt
+                    ? 'bg-white dark:bg-slate-700 text-info shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                }`}
+              >
+                {opt === 'todos'
+                  ? 'Todos'
+                  : opt === 'con_equipaje'
+                    ? 'Con eq'
+                    : 'Sin eq'}
+              </button>
+            ))}
+          </div>
         </div>
+
+        {coloresAeropuerto && onToggleColorAeropuerto && (
+          <ColorChecks
+            icon={<Warehouse size={13} />}
+            title="Almacenes por ocupación"
+            visibles={coloresAeropuerto}
+            onToggle={onToggleColorAeropuerto}
+          />
+        )}
+        {coloresVuelo && onToggleColorVuelo && (
+          <ColorChecks
+            icon={<Plane size={13} />}
+            title="Vuelos por ocupación"
+            visibles={coloresVuelo}
+            onToggle={onToggleColorVuelo}
+          />
+        )}
       </div>
     </div>
   );

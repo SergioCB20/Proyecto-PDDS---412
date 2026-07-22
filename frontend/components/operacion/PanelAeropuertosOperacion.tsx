@@ -288,7 +288,7 @@ export function PanelAeropuertosOperacion({
           const l = proximos.llegada.get(n.codigo_iata);
           const fs = s ? formatearFechaHoraSeparado(s) : null;
           const fl = l ? formatearFechaHoraSeparado(l) : null;
-          const ubicacionCorta = [ciudad && ciudad !== n.codigo_iata ? ciudad : null, pais].filter(Boolean).join(', ');
+          const ubicacionCorta = ciudad && ciudad !== n.codigo_iata ? ciudad : '';
           return (
             <div
               key={n.id}
