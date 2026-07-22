@@ -51,11 +51,12 @@ public interface VueloRepository extends JpaRepository<Vuelo, UUID>, JpaSpecific
             + "(v.estado = com.tasfb2b.backend.bc1.domain.EstadoVuelo.EN_RUTA "
             + "  AND v.fechaOperacion >= :desde AND v.fechaOperacion <= :hastaHasta) "
             + "OR (v.estado = com.tasfb2b.backend.bc1.domain.EstadoVuelo.PROGRAMADO "
-            + "  AND v.horaSalida <= :hasta) "
+            + "  AND v.horaSalida >= :desdeVirtual AND v.horaSalida <= :hasta) "
             + "OR (v.estado = com.tasfb2b.backend.bc1.domain.EstadoVuelo.CANCELADO "
             + "  AND v.fechaOperacion >= :desde AND v.fechaOperacion <= :hastaHasta))")
     List<Vuelo> findTelemetriaVuelos(@Param("desde") LocalDate desde,
                                      @Param("hastaHasta") LocalDate hastaHasta,
+                                     @Param("desdeVirtual") OffsetDateTime desdeVirtual,
                                      @Param("hasta") OffsetDateTime hasta);
     List<Vuelo> findByEstadoAndEsPlantillaAndHoraSalidaBetween(EstadoVuelo estado, Boolean esPlantilla, OffsetDateTime desde, OffsetDateTime hasta);
     Page<Vuelo> findByEstadoAndEsPlantilla(EstadoVuelo estado, Boolean esPlantilla, Pageable pageable);

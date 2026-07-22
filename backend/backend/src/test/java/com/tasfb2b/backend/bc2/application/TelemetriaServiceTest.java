@@ -109,7 +109,7 @@ class TelemetriaServiceTest {
     @Test
     void emitirTelemetria_shouldIncludeNodesWithColor() {
         when(nodoRepository.findAllByOrderByCodigoIataAsc()).thenReturn(List.of(nodo));
-        when(vueloRepository.findTelemetriaVuelos(any(), any(), any())).thenReturn(List.of());
+        when(vueloRepository.findTelemetriaVuelos(any(), any(), any(), any())).thenReturn(List.of());
 
         telemetriaService.emitirTelemetria(sesion);
 
@@ -124,7 +124,7 @@ class TelemetriaServiceTest {
     @Test
     void emitirTelemetria_shouldIncludeFlightsWithInterpolatedPosition() {
         when(nodoRepository.findAllByOrderByCodigoIataAsc()).thenReturn(List.of(nodo));
-        when(vueloRepository.findTelemetriaVuelos(any(), any(), any())).thenReturn(List.of(vuelo));
+        when(vueloRepository.findTelemetriaVuelos(any(), any(), any(), any())).thenReturn(List.of(vuelo));
 
         telemetriaService.emitirTelemetria(sesion);
 
@@ -140,7 +140,7 @@ class TelemetriaServiceTest {
     @Test
     void emitirTelemetria_shouldIncludeSessionMetrics() {
         when(nodoRepository.findAllByOrderByCodigoIataAsc()).thenReturn(List.of(nodo));
-        when(vueloRepository.findTelemetriaVuelos(any(), any(), any())).thenReturn(List.of());
+        when(vueloRepository.findTelemetriaVuelos(any(), any(), any(), any())).thenReturn(List.of());
 
         telemetriaService.emitirTelemetria(sesion);
 
@@ -158,7 +158,7 @@ class TelemetriaServiceTest {
         nodo.setOcupacionActual(75);
 
         when(nodoRepository.findAllByOrderByCodigoIataAsc()).thenReturn(List.of(nodo));
-        when(vueloRepository.findTelemetriaVuelos(any(), any(), any())).thenReturn(List.of());
+        when(vueloRepository.findTelemetriaVuelos(any(), any(), any(), any())).thenReturn(List.of());
 
         telemetriaService.emitirTelemetria(sesion);
 
@@ -174,7 +174,7 @@ class TelemetriaServiceTest {
         nodo.setOcupacionActual(95);
 
         when(nodoRepository.findAllByOrderByCodigoIataAsc()).thenReturn(List.of(nodo));
-        when(vueloRepository.findTelemetriaVuelos(any(), any(), any())).thenReturn(List.of());
+        when(vueloRepository.findTelemetriaVuelos(any(), any(), any(), any())).thenReturn(List.of());
 
         telemetriaService.emitirTelemetria(sesion);
 
@@ -190,7 +190,7 @@ class TelemetriaServiceTest {
         vuelo.setCargaDisponible(4);
 
         when(nodoRepository.findAllByOrderByCodigoIataAsc()).thenReturn(List.of(nodo));
-        when(vueloRepository.findTelemetriaVuelos(any(), any(), any())).thenReturn(List.of(vuelo));
+        when(vueloRepository.findTelemetriaVuelos(any(), any(), any(), any())).thenReturn(List.of(vuelo));
 
         telemetriaService.emitirTelemetria(sesion);
 
@@ -204,7 +204,7 @@ class TelemetriaServiceTest {
     @Test
     void emitirTelemetria_shouldNotFailWithNoSessions() {
         when(nodoRepository.findAllByOrderByCodigoIataAsc()).thenReturn(List.of());
-        when(vueloRepository.findTelemetriaVuelos(any(), any(), any())).thenReturn(List.of());
+        when(vueloRepository.findTelemetriaVuelos(any(), any(), any(), any())).thenReturn(List.of());
 
         telemetriaService.emitirTelemetria(sesion);
 

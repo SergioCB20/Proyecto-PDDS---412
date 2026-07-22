@@ -171,8 +171,8 @@ class TickServiceTest {
     void tick_shouldDetectDepartingFlights() {
         when(sesionRepository.findByEstado(EstadoSesion.EN_CURSO))
                 .thenReturn(List.of(sesion));
-        when(vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaBetween(
-                eq(EstadoVuelo.PROGRAMADO), eq(false), any(), any()))
+        when(vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaLessThanEqual(
+                eq(EstadoVuelo.PROGRAMADO), eq(false), any()))
                 .thenReturn(List.of(vuelo));
         when(segmentoPlanRepository.findByVueloIdInAndEstado(
                 anyList(), eq(EstadoSegmento.PENDIENTE)))
@@ -223,7 +223,7 @@ class TickServiceTest {
 
         when(sesionRepository.findByEstado(EstadoSesion.EN_CURSO))
                 .thenReturn(List.of(sesion));
-        when(vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaBetween(any(), anyBoolean(), any(), any()))
+        when(vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaLessThanEqual(any(), anyBoolean(), any()))
                 .thenReturn(List.of());
         when(vueloRepository.findByEstadoAndEsPlantillaAndHoraLlegadaLessThanEqual(any(), anyBoolean(), any()))
                 .thenReturn(List.of());
@@ -241,7 +241,7 @@ class TickServiceTest {
     void tick_shouldWriteMetricsToRedis() {
         when(sesionRepository.findByEstado(EstadoSesion.EN_CURSO))
                 .thenReturn(List.of(sesion));
-        when(vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaBetween(any(), anyBoolean(), any(), any()))
+        when(vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaLessThanEqual(any(), anyBoolean(), any()))
                 .thenReturn(List.of());
         when(vueloRepository.findByEstadoAndEsPlantillaAndHoraLlegadaLessThanEqual(any(), anyBoolean(), any()))
                 .thenReturn(List.of());
@@ -261,9 +261,11 @@ class TickServiceTest {
         when(sesionRepository.findByEstado(EstadoSesion.EN_CURSO))
                 .thenReturn(List.of(sesion));
         // Salidas y llegadas vacias: el vuelo aun no despega, solo es candidato a cancelacion.
+        when(vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaLessThanEqual(
+                any(EstadoVuelo.class), eq(false), any()))
+                .thenReturn(List.of());
         when(vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaBetween(
-                any(EstadoVuelo.class), eq(false), any(), any()))
-                .thenReturn(List.of())
+                eq(EstadoVuelo.PROGRAMADO), eq(false), any(), any()))
                 .thenReturn(List.of(vuelo));
         when(vueloRepository.findByEstadoAndEsPlantillaAndHoraLlegadaLessThanEqual(any(), anyBoolean(), any()))
                 .thenReturn(List.of());
