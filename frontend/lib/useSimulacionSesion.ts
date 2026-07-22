@@ -21,6 +21,8 @@ export interface SesionListaItem {
   tipo_simulacion: string;
   estado: string;
   fecha_inicio_virtual: string;
+  /** Hora de inicio virtual "HH:MM(:SS)"; puede faltar si el backend es viejo. */
+  hora_inicio_virtual?: string | null;
   created_at: string;
   dispositivo_id: string | null;
 }
@@ -333,6 +335,23 @@ export function useSimulacionSesion({
     }
   };
 
+  /**
+   * Visualiza/adopta una sesión existente (propia o de otro dispositivo). Puebla los
+   * tiempos con los datos REALES de esa sesión —inicio virtual (fecha+hora) e inicio
+   * real (created_at)— para que el panel de tiempos no muestre la config local por
+   * defecto ni un inicio real vacío al verla en solo lectura.
+   */
+  const adoptarSesion = (sesion: SesionListaItem) => {
+    setSesionId(sesion.id);
+    setEstadoSesion(sesion.estado === 'PAUSADA' ? 'PAUSADA' : 'EN_CURSO');
+    setSimulacionConfig({
+      fecha_inicio_virtual: sesion.fecha_inicio_virtual,
+      hora_inicio_virtual: (sesion.hora_inicio_virtual ?? '08:00').slice(0, 5),
+    });
+    const ms = sesion.created_at ? new Date(sesion.created_at).getTime() : 0;
+    setInicioRealMs(Number.isFinite(ms) ? ms : 0);
+  };
+
   const handleCancelarVuelo = async (id: string, codigo: string) => {
     if (!confirm(`¿Cancelar vuelo ${codigo}?`)) return;
     try {
@@ -392,5 +411,6 @@ export function useSimulacionSesion({
     handleReanudar,
     handleDetener,
     handleCancelarVuelo,
+    adoptarSesion,
   };
 }

@@ -1063,6 +1063,7 @@ function SimulacionView({
     handleReanudar,
     handleDetener,
     handleCancelarVuelo,
+    adoptarSesion,
   } = useSimulacionSesion({ configUmbrales });
 
   // Estado de UI propio de esta vista (paneles, filtros, selección) — no compartido.
@@ -1428,13 +1429,13 @@ function SimulacionView({
                           <Square size={12} className="mr-1" />
                           {finalizandoId === sesionEnCurso.id ? "..." : "Detener"}
                         </Button>
-                        <Button size="sm" onClick={() => { setSesionId(sesionEnCurso.id); setEstadoSesion("EN_CURSO"); }}>
+                        <Button size="sm" onClick={() => adoptarSesion(sesionEnCurso)}>
                           <Play size={12} className="mr-1" />
                           Reanudar
                         </Button>
                       </>
                     ) : (
-                      <Button size="sm" onClick={() => { setSesionId(sesionEnCurso.id); setEstadoSesion("EN_CURSO"); }}>
+                      <Button size="sm" onClick={() => adoptarSesion(sesionEnCurso)}>
                         <Play size={12} className="mr-1" />
                         Unirse
                       </Button>
@@ -1454,6 +1455,10 @@ function SimulacionView({
                         </Button>
                         <Button size="sm" onClick={async () => {
                           setSesionId(sesionPausada.id);
+                          setSimulacionConfig({
+                            fecha_inicio_virtual: sesionPausada.fecha_inicio_virtual,
+                            hora_inicio_virtual: (sesionPausada.hora_inicio_virtual ?? "08:00").slice(0, 5),
+                          });
                           setLoading(true);
                           setError("");
                           try {
@@ -1476,7 +1481,7 @@ function SimulacionView({
                         </Button>
                       </>
                     ) : (
-                      <Button size="sm" onClick={() => { setSesionId(sesionPausada.id); setEstadoSesion("PAUSADA"); }}>
+                      <Button size="sm" onClick={() => adoptarSesion(sesionPausada)}>
                         <Play size={12} className="mr-1" />
                         Unirse
                       </Button>
@@ -1651,6 +1656,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     handleReanudar,
     handleDetener,
     handleCancelarVuelo,
+    adoptarSesion,
   } = useSimulacionSesion({ configUmbrales, tipoSimulacion: "HASTA_COLAPSO" });
 
   // Estado de UI propio de esta vista (paneles, filtros, selección) — no compartido.
@@ -1891,13 +1897,13 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                           <Square size={12} className="mr-1" />
                           {finalizandoId === sesionEnCurso.id ? "..." : "Detener"}
                         </Button>
-                        <Button size="sm" onClick={() => { setSesionId(sesionEnCurso.id); setEstadoSesion("EN_CURSO"); }}>
+                        <Button size="sm" onClick={() => adoptarSesion(sesionEnCurso)}>
                           <Play size={12} className="mr-1" />
                           Reanudar
                         </Button>
                       </>
                     ) : (
-                      <Button size="sm" onClick={() => { setSesionId(sesionEnCurso.id); setEstadoSesion("EN_CURSO"); }}>
+                      <Button size="sm" onClick={() => adoptarSesion(sesionEnCurso)}>
                         <Play size={12} className="mr-1" />
                         Unirse
                       </Button>
@@ -1917,6 +1923,10 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                         </Button>
                         <Button size="sm" onClick={async () => {
                           setSesionId(sesionPausada.id);
+                          setSimulacionConfig({
+                            fecha_inicio_virtual: sesionPausada.fecha_inicio_virtual,
+                            hora_inicio_virtual: (sesionPausada.hora_inicio_virtual ?? "08:00").slice(0, 5),
+                          });
                           setLoading(true);
                           setError("");
                           try {
@@ -1939,7 +1949,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                         </Button>
                       </>
                     ) : (
-                      <Button size="sm" onClick={() => { setSesionId(sesionPausada.id); setEstadoSesion("PAUSADA"); }}>
+                      <Button size="sm" onClick={() => adoptarSesion(sesionPausada)}>
                         <Play size={12} className="mr-1" />
                         Unirse
                       </Button>
