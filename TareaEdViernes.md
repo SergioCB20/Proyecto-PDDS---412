@@ -1295,119 +1295,114 @@ Consistencia en el helper `esPlantillaCaliente` (aunque hoy no se usa en producc
 
 ---
 
-# Anexo: Plan de pruebas de cancelación (conversación posterior)
+# Anexo: Plan de pruebas de cancelación (v2 — refinado con requerimientos del cliente)
 
-## Contexto de la conversación
+## Contexto
 
-Luego de implementar el cambio de umbral, se dialogó sobre cómo probar la cancelación de vuelos según los lineamientos del cliente. A continuación se documentan todos los hallazgos, decisiones y el plan de prueba acordado para retomarlo posteriormente.
+Una cancelación de vuelo es la no disponibilidad de un vuelo concreto, inmediato siguiente a cuando se realizó la cancelación. La regla de negocio para plantillas es:
+
+- Si se cancela **≥ 60 minutos antes** de la salida → **Rama fría**: se cancela la instancia de **hoy**, se replanifican los equipajes afectados.
+- Si se cancela **< 60 minutos antes** de la salida → **Rama caliente**: se cancela la instancia del **día siguiente**, sin replanificación, 0 equipajes afectados.
+
+Tanto backend como frontend ya tienen el umbral corregido (`>= 60` / `< 60`).
 
 ---
 
 ## 1. Mecanismos de cancelación en el sistema
 
-Existen **dos caminos independientes** para cancelar un vuelo:
-
 ### A. Cancelación automática (probabilística — TickService)
-
 - Se ejecuta cada tick (~5s reales) dentro de `TickService.evaluarCancelaciones()`.
-- Evalúa vuelos `PROGRAMADO` cuya salida cae en la siguiente ventana virtual (próximos 10 min virtuales con k=120).
+- Evalúa vuelos `PROGRAMADO` cuya salida cae en la siguiente ventana virtual (próximos 10 min con k=120).
 - Por cada vuelo, lanza `Random.nextDouble() < prob_cancelacion`.
-- Si acierta, llama a `replanificacionService.replanificarEnSesion()`.
 - **No usa el umbral de 1 hora.** Es puramente aleatorio.
-- Se configura con el campo `prob_cancelacion` al crear la sesión (0.0 = desactivado).
+- Se configura con `prob_cancelacion` al crear la sesión (0.0 = desactivado).
 
-### B. Cancelación manual (vía plantillas — SeccionCancelacion)
-
-- Único flujo activo de cancelación manual en la UI.
-- Accesible desde el dock izquierdo de Simulación/Colapso → ícono `XCircle` "Cancelación".
-- Muestra una tabla con todas las plantillas (`es_plantilla = true`).
-- Cada fila tiene un botón: **"Cancelar"** (rojo, rama fría) o **"→ Mañana"** (ámbar, rama caliente).
-- Usa el umbral de 1 hora (`>= 60` frío, `< 60` caliente) — **este es el umbral que se corrigió**.
+### B. Cancelación manual (vía plantillas — SeccionCancelacion) ← **ÚNICO FLUJO ACTIVO**
+- Dock izquierdo Simulación/Colapso → ícono `XCircle` → tabla de plantillas.
+- Cada fila: botón **"Cancelar"** (rojo, rama fría, `≥60 min`) o **"→ Mañana"** (ámbar, rama caliente, `<60 min`).
 - Envía `POST /api/simulacion/cancelacion` con `aplicar_regla_plantilla: true`.
 
-### C. Cancelación directa desde panel de vuelos (código muerto)
-
-- `PanelVuelosOperacion.tsx` acepta la prop `onCancelVuelo` pero **nunca renderiza un botón de cancelar**.
-- Solo renderiza botones "En Mapa" y "Envíos".
-- El callback se pasa desde `page.tsx` y `useSimulacionSesion.ts` pero nunca se ejecuta.
-- **Este camino no se usa en producción.**
+### C. Cancelación directa (código muerto)
+- `PanelVuelosOperacion.tsx` acepta `onCancelVuelo` pero **nunca renderiza botón de cancelar**. No se usa en producción.
 
 ---
 
-## 2. Datos relevantes descubiertos
+## 2. Vuelos plantilla desde Perú/Colombia en ventana 16:00-23:00 UTC
 
-### Vuelos plantilla desde Perú/Colombia en ventana 16:00-23:00 UTC
+| Vuelo | Origen | Destino | Salida UTC | Llegada UTC | Prioridad |
+|---|---|---|---|---|---|
+| **TAS0024** | **SPIM (Lima)** | SKBO (Bogotá) | **18:09** | 20:25 | 🥇 Perú |
+| TAS0208 | **SPIM (Lima)** | SEQM (Quito) | 17:11 | 18:52 | 🥇 Perú |
+| TAS0210 | **SPIM (Lima)** | SEQM (Quito) | 21:09 | 22:50 | 🥇 Perú |
+| TAS0005 | SKBO (Bogotá) | SEQM (Quito) | 19:01 | 19:48 | 🥈 Colombia |
+| TAS0011 | SKBO (Bogotá) | SVMI (Caracas) | 19:18 | 21:41 | 🥈 Colombia |
+| TAS0017 | SKBO (Bogotá) | SBBR (Brasilia) | 20:22 | 02:57+1 | 🥈 Colombia |
+| TAS0023 | SKBO (Bogotá) | SPIM (Lima) | 22:45 | 01:01+1 | 🥈 Colombia |
+| TAS0047 | SKBO (Bogotá) | SGAS (Asunción) | 17:38 | 23:18 | 🥈 Colombia |
+| TAS0033 | SKBO (Bogotá) | SCEL (Santiago) | 19:18 | 02:30+1 | 🥈 Colombia |
 
-| Vuelo | Origen | Destino | Salida UTC | Llegada UTC |
-|---|---|---|---|---|
-| **TAS0024** | SPIM (Lima) | SKBO (Bogotá) | 18:09 | 20:25 |
-| TAS0208 | SPIM (Lima) | SEQM (Quito) | 17:11 | 18:52 |
-| TAS0210 | SPIM (Lima) | SEQM (Quito) | 21:09 | 22:50 |
-| TAS0005 | SKBO (Bogotá) | SEQM (Quito) | 19:01 | 19:48 |
-| TAS0011 | SKBO (Bogotá) | SVMI (Caracas) | 19:18 | 21:41 |
-| TAS0017 | SKBO (Bogotá) | SBBR (Brasilia) | 20:22 | 02:57+1 |
-| TAS0023 | SKBO (Bogotá) | SPIM (Lima) | 22:45 | 01:01+1 |
-| TAS0047 | SKBO (Bogotá) | SGAS (Asunción) | 17:38 | 23:18 |
-| TAS0033 | SKBO (Bogotá) | SCEL (Santiago) | 19:18 | 02:30+1 |
+**Vuelo recomendado:** TAS0024 (SPIM Lima → SKBO Bogotá, 18:09 UTC) — Perú como primera opción, continental Sudamérica.
 
-**Recomendado para prueba:** TAS0024 (Perú → Colombia, origen preferente del cliente, 18:09 UTC).
+---
 
-### Factor de tiempo (k) y progresión virtual
+## 3. Factor de tiempo (k) y duración de la simulación
 
-| k | Minutos virtuales por tick (5s reales) | Duración real aprox. para 5D |
-|---|---|---|
-| 60 | 5 min | ~120 min |
-| **120 (default)** | **10 min** | **~60 min** |
-| 240 | 20 min | ~30 min |
+| k | Min virtuales / tick (5s reales) | Duración real 5D | Adecuado para prueba |
+|---|---|---|---|
+| 60 | 5 min | ~120 min | ✅ Mucho tiempo |
+| **120** (default) | **10 min** | **~60 min** | ✅ Tiempo suficiente |
+| **240** | **20 min** | **~30 min** | ✅ Mínimo aceptable (cliente: "al menos 30 min") |
 
 Fórmula: `virtualMinutos_por_tick = k / 12`
 
-### Creación de equipajes (envíos)
-
-- El endpoint es `POST /api/equipajes` con header `X-Device-Nodo-Id`.
-- **No se puede asignar un vuelo directamente.** El `MotorEnrutamiento` asigna el vuelo óptimo de forma asíncrona según origen/destino.
-- Para que una maleta termine en TAS0024, debe crearse desde Lima (nodo SPIM) con `destino_iata = "SKBO"`.
-- El procesamiento asíncrono toma hasta ~30s (configurable via `sa_segundos`, default 30).
-- Para verificar asignación: `GET /api/equipajes?vuelo_id={vuelo-uuid}` o `GET /api/equipajes/{id}/plan-viaje`.
-- **La UI de creación de equipajes solo está disponible en la vista Operación** (dock "Registro Equipaje"). En la vista Simulación no hay formulario de registro; se puede usar la API directamente o crear los equipajes antes en Operación.
+Se recomienda **k=120** para tener ~60 min reales y poder observar con calma. Si se requiere acortar a ~30 min, usar **k=240**.
 
 ---
 
-## 3. Procedimiento de prueba completo
+## 4. Procedimiento de prueba completo
 
 ### Prerrequisitos
 
-| Ítem | Valor |
-|---|---|
-| Vuelo objetivo | TAS0024 (SPIM Lima → SKBO Bogotá, 18:09 UTC) |
-| k | 120 (default) |
-| prob_cancelacion | 0.0 (solo manual) |
-| Sesión inicia | 2026-07-15 02:00 UTC |
-| Operador | operador@tasfb2b.com (nodo: SPIM/Lima) |
+| Ítem | Valor | Nota |
+|---|---|---|
+| Vuelo objetivo | **TAS0024** (SPIM→SKBO, 18:09 UTC) | Primera opción: Perú |
+| k | **120** (default) | ~60 min reales para 5D |
+| `prob_cancelacion` | **0.0** | Solo cancelación manual |
+| Sesión inicia | **2026-07-15 02:00 UTC** | ~16h antes de TAS0024 |
+| Nodo para equipajes | **SPIM (Lima)** | Mismo origen que el vuelo |
+| Destino equipajes | **SKBO (Bogotá)** | Mismo destino que el vuelo |
 
 ### Timeline estimado (k=120)
 
 | Tiempo real | Tiempo virtual | Acción |
 |---|---|---|
-| T+0:00 | 02:00 | Crear sesión e iniciar |
-| T+1:00 | ~14:00 | Crear ≥2 equipajes SPIM→SKBO vía API o UI Operación |
-| T+1:30 | ~15:00 | Esperar ruteo asíncrono (~30s) |
-| T+2:00 | ~16:00 | Verificar equipajes asignados a TAS0024 |
-| T+7:30 | ~17:09 | **Cancelar TAS0024** (60 min antes → rama fría) |
-| T+8:00 | ~17:30 | Verificar modal verde "Cancelación aplicada al vuelo de hoy" |
-| T+8:30+ | ~18:09+ | Verificar TAS0024 no despega + equipajes re-enrutados |
+| T+0:00 | 02:00 | Crear sesión e **iniciar** |
+| T+0:00–48:00 | 02:00–14:00 | Avance rápido (~10min/tick) |
+| T+**~48min** | **~14:00** | ⏸️ **PAUSAR** simulación |
+| T+~48min | ~14:00 | Crear **≥2 equipajes** SPIM→SKBO (de distintos envíos) |
+| T+~49min | ~14:00 | ▶️ **Reanudar**, esperar ruteo asíncrono (~30s reales) |
+| T+~52min | ~15:00 | **Verificar** asignación a TAS0024 |
+| T+~60min | **~17:09** | ⏸️ **PAUSAR** y cancelar TAS0024 (60min antes → frío ✅) |
+| T+~60min | ~17:09 | Verificar modal verde con equipajes afectados |
+| T+~62min | ~17:30 | ▶️ Reanudar, esperar replanificación |
+| T+~63min | ~17:40 | ✅ **Acción 5b**: verificar equipajes reasignados (panel Envíos) |
+| T+~65min | **~18:09+** | ✅ **Acción 5a**: verificar TAS0024 NO despega (mapa + panel) |
+| T+~70min | ~19:00+ | Opcional: descargar PDF del lote de replanificación |
 
 ### Paso a paso detallado
 
-#### Fase 0: Identificar el vuelo
+#### Fase 0: Identificar el vuelo en el sistema
 ```bash
-# Listar aeropuertos
+# 0.1 Listar nodos/aeropuertos
 GET /api/nodos
-# Buscar plantilla TAS0024
+# Buscar SPIM (Lima) y anotar su UUID
+
+# 0.2 Buscar plantilla TAS0024
 GET /api/vuelos?es_plantilla=true&size=500
+# Filtrar TAS0024, anotar su UUID y hora_salida (18:09 UTC)
 ```
 
-#### Fase 1: Iniciar simulación
+#### Fase 1: Crear e iniciar sesión de simulación
 ```json
 POST /api/sesiones
 {
@@ -1424,83 +1419,130 @@ POST /api/sesiones
 POST /api/sesiones/{sesion_id}/iniciar
 ```
 
-#### Fase 2: Crear equipajes
+#### Fase 2: Crear equipajes (≥2 de DISTINTOS envíos)
 ```bash
+# Envío 1
 POST /api/equipajes
 Headers: { "X-Device-Nodo-Id": "<uuid-de-SPIM>" }
 Body: { "destino_iata": "SKBO", "cantidad": 1 }
-# Repetir 2-3 veces
-```
 
-#### Fase 3: Verificar asignación
+# Envío 2 (repetir para tener un segundo envío independiente)
+POST /api/equipajes
+Headers: { "X-Device-Nodo-Id": "<uuid-de-SPIM>" }
+Body: { "destino_iata": "SKBO", "cantidad": 1 }
+```
+> **Importante:** Crear los equipajes como **envíos separados** (2 llamadas distintas) para tener IDs y seguimiento independientes. Pausar la simulación antes de crearlos.
+
+#### Fase 3: Verificar asignación a TAS0024
 ```bash
 GET /api/equipajes?vuelo_id=<uuid-de-TAS0024>
-# Debe devolver los equipajes con estado ENRUTADO
+# Debe devolver los equipajes creados con estado ENRUTADO
 ```
+> En UI: Panel Envíos → pestaña "Planificados" muestra cada maleta con el código del vuelo asignado.
 
-#### Fase 4: Cancelar
-- En Simulación, dock izquierdo → ícono Cancelación (XCircle)
-- Buscar TAS0024 en la tabla
-- Verificar botón: si ≥60 min antes → "Cancelar" (rojo); si <60 min → "→ Mañana" (ámbar)
-- Hacer clic
-- Verificar modal de resultado
+#### Fase 4: Cancelar TAS0024 (cuando el reloj virtual marque ~17:09)
+1. ⏸️ Pausar la simulación
+2. En Simulación, dock izquierdo → ícono Cancelación (XCircle)
+3. Buscar **TAS0024** en la tabla
+4. **Verificar botón**: debe mostrar **"Cancelar"** (rojo) — estamos a 60min exactos, rama fría
+5. Hacer clic
+6. **Verificar modal de resultado**:
+   - Título verde: "Cancelación aplicada al vuelo de hoy"
+   - `equipajes_afectados` > 0 (deben ser los 2+ creados)
+   - Aparece botón "Descargar PDF" (lote de replanificación)
 
-#### Fase 5: Verificar post-cancelación
-- TAS0024 debe estar CANCELADO en el mapa
-- Equipajes deben tener nuevo `vuelo_actual_id` (consultar plan-viaje)
-- (Opcional) Descargar PDF del lote: `GET /sesiones/{id}/replanificaciones/{lote_id}/pdf`
+#### Fase 5: Verificación post-cancelación (OBLIGATORIO: ambas acciones)
 
-### Block de notas template (para usar durante la prueba)
+> **Orden flexible** según conveniencia de la simulación, pero **ambas deben ejecutarse sí o sí**.
+
+##### Acción 5a — Verificar que TAS0024 NO despega
+- ▶️ Reanudar la simulación
+- Avanzar hasta que el reloj virtual supere las **18:09**
+- Observar en el mapa: el avión de TAS0024 **no debe moverse** de SPIM (Lima)
+- En el panel de vuelos: estado debe ser **`CANCELADO`**
+- Confirmar que ningún vuelo con código TAS0024 está en `EN_RUTA`
+
+##### Acción 5b — Verificar que los equipajes fueron reasignados
+- Panel Envíos → pestaña "Planificados"
+- Cada maleta debe mostrar un **código de vuelo DIFERENTE** a TAS0024
+- Opcional: consultar plan de viaje individual:
+  ```bash
+  GET /api/equipajes/{id}/plan-viaje
+  # Debe mostrar un nuevo segmento con vuelo distinto
+  ```
+- Opcional: descargar PDF del lote:
+  ```bash
+  GET /api/sesiones/{sesion_id}/replanificaciones/{lote_id}/pdf
+  ```
+
+### Block de notas template
 
 ```
-=== FASE 0 ===
-Vuelo: _____________ | Ruta: _____________ → _____________
-Hora salida: _____________ UTC | UUID: _____________
+=== FASE 0: IDENTIFICAR VUELO ===
+Vuelo objetivo: _____________ (ej: TAS0024)
+Ruta: _____________ → _____________ (ej: SPIM → SKBO)
+Hora salida UTC: _____________ (ej: 18:09)
+UUID del vuelo: _____________
+UUID del nodo SPIM: _____________
 
-=== FASE 1 ===
+=== FASE 1: CREAR SESIÓN ===
 Sesion ID: _____________
-Inicio virtual: _____________
-k: _____________ | prob_cancelacion: _____________
+Inicio virtual: 2026-07-15 02:00
+k: _____________ (120)
+prob_cancelacion: _____________ (0.0)
 
-=== FASE 2 ===
-Eq1 ID: _____________ | Código: _____________ | Cant: _____
-Eq2 ID: _____________ | Código: _____________ | Cant: _____
+=== FASE 2: CREAR EQUIPAJES ===
+Envío 1 - ID: _____________ | Código: _____________ | Cant: _____
+Envío 2 - ID: _____________ | Código: _____________ | Cant: _____
 
-=== FASE 3 ===
-Eq1 asignado a: _____________
-Eq2 asignado a: _____________
+=== FASE 3: VERIFICAR ASIGNACIÓN ===
+Hora virtual al verificar: _____________
+¿Eq1 asignado a TAS0024? [Sí / No]
+¿Eq2 asignado a TAS0024? [Sí / No]
 
-=== FASE 4 ===
-Hora virtual al cancelar: _____________
-minutosHastaSalida: _____________
-Rama: [FRÍA / CALIENTE]
+=== FASE 4: CANCELAR ===
+Hora virtual al pausar: _____________
+minutosHastaSalida: _____________ (>60 → frío)
 Botón mostrado: [Cancelar / → Mañana]
-Modal título: ____________________________________
-Equipajes afectados: _____________
-Lote ID: _____________
+Modal - Título: ____________________________________
+Modal - Color: [Verde / Ámbar]
+Equipajes afectados: _____
+Lote replan ID: _____________
+PDF descargado?: [Sí / No]
 
-=== FASE 5 ===
-Vuelo cancelado despegó: [Sí / No]
-Eq1 nuevo vuelo: _____________
-Eq2 nuevo vuelo: _____________
-PDF descargado: [Sí / No]
+=== FASE 5a: VUELO NO DESPEGA ===
+Hora virtual ~18:09: TAS0024 despegó? [Sí / No]
+Estado en panel de vuelos: [CANCELADO / EN_RUTA / PROGRAMADO]
+Avión visible en mapa en SPIM?: [Sí / No]
+
+=== FASE 5b: EQUIPAJES REASIGNADOS ===
+Nuevo vuelo de Eq1: _____________
+Nuevo vuelo de Eq2: _____________
+¿Eq1 y Eq2 están en vuelos diferentes a TAS0024? [Sí / No]
+Plan de viaje consultado?: [Sí / No]
 ```
-
-### Prueba de rama caliente (opcional)
-
-Repetir el mismo procedimiento pero esperar a que el reloj virtual esté dentro de la ventana <60 min antes de la salida (virtual entre 17:10 y 18:09, o después de 18:09). En ese caso:
-- El botón debe mostrar "→ Mañana" (ámbar)
-- El modal debe ser ámbar: "Cancelación diferida al día siguiente"
-- 0 equipajes afectados
-- La instancia de hoy de TAS0024 debe despegar normalmente
-- La instancia de mañana debe aparecer CANCELADA
 
 ---
 
-## 4. Pendientes y observaciones
+## 5. Prueba de rama caliente (opcional)
 
-- **`onCancelVuelo` en `PanelVuelosOperacion`:** Es código muerto — la prop existe pero nunca se renderiza ningún botón. Si el cliente quiere cancelar desde el panel de vuelos (no solo desde plantillas), habría que implementar ese botón.
-- **Creación de equipajes en Simulación:** No hay UI de registro en la vista de simulación. Solo está en Operación. Para flujos 100% dentro de simulación, se requiere usar la API directamente o agregar el formulario en Simulación.
-- **Verificación visual en el mapa:** La confirmación de que un vuelo "no despega" es visual (observar que el avión no se mueve del aeropuerto origen). No hay un indicador programático para esto más allá del estado CANCELADO.
-- **Tiempo de la simulación:** Con k=120 la simulación 5D dura ~60 min reales. Si se quiere acortar a ~30 min, usar k=240. El cliente sugiere "al menos 30 minutos" para poder observar con calma.
-- **Prueba de humo rápida:** Para validar el cambio de umbral sin toda la simulación, se puede crear una sesión con fecha_inicio_virtual = 2026-07-15T17:00 (justo antes de las 18:09 de TAS0024) y cancelar inmediatamente. Con eso se cae en rama fría por 9 minutos de margen.
+Repetir el procedimiento pero esperar a que el reloj virtual esté dentro de la ventana **<60 min** antes de la salida (virtual entre **17:10 y 18:09**, o después de 18:09):
+
+- El botón debe mostrar **"→ Mañana"** (ámbar)
+- Modal ámbar: "Cancelación diferida al día siguiente"
+- **0 equipajes afectados**
+- La instancia de **hoy** de TAS0024 despega normalmente
+- La instancia de **mañana** aparece CANCELADA
+
+---
+
+## 6. Notas técnicas importantes
+
+| Aspecto | Detalle |
+|---|---|
+| Creación de equipajes | Solo hay UI en **Operación** (dock "Registro Equipaje"). En Simulación no hay formulario; usar API directamente. |
+| Verificación visual | Confirmar que un vuelo "no despega" es visual (avión no se mueve). No hay indicador programático adicional. |
+| Ruteo asíncrono | El `MotorEnrutamiento` tarda hasta ~30s (configurable, `sa_segundos`). Esperar después de crear equipajes. |
+| k=240 | Para acortar a ~30 min en lugar de ~60 min. Cada tick = 20 min virtuales. |
+| Prueba de humo rápida | Crear sesión con `fecha_inicio_virtual=2026-07-15T17:00` y cancelar inmediatamente TAS0024. Caería en rama fría por 69 min de margen. |
+| Código muerto | `onCancelVuelo` en `PanelVuelosOperacion` nunca se renderiza. Si se necesita cancelar desde panel de vuelos, implementar botón. |
