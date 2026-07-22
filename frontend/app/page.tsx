@@ -1387,7 +1387,7 @@ function SimulacionView({
             <PanelFlotante
               title="Cancelación (plantillas)"
               onClose={() => toggleDock('cancelacion')}
-              className="w-[30rem] shrink-0 pointer-events-auto"
+              className="w-[40rem] shrink-0 pointer-events-auto"
             >
               {sesionId && plantillas.length > 0 ? (
                 <SeccionCancelacion
@@ -2162,7 +2162,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
             <PanelFlotante
               title="Cancelación (plantillas)"
               onClose={() => toggleDock('cancelacion')}
-              className="w-[30rem] shrink-0 pointer-events-auto"
+              className="w-[40rem] shrink-0 pointer-events-auto"
             >
               {sesionId && plantillas.length > 0 ? (
                 <SeccionCancelacion

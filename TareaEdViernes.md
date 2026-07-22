@@ -2244,5 +2244,43 @@ El panel flotante de cancelaciones solo cargaba los primeros 500 vuelos plantill
 - Abrir panel de cancelaciones en una sesion con >500 plantillas.
 - Buscar un vuelo con ID/codigo mayor a 500 → debe aparecer en resultados.
 - Filtrar por estado → todos los vuelos deben estar disponibles.
-- Cancelar un vuelo mas alla del 500 → debe funcionar correctamente.
+  - Cancelar un vuelo mas alla del 500 → debe funcionar correctamente.
+- TypeScript compila sin errores nuevos.
+
+---
+
+# Tarea: ANCHO PANEL CANCELACION - Aumentar ancho del panel flotante de cancelaciones
+
+## Descripcion
+
+El panel de cancelaciones tenia un ancho fijo de `30rem` (480px) que no era suficiente para las 6 columnas de la tabla (Codigo, Ruta, Salida, Llegada, Estado, Accion), provocando scroll horizontal para llegar al boton "Cancelar".
+
+## Archivo modificado
+
+`frontend/app/page.tsx` — lineas 1390 y 2165
+
+## Cambio realizado
+
+```typescript
+// Antes:
+className="w-[30rem] shrink-0 pointer-events-auto"
+
+// Despues:
+className="w-[40rem] shrink-0 pointer-events-auto"
+```
+
+Afecta a las dos instancias del panel: `SimulacionView` (linea 1390) y `ColapsoView` (linea 2165).
+
+## Sin cambios en
+
+- `SeccionCancelacion.tsx` (no se toco la tabla ni el contenido)
+- `PanelFlotante.tsx` (sigue siendo generico)
+- Otros paneles flotantes (ninguno se vio afectado)
+
+## Verificacion
+
+- Abrir panel de cancelaciones.
+- Todas las columnas deben ser visibles sin scroll horizontal.
+- El boton "Cancelar" / "→ Mañana" debe verse completo en la ultima columna.
+- La tabla debe seguir siendo funcional (busqueda, filtros, cancelacion).
 - TypeScript compila sin errores nuevos.
