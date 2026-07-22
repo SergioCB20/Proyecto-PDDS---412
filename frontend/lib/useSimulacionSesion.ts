@@ -208,8 +208,8 @@ export function useSimulacionSesion({
           if (!sesionIdRef.current || sesionIdRef.current !== targetSesionId)
             return;
           setMetricasPoll(m);
-          if (m.estado === 'COLAPSADA') {
-            setEstadoSesion('COLAPSADA');
+          if (m.estado === 'COLAPSADA' || m.estado === 'FINALIZADA') {
+            setEstadoSesion(m.estado);
             fetchReportConReintentos(targetSesionId);
           }
         })
