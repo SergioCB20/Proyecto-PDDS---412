@@ -83,7 +83,7 @@ public class TelemetriaService {
         LocalDate desdeFecha = fechaActual.minusDays(1);
         LocalDate hastaFecha = fechaActual.plusDays(1);
         OffsetDateTime hasta = virtual.plusHours(VENTANA_TELEMETRIA_HORAS);
-        List<Vuelo> vuelos = vueloRepository.findTelemetriaVuelos(desdeFecha, hastaFecha, hasta);
+        List<Vuelo> vuelos = vueloRepository.findTelemetriaVuelos(desdeFecha, hastaFecha, virtual, hasta);
         return buildTelemetryJson(sesion, nodos, vuelos);
     }
 

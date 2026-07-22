@@ -194,7 +194,7 @@ public class TickService {
         java.time.LocalDate desdeFecha = fechaActual.minusDays(1);
         java.time.LocalDate hastaFecha = fechaActual.plusDays(1);
         OffsetDateTime ventanaTelemetria = virtualActual.plusHours(TelemetriaService.VENTANA_TELEMETRIA_HORAS);
-        List<Vuelo> vuelos = vueloRepository.findTelemetriaVuelos(desdeFecha, hastaFecha, ventanaTelemetria);
+        List<Vuelo> vuelos = vueloRepository.findTelemetriaVuelos(desdeFecha, hastaFecha, virtualActual, ventanaTelemetria);
 
         // Colapso por saturación de almacén (umbral rojo de nodo, cualquier tipo de sesión) o
         // por incumplimiento del primer SLA (solo HASTA_COLAPSO). Ambas son causas que impiden
@@ -414,8 +414,8 @@ public class TickService {
             saliendo = new ArrayList<>(page.getContent());
             saliendo.sort(Comparator.comparing(Vuelo::getHoraSalida, Comparator.nullsLast(Comparator.naturalOrder())));
         } else {
-            saliendo = vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaBetween(
-                    EstadoVuelo.PROGRAMADO, false, virtualAntes, virtual);
+            saliendo = vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaLessThanEqual(
+                    EstadoVuelo.PROGRAMADO, false, virtual);
         }
 
         if (saliendo.isEmpty()) return 0;
