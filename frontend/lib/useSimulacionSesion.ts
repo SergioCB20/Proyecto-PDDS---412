@@ -150,7 +150,7 @@ export function useSimulacionSesion({
       return;
     }
     api
-      .get<VueloPageResponse>('/vuelos?es_plantilla=true&size=500')
+      .get<VueloPageResponse>('/vuelos?es_plantilla=true&size=100000')
       .then((r) => {
         setPlantillas(
           r.content.map((v) => ({

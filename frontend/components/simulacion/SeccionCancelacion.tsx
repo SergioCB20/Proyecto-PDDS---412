@@ -63,6 +63,7 @@ export function SeccionCancelacion({
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resultado, setResultado] = useState<ResultadoCancelacion | null>(null);
+  const [cancelledIds, setCancelledIds] = useState<Set<string>>(new Set());
   const [busqueda, setBusqueda] = useState("");
   const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>("");
 
@@ -103,14 +104,17 @@ export function SeccionCancelacion({
       const r: ResultadoCancelacion = {
         vuelo_solicitado_id: p.id,
         vuelo_cancelado_id: res.vuelo_id,
+        codigo_vuelo: p.codigo_vuelo,
         fue_diferido: fueDiferido,
         fecha_operacion_cancelada: res.fecha_operacion ?? null,
         hora_salida_cancelada: res.hora_salida_cancelada ?? null,
         estado_nuevo: res.estado_nuevo,
         equipajes_afectados: res.equipajes_afectados,
         lote_replanificacion_id: res.lote_replanificacion_id,
+        equipajes: res.equipajes ?? [],
       };
       setResultado(r);
+      setCancelledIds(prev => new Set(prev).add(p.id));
       onCancelado?.(r);
     } catch (err) {
       const e = err as { mensaje?: string; message?: string };
@@ -219,7 +223,7 @@ export function SeccionCancelacion({
                 {plantillasFiltradas.map((p) => {
                   const min = minutosHastaSalida(p);
                   const caliente = min !== null && min < 60;
-                  const deshabilitado = loadingId === p.id || !momentoVirtual;
+                  const deshabilitado = loadingId === p.id || !momentoVirtual || cancelledIds.has(p.id);
                   return (
                     <tr
                       key={p.id}
@@ -317,7 +321,7 @@ export function SeccionCancelacion({
                 {resultado.fue_diferido ? (
                   <>
                     <p className="font-semibold text-amber-900 dark:text-amber-200">
-                      El vuelo de hoy está demasiado próximo a su salida.
+                      Vuelo {resultado.codigo_vuelo} — el vuelo de hoy está demasiado próximo a su salida.
                     </p>
                     <p className="text-amber-800 dark:text-amber-300">
                       Se canceló la instancia del{" "}
@@ -337,7 +341,7 @@ export function SeccionCancelacion({
                 ) : (
                   <>
                     <p className="font-semibold text-green-900 dark:text-green-200">
-                      Vuelo de hoy cancelado y replanificado.
+                      Vuelo {resultado.codigo_vuelo} cancelado y replanificado.
                     </p>
                     <p className="text-green-800 dark:text-green-300">
                       {resultado.equipajes_afectados} equipaje
@@ -353,6 +357,22 @@ export function SeccionCancelacion({
                 )}
               </div>
             </div>
+
+            {resultado.equipajes.length > 0 && (
+              <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                <div className="px-3 py-2 bg-slate-50 dark:bg-slate-800/50 text-xs font-semibold text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
+                  Equipajes re-enrutados ({resultado.equipajes.length})
+                </div>
+                <div className="max-h-40 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700/50">
+                  {resultado.equipajes.map((eq) => (
+                    <div key={eq.id} className="flex items-center justify-between px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300">
+                      <span className="font-mono font-medium">{eq.codigo}</span>
+                      <span className="text-slate-500">{eq.origen_iata} → {eq.destino_iata}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </Modal>

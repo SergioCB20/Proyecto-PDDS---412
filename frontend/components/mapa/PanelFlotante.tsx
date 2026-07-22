@@ -1,6 +1,6 @@
 'use client';
 
-import { X } from 'lucide-react';
+import { Minus, Plus, X } from 'lucide-react';
 import { useState, useRef, useLayoutEffect, useEffect } from 'react';
 import type { ReactNode } from 'react';
 
@@ -21,6 +21,7 @@ export default function PanelFlotante({
   const headerRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: 0, top: 0 });
   const [dragging, setDragging] = useState(false);
+  const [minimized, setMinimized] = useState(false);
   const dragOffset = useRef({ x: 0, y: 0 });
 
   useLayoutEffect(() => {
@@ -78,14 +79,24 @@ export default function PanelFlotante({
         <h3 className="font-semibold text-sm text-slate-900 dark:text-slate-100 truncate">
           {title}
         </h3>
-        <button
-          onClick={onClose}
-          className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-600"
-        >
-          <X size={16} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setMinimized(!minimized)}
+            className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-600"
+          >
+            {minimized ? <Plus size={16} /> : <Minus size={16} />}
+          </button>
+          <button
+            onClick={onClose}
+            className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-600"
+          >
+            <X size={16} />
+          </button>
+        </div>
       </div>
-      <div className="flex-1 overflow-y-auto pointer-events-auto">{children}</div>
+      {!minimized && (
+        <div className="flex-1 overflow-y-auto pointer-events-auto">{children}</div>
+      )}
     </div>
   );
 }

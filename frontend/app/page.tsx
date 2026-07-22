@@ -47,6 +47,7 @@ import { PanelEnviosMaletas } from "@/components/shared/PanelEnviosMaletas";
 import { ModalEnvios, type SelectedEnvioConsolidado } from "@/components/shared/ModalEnvios";
 import { PanelReporte } from "@/components/simulacion/PanelReporte";
 import { SeccionCancelacion } from "@/components/simulacion/SeccionCancelacion";
+import { RegistroCancelaciones } from "@/components/simulacion/RegistroCancelaciones";
 import { RegistroEquipajePanel } from "@/components/simulacion/RegistroEquipajePanel";
 import { SimulacionLoadingOverlay } from "@/components/simulacion/SimulacionLoadingOverlay";
 import { PanelTabs } from "@/components/shared/PanelTabs";
@@ -75,6 +76,7 @@ import type {
   CargaMasivaConfirmResponse,
   ReporteOperacion,
   RutaDestacada,
+  ResultadoCancelacion,
   SegmentoResponse,
 } from "@/lib/types";
 
@@ -224,6 +226,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   }, []);
   const k = 1;
   const animacionActiva =
+    estadoSesion !== 'PAUSADA' &&
     wsConnected &&
     (telemetria?.vuelos?.some((v) => v.estado === "EN_RUTA") ?? false);
 
@@ -1075,6 +1078,8 @@ function SimulacionView({
     adoptarSesion,
   } = useSimulacionSesion({ configUmbrales });
 
+  const [historialCancelSim, setHistorialCancelSim] = useState<ResultadoCancelacion[]>([]);
+
   // Estado de UI propio de esta vista (paneles, filtros, selección) — no compartido.
   const [dockAbiertas, setDockAbiertas] = useState<Set<string>>(new Set());
   const [dockCollapsed, setDockCollapsed] = useState(false);
@@ -1151,7 +1156,7 @@ function SimulacionView({
 
   const k = useMemo(() => telemetria?.metricas_sesion?.k ?? 120, [telemetria]);
   const animacionActiva =
-    wsConnected && (vuelosMapa.some((v) => v.estado === "EN_RUTA") ?? false);
+    estadoSesion !== 'PAUSADA' && wsConnected && (vuelosMapa.some((v) => v.estado === "EN_RUTA") ?? false);
 
   const ocupacionGlobal = useMemo(() => {
     const sumOcup = aeropuertosMapa.reduce((s, a) => s + (a.ocupacion_actual || 0), 0);
@@ -1287,6 +1292,7 @@ function SimulacionView({
               { id: 'aeropuertos', icon: Warehouse, label: 'Aeropuertos' },
               { id: 'vuelos', icon: Plane, label: 'Vuelos' },
               { id: 'cancelacion', icon: XCircle, label: 'Cancelación' },
+              { id: 'cancel_log', icon: AlertTriangle, label: 'Cancelaciones' },
               { id: 'registro', icon: Package, label: 'Registro Equipaje' },
               { id: 'envios', icon: Luggage, label: 'Envíos' },
               { id: 'sesion', icon: Settings, label: 'Sesión' },
@@ -1386,17 +1392,27 @@ function SimulacionView({
             <PanelFlotante
               title="Cancelación (plantillas)"
               onClose={() => toggleDock('cancelacion')}
-              className="w-[30rem] shrink-0 pointer-events-auto"
+              className="w-[40rem] shrink-0 pointer-events-auto"
             >
               {sesionId && plantillas.length > 0 ? (
                 <SeccionCancelacion
                   plantillas={plantillas}
                   sesionId={sesionId}
                   momentoVirtual={metricas?.dia_hora_virtual ?? null}
+                  onCancelado={(r) => setHistorialCancelSim(prev => [...prev, r])}
                 />
               ) : (
                 <p className="text-xs text-slate-600 p-4">Sin plantillas disponibles</p>
               )}
+            </PanelFlotante>
+          )}
+          {dockAbiertas.has('cancel_log') && (
+            <PanelFlotante
+              title="Registro de cancelaciones"
+              onClose={() => toggleDock('cancel_log')}
+              className="w-[30rem] shrink-0 pointer-events-auto"
+            >
+              <RegistroCancelaciones cancelaciones={historialCancelSim} />
             </PanelFlotante>
           )}
           {dockAbiertas.has('registro') && (
@@ -1690,6 +1706,8 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     adoptarSesion,
   } = useSimulacionSesion({ configUmbrales, tipoSimulacion: "HASTA_COLAPSO" });
 
+  const [historialCancelCol, setHistorialCancelCol] = useState<ResultadoCancelacion[]>([]);
+
   // Estado de UI propio de esta vista (paneles, filtros, selección) — no compartido.
   const [dockAbiertas, setDockAbiertas] = useState<Set<string>>(new Set());
   const [dockCollapsed, setDockCollapsed] = useState(false);
@@ -1783,7 +1801,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
 
   const k = useMemo(() => telemetria?.metricas_sesion?.k ?? 120, [telemetria]);
   const animacionActiva =
-    wsConnected && (vuelosMapa.some((v) => v.estado === "EN_RUTA") ?? false);
+    estadoSesion !== 'PAUSADA' && wsConnected && (vuelosMapa.some((v) => v.estado === "EN_RUTA") ?? false);
 
   const toggleDock = useCallback((id: string) => {
     if (id === 'metricas') { setMetricaVisibleCol((v) => !v); return; }
@@ -1897,6 +1915,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               { id: 'sesion', icon: Settings, label: 'Sesión' },
               { id: 'vuelos', icon: Plane, label: 'Vuelos' },
               { id: 'cancelacion', icon: XCircle, label: 'Cancelación' },
+              { id: 'cancel_log', icon: AlertTriangle, label: 'Cancelaciones' },
               { id: 'reportes', icon: FileText, label: 'Reportes' },
               { id: 'metricas', icon: BarChart3, label: 'Métricas' },
               { id: 'reloj', icon: Clock, label: 'Reloj' },
@@ -2161,17 +2180,28 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
             <PanelFlotante
               title="Cancelación (plantillas)"
               onClose={() => toggleDock('cancelacion')}
-              className="w-[30rem] shrink-0 pointer-events-auto"
+              className="w-[40rem] shrink-0 pointer-events-auto"
             >
               {sesionId && plantillas.length > 0 ? (
                 <SeccionCancelacion
                   plantillas={plantillas}
                   sesionId={sesionId}
                   momentoVirtual={metricas?.dia_hora_virtual ?? null}
+                  onCancelado={(r) => setHistorialCancelCol(prev => [...prev, r])}
                 />
               ) : (
                 <p className="text-xs text-slate-600 p-4">Sin plantillas disponibles</p>
               )}
+            </PanelFlotante>
+          )}
+
+          {dockAbiertas.has('cancel_log') && (
+            <PanelFlotante
+              title="Registro de cancelaciones"
+              onClose={() => toggleDock('cancel_log')}
+              className="w-[30rem] shrink-0 pointer-events-auto"
+            >
+              <RegistroCancelaciones cancelaciones={historialCancelCol} />
             </PanelFlotante>
           )}
 

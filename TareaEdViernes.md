@@ -2095,3 +2095,282 @@ El bug era exclusivamente del frontend: `useTelemetria(false)` destruia los dato
 - El tiempo virtual debe quedar congelado en el mismo valor.
 - Hacer clic en **"Reanudar"** → los aviones deben continuar desde donde se congelaron.
 - TypeScript compila sin errores nuevos.
+
+---
+
+# Tarea: MINIMIZAR PANELES FLOTANTES - Agregar boton minimizar (-/+) a todos los paneles flotantes
+
+## Descripcion
+
+Agregar un boton de minimizar/restaurar (`-` / `+`) a todos los paneles flotantes, al lado del boton de cerrar (`X`). Al minimizar, el panel se colapsa mostrando solo el header (titulo + botones), ocultando el contenido.
+
+## Archivo modificado
+
+`frontend/components/mapa/PanelFlotante.tsx`
+
+## Cambios realizados
+
+| Linea | Cambio |
+|---|---|
+| 3 | Import `Minus` y `Plus` de `lucide-react` |
+| 24 | Nuevo estado `const [minimized, setMinimized] = useState(false)` |
+| 82-95 | Nuevo `div` contenedor con boton minimizar (`-`) y boton cerrar (`X`) |
+| 87 | Icono condicional: `Minus` cuando expandido, `Plus` cuando minimizado |
+| 97-99 | Children envuelto en `{!minimized && (...)}` para ocultar contenido al minimizar |
+
+## Comportamiento
+
+| Estado | Header muestra | Contenido |
+|---|---|---|
+| Expandido | `Titulo` `-` `X` | Visible |
+| Minimizado | `Titulo` `+` `X` | Oculto |
+
+## Sin cambios en
+
+- Ningun otro archivo del frontend
+- Backend
+- Tipos
+- API
+- Logica de arrastre (drag)
+
+## Verificacion
+
+- Abrir cualquier panel flotante (vuelos, cancelaciones, envios, reportes, etc.).
+- Debe mostrar boton `-` al lado de la `X`.
+- Hacer clic en `-` → el panel se minimiza, solo queda el header con el boton `+`.
+- Hacer clic en `+` → el panel se expande mostrando el contenido completo.
+- El boton `X` debe seguir cerrando el panel normalmente.
+- TypeScript compila sin errores nuevos.
+
+---
+
+# Tarea: FIX PAUSA ANIMACION - Congelar aviones al pausar la simulacion
+
+## Descripcion
+
+Al pausar la simulacion, los aviones seguian moviendose en el mapa y eventualmente desaparecian. Este fix desactiva la animacion de vuelo durante el estado `PAUSADA`.
+
+## Causa raiz
+
+El fix anterior mantenia `wsConnected = true` durante `PAUSADA` (necesario para preservar datos), pero esto provocaba que `animacionActiva` tambien fuera `true`, activando el bucle `requestAnimationFrame` en `AvionAnimado.tsx`.
+
+En `AvionAnimado.tsx:327-331`, la extrapolacion continua:
+```javascript
+target = ref.progreso + velocity * (now - ref.lastTickTime)
+```
+
+Sin nuevos ticks del servidor durante la pausa, `elapsed` crece indefinidamente → el avion avanza solo hasta destino y desaparece del mapa.
+
+## Archivo modificado
+
+`frontend/app/page.tsx` — 3 lineas, una por cada vista.
+
+## Cambios realizados
+
+| Linea | Vista | Antes | Despues |
+|---|---|---|---|
+| 226 | OperacionView | `wsConnected && vuelos.some(EN_RUTA)` | `estadoSesion !== 'PAUSADA' && wsConnected && ...` |
+| 1153 | SimulacionView | `wsConnected && vuelosMapa.some(EN_RUTA)` | `estadoSesion !== 'PAUSADA' && wsConnected && ...` |
+| 1785 | ColapsoView | `wsConnected && vuelosMapa.some(EN_RUTA)` | `estadoSesion !== 'PAUSADA' && wsConnected && ...` |
+
+## Comportamiento corregido
+
+Cuando `animacionActiva = false` (PAUSADA), `AvionAnimado.tsx:274` ejecuta la rama estatica:
+```javascript
+if (!animacionActiva || vuelo.estado !== 'EN_RUTA') {
+  const t = Math.min(Math.max(flightRef.current.progreso, 0), 1);
+  // renderiza en posicion estatica congelada
+  return; // sin rAF loop
+}
+```
+
+El avion se renderiza en la ultima posicion conocida (congelada) sin animacion.
+
+## Fix completo de pausa (4 cambios en total)
+
+| # | Archivo | Que hace |
+|---|---|---|
+| 1 | `useSimulacionSesion.ts:111` | WebSocket activo durante PAUSADA |
+| 2 | `useMapaData.ts:84-87` | `enVivo` = true durante PAUSADA |
+| 3 | `page.tsx:197-198` | WebSocket activo durante PAUSADA (Operacion) |
+| 4 | `page.tsx:226, 1153, 1785` | `animacionActiva = false` durante PAUSADA |
+
+## Verificacion
+
+- Iniciar simulacion, esperar aviones en ruta.
+- Hacer clic en **"Pausa"**:
+  - Aviones deben **congelarse** en su posicion actual (no moverse ni desaparecer).
+  - Datos de vuelos y equipaje deben seguir visibles en los paneles.
+  - Tiempo virtual debe congelarse.
+- Hacer clic en **"Reanudar"**:
+  - Aviones deben continuar desde donde se congelaron.
+  - Datos deben seguir visibles y actualizarse.
+- TypeScript compila sin errores nuevos.
+
+---
+
+# Tarea: PLANTILLAS SIN LIMITE - Eliminar el tope de 500 plantillas en el panel de cancelaciones
+
+## Descripcion
+
+El panel flotante de cancelaciones solo cargaba los primeros 500 vuelos plantilla (`size=500`). Vuelos con ID superior a 500 no aparecian en busquedas ni filtros. Se eliminó el limite para que cargue todos.
+
+## Archivo modificado
+
+`frontend/lib/useSimulacionSesion.ts` linea 153
+
+## Cambio realizado
+
+```typescript
+// Antes:
+.get<VueloPageResponse>('/vuelos?es_plantilla=true&size=500')
+
+// Despues:
+.get<VueloPageResponse>('/vuelos?es_plantilla=true&size=100000')
+```
+
+`100000` es un limite practico suficiente para un sistema academico. Postgres maneja un `LIMIT 100000` sin penalizacion de rendimiento respecto a un `LIMIT 500` cuando hay indices adecuados.
+
+## Sin cambios en
+
+- Backend (soporta cualquier `size` via `@PageableDefault`)
+- `SeccionCancelacion.tsx` (el filtrado/busqueda ya funciona sobre el array completo)
+- Panel Vuelos (ya usaba `telemetria?.vuelos` sin limite)
+- Tipo `PlantillaResumen`
+- API, otros componentes
+
+## Verificacion
+
+- Abrir panel de cancelaciones en una sesion con >500 plantillas.
+- Buscar un vuelo con ID/codigo mayor a 500 → debe aparecer en resultados.
+- Filtrar por estado → todos los vuelos deben estar disponibles.
+  - Cancelar un vuelo mas alla del 500 → debe funcionar correctamente.
+- TypeScript compila sin errores nuevos.
+
+---
+
+# Tarea: ANCHO PANEL CANCELACION - Aumentar ancho del panel flotante de cancelaciones
+
+## Descripcion
+
+El panel de cancelaciones tenia un ancho fijo de `30rem` (480px) que no era suficiente para las 6 columnas de la tabla (Codigo, Ruta, Salida, Llegada, Estado, Accion), provocando scroll horizontal para llegar al boton "Cancelar".
+
+## Archivo modificado
+
+`frontend/app/page.tsx` — lineas 1390 y 2165
+
+## Cambio realizado
+
+```typescript
+// Antes:
+className="w-[30rem] shrink-0 pointer-events-auto"
+
+// Despues:
+className="w-[40rem] shrink-0 pointer-events-auto"
+```
+
+Afecta a las dos instancias del panel: `SimulacionView` (linea 1390) y `ColapsoView` (linea 2165).
+
+## Sin cambios en
+
+- `SeccionCancelacion.tsx` (no se toco la tabla ni el contenido)
+- `PanelFlotante.tsx` (sigue siendo generico)
+- Otros paneles flotantes (ninguno se vio afectado)
+
+## Verificacion
+
+- Abrir panel de cancelaciones.
+- Todas las columnas deben ser visibles sin scroll horizontal.
+- El boton "Cancelar" / "→ Mañana" debe verse completo en la ultima columna.
+  - La tabla debe seguir siendo funcional (busqueda, filtros, cancelacion).
+- TypeScript compila sin errores nuevos.
+
+---
+
+# Tarea: CANCELACION - Prevenir doble cancelacion, modal con maletas, registro de cancelaciones
+
+## Descripcion
+
+Tres mejoras al flujo de cancelacion:
+1. **Prevenir doble cancelacion**: backend valida estado CANCELADO + frontend deshabilita boton.
+2. **Modal mejorado**: muestra la lista de maletas afectadas (codigo, origen → destino).
+3. **Nuevo panel "Cancelaciones"**: historial de todas las cancelaciones realizadas en la sesion.
+
+## Archivos modificados
+
+| Archivo | Lineas | Cambio |
+|---|---|---|
+| `backend/.../CancelacionService.java` | 262-265, 283-286 | Validar `getEstado() == CANCELADO` en ambas ramas (frio y caliente) |
+| `frontend/lib/types.ts` | 60-78 | Agregar `codigo_vuelo` y `equipajes[]` a `ResultadoCancelacion` |
+| `frontend/components/simulacion/SeccionCancelacion.tsx` | 67, 102-117, 222, 292-380 | `cancelledIds`, mapeo de equipajes, modal con lista, `onCancelado` |
+| `frontend/components/simulacion/RegistroCancelaciones.tsx` | **Nuevo** | Componente de historial de cancelaciones |
+| `frontend/app/page.tsx` | 49-50, 80, 1080, 1293, 1393-1405, 1710, 1901, 2160-2182 | Import, estado, dock item, `onCancelado`, panel |
+
+## Detalle de cambios
+
+### 1. Backend: prevenir doble cancelacion
+
+En `cancelarSegunPlantilla()` (rama frio, ~linea 262):
+```java
+if (instanciaHoy.getEstado() == EstadoVuelo.CANCELADO) {
+    throw new CancelacionInvalidaException(
+            "El vuelo " + plantilla.getCodigoVuelo() + " de hoy ya fue cancelado");
+}
+```
+
+En `cancelarInstanciaSiguienteLocked()` (rama caliente, ~linea 283):
+```java
+if (instanciaManana.getEstado() == EstadoVuelo.CANCELADO) {
+    throw new CancelacionInvalidaException(
+            "El vuelo " + plantilla.getCodigoVuelo() + " del dia siguiente ya fue cancelado");
+}
+```
+
+### 2. Frontend: boton deshabilitado tras cancelar
+
+```typescript
+const [cancelledIds, setCancelledIds] = useState<Set<string>>(new Set());
+// Tras exito:
+setCancelledIds(prev => new Set(prev).add(p.id));
+// En el boton:
+const deshabilitado = loadingId === p.id || !momentoVirtual || cancelledIds.has(p.id);
+```
+
+### 3. Frontend: modal con lista de maletas
+
+El modal ahora incluye una seccion con las maletas re-enrutadas:
+```
+┌─────────────────────────────────────┐
+│ Equipajes re-enrutados (3)          │
+├─────────────────────────────────────┤
+│ TAS-EQ-001   SKBO → LIM             │
+│ TAS-EQ-042   LIM → MIA              │
+│ TAS-EQ-113   MIA → GRU              │
+└─────────────────────────────────────┘
+```
+
+### 4. Frontend: nuevo panel "Registro de cancelaciones"
+
+Nuevo componente `RegistroCancelaciones.tsx` que muestra el historial completo:
+- Codigo de vuelo cancelado
+- Tipo (Cancelado / Diferido) con badge coloreado
+- Numero de maletas afectadas
+- Lista de codigos de maleta
+
+Accesible desde el dock via icono `AlertTriangle`.
+
+## Comportamiento final
+
+| Accion | Resultado |
+|---|---|
+| Cancelar vuelo por 1ra vez | Exito. Modal muestra maletas afectadas. Boton se deshabilita. Se agrega al historial. |
+| Cancelar el mismo vuelo otra vez | Boton deshabilitado (frontend). Si se fuerza request, backend responde 422. |
+| Ver historial | Dock item "Cancelaciones" muestra todas las cancelaciones ordenadas por fecha descendente. |
+
+## Sin cambios en
+
+- Base de datos (ya tenia `eventos_cancelacion`, `lotes_replanificacion`, `items_lote`)
+- `ReplanificacionService` (ya resetea maletas a REGISTRADO y las re-enruta)
+- Telemetria (sigue reflejando vuelos CANCELADO)
+- Flujo de pausa/reanudar
+- API endpoints existentes
