@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Map as MapIcon, ChevronDown, ChevronUp } from 'lucide-react';
 import type { AeropuertoTelemetria, SegmentoResponse, VueloTelemetria } from '@/lib/types';
-import { ciudadDe, paisDe } from '@/lib/aeropuertos';
+import { ciudadDe } from '@/lib/aeropuertos';
 import { determinarColorSemaforo, type ColorSemaforo } from '@/lib/colors';
 import { formatearFechaHoraSeparado } from '@/lib/formatearHora';
 import { DetalleEnviosAeropuerto } from '@/components/operacion/DetalleEnviosAeropuerto';
@@ -150,8 +150,7 @@ export function PanelAeropuertosOperacion({
       if (filtroCodigo) {
         const q = filtroCodigo.toLowerCase();
         const coincide = n.codigo_iata.toLowerCase().includes(q)
-          || ciudadDe(n.codigo_iata).toLowerCase().includes(q)
-          || paisDe(n.codigo_iata).toLowerCase().includes(q);
+          || ciudadDe(n.codigo_iata).toLowerCase().includes(q);
         if (!coincide) return false;
       }
       if (continenteActual) {
@@ -278,17 +277,14 @@ export function PanelAeropuertosOperacion({
 
       <div className="max-h-[28rem] overflow-y-auto flex flex-col gap-1.5 pr-0.5">
         {aeropuertosOrdenados.map((n) => {
-          const continenteLabel = n.continente && n.continente !== 'Desconocido' ? n.continente : (n.zona_horaria ? n.zona_horaria.split('/')[0] : '');
           const ciudad = ciudadDe(n.codigo_iata);
-          const pais = paisDe(n.codigo_iata);
-          const ubicacion = [ciudad && ciudad !== n.codigo_iata ? ciudad : null, pais, continenteLabel].filter(Boolean).join(' · ');
+          const nombreCiudad = ciudad && ciudad !== n.codigo_iata ? ciudad : '';
           const seleccionado = seleccionadoActual === n.codigo_iata;
           const estado = ESTILO_POR_ESTADO[determinarColorSemaforo(n.ocupacion_pct, umbralesConfig) as ColorSemaforo];
           const s = proximos.salida.get(n.codigo_iata);
           const l = proximos.llegada.get(n.codigo_iata);
           const fs = s ? formatearFechaHoraSeparado(s) : null;
           const fl = l ? formatearFechaHoraSeparado(l) : null;
-          const ubicacionCorta = ciudad && ciudad !== n.codigo_iata ? ciudad : '';
           return (
             <div
               key={n.id}
@@ -308,8 +304,8 @@ export function PanelAeropuertosOperacion({
               <div className="flex items-center gap-2">
                 <span className={`w-2.5 h-2.5 rounded-full shrink-0 shadow-sm ${estado.dotCls}`} title={estado.label} />
                 <span className="font-mono text-xs font-semibold text-slate-800 dark:text-slate-200 shrink-0">{n.codigo_iata}</span>
-                <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate min-w-0" title={ubicacion}>
-                  {ubicacionCorta || '—'}
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate min-w-0" title={nombreCiudad || n.codigo_iata}>
+                  {nombreCiudad || '—'}
                 </span>
                 <div className="flex-1" />
                 <span className={`text-xs font-bold tabular-nums shrink-0 ${estado.textCls}`}>{n.ocupacion_pct.toFixed(0)}%</span>

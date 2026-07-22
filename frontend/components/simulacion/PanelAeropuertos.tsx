@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Map as MapIcon, ChevronDown, ChevronUp } from 'lucide-react';
 import type { AeropuertoTelemetria, VueloTelemetria } from '@/lib/types'
+import { ciudadDe } from '@/lib/aeropuertos';
 import { formatearFechaHoraSeparado } from '@/lib/formatearHora';
 import { determinarColorSemaforo, type ColorSemaforo } from '@/lib/colors';
 
@@ -207,7 +208,7 @@ export function PanelAeropuertos({ aeropuertos, vuelos, onAeropuertoClick, onVer
 
       <div className="max-h-[28rem] overflow-y-auto flex flex-col gap-1.5 pr-0.5">
         {aeropuertosOrdenados.map((n) => {
-          const continenteLabel = n.continente && n.continente !== 'Desconocido' ? n.continente : (n.zona_horaria ? n.zona_horaria.split('/')[0] : '');
+          const nombreCiudad = ciudadDe(n.codigo_iata);
           const proxSalida = timingPorAeropuerto.salida.get(n.codigo_iata) || '';
           const proxLlegada = timingPorAeropuerto.llegada.get(n.codigo_iata) || '';
           const fmtSalida = formatearFechaHoraSeparado(proxSalida || null);
@@ -225,12 +226,12 @@ export function PanelAeropuertos({ aeropuertos, vuelos, onAeropuertoClick, onVer
                   : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/40'
               }`}
             >
-              {/* Línea 1: estado (punto) + IATA + continente + ocupación + acción */}
+              {/* Línea 1: estado (punto) + IATA + ciudad + ocupación + acción */}
               <div className="flex items-center gap-2">
                 <span className={`w-2.5 h-2.5 rounded-full shrink-0 shadow-sm ${estado.dotCls}`} title={estado.label} />
                 <span className="font-mono text-xs font-semibold text-slate-800 dark:text-slate-200 shrink-0">{n.codigo_iata}</span>
-                <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate min-w-0" title={continenteLabel}>
-                  {continenteLabel || '—'}
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate min-w-0" title={nombreCiudad}>
+                  {nombreCiudad || '—'}
                 </span>
                 <div className="flex-1" />
                 <span className={`text-xs font-bold tabular-nums shrink-0 ${estado.textCls}`}>{n.ocupacion_pct.toFixed(0)}%</span>

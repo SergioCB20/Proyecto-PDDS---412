@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Marker, Tooltip, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import type { AeropuertoEnMapa } from '@/lib/types';
-import { ciudadDe, paisDe } from '@/lib/aeropuertos';
+import { ciudadDe } from '@/lib/aeropuertos';
 
 interface GeoMapaAeropuertoProps {
   aeropuerto: AeropuertoEnMapa;
@@ -73,8 +73,8 @@ export default function GeoMapaAeropuerto({ aeropuerto, onClick }: GeoMapaAeropu
       <Popup>
         <div className="text-center min-w-[120px]">
           <div className="font-bold text-sm">{ciudadDe(aeropuerto.codigo_iata)}</div>
-          <div className="text-sm text-slate-600">
-            {[paisDe(aeropuerto.codigo_iata), aeropuerto.codigo_iata].filter(Boolean).join(' · ')}
+          <div className="text-sm text-slate-600 font-mono">
+            {aeropuerto.codigo_iata}
           </div>
           <div className="text-xs text-slate-600 mt-1">
             {aeropuerto.ocupacion_actual}/{aeropuerto.capacidad_almacen}
