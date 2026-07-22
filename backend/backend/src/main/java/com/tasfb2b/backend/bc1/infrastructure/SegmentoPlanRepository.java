@@ -17,6 +17,7 @@ public interface SegmentoPlanRepository extends JpaRepository<SegmentoPlan, UUID
     List<SegmentoPlan> findByPlanViajeIdInOrderByOrdenAsc(List<UUID> planViajeIds);
     List<SegmentoPlan> findByVueloId(UUID vueloId);
     List<SegmentoPlan> findByVueloIdIn(List<UUID> vueloIds);
+    List<SegmentoPlan> findByVueloIdInAndEstado(List<UUID> vueloIds, EstadoSegmento estado);
     List<SegmentoPlan> findByVueloIdAndEstado(UUID vueloId, EstadoSegmento estado);
 
     @Modifying

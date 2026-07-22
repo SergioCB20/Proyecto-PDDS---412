@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Calendar, Plane, XCircle, CheckCircle } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { colorVueloPorEstado, colorVueloPorOcupacion, determinarColorSemaforo, type ColorSemaforo } from '@/lib/colors';
@@ -18,12 +18,19 @@ interface PanelVuelosProps {
 
 const MAX_RENDER = 500;
 
+const ICONO_ESTADO_VUELO: Record<string, React.ReactNode> = {
+  PROGRAMADO: <Calendar size={11} />,
+  EN_RUTA: <Plane size={11} className="rotate-45" />,
+  CANCELADO: <XCircle size={11} />,
+  COMPLETADO: <CheckCircle size={11} />,
+};
+
 export function PanelVuelos({ vuelos, onVueloClick, origenFilter = '', destinoFilter = '', onFilterChange }: PanelVuelosProps) {
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(true);
   const [filtroCodigo, setFiltroCodigo] = useState('');
   const [filtroColorLocal, setFiltroColorLocal] = useState<'' | ColorSemaforo>('');
   const [orden, setOrden] = useState('');
-  const itemRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
+  const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
   useEffect(() => {
     if (origenFilter || destinoFilter) {
       const found = vuelos.find(v => v.origen_iata === origenFilter && (!destinoFilter || v.destino_iata === destinoFilter));
@@ -200,80 +207,58 @@ export function PanelVuelos({ vuelos, onVueloClick, origenFilter = '', destinoFi
         </p>
       )}
 
-      <div className="max-h-[28rem] overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700">
-        <table className="w-full text-xs border-collapse">
-          <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 uppercase tracking-wide z-10">
-            <tr>
-              <th className="text-left px-2 py-2 font-semibold">Código</th>
-              <th className="text-left px-2 py-2 font-semibold">Estado</th>
-              <th className="text-left px-2 py-2 font-semibold">Ruta</th>
-              <th className="text-right px-2 py-2 font-semibold">Carga</th>
-              <th className="text-left px-2 py-2 font-semibold">Sale</th>
-              <th className="text-left px-2 py-2 font-semibold">Llega</th>
-            </tr>
-          </thead>
-          <tbody>
-            {vuelosVisibles.map((v, idx) => {
-              const ocupada = v.capacidad_carga - v.carga_disponible;
-              const pct = v.capacidad_carga > 0 ? (ocupada / v.capacidad_carga) * 100 : 0;
-              const colorHex = colorVueloPorEstado(v.estado);
-              const semaforoColor = colorVueloPorOcupacion(pct);
-              const salida = formatearFechaHoraSeparado(v.hora_salida);
-              const llegada = formatearFechaHoraSeparado(v.hora_llegada);
-              const zebra = idx % 2 === 0 ? 'bg-white/40 dark:bg-slate-900/20' : '';
-              const rowCls = `${zebra} ${onVueloClick ? 'cursor-pointer hover:bg-blue-50/50 dark:hover:bg-blue-900/20' : ''}`;
-              const estadoLabel = v.estado === 'EN_RUTA' ? 'En Ruta' : v.estado === 'PROGRAMADO' ? 'Programado' : v.estado === 'CANCELADO' ? 'Cancelado' : 'Completado';
-              const estadoBg = v.estado === 'PROGRAMADO' ? '#f1f5f9' : `${colorHex}15`;
-              const estadoFg = v.estado === 'PROGRAMADO' ? '#94a3b8' : colorHex;
-              return (
-                <tr
-                  key={v.id}
-                  ref={el => { itemRefs.current[v.id] = el; }}
-                  className={rowCls + ' border-t border-slate-100 dark:border-slate-800'}
-                  onClick={() => onVueloClick?.(v.id, v.codigo_vuelo)}
-                >
-                  <td className="px-2 py-1.5 whitespace-nowrap">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className={`w-2 h-2 rounded-full shadow-sm shrink-0 ${v.estado === 'PROGRAMADO' ? 'ring-1 ring-slate-300' : ''}`} style={{ backgroundColor: semaforoColor }} />
-                      <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">{v.codigo_vuelo}</span>
-                    </div>
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <span
-                      className="text-[10px] px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap"
-                      style={{ backgroundColor: estadoBg, color: estadoFg }}
-                    >
-                      {estadoLabel}
-                    </span>
-                  </td>
-                  <td className="px-2 py-1.5 font-mono text-slate-700 dark:text-slate-200 whitespace-nowrap">
-                    {v.origen_iata} → {v.destino_iata}
-                  </td>
-                  <td className="px-2 py-1.5 text-right whitespace-nowrap">
-                    <span className="text-slate-600 dark:text-slate-400">{ocupada}/{v.capacidad_carga}</span>
-                    <span className="ml-2 font-bold" style={{ color: semaforoColor }}>{pct.toFixed(0)}%</span>
-                    <div className="w-full h-1 mt-0.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: semaforoColor }} />
-                    </div>
-                  </td>
-                  <td className="px-2 py-1.5 font-mono text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                    {salida.hora}
-                  </td>
-                  <td className="px-2 py-1.5 font-mono text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                    {llegada.hora}
-                  </td>
-                </tr>
-              );
-            })}
-            {vuelosFiltrados.length === 0 && (
-              <tr>
-                <td colSpan={6} className="text-xs text-slate-600 italic text-center py-4">
-                  Ningún vuelo coincide con los filtros
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <div className="max-h-[28rem] overflow-y-auto flex flex-col gap-1.5 pr-0.5">
+        {vuelosVisibles.map((v) => {
+          const ocupada = v.capacidad_carga - v.carga_disponible;
+          const pct = v.capacidad_carga > 0 ? (ocupada / v.capacidad_carga) * 100 : 0;
+          const colorHex = colorVueloPorEstado(v.estado);
+          const semaforoColor = colorVueloPorOcupacion(pct);
+          const salida = formatearFechaHoraSeparado(v.hora_salida);
+          const llegada = formatearFechaHoraSeparado(v.hora_llegada);
+          const estadoLabel = v.estado === 'EN_RUTA' ? 'En ruta' : v.estado === 'PROGRAMADO' ? 'Programado' : v.estado === 'CANCELADO' ? 'Cancelado' : 'Completado';
+          const estadoColor = v.estado === 'PROGRAMADO' ? '#94a3b8' : colorHex;
+          return (
+            <div
+              key={v.id}
+              ref={el => { itemRefs.current[v.id] = el; }}
+              onClick={() => onVueloClick?.(v.id, v.codigo_vuelo)}
+              className={`rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 transition-colors ${onVueloClick ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40' : ''}`}
+            >
+              {/* Línea 1: estado (icono) + código + ruta + ocupación */}
+              <div className="flex items-center gap-2">
+                <span className="shrink-0 flex" title={estadoLabel} style={{ color: estadoColor }}>
+                  {ICONO_ESTADO_VUELO[v.estado] ?? null}
+                </span>
+                <span className="font-mono text-xs font-semibold text-slate-800 dark:text-slate-200 shrink-0">{v.codigo_vuelo}</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono truncate min-w-0">
+                  {v.origen_iata} <span className="text-slate-400">→</span> {v.destino_iata}
+                </span>
+                <div className="flex-1" />
+                <span className="text-xs font-bold tabular-nums shrink-0" style={{ color: semaforoColor }}>{pct.toFixed(0)}%</span>
+              </div>
+              {/* Línea 2: horarios + carga */}
+              <div className="flex items-center gap-3 mt-1 text-[11px]">
+                <span className="font-mono text-slate-600 dark:text-slate-300 whitespace-nowrap" title="Salida">
+                  <span className="text-slate-400">↑</span> {salida.hora}<span className="ml-1 text-slate-400">{salida.fecha}</span>
+                </span>
+                <span className="font-mono text-slate-600 dark:text-slate-300 whitespace-nowrap" title="Llegada">
+                  <span className="text-slate-400">↓</span> {llegada.hora}<span className="ml-1 text-slate-400">{llegada.fecha}</span>
+                </span>
+                <div className="flex-1 flex items-center gap-1.5 min-w-0" title={`Carga ${ocupada}/${v.capacidad_carga}`}>
+                  <div className="flex-1 h-1.5 min-w-[24px] bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: semaforoColor }} />
+                  </div>
+                  <span className="text-slate-400 dark:text-slate-500 tabular-nums whitespace-nowrap">{ocupada}/{v.capacidad_carga}</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        {vuelosFiltrados.length === 0 && (
+          <p className="text-xs text-slate-600 italic text-center py-4">
+            Ningún vuelo coincide con los filtros
+          </p>
+        )}
       </div>
     </div>
   );

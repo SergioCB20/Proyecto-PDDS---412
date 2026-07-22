@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Marker, Polyline, Tooltip, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { colorVueloPorOcupacion } from '@/lib/colors';
+import { colorVueloPorOcupacion, COLOR_RUTA } from '@/lib/colors';
 import { bezierControlPoint, bezierPoint, bezierBearing, bezierSamples } from '@/lib/bezier';
 import type { VueloEnMapa } from '@/lib/types';
 import type { UmbralesConfig } from './ConfigUmbrales';
@@ -428,9 +428,14 @@ function AvionAnimado({
         ref={polylineRef}
         positions={estelaInicial}
         pathOptions={{
-          color: '#000',
-          weight: destacado ? 6 : 1,
-          opacity: vuelo.estado === 'EN_RUTA' ? (destacado ? 0.9 : 0.6) : 0,
+          color: vuelo.estado === 'EN_RUTA' ? COLOR_RUTA.EN_RUTA : '#94a3b8',
+          weight: destacado ? 2 : 1,
+          opacity: vuelo.estado === 'EN_RUTA'
+            ? (destacado ? 0.5 : 0.25)
+            : vuelo.estado === 'PROGRAMADO'
+              ? (destacado ? 0.2 : 0.1)
+              : 0,
+          dashArray: '4, 4',
         }}
       />
       <Marker ref={markerRef} position={frozenPos} icon={icono}

@@ -57,24 +57,21 @@ public class OcupacionNodoService {
         Integer nuevaOcupacion = jdbc.query(
             "WITH ins AS (" +
             "  INSERT INTO ocupacion_nodo (id, nodo_id, sesion_id, ocupacion) " +
-            "  VALUES (gen_random_uuid(), ?, ?, LEAST(GREATEST(0, CAST(? AS INT)), " +
-            "    (SELECT capacidad_almacen FROM nodos_logisticos WHERE id = ?))) " +
+            "  VALUES (gen_random_uuid(), ?, ?, GREATEST(0, CAST(? AS INT))) " +
             "  ON CONFLICT (nodo_id, sesion_id) DO UPDATE " +
-            "  SET ocupacion = LEAST(GREATEST(0, ocupacion_nodo.ocupacion + CAST(? AS INT)), " +
-            "    (SELECT nl.capacidad_almacen FROM nodos_logisticos nl " +
-            "     WHERE nl.id = ocupacion_nodo.nodo_id)) " +
+            "  SET ocupacion = GREATEST(0, ocupacion_nodo.ocupacion + CAST(? AS INT)) " +
             "  RETURNING ocupacion" +
             ") SELECT ocupacion FROM ins",
             rs -> rs.next() ? rs.getInt(1) : null,
-            nodoId, contexto, delta, nodoId, delta);
+            nodoId, contexto, delta, delta);
 
         Integer capMax = jdbc.query(
             "SELECT capacidad_almacen FROM nodos_logisticos WHERE id = ?",
             rs -> rs.next() ? rs.getInt(1) : null,
             nodoId);
 
-        if (nuevaOcupacion != null && capMax != null && nuevaOcupacion >= capMax) {
-            log.warn("Ocupacion nodo {} (ctx {}) saturada: {} == cap {} (delta aplicado {})",
+        if (nuevaOcupacion != null && capMax != null && nuevaOcupacion > capMax) {
+            log.warn("Ocupacion nodo {} (ctx {}) sobrepasada: {} > cap {} (delta aplicado {})",
                     nodoId, contexto, nuevaOcupacion, capMax, delta);
         }
     }
@@ -93,20 +90,16 @@ public class OcupacionNodoService {
 
         jdbc.batchUpdate(
             "INSERT INTO ocupacion_nodo (id, nodo_id, sesion_id, ocupacion) " +
-            "VALUES (gen_random_uuid(), ?, ?, LEAST(GREATEST(0, CAST(? AS INT)), " +
-            "  (SELECT capacidad_almacen FROM nodos_logisticos WHERE id = ?))) " +
+            "VALUES (gen_random_uuid(), ?, ?, GREATEST(0, CAST(? AS INT))) " +
             "ON CONFLICT (nodo_id, sesion_id) DO UPDATE " +
-            "SET ocupacion = LEAST(GREATEST(0, ocupacion_nodo.ocupacion + CAST(? AS INT)), " +
-            "  (SELECT nl.capacidad_almacen FROM nodos_logisticos nl " +
-            "   WHERE nl.id = ocupacion_nodo.nodo_id))",
+            "SET ocupacion = GREATEST(0, ocupacion_nodo.ocupacion + CAST(? AS INT))",
             new BatchPreparedStatementSetter() {
                 @Override
                 public void setValues(PreparedStatement ps, int i) throws SQLException {
                     ps.setObject(1, ids.get(i));
                     ps.setObject(2, contexto);
                     ps.setInt(3, ds.get(i));
-                    ps.setObject(4, ids.get(i));
-                    ps.setInt(5, ds.get(i));
+                    ps.setInt(4, ds.get(i));
                 }
                 @Override
                 public int getBatchSize() {

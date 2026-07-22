@@ -71,15 +71,20 @@ public class SimulacionEnrutamientoService {
         OffsetDateTime filtroHasta = sesion != null ? sesion.getFechaFiltroHasta() : null;
         boolean filtrar = filtroDesde != null && filtroHasta != null;
 
+        // Limitar backlog a equipajes del dia de inicio en adelante.
+        // Los datos pueden tener años de fecha_operacion previa a la simulación,
+        // pero sus rutas no existen en la malla de vuelos clonados y saturan el ACO sin éxito.
+        OffsetDateTime backlogDesde = inicioVentana.minusDays(2);
+
         String sqlBacklogBase =
                 "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad, fecha_ingreso, fecha_operacion " +
                         "FROM equipajes " +
-                        "WHERE estado = 'REGISTRADO' AND fecha_operacion < ? " +
+                        "WHERE estado = 'REGISTRADO' AND fecha_operacion >= ? AND fecha_operacion < ? " +
                         (filtrar ? "AND fecha_operacion BETWEEN ? AND ? " : "") +
                         "ORDER BY fecha_operacion LIMIT ?";
         Object[] argsBacklog = filtrar
-                ? new Object[]{inicioVentana, filtroDesde, filtroHasta, MAX_EQUIPAJES_PER_CYCLE}
-                : new Object[]{inicioVentana, MAX_EQUIPAJES_PER_CYCLE};
+                ? new Object[]{backlogDesde, inicioVentana, filtroDesde, filtroHasta, MAX_EQUIPAJES_PER_CYCLE}
+                : new Object[]{backlogDesde, inicioVentana, MAX_EQUIPAJES_PER_CYCLE};
 
         List<Equipaje> backlog = jdbcTemplate.query(sqlBacklogBase, this::mapEquipaje, argsBacklog);
 
@@ -342,7 +347,8 @@ public class SimulacionEnrutamientoService {
         if (opTs != null) {
             eq.setFechaOperacion(OffsetDateTime.ofInstant(opTs.toInstant(), ZoneOffset.UTC));
         }
-        eq.setCantidad(1);
+        int cant = rs.getInt("cantidad");
+        eq.setCantidad(rs.wasNull() ? 1 : Math.max(1, cant));
         return eq;
     }
 

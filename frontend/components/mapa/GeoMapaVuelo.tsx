@@ -63,10 +63,10 @@ export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false
         <Polyline
           positions={puntosCurva}
           pathOptions={{
-            color: '#000',
-            weight: destacado ? 6 : 1,
-            opacity: destacado ? 0.8 : 0.25,
-            dashArray: '6, 4',
+            color: '#94a3b8',
+            weight: destacado ? 2 : 1,
+            opacity: destacado ? 0.4 : 0.15,
+            dashArray: '4, 4',
           }}
         >
           <Tooltip direction="center" className="vuelo-tooltip">

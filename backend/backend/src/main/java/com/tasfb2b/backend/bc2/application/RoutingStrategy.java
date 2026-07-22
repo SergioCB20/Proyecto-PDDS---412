@@ -33,6 +33,7 @@ public interface RoutingStrategy {
         return resultados;
     }
 
-    record ParametroRuta(NodoLogistico origen, NodoLogistico destino, OffsetDateTime slaComprometido) {}
+    record ParametroRuta(NodoLogistico origen, NodoLogistico destino,
+                         OffsetDateTime slaComprometido, int cantidad) {}
 
 }

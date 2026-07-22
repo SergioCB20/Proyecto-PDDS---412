@@ -32,6 +32,7 @@ import { aeropuertoToEnMapa } from "@/lib/mock";
 import { useTelemetria } from "@/lib/useTelemetria";
 import { useMapaData, matchEstadoVuelo } from "@/lib/useMapaData";
 import { useSimulacionSesion } from "@/lib/useSimulacionSesion";
+import { useMode } from "@/lib/mode-context";
 import { colorAeropuertoPorOcupacion, type ColorSemaforo } from "@/lib/colors";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -93,7 +94,6 @@ function useReloj() {
   return hora;
 }
 
-type DashboardMode = "operacion" | "simulacion" | "colapso";
 
 interface SesionListaItem {
   id: string;
@@ -107,7 +107,7 @@ interface SesionListaItem {
 
 
 export default function DashboardPage() {
-  const [mode, setMode] = useState<DashboardMode>("operacion");
+  const { mode } = useMode();
   const [configUmbrales, setConfigUmbrales] = useState<UmbralesConfig>(() => {
     try {
       const saved = localStorage.getItem("umbrales-config");
@@ -121,7 +121,6 @@ export default function DashboardPage() {
     return { verdeMax: 70, ambarMax: 90 };
   });
   const [configOpen, setConfigOpen] = useState(false);
-  const [modeBarVisible, setModeBarVisible] = useState(true);
 
   useEffect(() => {
     localStorage.setItem("umbrales-config", JSON.stringify(configUmbrales));
@@ -130,66 +129,7 @@ export default function DashboardPage() {
   return (
     <div className="flex h-[calc(100vh-2.75rem)]">
       <div className="flex-1 flex flex-col">
-        <div
-          className={`overflow-hidden transition-all duration-300 ${
-            modeBarVisible ? "max-h-11 opacity-100" : "max-h-0 opacity-0"
-          }`}
-        >
-          <div className="flex items-center gap-1 px-3 py-1.5 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
-            <button
-              onClick={() => setMode("operacion")}
-              className={`flex items-center gap-1.5 px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                mode === "operacion"
-                  ? "bg-info/10 text-info dark:text-info-soft"
-                  : "text-slate-600 hover:text-slate-700 hover:bg-slate-100 dark:hover:text-slate-300 dark:hover:bg-slate-800"
-              }`}
-            >
-              <Plane size={14} />
-              Operación
-            </button>
-            <button
-              onClick={() => setMode("simulacion")}
-              className={`flex items-center gap-1.5 px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                mode === "simulacion"
-                  ? "bg-info/10 text-info dark:text-info-soft"
-                  : "text-slate-600 hover:text-slate-700 hover:bg-slate-100 dark:hover:text-slate-300 dark:hover:bg-slate-800"
-              }`}
-            >
-              <Settings size={14} />
-              Simulación
-            </button>
-            <button
-              onClick={() => setMode("colapso")}
-              className={`flex items-center gap-1.5 px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                mode === "colapso"
-                  ? "bg-info/10 text-info dark:text-info-soft"
-                  : "text-slate-600 hover:text-slate-700 hover:bg-slate-100 dark:hover:text-slate-300 dark:hover:bg-slate-800"
-              }`}
-            >
-              <AlertTriangle size={14} />
-              Colapso
-            </button>
-            <div className="flex-1" />
-            <button
-              onClick={() => setModeBarVisible(false)}
-              className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-500"
-              title="Ocultar barra de modos"
-            >
-              <ChevronUp size={15} />
-            </button>
-          </div>
-        </div>
-        {!modeBarVisible && (
-          <div className="flex justify-center bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
-            <button
-              onClick={() => setModeBarVisible(true)}
-              className="py-0.5 px-4 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-600 rounded"
-              title="Mostrar barra de modos"
-            >
-              <ChevronDown size={16} />
-            </button>
-          </div>
-        )}
+        {/* Las pestañas Operación / Simulación / Colapso viven ahora en la barra superior (Navbar). */}
         <div className="flex-1 relative min-h-0">
           {mode === "operacion" ? (
             <OperacionView configUmbrales={configUmbrales} />
@@ -777,8 +717,9 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                 )}
                 <div className="flex justify-between gap-2">
                   <span>Estado:</span>
-                  <span className={`font-mono font-medium ${estadoSesion === "EN_CURSO" ? "text-green-600" : estadoSesion === "PAUSADA" ? "text-amber-600" : "text-slate-600"}`}>
-                    {estadoSesion === "EN_CURSO" ? "ACTIVO" : estadoSesion === "PAUSADA" ? "PAUSADO" : "INACTIVO"}
+                  <span className={`inline-flex items-center gap-1 font-mono font-medium ${estadoSesion === "EN_CURSO" ? "text-green-600" : estadoSesion === "PAUSADA" ? "text-amber-600" : "text-slate-600"}`}>
+                    {estadoSesion === "EN_CURSO" ? <Activity size={12} /> : estadoSesion === "PAUSADA" ? <Pause size={12} /> : estadoSesion === "FINALIZADA" ? <CheckCircle size={12} /> : <Settings size={12} />}
+                    {estadoSesion === "EN_CURSO" ? "ACTIVO" : estadoSesion === "PAUSADA" ? "PAUSADO" : estadoSesion === "FINALIZADA" ? "FINALIZADO" : "INACTIVO"}
                   </span>
                 </div>
                 <div className="flex justify-between gap-2">
@@ -999,7 +940,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                     <div className="flex items-center gap-2 mb-2"><CheckCircle size={16} className="text-green-600 dark:text-green-400" /><span className="font-medium text-sm text-green-900 dark:text-green-100">Equipaje registrado</span></div>
                     <div className="space-y-1 text-xs">
                       <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-300">Código:</span><span className="font-medium text-slate-900 dark:text-slate-100">{formSuccess.id_externo || formSuccess.id.slice(0, 8)}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-300">Estado:</span><Badge variant="green">{formSuccess.estado}</Badge></div>
+                      <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-300">Estado:</span><Badge variant="green"><FileText size={11} className="mr-1" />{formSuccess.estado}</Badge></div>
                     </div>
                   </div>
                 )}

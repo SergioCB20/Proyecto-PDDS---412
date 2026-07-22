@@ -1,6 +1,6 @@
 'use client';
 
-import { Play, Pause, Square, Clock, Settings } from 'lucide-react';
+import { Play, Pause, Square, Clock, Settings, AlertTriangle, CheckCircle, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { formatearFechaHoraSinSeg } from '@/lib/formatearHora';
 
@@ -31,37 +31,42 @@ interface CommandBarSimulacionProps {
 
 const STATUS: Record<
   EstadoSesionSim,
-  { label: string; dot: string; text: string; pulse: boolean }
+  { label: string; dot: string; text: string; pulse: boolean; icon: React.ReactNode }
 > = {
   CONFIGURADA: {
     label: 'Sin iniciar',
     dot: 'bg-slate-400',
     text: 'text-slate-600 dark:text-slate-300',
     pulse: false,
+    icon: <Settings size={14} />,
   },
   EN_CURSO: {
     label: 'En ejecución',
     dot: 'bg-success',
     text: 'text-success',
     pulse: true,
+    icon: <Activity size={14} />,
   },
   PAUSADA: {
     label: 'Pausada',
     dot: 'bg-warning',
     text: 'text-warning',
     pulse: false,
+    icon: <Pause size={14} />,
   },
   FINALIZADA: {
     label: 'Detenida',
     dot: 'bg-slate-400',
     text: 'text-slate-500 dark:text-slate-400',
     pulse: false,
+    icon: <CheckCircle size={14} />,
   },
   COLAPSADA: {
     label: 'Colapsada',
     dot: 'bg-danger',
     text: 'text-danger',
     pulse: false,
+    icon: <AlertTriangle size={14} />,
   },
 };
 
@@ -79,7 +84,6 @@ export default function CommandBarSimulacion({
   finalizando = false,
   esDuenio = true,
   onIniciar,
-  onPausar,
   onReanudar,
   onDetener,
   onAbrirConfig,
@@ -91,7 +95,7 @@ export default function CommandBarSimulacion({
     : '—';
 
   return (
-    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[1002] pointer-events-none">
+    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1002] pointer-events-none">
       <div className="pointer-events-auto flex items-center gap-3 py-1.5 pl-3 pr-2 rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-lg border border-slate-200 dark:border-slate-700">
         {/* Estado */}
         <div className="flex items-center gap-1.5">
@@ -103,6 +107,7 @@ export default function CommandBarSimulacion({
               className={`relative inline-flex rounded-full h-2.5 w-2.5 ${st.dot}`}
             />
           </span>
+          <span className={`${st.text}`}>{st.icon}</span>
           <span className={`text-xs font-semibold ${st.text}`}>{st.label}</span>
         </div>
 
@@ -141,17 +146,7 @@ export default function CommandBarSimulacion({
           </div>
         ) : esDuenio ? (
           <div className="flex items-center gap-1.5">
-            {estado === 'EN_CURSO' ? (
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={onPausar}
-                disabled={loading}
-              >
-                <Pause size={14} className="mr-1" />
-                Pausar
-              </Button>
-            ) : (
+            {estado === 'PAUSADA' && (
               <Button size="sm" onClick={onReanudar} disabled={loading}>
                 <Play size={14} className="mr-1" />
                 Reanudar

@@ -149,7 +149,8 @@ class TickServiceTest {
         when(sesionRepository.findByEstado(EstadoSesion.EN_CURSO))
                 .thenReturn(List.of(sesion));
         when(sesionRepository.save(any())).thenReturn(sesion);
-        when(vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaLessThanEqual(any(), anyBoolean(), any()))
+        when(vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaBetween(
+                any(), anyBoolean(), any(), any()))
                 .thenReturn(List.of());
         when(vueloRepository.findByEstadoAndEsPlantillaAndHoraLlegadaLessThanEqual(any(), anyBoolean(), any()))
                 .thenReturn(List.of());
@@ -162,8 +163,8 @@ class TickServiceTest {
         assertNotNull(sesion.getDiaHoraVirtual());
         assertTrue(sesion.getDiaHoraVirtual().isAfter(before),
                 "Virtual time should advance after tick");
-        assertTrue(sesion.getSegundosRealesTranscurridos() >= 5,
-                "Real seconds should increment by at least 5");
+        assertTrue(sesion.getSegundosRealesTranscurridos() >= 7,
+                "Real seconds should increment by at least 7");
     }
 
     @Test
@@ -171,16 +172,11 @@ class TickServiceTest {
         when(sesionRepository.findByEstado(EstadoSesion.EN_CURSO))
                 .thenReturn(List.of(sesion));
         when(vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaLessThanEqual(
-                eq(EstadoVuelo.PROGRAMADO), eq(false), any(OffsetDateTime.class)))
-                .thenReturn(List.of(vuelo))
-                .thenReturn(List.of());
-        when(segmentoPlanRepository.findByVueloIdAndEstado(
-                vuelo.getId(), EstadoSegmento.PENDIENTE))
+                eq(EstadoVuelo.PROGRAMADO), eq(false), any()))
+                .thenReturn(List.of(vuelo));
+        when(segmentoPlanRepository.findByVueloIdInAndEstado(
+                anyList(), eq(EstadoSegmento.PENDIENTE)))
                 .thenReturn(List.of(segmento));
-        when(vueloRepository.findByEstadoAndEsPlantillaAndHoraLlegadaLessThanEqual(any(), anyBoolean(), any()))
-                .thenReturn(List.of());
-        when(nodoRepository.findAllByOrderByCodigoIataAsc())
-                .thenReturn(List.of(nodoOrigen, nodoDestino));
 
         tickService.tick();
 
@@ -199,14 +195,15 @@ class TickServiceTest {
 
         when(sesionRepository.findByEstado(EstadoSesion.EN_CURSO))
                 .thenReturn(List.of(sesion));
+        when(vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaBetween(
+                any(), anyBoolean(), any(), any()))
+                .thenReturn(List.of());
         when(vueloRepository.findByEstadoAndEsPlantillaAndHoraLlegadaLessThanEqual(
                 any(EstadoVuelo.class), eq(false), any(OffsetDateTime.class)))
                 .thenReturn(List.of(vuelo));
-        when(segmentoPlanRepository.findByVueloIdAndEstado(
-                vuelo.getId(), EstadoSegmento.EN_CURSO))
+        when(segmentoPlanRepository.findByVueloIdInAndEstado(
+                anyList(), eq(EstadoSegmento.EN_CURSO)))
                 .thenReturn(List.of(segmento));
-        when(vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaLessThanEqual(any(), anyBoolean(), any()))
-                .thenReturn(List.of());
         when(nodoRepository.findAllByOrderByCodigoIataAsc())
                 .thenReturn(List.of(nodoOrigen, nodoDestino));
 
@@ -265,14 +262,13 @@ class TickServiceTest {
                 .thenReturn(List.of(sesion));
         // Salidas y llegadas vacias: el vuelo aun no despega, solo es candidato a cancelacion.
         when(vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaLessThanEqual(
-                any(EstadoVuelo.class), eq(false), any(OffsetDateTime.class)))
+                any(EstadoVuelo.class), eq(false), any()))
                 .thenReturn(List.of());
+        when(vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaBetween(
+                eq(EstadoVuelo.PROGRAMADO), eq(false), any(), any()))
+                .thenReturn(List.of(vuelo));
         when(vueloRepository.findByEstadoAndEsPlantillaAndHoraLlegadaLessThanEqual(any(), anyBoolean(), any()))
                 .thenReturn(List.of());
-        // Cancelacion solo evalua vuelos PROGRAMADO que aun no salen (proxima ventana virtual).
-        when(vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaBetween(
-                any(EstadoVuelo.class), eq(false), any(OffsetDateTime.class), any(OffsetDateTime.class)))
-                .thenReturn(List.of(vuelo));
         when(nodoRepository.findAllByOrderByCodigoIataAsc())
                 .thenReturn(List.of(nodoOrigen, nodoDestino));
         when(replanificacionService.replanificarEnSesion(
