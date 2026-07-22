@@ -47,6 +47,7 @@ import { PanelEnviosMaletas } from "@/components/shared/PanelEnviosMaletas";
 import { ModalEnvios, type SelectedEnvioConsolidado } from "@/components/shared/ModalEnvios";
 import { PanelReporte } from "@/components/simulacion/PanelReporte";
 import { SeccionCancelacion } from "@/components/simulacion/SeccionCancelacion";
+import { RegistroEquipajePanel } from "@/components/simulacion/RegistroEquipajePanel";
 import { SimulacionLoadingOverlay } from "@/components/simulacion/SimulacionLoadingOverlay";
 import { PanelTabs } from "@/components/shared/PanelTabs";
 import {
@@ -1286,6 +1287,7 @@ function SimulacionView({
               { id: 'aeropuertos', icon: Warehouse, label: 'Aeropuertos' },
               { id: 'vuelos', icon: Plane, label: 'Vuelos' },
               { id: 'cancelacion', icon: XCircle, label: 'Cancelación' },
+              { id: 'registro', icon: Package, label: 'Registro Equipaje' },
               { id: 'envios', icon: Luggage, label: 'Envíos' },
               { id: 'sesion', icon: Settings, label: 'Sesión' },
               { id: 'reportes', icon: FileText, label: 'Reportes' },
@@ -1395,6 +1397,18 @@ function SimulacionView({
               ) : (
                 <p className="text-xs text-slate-600 p-4">Sin plantillas disponibles</p>
               )}
+            </PanelFlotante>
+          )}
+          {dockAbiertas.has('registro') && (
+            <PanelFlotante
+              title="Registro de Equipaje"
+              onClose={() => toggleDock('registro')}
+              className="w-[30rem] shrink-0 pointer-events-auto"
+            >
+              <RegistroEquipajePanel
+                aeropuertos={aeropuertosMapa}
+                sesionId={sesionId}
+              />
             </PanelFlotante>
           )}
           {dockAbiertas.has('envios') && (
