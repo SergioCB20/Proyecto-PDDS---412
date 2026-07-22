@@ -261,6 +261,10 @@ public class CancelacionService {
                             virtual.toLocalDate(), plantilla.getCodigoVuelo());
                     return cancelarInstanciaSiguienteLocked(sesion, plantilla, virtual, causaFinal);
                 }
+                if (instanciaHoy.getEstado() == EstadoVuelo.CANCELADO) {
+                    throw new CancelacionInvalidaException(
+                            "El vuelo " + plantilla.getCodigoVuelo() + " de hoy ya fue cancelado");
+                }
                 return cancelarEnSimulacionLocked(sesion, instanciaHoy, causaFinal);
             }
 
@@ -279,6 +283,10 @@ public class CancelacionService {
         if (instanciaManana == null) {
             throw new CancelacionInvalidaException(
                     "No hay instancia del dia siguiente para " + plantilla.getCodigoVuelo());
+        }
+        if (instanciaManana.getEstado() == EstadoVuelo.CANCELADO) {
+            throw new CancelacionInvalidaException(
+                    "El vuelo " + plantilla.getCodigoVuelo() + " del dia siguiente ya fue cancelado");
         }
 
         instanciaManana.setEstado(EstadoVuelo.CANCELADO);

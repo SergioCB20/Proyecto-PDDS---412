@@ -2282,5 +2282,95 @@ Afecta a las dos instancias del panel: `SimulacionView` (linea 1390) y `ColapsoV
 - Abrir panel de cancelaciones.
 - Todas las columnas deben ser visibles sin scroll horizontal.
 - El boton "Cancelar" / "→ Mañana" debe verse completo en la ultima columna.
-- La tabla debe seguir siendo funcional (busqueda, filtros, cancelacion).
+  - La tabla debe seguir siendo funcional (busqueda, filtros, cancelacion).
 - TypeScript compila sin errores nuevos.
+
+---
+
+# Tarea: CANCELACION - Prevenir doble cancelacion, modal con maletas, registro de cancelaciones
+
+## Descripcion
+
+Tres mejoras al flujo de cancelacion:
+1. **Prevenir doble cancelacion**: backend valida estado CANCELADO + frontend deshabilita boton.
+2. **Modal mejorado**: muestra la lista de maletas afectadas (codigo, origen → destino).
+3. **Nuevo panel "Cancelaciones"**: historial de todas las cancelaciones realizadas en la sesion.
+
+## Archivos modificados
+
+| Archivo | Lineas | Cambio |
+|---|---|---|
+| `backend/.../CancelacionService.java` | 262-265, 283-286 | Validar `getEstado() == CANCELADO` en ambas ramas (frio y caliente) |
+| `frontend/lib/types.ts` | 60-78 | Agregar `codigo_vuelo` y `equipajes[]` a `ResultadoCancelacion` |
+| `frontend/components/simulacion/SeccionCancelacion.tsx` | 67, 102-117, 222, 292-380 | `cancelledIds`, mapeo de equipajes, modal con lista, `onCancelado` |
+| `frontend/components/simulacion/RegistroCancelaciones.tsx` | **Nuevo** | Componente de historial de cancelaciones |
+| `frontend/app/page.tsx` | 49-50, 80, 1080, 1293, 1393-1405, 1710, 1901, 2160-2182 | Import, estado, dock item, `onCancelado`, panel |
+
+## Detalle de cambios
+
+### 1. Backend: prevenir doble cancelacion
+
+En `cancelarSegunPlantilla()` (rama frio, ~linea 262):
+```java
+if (instanciaHoy.getEstado() == EstadoVuelo.CANCELADO) {
+    throw new CancelacionInvalidaException(
+            "El vuelo " + plantilla.getCodigoVuelo() + " de hoy ya fue cancelado");
+}
+```
+
+En `cancelarInstanciaSiguienteLocked()` (rama caliente, ~linea 283):
+```java
+if (instanciaManana.getEstado() == EstadoVuelo.CANCELADO) {
+    throw new CancelacionInvalidaException(
+            "El vuelo " + plantilla.getCodigoVuelo() + " del dia siguiente ya fue cancelado");
+}
+```
+
+### 2. Frontend: boton deshabilitado tras cancelar
+
+```typescript
+const [cancelledIds, setCancelledIds] = useState<Set<string>>(new Set());
+// Tras exito:
+setCancelledIds(prev => new Set(prev).add(p.id));
+// En el boton:
+const deshabilitado = loadingId === p.id || !momentoVirtual || cancelledIds.has(p.id);
+```
+
+### 3. Frontend: modal con lista de maletas
+
+El modal ahora incluye una seccion con las maletas re-enrutadas:
+```
+┌─────────────────────────────────────┐
+│ Equipajes re-enrutados (3)          │
+├─────────────────────────────────────┤
+│ TAS-EQ-001   SKBO → LIM             │
+│ TAS-EQ-042   LIM → MIA              │
+│ TAS-EQ-113   MIA → GRU              │
+└─────────────────────────────────────┘
+```
+
+### 4. Frontend: nuevo panel "Registro de cancelaciones"
+
+Nuevo componente `RegistroCancelaciones.tsx` que muestra el historial completo:
+- Codigo de vuelo cancelado
+- Tipo (Cancelado / Diferido) con badge coloreado
+- Numero de maletas afectadas
+- Lista de codigos de maleta
+
+Accesible desde el dock via icono `AlertTriangle`.
+
+## Comportamiento final
+
+| Accion | Resultado |
+|---|---|
+| Cancelar vuelo por 1ra vez | Exito. Modal muestra maletas afectadas. Boton se deshabilita. Se agrega al historial. |
+| Cancelar el mismo vuelo otra vez | Boton deshabilitado (frontend). Si se fuerza request, backend responde 422. |
+| Ver historial | Dock item "Cancelaciones" muestra todas las cancelaciones ordenadas por fecha descendente. |
+
+## Sin cambios en
+
+- Base de datos (ya tenia `eventos_cancelacion`, `lotes_replanificacion`, `items_lote`)
+- `ReplanificacionService` (ya resetea maletas a REGISTRADO y las re-enruta)
+- Telemetria (sigue reflejando vuelos CANCELADO)
+- Flujo de pausa/reanudar
+- API endpoints existentes
