@@ -195,7 +195,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [csvConfirmLoading, setCsvConfirmLoading] = useState(false);
 
   const { data: telemetria, connected: wsConnected } = useTelemetria(
-    estadoSesion === "EN_CURSO",
+    estadoSesion === "EN_CURSO" || estadoSesion === "PAUSADA",
   );
   const hora = useReloj();
 

@@ -108,7 +108,7 @@ export function useSimulacionSesion({
   });
 
   const { data: telemetria, connected: wsConnected } = useTelemetria(
-    estadoSesion === 'EN_CURSO',
+    estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA',
   );
   const { initialAeropuertos, initialVuelos, resetInitialData } =
     useInitialMapData({ sesionId, estadoSesion, configUmbrales });
