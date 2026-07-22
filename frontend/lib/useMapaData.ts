@@ -82,7 +82,7 @@ export function useMapaData({
   equipajeFilter,
 }: UseMapaDataParams): UseMapaDataResult {
   const enVivo =
-    estadoSesion === 'EN_CURSO' &&
+    (estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA') &&
     !!telemetria &&
     telemetria.sesion_id === sesionId;
 

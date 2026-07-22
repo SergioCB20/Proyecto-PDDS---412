@@ -2007,3 +2007,91 @@ DESPUES (EN_CURSO):
 - Al hacer clic en "Reanudar" → la sesion vuelve a `EN_CURSO`.
 - `CommandBarSimulacion.onPausar` llama a `handlePausar` que hace `POST /sesiones/{id}/pausar`.
 - TypeScript compila sin errores nuevos.
+
+---
+
+# Tarea: FIX PAUSA DATOS - Corregir desaparicion de datos al pausar la simulacion
+
+## Descripcion
+
+Corregir el bug que causaba que al pausar la simulacion los aviones regresaran a su punto de partida y los datos de vuelos/aeropuertos desaparecieran.
+
+## Problema
+
+Cuando se pausaba la simulacion (`estadoSesion = 'PAUSADA'`), ocurria una reaccion en cadena:
+
+1. `useTelemetria(false)` se ejecutaba → cerraba el WebSocket y ejecutaba `setData(null)`, borrando todos los datos en vivo.
+2. `enVivo = false` en `useMapaData` → `vuelosMapa` caia a `initialVuelos` (datos REST sin `posicionActual` ni `progreso`).
+3. `AvionAnimado` recibia `posicionActual = undefined` y `progreso = 0` → renderizaba el avion en el **origen**.
+4. Los datos de aeropuertos (ocupacion, capacidad) se perdian al recargarse desde REST.
+
+**Consecuencia:** Al pausar, los aviones saltaban al origen y los paneles laterales perdian toda la informacion de la sesion.
+
+## Archivos modificados
+
+### 1. `frontend/lib/useSimulacionSesion.ts`
+
+```typescript
+// Linea 110-112 — Antes:
+useTelemetria(estadoSesion === 'EN_CURSO');
+// Despues:
+useTelemetria(estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA');
+```
+
+### 2. `frontend/lib/useMapaData.ts`
+
+```typescript
+// Linea 84-87 — Antes:
+const enVivo =
+  estadoSesion === 'EN_CURSO' && ...;
+// Despues:
+const enVivo =
+  (estadoSesion === 'EN_CURSO' || estadoSesion === 'PAUSADA') && ...;
+```
+
+### 3. `frontend/app/page.tsx`
+
+```typescript
+// Linea 197-199 (OperacionView) — Antes:
+useTelemetria(estadoSesion === "EN_CURSO");
+// Despues:
+useTelemetria(estadoSesion === "EN_CURSO" || estadoSesion === "PAUSADA");
+```
+
+## Comportamiento corregido
+
+| Elemento | Antes (bug) | Despues (fix) |
+|---|---|---|
+| Aviones en mapa | Saltaban al origen | Se **congelan** en su posicion actual |
+| Datos de vuelos (panel) | Desaparecian | Se **mantienen** congelados |
+| Datos de aeropuertos | Ocupacion se reseteaba | Se **mantiene** al pausar |
+| Panel de envios | Se limpiaba | Sigue mostrando datos |
+| Tiempo virtual | Desaparecia | Sigue visible congelado |
+| WebSocket | Se desconectaba | Sigue vivo (recibiendo datos congelados del backend) |
+
+## Detalle tecnico
+
+El backend ya congela correctamente la simulacion al recibir `POST /sesiones/{id}/pausar`:
+- Cambia el estado a `PAUSADA`.
+- El `TickService` deja de ejecutar ticks (el scheduler salta las sesiones no `EN_CURSO`).
+- Los datos de telemetria quedan congelados en el ultimo estado conocido.
+- El WebSocket sigue disponible para consultar esos datos congelados.
+
+El bug era exclusivamente del frontend: `useTelemetria(false)` destruia los datos al cambiar el estado, y `useMapaData` caia a datos REST sin posiciones. La solucion es mantener el WebSocket activo durante `PAUSADA` y permitir que `useMapaData` siga usando datos de telemetria.
+
+## Sin cambios en
+
+- Backend
+- `AvionAnimado.tsx` (recibe los datos correctos ahora)
+- `CommandBarSimulacion.tsx`
+- Tipos
+- API
+
+## Verificacion
+
+- Iniciar simulacion, esperar que los aviones esten en ruta.
+- Hacer clic en **"Pausa"** → los aviones deben **congelarse** en su posicion, no regresar al origen.
+- Los datos de aeropuertos (ocupacion, capacidad) deben seguir visibles en los paneles.
+- El tiempo virtual debe quedar congelado en el mismo valor.
+- Hacer clic en **"Reanudar"** → los aviones deben continuar desde donde se congelaron.
+- TypeScript compila sin errores nuevos.
