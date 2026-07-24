@@ -42,6 +42,12 @@ public class Equipaje {
     @Column(name = "fecha_operacion")
     private OffsetDateTime fechaOperacion;
 
+    @Column(name = "fecha_ingreso_local", length = 32)
+    private String fechaIngresoLocal;
+
+    @Column(length = 64)
+    private String tag;
+
     @Column(name = "sla_comprometido", nullable = false)
     private OffsetDateTime slaComprometido;
 
@@ -82,6 +88,12 @@ public class Equipaje {
 
     public OffsetDateTime getSlaComprometido() { return slaComprometido; }
     public void setSlaComprometido(OffsetDateTime slaComprometido) { this.slaComprometido = slaComprometido; }
+
+    public String getFechaIngresoLocal() { return fechaIngresoLocal; }
+    public void setFechaIngresoLocal(String fechaIngresoLocal) { this.fechaIngresoLocal = fechaIngresoLocal; }
+
+    public String getTag() { return tag; }
+    public void setTag(String tag) { this.tag = tag; }
 
     public List<Maleta> getMaletas() { return maletas; }
     public void setMaletas(List<Maleta> maletas) { this.maletas = maletas; }

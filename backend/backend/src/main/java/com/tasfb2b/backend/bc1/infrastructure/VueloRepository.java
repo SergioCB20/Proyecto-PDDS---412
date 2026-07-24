@@ -89,4 +89,10 @@ public interface VueloRepository extends JpaRepository<Vuelo, UUID>, JpaSpecific
 
     @Query("SELECT COUNT(v) FROM Vuelo v WHERE v.fechaOperacion = :fecha AND v.esPlantilla = false AND v.estado = :estado")
     long countByFechaOperacionAndEstado(@Param("fecha") LocalDate fecha, @Param("estado") EstadoVuelo estado);
+
+    @Modifying
+    @Query("DELETE FROM Vuelo v WHERE v.tag = :tag")
+    int deleteByTag(@Param("tag") String tag);
+
+    List<Vuelo> findByTag(String tag);
 }

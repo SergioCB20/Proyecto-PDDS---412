@@ -81,12 +81,24 @@ export function PanelVuelos({ vuelos, onVueloClick, origenFilter = '', destinoFi
       case 'ocupacion-desc':
         lista.sort((a, b) => (b.capacidad_carga - b.carga_disponible) - (a.capacidad_carga - a.carga_disponible));
         break;
-      case 'hora-salida':
-        lista.sort((a, b) => new Date(a.hora_salida).getTime() - new Date(b.hora_salida).getTime());
+      case 'hora-salida': {
+        const ts = (s: string): number => {
+          if (!s) return Number.POSITIVE_INFINITY;
+          const t = new Date(s).getTime();
+          return Number.isNaN(t) ? Number.POSITIVE_INFINITY : t;
+        };
+        lista.sort((a, b) => ts(a.hora_salida) - ts(b.hora_salida));
         break;
-      case 'hora-llegada':
-        lista.sort((a, b) => new Date(a.hora_llegada).getTime() - new Date(b.hora_llegada).getTime());
+      }
+      case 'hora-llegada': {
+        const ts = (s: string): number => {
+          if (!s) return Number.POSITIVE_INFINITY;
+          const t = new Date(s).getTime();
+          return Number.isNaN(t) ? Number.POSITIVE_INFINITY : t;
+        };
+        lista.sort((a, b) => ts(a.hora_llegada) - ts(b.hora_llegada));
         break;
+      }
       case 'origen-az':
         lista.sort((a, b) => a.origen_iata.localeCompare(b.origen_iata));
         break;

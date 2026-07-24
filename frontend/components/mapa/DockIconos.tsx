@@ -6,12 +6,14 @@ export interface SeccionDock {
   id: string;
   icon: React.ElementType;
   label: string;
+  variant?: 'panel' | 'action';
 }
 
 interface DockIconosProps {
   secciones: SeccionDock[];
   abiertas: Set<string>;
   onToggle: (id: string) => void;
+  onAction?: (id: string) => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
 }
@@ -20,6 +22,7 @@ export default function DockIconos({
   secciones,
   abiertas,
   onToggle,
+  onAction,
   collapsed,
   onToggleCollapse,
 }: DockIconosProps) {
@@ -37,13 +40,16 @@ export default function DockIconos({
           <div className="w-8 border-t border-slate-200 dark:border-slate-700 my-1" />
           {secciones.map((seccion) => {
             const Icon = seccion.icon;
-            const activa = abiertas.has(seccion.id);
+            const isAction = seccion.variant === 'action';
+            const activa = !isAction && abiertas.has(seccion.id);
             return (
               <button
                 key={seccion.id}
-                onClick={() => onToggle(seccion.id)}
+                onClick={() => (isAction ? onAction?.(seccion.id) : onToggle(seccion.id))}
                 className={`p-2 rounded-lg transition-colors ${
-                  activa
+                  isAction
+                    ? 'text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 ring-1 ring-blue-200 dark:ring-blue-800'
+                    : activa
                     ? 'bg-info/10 text-info ring-1 ring-info/25 dark:bg-info/20 dark:text-info-soft'
                     : 'text-slate-600 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}

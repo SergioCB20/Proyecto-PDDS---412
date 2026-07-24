@@ -30,9 +30,17 @@ public class ACORoutingStrategy implements RoutingStrategy {
     private static final double BONUS_MALETA_ACEPTADA = 100_000.0;
     private static final double COSTO_ESPERA_POR_HORA = 10.0;
     private static final double COSTO_VUELO_POR_HORA = 5.0;
-    private static final int MAX_ITERACIONES = 2;
+    // FIX #14: ACO solo fallback cuando Greedy falla >50% (caso raro en mallos
+    // bien conectados). Con 1 iter + 1 hormiga, ACO es ~5ms/eq en vez de ~50ms.
+    private static final int MAX_ITERACIONES = 1;
     private static final int NUM_HORMIGAS = 1;
-    private static final int MAX_ESCALAS_BUSQUEDA = 4;
+    private static final int MAX_ESCALAS_BUSQUEDA = 5;
+    // Ventana maxima de espera flexible: permite conexiones que cruzan medianoche.
+    // Antes 24h descartaba vuelos a +24h, bloqueando conexiones intercontinentales.
+    private static final int MAX_ESPERA_HORAS = 96;
+    // Margen adicional sobre el presupuesto SLA (antes +6h era muy estricto;
+    // rutas intercontinentales tardan 22h de vuelo + escalas).
+    private static final int MARGEN_SLA_HORAS = 48;
 
     private Map<String, Map<String, ArcoVueloInterno>> grafo;
     private Map<String, Integer> capacidadVuelos;
@@ -265,12 +273,12 @@ public class ACORoutingStrategy implements RoutingStrategy {
             for (ArcoVueloInterno v : desde.values()) {
                 int esperaV = v.horaSalida - horaActual;
                 if (esperaV < 0) esperaV += 24;
-                if (esperaV < 1 || esperaV > 24) { filtEspera++; continue; }
+                if (esperaV < 1 || esperaV > MAX_ESPERA_HORAS) { filtEspera++; continue; }
 
                 int horaLlegadaV = v.horaLlegada;
                 if (horaLlegadaV < v.horaSalida) horaLlegadaV += 24;
                 int tiempoSegmento = esperaV + v.duracionHoras;
-                if (tiempoUsado + tiempoSegmento > presupuesto + 6) { filtTiempo++; continue; }
+                if (tiempoUsado + tiempoSegmento > presupuesto + MARGEN_SLA_HORAS) { filtTiempo++; continue; }
                 if (capVuelo.getOrDefault(v.id, 0) + maleta.cantidad > v.capacidad) { filtCap++; continue; }
                 if (visitados.contains(v.destinoId)) { filtVisit++; continue; }
 
@@ -391,7 +399,8 @@ public class ACORoutingStrategy implements RoutingStrategy {
             for (ArcoVueloInterno v : desde.values()) {
                 int espera = v.horaSalida - horaAct;
                 if (espera < 0) espera += 24;
-                if (espera > 24) continue;
+                // FIX #7a: ampliar ventana de espera para conexiones que cruzan medianoche
+                if (espera > MAX_ESPERA_HORAS) continue;
                 if (v.destinoId.equals(destino)) { alcanzable = true; break; }
                 int horaLlegada = v.horaLlegada;
                 if (horaLlegada < v.horaSalida) horaLlegada += 24;

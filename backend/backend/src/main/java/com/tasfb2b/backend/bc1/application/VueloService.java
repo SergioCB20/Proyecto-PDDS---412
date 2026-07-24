@@ -351,7 +351,24 @@ public class VueloService {
 
     @Transactional
     public void eliminarInstanciasPorFecha(LocalDate desde, LocalDate hasta) {
-        // Contar instancias sin cargarlas en memoria
+        // FIX #5: Solo borrar instancias de vuelos que NO estan siendo usadas por una sesion
+        // EN_CURSO. Antes borraba TODOS los vuelos del rango, rompiendo segmentos_plan
+        // y planes_viaje de otras sesiones activas (FK violation).
+        // Una sesion "usa" un vuelo si tiene al menos un segmento_plan o un plan_viaje
+        // cuyo equipaje apunta a ese segmento. Por simplicidad tomamos la heuristica:
+        // existe segmento_plan.vuelo_id = cualquiera en el rango -> NO borrar.
+        Integer countConUso = jdbcTemplate.queryForObject(
+            "SELECT COUNT(DISTINCT v.id) FROM vuelos v " +
+            "WHERE v.es_plantilla = false AND v.fecha_operacion BETWEEN ? AND ? " +
+            "  AND (EXISTS (SELECT 1 FROM segmentos_plan sp WHERE sp.vuelo_id = v.id) " +
+            "       OR EXISTS (SELECT 1 FROM planes_viaje pv JOIN segmentos_plan sp ON sp.plan_viaje_id = pv.id WHERE sp.vuelo_id = v.id))",
+            Integer.class, desde, hasta);
+        if (countConUso != null && countConUso > 0) {
+            log.warn("Hay {} vuelos con segmentos activos en el rango {}-{}. Se omiten para no romper la FK de otras sesiones.",
+                    countConUso, desde, hasta);
+            return;
+        }
+
         Integer count = jdbcTemplate.queryForObject(
             "SELECT COUNT(*) FROM vuelos WHERE es_plantilla = false AND fecha_operacion BETWEEN ? AND ?",
             Integer.class, desde, hasta);
@@ -361,20 +378,17 @@ public class VueloService {
         }
         log.info("Limpiando {} instancias de simulacion entre {} y {}", count, desde, hasta);
 
-        // Nullificar vuelo_actual_id usando JOIN directo (índice idx_equipajes_vuelo_actual)
         int equipajesNullificados = jdbcTemplate.update(
             "UPDATE equipajes SET vuelo_actual_id = NULL " +
             "WHERE vuelo_actual_id IN (" +
             "  SELECT id FROM vuelos WHERE es_plantilla = false AND fecha_operacion BETWEEN ? AND ?" +
             ")", desde, hasta);
 
-        // Eliminar segmentos usando JOIN directo (índice idx_segmentos_vuelo_id)
         int segmentosEliminados = jdbcTemplate.update(
             "DELETE FROM segmentos_plan WHERE vuelo_id IN (" +
             "  SELECT id FROM vuelos WHERE es_plantilla = false AND fecha_operacion BETWEEN ? AND ?" +
             ")", desde, hasta);
 
-        // Eliminar las instancias de vuelo
         jdbcTemplate.update(
             "DELETE FROM vuelos WHERE es_plantilla = false AND fecha_operacion BETWEEN ? AND ?",
             desde, hasta);

@@ -63,6 +63,9 @@ public class Vuelo {
     @Column(name = "fecha_operacion")
     private LocalDate fechaOperacion;
 
+    @Column(length = 64)
+    private String tag;
+
     public Vuelo() {}
 
     public UUID getId() { return id; }
@@ -113,6 +116,9 @@ public class Vuelo {
 
     public LocalDate getFechaOperacion() { return fechaOperacion; }
     public void setFechaOperacion(LocalDate fechaOperacion) { this.fechaOperacion = fechaOperacion; }
+
+    public String getTag() { return tag; }
+    public void setTag(String tag) { this.tag = tag; }
 
     public double getOcupacionPorcentaje() {
         if (capacidadCarga == null || capacidadCarga == 0) return 0;

@@ -129,8 +129,16 @@ public class SimulacionPlanificador {
         if (virtual == null) return;
 
         long saMs = (sesion.getSaSegundos() != null ? sesion.getSaSegundos() : saSegundosFallback) * 1000L;
+
+        // FIX #2: leer ventana_horas de la sesión (no solo del property global).
+        // Si la sesion define ventana_horas=4 vs app.properties=4 caemos en app config,
+        // pero si el usuario creo la sesión diciendo ventana_horas=2 (caso c9a9feac),
+        // antes siempre usabamos el global, ahora respetamos la sesion.
+        int ventana = sesion.getVentanaHoras() != null && sesion.getVentanaHoras() > 0
+                ? sesion.getVentanaHoras()
+                : ventanaHorasApp;
         OffsetDateTime inicioVentana = virtual;
-        OffsetDateTime finVentana = virtual.plusHours(ventanaHorasApp);
+        OffsetDateTime finVentana = virtual.plusHours(ventana);
 
         // Pre-clonar vuelos para todos los dias que caigan dentro de la ventana.
         // El planificador puede ejecutarse ANTES de que el tick clone el siguiente

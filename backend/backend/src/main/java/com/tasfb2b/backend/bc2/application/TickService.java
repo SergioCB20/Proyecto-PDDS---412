@@ -412,10 +412,15 @@ public class TickService {
         List<Vuelo> saliendo;
 
         if (virtualAntes == null) {
-            Page<Vuelo> page = vueloRepository.findByEstadoAndEsPlantilla(
-                    EstadoVuelo.PROGRAMADO, false, PageRequest.of(0, MAX_EVENTOS_POR_TICK));
-            saliendo = new ArrayList<>(page.getContent());
-            saliendo.sort(Comparator.comparing(Vuelo::getHoraSalida, Comparator.nullsLast(Comparator.naturalOrder())));
+            // FIX: primer tick. Antes flipeaba hasta MAX_EVENTOS_POR_TICK (400) vuelos sin filtro,
+            // haciendo que virtualmente TODOS los vuelos pasasen a EN_RUTA sin haber recibido
+            // carga (porque el planificador aun no ha procesado ningun equipaje). Resultado:
+            // metricas mostraban 0 PROGRAMADOS y 0 ENTREGADOS durante varios minutos.
+            // Ahora solo los vuelos cuya hora canonica ya paso (<= 08:00 del dia 1) salen.
+            saliendo = vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaLessThanEqual(
+                    EstadoVuelo.PROGRAMADO, false, virtual);
+            log.info("FIX primer tick: {} vuelos a despegar desde inicio virtual={}",
+                    saliendo.size(), virtual);
         } else {
             saliendo = vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaLessThanEqual(
                     EstadoVuelo.PROGRAMADO, false, virtual);
@@ -487,10 +492,11 @@ public class TickService {
         List<Vuelo> llegando;
 
         if (virtualAntes == null) {
-            Page<Vuelo> page = vueloRepository.findByEstadoAndEsPlantilla(
-                    EstadoVuelo.EN_RUTA, false, PageRequest.of(0, MAX_EVENTOS_POR_TICK));
-            llegando = new ArrayList<>(page.getContent());
-            llegando.sort(Comparator.comparing(Vuelo::getHoraLlegada, Comparator.nullsLast(Comparator.naturalOrder())));
+            // FIX: simétrico a procesarVuelosSalida. Primer tick: ahora filtramos por hora
+            // para no flipear vuelos huerfanos (sin segmentos) que ya estaban en EN_RUTA
+            // de una sesion previa. Compatible con sesiones que reusan instancias.
+            llegando = vueloRepository.findByEstadoAndEsPlantillaAndHoraLlegadaLessThanEqual(
+                    EstadoVuelo.EN_RUTA, false, virtual);
         } else {
             llegando = vueloRepository.findByEstadoAndEsPlantillaAndHoraLlegadaLessThanEqual(
                     EstadoVuelo.EN_RUTA, false, virtual);

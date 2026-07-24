@@ -63,13 +63,14 @@ export const api = {
   patch: <T>(path: string, body: unknown) =>
     request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
-  upload: <T>(path: string, formData: FormData) => {
+  upload: <T>(path: string, formData: FormData, headers?: Record<string, string>) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort('Timeout'), REQUEST_TIMEOUT_MS);
     return fetch(`${BASE_URL}${path}`, {
       method: 'POST',
       headers: {
         'X-Device-Id': device.getId(),
+        ...(headers as Record<string, string> | undefined),
       },
       signal: controller.signal,
       body: formData,

@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,8 +49,11 @@ public class CargaMasivaService {
 
     public record RegistroPreview(
             int fila,
+            String idExterno,
+            String fechaIngresoLocal,
             String destinoIata,
             int cantidad,
+            String clienteId,
             String estadoValidacion,
             String motivo
     ) {}
@@ -67,7 +71,7 @@ public class CargaMasivaService {
 
     public PreviewResponse procesarCsv(MultipartFile archivo, UUID operadorNodoId) {
         if (archivo.isEmpty()) {
-            throw new CargaException("El archivo CSV está vacío");
+            throw new CargaException("El archivo está vacío");
         }
 
         List<RegistroPreview> registros = new ArrayList<>();
@@ -76,62 +80,62 @@ public class CargaMasivaService {
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(archivo.getInputStream(), StandardCharsets.UTF_8))) {
 
-            String header = reader.readLine();
-            if (header == null || header.isBlank()) {
-                throw new CargaException("El archivo CSV no tiene cabecera");
-            }
-
-            String[] columnas = header.split(",");
-            if (columnas.length < 2) {
-                throw new CargaException("El CSV debe tener al menos 2 columnas: destino_iata,cantidad");
-            }
-
-            NodoLogistico nodoOrigen = nodoRepository.findById(operadorNodoId)
-                    .orElseThrow(() -> new CargaException("Nodo asignado al operador no encontrado"));
-
             String line;
             while ((line = reader.readLine()) != null) {
                 filaNum++;
                 line = line.trim();
-                if (line.isBlank()) continue;
+                if (line.isEmpty()) continue;
 
-                String[] partes = parseCsvLine(line);
-                if (partes.length < 2) {
-                    registros.add(new RegistroPreview(filaNum, "", 0, "REVISION",
-                            "Fila mal formateada: se esperaban 2 columnas, se obtuvieron " + partes.length));
+                // Formato curso: id-aaaammdd-hh-mm-dest-###-IdClien
+                // Ej: 00000001-20260724-10-30-SCEL-180-0007729
+                String[] parts = line.split("-");
+                if (parts.length < 7) {
+                    registros.add(new RegistroPreview(filaNum, "", "", "", 0, "", "REVISION",
+                            "Formato inválido: se esperan 7 campos separados por '-'"));
                     continue;
                 }
 
-                String destinoIata = partes[0].trim();
-                String cantidadStr = partes[1].trim();
+                String idExterno = parts[0];
+                String fechaStr = parts[1]; // aaaammdd
+                String horaStr = parts[2]; // hh
+                String minStr = parts[3]; // mm
+                String destinoIata = parts[4];
+                String cantidadStr = parts[5];
+                String clienteId = parts[6];
 
                 List<String> errores = new ArrayList<>();
 
-                if (destinoIata.isBlank()) {
-                    errores.add("destino_iata vacío");
-                } else if (nodoRepository.findByCodigoIata(destinoIata).isEmpty()) {
-                    errores.add("Destino IATA " + destinoIata + " no existe en el sistema");
+                // Validar destino
+                if (destinoIata.isBlank() || nodoRepository.findByCodigoIata(destinoIata).isEmpty()) {
+                    errores.add("Destino IATA no existe: " + destinoIata);
                 }
 
+                // Validar cantidad
                 int cantidad = 0;
                 try {
                     cantidad = Integer.parseInt(cantidadStr);
-                    if (cantidad < 1) {
-                        errores.add("cantidad debe ser al menos 1");
-                    }
+                    if (cantidad < 1) errores.add("Cantidad debe ser >= 1");
                 } catch (NumberFormatException e) {
-                    errores.add("cantidad no es un número válido: " + cantidadStr);
+                    errores.add("Cantidad no es un número: " + cantidadStr);
                 }
 
-                if (ocupacionNodoService.leer(nodoOrigen.getId(), OcupacionNodoService.OPERACION)
-                        >= (nodoOrigen.getCapacidadAlmacen() != null ? nodoOrigen.getCapacidadAlmacen() : 0)) {
-                    errores.add("Capacidad del almacén superada en nodo " + nodoOrigen.getCodigoIata());
+                // Validar fecha
+                String fechaIngresoLocal = "";
+                try {
+                    if (fechaStr.length() == 8) {
+                        String yyyy = fechaStr.substring(0, 4);
+                        String mm = fechaStr.substring(4, 6);
+                        String dd = fechaStr.substring(6, 8);
+                        fechaIngresoLocal = String.format("%s-%s-%s %s:%s", yyyy, mm, dd, horaStr, minStr);
+                    }
+                } catch (Exception e) {
+                    errores.add("Fecha/hora inválida: " + fechaStr + " " + horaStr + ":" + minStr);
                 }
 
                 if (errores.isEmpty()) {
-                    registros.add(new RegistroPreview(filaNum, destinoIata, cantidad, "VALIDO", null));
+                    registros.add(new RegistroPreview(filaNum, idExterno, fechaIngresoLocal, destinoIata, cantidad, clienteId, "VALIDO", null));
                 } else {
-                    registros.add(new RegistroPreview(filaNum, destinoIata, cantidad, "REVISION",
+                    registros.add(new RegistroPreview(filaNum, idExterno, fechaIngresoLocal, destinoIata, cantidad, clienteId, "REVISION",
                             String.join("; ", errores)));
                 }
             }
@@ -139,11 +143,11 @@ public class CargaMasivaService {
         } catch (CargaException e) {
             throw e;
         } catch (Exception e) {
-            throw new CargaException("Error al procesar el archivo CSV: " + e.getMessage());
+            throw new CargaException("Error al procesar el archivo: " + e.getMessage());
         }
 
         if (filaNum == 0) {
-            throw new CargaException("El archivo CSV no contiene datos (solo cabecera)");
+            throw new CargaException("El archivo no contiene datos");
         }
 
         int validos = (int) registros.stream().filter(r -> "VALIDO".equals(r.estadoValidacion())).count();
@@ -191,17 +195,18 @@ public class CargaMasivaService {
 
                 Equipaje equipaje = new Equipaje();
                 equipaje.setId(UUID.randomUUID());
-                equipaje.setIdExterno("ENV-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
+                equipaje.setIdExterno(preview.idExterno());
                 equipaje.setOrigenIata(nodoOrigen.getCodigoIata());
                 equipaje.setDestinoIata(preview.destinoIata());
                 equipaje.setCantidad(preview.cantidad());
                 equipaje.setSlaComprometido(sla);
                 equipaje.setFechaIngreso(OffsetDateTime.now());
+                equipaje.setFechaIngresoLocal(preview.fechaIngresoLocal());
                 equipaje.setEstado(EstadoEquipaje.REGISTRADO);
                 equipaje.setVueloActual(null);
+                equipaje.setTag("tag_dia_a_dia");
                 equipajeRepository.save(equipaje);
 
-                // Cada equipaje genera N maletas hijas con codigo_maleta unico.
                 equipajeService.generarMaletasPara(equipaje);
 
                 eventPublisher.publishEvent(new EquipajeIngresadoEvent(equipaje.getId(), OffsetDateTime.now()));
@@ -226,27 +231,6 @@ public class CargaMasivaService {
         previewStore.remove(operadorNodoId);
 
         return new ConfirmarResponse(ingresados, fallidos);
-    }
-
-    private String[] parseCsvLine(String line) {
-        List<String> result = new ArrayList<>();
-        boolean inQuotes = false;
-        StringBuilder current = new StringBuilder();
-
-        for (int i = 0; i < line.length(); i++) {
-            char c = line.charAt(i);
-            if (c == '"') {
-                inQuotes = !inQuotes;
-            } else if (c == ',' && !inQuotes) {
-                result.add(current.toString());
-                current = new StringBuilder();
-            } else {
-                current.append(c);
-            }
-        }
-        result.add(current.toString());
-
-        return result.toArray(new String[0]);
     }
 
     public static class CargaException extends RuntimeException {
