@@ -41,7 +41,6 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Modal } from "@/components/ui/Modal";
-import { Card } from "@/components/ui/Card";
 import { PanelAeropuertosOperacion } from "@/components/operacion/PanelAeropuertosOperacion";
 import { PanelVuelosOperacion } from "@/components/operacion/PanelVuelosOperacion";
 import { PanelEnviosMaletas } from "@/components/shared/PanelEnviosMaletas";
@@ -261,7 +260,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     setSeguidoVueloId(null);
   }, []);
 
-  const handleVueloSeleccionadoOp = useCallback((id: string, codigo: string) => {
+  const handleVueloSeleccionadoOp = useCallback((id: string, _codigo: string) => {
     setVueloSeleccionadoOp(id);
   }, []);
 
@@ -544,6 +543,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
       const res = await api.post<{ estado: string; sesion_id: string }>(
         "/operacion/detener", {}
       );
+      void res;
       setSesionId(null);
       setEstadoSesion("FINALIZADA");
       setInicioOperacionMs(0);
@@ -1145,7 +1145,7 @@ function SimulacionView({
     setSeguidoVueloId(null);
   }, []);
 
-  const handleVueloSeleccionadoSim = useCallback((id: string, codigo: string) => {
+  const handleVueloSeleccionadoSim = useCallback((id: string, _codigo: string) => {
     setVueloSeleccionadoSim(id);
   }, []);
 
@@ -1777,7 +1777,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     setSeguidoVueloId(null);
   }, []);
 
-  const handleVueloSeleccionadoCol = useCallback((id: string, codigo: string) => {
+  const handleVueloSeleccionadoCol = useCallback((id: string, _codigo: string) => {
     setVueloSeleccionadoCol(id);
   }, []);
 

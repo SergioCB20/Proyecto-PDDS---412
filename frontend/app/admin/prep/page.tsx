@@ -96,7 +96,6 @@ export default function AdminPrepPage() {
   }
 
   const capsOriginales: Record<string, number> = { SPIM: 440, SABE: 460, EKCH: 480, VIDP: 480 };
-  const capsEsperadas: Record<string, number> = { SPIM: 999, SABE: 999, EKCH: 999, VIDP: 999 };
 
   const capsActuales = estado?.capacidades || {};
   const enPrep = ["SPIM", "SABE", "EKCH", "VIDP"].every(k => capsActuales[k] === 999);
@@ -179,7 +178,7 @@ export default function AdminPrepPage() {
             <div>
               <div className="text-xs font-medium text-slate-500 mb-1">Capacidades</div>
               <div className="grid grid-cols-2 gap-2">
-                {Object.entries(TZ_AERO).map(([iata, tz]) => {
+                {Object.entries(TZ_AERO).map(([iata]) => {
                   const cap = capsActuales[iata];
                   const esperado = enPrep ? 999 : capsOriginales[iata];
                   const ok = cap === esperado;

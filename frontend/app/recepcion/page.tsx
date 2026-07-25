@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { api } from "@/lib/api";
 import { device } from "@/lib/device";
-import { TZ_AERO, tzAbrev, formatLocal } from "@/lib/timezone";
+import { tzAbrev, formatLocal } from "@/lib/timezone";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -39,7 +39,11 @@ const SEDES: NodoLite[] = [
 
 export default function RecepcionPage() {
   const router = useRouter();
-  const [nodo, setNodo] = useState<NodoLite | null>(null);
+  const [nodo, setNodo] = useState<NodoLite | null>(() => {
+    const storedId = device.getAeropuertoRefId();
+    if (!storedId) return null;
+    return SEDES.find(s => s.id === storedId) ?? null;
+  });
   const [destinos, setDestinos] = useState<NodoLite[]>([]);
   const [destinoIata, setDestinoIata] = useState("");
   const [cantidad, setCantidad] = useState(1);
@@ -61,18 +65,10 @@ export default function RecepcionPage() {
   }, []);
 
   useEffect(() => {
-    const storedId = device.getAeropuertoRefId();
-    if (storedId) {
-      const found = SEDES.find(s => s.id === storedId);
-      if (found) setNodo(found);
-    }
-  }, []);
-
-  useEffect(() => {
     api.get<NodoLite[]>("/nodos")
       .then(list => setDestinos(list.filter(d => d.codigo_iata !== nodo?.codigo_iata).sort((a, b) => a.codigo_iata.localeCompare(b.codigo_iata))))
       .catch(() => {});
-  }, [nodo]);
+  }, [nodo?.codigo_iata]);
 
   const cargarEnvios = useCallback(async () => {
     if (!nodo) return;
@@ -88,6 +84,10 @@ export default function RecepcionPage() {
   }, [nodo]);
 
   useEffect(() => {
+    // Polling pattern: carga inicial + interval refresh desde el backend.
+    // El setState vive en el callback de cargarEnvios, pero la regla lo flaggea
+    // en el primer sync (mount) por el render sincrónico que dispara React.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     cargarEnvios();
     const id = setInterval(cargarEnvios, 5000);
     return () => clearInterval(id);

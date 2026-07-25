@@ -28,7 +28,8 @@ public class OperacionPreparacionService {
     private final NodoLogisticoRepository nodoRepository;
     private final VueloRepository vueloRepository;
     private final EquipajeRepository equipajeRepository;
-    private final PlanVuelos planOperativo;
+    private final PlanVuelosRepository planVuelosRepository;
+    private PlanVuelos planOperativo;
 
     public OperacionPreparacionService(NodoLogisticoRepository nodoRepository,
                                         VueloRepository vueloRepository,
@@ -37,8 +38,15 @@ public class OperacionPreparacionService {
         this.nodoRepository = nodoRepository;
         this.vueloRepository = vueloRepository;
         this.equipajeRepository = equipajeRepository;
-        this.planOperativo = planVuelosRepository.findFirstByOrderByVigenciaDesdeAsc()
-            .orElseThrow(() -> new IllegalStateException("No existe PlanVuelos base. Verificar seeds"));
+        this.planVuelosRepository = planVuelosRepository;
+    }
+
+    private PlanVuelos getPlanOperativo() {
+        if (planOperativo == null) {
+            planOperativo = planVuelosRepository.findFirstByOrderByVigenciaDesdeAsc()
+                .orElseThrow(() -> new IllegalStateException("No existe PlanVuelos base. Verificar seeds"));
+        }
+        return planOperativo;
     }
 
     @Transactional
@@ -163,7 +171,7 @@ public class OperacionPreparacionService {
                 vuelo.setId(UUID.randomUUID());
                 vuelo.setCodigoVuelo(generateCodigo(origenIata, destinoIata));
                 vuelo.setEstado(com.tasfb2b.backend.bc1.domain.EstadoVuelo.PROGRAMADO);
-                vuelo.setPlanVuelos(planOperativo);
+                vuelo.setPlanVuelos(getPlanOperativo());
                 vuelo.setOrigen(origen);
                 vuelo.setDestino(destino);
                 vuelo.setOrigenLat(origen.getLatitud());

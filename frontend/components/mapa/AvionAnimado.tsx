@@ -255,18 +255,24 @@ function AvionAnimado({
   useEffect(() => {
     setIcono(crearIconoAvion(colorAvion, bearingRef.current, iconSizeRef.current, seguidoRef.current, destacado));
     flightRef.current.lastBearingT = -1; // force bearing refresh
-  }, [vuelo.estado, vuelo.carga_disponible, vuelo.capacidad_carga, umbralesConfig]);
+  }, [vuelo.estado, vuelo.carga_disponible, vuelo.capacidad_carga, umbralesConfig, colorAvion, destacado]);
 
   // Recreate icon when zoom changes (keeps current bearing)
   useEffect(() => {
     setIcono(crearIconoAvion(colorAvion, bearingRef.current, iconSize, seguido, destacado));
-  }, [iconSize, vuelo.estado, seguido, destacado, vuelo.carga_disponible, vuelo.capacidad_carga, umbralesConfig]);
+  }, [iconSize, vuelo.estado, seguido, destacado, vuelo.carga_disponible, vuelo.capacidad_carga, umbralesConfig, colorAvion]);
 
   /**
    * Continuous rAF loop.
    * Only restarts when the flight identity / route changes — NOT on every tick.
    * All live data (progreso, k, timestamps) is read from flightRef.current.
+   *
+   * El linter de react-hooks pediría listar `colorAvion`, `destacado`, `map` y
+   * `dibujarEstela`, pero hacerlo reinicia el rAF en cada render (definidos en
+   * línea y referenciados por la closure). El loop ya consulta los valores vivos
+   * vía flightRef y refs locales; ignorar la regla es deliberado.
    */
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     const marker = markerRef.current;
     if (!marker) return;
@@ -317,7 +323,7 @@ function AvionAnimado({
         return;
       }
 
-      const frameDt = Math.max(0, now - ref.lastFrameTime); // ms since last frame
+      // ms since last frame (sólo se usa para mantener el reloj de frame al día)
       ref.lastFrameTime = now;
 
       const durVirtual = ref.horaLlegadaMs - ref.horaSalidaMs;
@@ -408,6 +414,7 @@ function AvionAnimado({
     samples,
     // NOTE: vuelo.progreso / k intentionally excluded — handled via flightRef
   ]);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   // Estela inicial: ruta por delante del avión desde su progreso actual
   // (evita un parpadeo con la ruta completa antes del primer frame).

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import {
   Package, ChevronDown, ChevronUp, XCircle,
-  CheckCircle, FileText, FileSpreadsheet,
+  CheckCircle, FileText,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Aeropuerto, CrearEquipajeResponse } from "@/lib/types";
@@ -19,7 +19,7 @@ interface RegistroEquipajePanelProps {
 
 export function RegistroEquipajePanel({
   aeropuertos,
-  sesionId,
+  sesionId: _sesionId,
 }: RegistroEquipajePanelProps) {
   const [formOpen, setFormOpen] = useState(false);
   const [formData, setFormData] = useState({
