@@ -11,6 +11,7 @@ import com.tasfb2b.backend.bc1.infrastructure.EquipajeRepository;
 import com.tasfb2b.backend.bc2.application.ReplanificacionResult;
 import com.tasfb2b.backend.bc2.application.ReplanificacionService;
 import com.tasfb2b.backend.bc2.application.SesionLockManager;
+import com.tasfb2b.backend.bc2.application.TelemetriaService;
 import com.tasfb2b.backend.bc2.domain.SesionEjecucion;
 import com.tasfb2b.backend.bc2.infrastructure.SesionRepository;
 import com.tasfb2b.backend.shared.events.VueloCanceladoEvent;
@@ -51,6 +52,7 @@ public class CancelacionService {
     private final OcupacionNodoService ocupacionNodoService;
     private final VueloService vueloService;
     private final EventoCancelacionRepository eventoCancelacionRepository;
+    private final TelemetriaService telemetriaService;
 
     public CancelacionService(VueloRepository vueloRepository, EquipajeRepository equipajeRepository,
                               NodoLogisticoRepository nodoRepository, ApplicationEventPublisher eventPublisher,
@@ -60,7 +62,8 @@ public class CancelacionService {
                               SesionLockManager lockManager,
                               OcupacionNodoService ocupacionNodoService,
                               VueloService vueloService,
-                              EventoCancelacionRepository eventoCancelacionRepository) {
+                              EventoCancelacionRepository eventoCancelacionRepository,
+                              TelemetriaService telemetriaService) {
         this.vueloRepository = vueloRepository;
         this.equipajeRepository = equipajeRepository;
         this.nodoRepository = nodoRepository;
@@ -72,6 +75,7 @@ public class CancelacionService {
         this.ocupacionNodoService = ocupacionNodoService;
         this.vueloService = vueloService;
         this.eventoCancelacionRepository = eventoCancelacionRepository;
+        this.telemetriaService = telemetriaService;
     }
 
     public record EquipajeAfectado(UUID id, String codigo, String origen_iata, String destino_iata,
@@ -180,6 +184,18 @@ public class CancelacionService {
         sesion.setMaletasReplanificadas(
                 (sesion.getMaletasReplanificadas() != null ? sesion.getMaletasReplanificadas() : 0) + result.afectados());
         sesionRepository.save(sesion);
+
+        // FIX: la sesion tiene los contadores nuevos en DB pero TelemetriaService / MetricasController
+        // leen de redis cache 'sesion:{id}:metricas' (cacheado ANTES de esta cancelacion por el ultimo
+        // tick con valor 0). Sin invalidacion, el panel sigue mostrando vuelos_cancelados=0 y
+        // maletas_replanificadas=0 durante todos los segundos hasta el proximo tick (7s).
+        // Borrar + forzar re-emision sincrona asegura visibilidad inmediata en el UI.
+        try {
+            redisCacheService.delMetricasSesion(sesionId);
+        } catch (Exception e) {
+            log.warn("Redis no disponible al invalidar metricas tras cancelacion: {}", e.getMessage());
+        }
+        telemetriaService.emitirTelemetria(sesion);
 
         List<Equipaje> eqs = equipajeRepository.findAllById(result.equipajeIds());
         Map<UUID, EquipajeReplanInfo> replanMap = result.equipajes().stream()
@@ -303,6 +319,13 @@ public class CancelacionService {
         sesion.setVuelosCancelados(
                 (sesion.getVuelosCancelados() != null ? sesion.getVuelosCancelados() : 0) + 1);
         sesionRepository.save(sesion);
+
+        try {
+            redisCacheService.delMetricasSesion(sesionId);
+        } catch (Exception e) {
+            log.warn("Redis no disponible al invalidar metricas tras cancelacion caliente: {}", e.getMessage());
+        }
+        telemetriaService.emitirTelemetria(sesion);
 
         log.info("Cancelacion diferida (rama caliente): plantilla={} sesion={} instancia_cancelada={} proxDia={}",
                 plantilla.getCodigoVuelo(), sesionId, instanciaManana.getId(), manana);

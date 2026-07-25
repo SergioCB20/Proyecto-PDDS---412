@@ -40,7 +40,7 @@ class MotorEnrutamientoTest {
 
     @BeforeEach
     void setUp() {
-        motor = new MotorEnrutamiento(vueloRepository, nodoRepository, greedyStrategy, acoStrategy);
+        motor = new MotorEnrutamiento(vueloRepository, nodoRepository, greedyStrategy, acoStrategy, true);
 
         origen = new NodoLogistico(
                 UUID.randomUUID(), "LIM", "Lima",

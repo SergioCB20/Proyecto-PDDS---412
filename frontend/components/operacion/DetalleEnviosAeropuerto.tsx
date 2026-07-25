@@ -67,7 +67,7 @@ export function DetalleEnviosAeropuerto({ iata, sesionId, onSeguirEnMapa, onMost
       });
 
     return () => { cancelled = true; };
-  }, [iata]);
+  }, [iata, sesionId]);
 
   const toggleExpandido = useCallback((id: string) => {
     setExpandidos(prev => ({ ...prev, [id]: !prev[id] }));
@@ -232,7 +232,7 @@ export function DetalleEnviosAeropuerto({ iata, sesionId, onSeguirEnMapa, onMost
         )}
       </div>
     );
-  }, [expandidos, toggleExpandido, onSeguirEnMapa, onMostrarRuta, siguiendoId, mostrandoRutaId]);
+  }, [expandidos, toggleExpandido, onSeguirEnMapa, onMostrarRuta, siguiendoId, mostrandoRutaId, handleSeguir, handleMostrarRuta]);
 
   if (loading) {
     return (

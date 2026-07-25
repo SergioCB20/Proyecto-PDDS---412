@@ -27,12 +27,14 @@ import java.util.stream.Collectors;
 public class SimulacionEnrutamientoService {
 
     private static final Logger log = LoggerFactory.getLogger(SimulacionEnrutamientoService.class);
-    private static final int SUB_BATCH_SIZE = 2000;
+    private static final int SUB_BATCH_SIZE = 200;
 
     /** Máximo equipajes a procesar en un solo ciclo del planificador.
-     *  Evita que el planificador bloquee el tick por minutos procesando
-     *  millones de equipajes atrasados en una sola transacción. */
-    private static final int MAX_EQUIPAJES_PER_CYCLE = 2_500;
+     *  FIX #14: Greedy ~1ms/eq → 500 eq/batch ≈ 500ms.
+     *  FIX #16: throttling backward because fast planning floods warehouses faster than
+     *  tick departs (cada 7s, MAX_EVENTOS despegues desaguan). 200 eq/batch @ 30s = 400/min,
+     *  equiparable al ritmo de salidas. Evita colapso de almacenes como UMMS en 10 min. */
+    private static final int MAX_EQUIPAJES_PER_CYCLE = 200;
 
     /** Último diagnóstico de ventana por sesión, para telemetría WebSocket. */
     private final ConcurrentHashMap<UUID, VentanaDiagnostico> ultimoDiagnostico = new ConcurrentHashMap<>();
@@ -71,37 +73,22 @@ public class SimulacionEnrutamientoService {
         OffsetDateTime filtroHasta = sesion != null ? sesion.getFechaFiltroHasta() : null;
         boolean filtrar = filtroDesde != null && filtroHasta != null;
 
-        // Limitar backlog a equipajes del dia de inicio en adelante.
-        // Los datos pueden tener años de fecha_operacion previa a la simulación,
-        // pero sus rutas no existen en la malla de vuelos clonados y saturan el ACO sin éxito.
-        OffsetDateTime backlogDesde = inicioVentana.minusDays(2);
-
-        String sqlBacklogBase =
+        // FIX #9: la ventana virtual (inicioVentana..finVentana) cubre solo 2h del reloj, pero
+        // fecha_operacion se distribuye en los 5 dias del filtro. Por eso solo consultamos
+        // los REGISTRADO dentro del filtro de la sesion (sin recorte por ventana de reloj),
+        // ordenados por SLA ASC. Asi los 50 equipajes mas urgentes se procesan cada batch
+        // independientemente de en que dia del filtro caigan.
+        String sqlBase =
                 "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad, fecha_ingreso, fecha_operacion " +
                         "FROM equipajes " +
-                        "WHERE estado = 'REGISTRADO' AND fecha_operacion >= ? AND fecha_operacion < ? " +
+                        "WHERE estado = 'REGISTRADO' " +
                         (filtrar ? "AND fecha_operacion BETWEEN ? AND ? " : "") +
-                        "ORDER BY fecha_operacion LIMIT ?";
-        Object[] argsBacklog = filtrar
-                ? new Object[]{backlogDesde, inicioVentana, filtroDesde, filtroHasta, MAX_EQUIPAJES_PER_CYCLE}
-                : new Object[]{backlogDesde, inicioVentana, MAX_EQUIPAJES_PER_CYCLE};
-
-        List<Equipaje> backlog = jdbcTemplate.query(sqlBacklogBase, this::mapEquipaje, argsBacklog);
-
-        int remaining = MAX_EQUIPAJES_PER_CYCLE - backlog.size();
+                        "ORDER BY sla_comprometido ASC, fecha_operacion ASC LIMIT ?";
+        Object[] argsBase = filtrar
+                ? new Object[]{filtroDesde, filtroHasta, MAX_EQUIPAJES_PER_CYCLE}
+                : new Object[]{MAX_EQUIPAJES_PER_CYCLE};
+        List<Equipaje> backlog = jdbcTemplate.query(sqlBase, this::mapEquipaje, argsBase);
         List<Equipaje> window = Collections.emptyList();
-        if (remaining > 0) {
-            String sqlWindow =
-                    "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad, fecha_ingreso, fecha_operacion " +
-                            "FROM equipajes " +
-                            "WHERE estado = 'REGISTRADO' AND fecha_operacion >= ? AND fecha_operacion < ? " +
-                            (filtrar ? "AND fecha_operacion BETWEEN ? AND ? " : "") +
-                            "ORDER BY fecha_operacion LIMIT ?";
-            Object[] argsWindow = filtrar
-                    ? new Object[]{inicioVentana, finVentana, filtroDesde, filtroHasta, remaining}
-                    : new Object[]{inicioVentana, finVentana, remaining};
-            window = jdbcTemplate.query(sqlWindow, this::mapEquipaje, argsWindow);
-        }
 
         if (!backlog.isEmpty()) {
             log.info("Backlog: {} equipajes atrasados en ventana {}-{}", backlog.size(), inicioVentana, finVentana);
@@ -254,8 +241,29 @@ public class SimulacionEnrutamientoService {
 
             // Batch updates con JDBC
             batchActualizarVuelos(vuelosActualizar);
+            // FIX #16: guardia anti-saturacion. Si algun nodo origen ya esta al >=95%
+            // de capacidad, NO aplicar el +cantidad de este batch (saltar ocupacion para
+            // no disparar colapso). El equipaje se queda marcado como ENRUTADO y se intenta
+            // en el siguiente ciclo.
+            Map<UUID, Integer> ocupacionActual = ocupacionNodoService.mapa(sesionId);
+            java.util.Map<UUID, Integer> nodosActualizarFiltrado = new HashMap<>();
+            for (Map.Entry<UUID, Integer> entry : nodosActualizar.entrySet()) {
+                UUID nodoId = entry.getKey();
+                int delta = entry.getValue();
+                int ocup = ocupacionActual.getOrDefault(nodoId, 0);
+                int cap = nodosPorId.get(nodoId) != null
+                        ? nodosPorId.get(nodoId).getCapacidadAlmacen() : 800;
+                double pct = cap > 0 ? (ocup * 100.0) / cap : 0.0;
+                if (pct >= 95.0) {
+                    log.warn("FIX #16: nodo {} al {}% — saltando reserva de {} unidades para evitar colapso",
+                            nodosPorId.get(nodoId) != null ? nodosPorId.get(nodoId).getCodigoIata() : nodoId,
+                            String.format("%.1f", pct), delta);
+                    continue;
+                }
+                nodosActualizarFiltrado.put(nodoId, delta);
+            }
             // Ocupación de origen sube al reservar la maleta, en el contexto de ESTA sesión.
-            ocupacionNodoService.ajustarLote(nodosActualizar, sesionId);
+            ocupacionNodoService.ajustarLote(nodosActualizarFiltrado, sesionId);
             batchMarcarEnrutados(equipajesEnrutados);
             equipajesEnrutados.clear();
             sinRutaTotal += sinRutaLote;

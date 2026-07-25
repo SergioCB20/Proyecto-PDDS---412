@@ -5,6 +5,7 @@ import com.tasfb2b.backend.bc1.domain.EstadoEquipaje;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -195,4 +196,10 @@ public interface EquipajeRepository extends JpaRepository<Equipaje, UUID> {
     List<Equipaje> findEnVueloLlegandoBySesion(@Param("nodoIata") String nodoIata,
                                                @Param("sesionId") UUID sesionId,
                                                Pageable pageable);
+
+    @Modifying
+    @Query("DELETE FROM Equipaje e WHERE e.tag = :tag")
+    int deleteByTag(@Param("tag") String tag);
+
+    List<Equipaje> findByTag(String tag);
 }

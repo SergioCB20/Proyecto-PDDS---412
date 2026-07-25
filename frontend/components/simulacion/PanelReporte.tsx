@@ -16,10 +16,6 @@ function formatMomento(s: string): string {
   return formatearHoraLocal(s);
 }
 
-function isReporteSesion(r: ReporteSesion | ReporteOperacion): r is ReporteSesion {
-  return "sla_incumplido_pct" in r;
-}
-
 export function PanelReporte({
   reporte,
   sesionId,

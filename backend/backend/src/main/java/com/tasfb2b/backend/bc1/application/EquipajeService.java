@@ -134,8 +134,16 @@ public class EquipajeService {
         }
         equipaje.setSlaComprometido(sla);
         equipaje.setFechaIngreso(OffsetDateTime.now());
+        // TZ-aware fecha_ingreso_local: timestamp del dispositivo en la TZ del aeropuerto
+        if (nodoOrigen.getZonaHoraria() != null) {
+            String fechaLocal = OffsetDateTime.now()
+                .atZoneSameInstant(java.time.ZoneId.of(nodoOrigen.getZonaHoraria()))
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+            equipaje.setFechaIngresoLocal(fechaLocal);
+        }
         equipaje.setEstado(EstadoEquipaje.REGISTRADO);
         equipaje.setVueloActual(null);
+        equipaje.setTag("tag_dia_a_dia");
         equipajeRepository.save(equipaje);
 
         // Crear N maletas individuales (una por unidad de `cantidad`).

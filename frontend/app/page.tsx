@@ -27,6 +27,7 @@ import {
   Download,
 } from "lucide-react";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { aeropuertoToEnMapa } from "@/lib/mock";
 import { useTelemetria } from "@/lib/useTelemetria";
@@ -40,7 +41,6 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Modal } from "@/components/ui/Modal";
-import { Card } from "@/components/ui/Card";
 import { PanelAeropuertosOperacion } from "@/components/operacion/PanelAeropuertosOperacion";
 import { PanelVuelosOperacion } from "@/components/operacion/PanelVuelosOperacion";
 import { PanelEnviosMaletas } from "@/components/shared/PanelEnviosMaletas";
@@ -166,6 +166,7 @@ export default function DashboardPage() {
 }
 
 function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
+  const router = useRouter();
   const [sesionId, setSesionId] = useState<string | null>(null);
   const [estadoSesion, setEstadoSesion] = useState<
     "CONFIGURADA" | "EN_CURSO" | "PAUSADA" | "FINALIZADA"
@@ -262,7 +263,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     setSeguidoVueloId(null);
   }, []);
 
-  const handleVueloSeleccionadoOp = useCallback((id: string, codigo: string) => {
+  const handleVueloSeleccionadoOp = useCallback((id: string, _codigo: string) => {
     setVueloSeleccionadoOp(id);
   }, []);
 
@@ -285,7 +286,11 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     setLoading(true);
     setApiError(null);
     try {
-      const baseDate = "2026-01-15";
+      const hoy = new Date();
+      const yyyy = hoy.getUTCFullYear();
+      const mm = String(hoy.getUTCMonth() + 1).padStart(2, "0");
+      const dd = String(hoy.getUTCDate()).padStart(2, "0");
+      const baseDate = `${yyyy}-${mm}-${dd}`;
       const ahora = new Date();
       const wStart = `${baseDate}T${ahora.toISOString().slice(11, 19)}Z`;
       const wEnd = new Date(
@@ -541,6 +546,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
       const res = await api.post<{ estado: string; sesion_id: string }>(
         "/operacion/detener", {}
       );
+      void res;
       setSesionId(null);
       setEstadoSesion("FINALIZADA");
       setInicioOperacionMs(0);
@@ -562,13 +568,15 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     }
   };
 
-  // Operacion real (sin sesion de simulacion): camino legacy, sin sesion_id.
+  // Operacion real (sin sesion de simulacion): la cancelación resuelve
+  // automaticamente la sesion EN_VIVO activa via /api/operacion/cancelacion.
   const handleCancelarVuelo = async (id: string, codigo: string) => {
     if (!confirm(`¿Cancelar vuelo ${codigo}?`)) return;
+    const causaTexto = prompt("Causa de cancelación:", "Cancelación manual") ?? "Cancelación manual";
     try {
-      await api.post("/simulacion/cancelacion", {
+      await api.post("/operacion/cancelacion", {
         vuelo_id: id,
-        causa: "Cancelación manual",
+        causa: causaTexto,
       });
     } catch {
       alert("Error al cancelar vuelo");
@@ -629,6 +637,11 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
       return next;
     });
   }, []);
+
+  const onDockActionOp = useCallback((id: string) => {
+    if (id === 'ir-recepcion') router.push('/recepcion');
+    else if (id === 'ir-admin') router.push('/admin/prep');
+  }, [router]);
 
   const dockAbiertasOp = useMemo(() => {
     const s = new Set(dockAbiertas);
@@ -753,13 +766,15 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               { id: 'vuelos', icon: Plane, label: 'Vuelos' },
               { id: 'envios', icon: Luggage, label: 'Envíos' },
               { id: 'control', icon: Activity, label: 'Control' },
-              { id: 'registro', icon: Package, label: 'Registro Equipaje' },
               { id: 'metricas', icon: BarChart3, label: 'Métricas' },
               { id: 'reloj', icon: Clock, label: 'Reloj' },
               { id: 'zoom', icon: ZoomIn, label: 'Zoom' },
+              { id: 'ir-recepcion', icon: Package, label: 'Ir a Recepción', variant: 'action' },
+              { id: 'ir-admin', icon: Settings, label: 'Admin día-a-día', variant: 'action' },
             ]}
             abiertas={dockAbiertasOp}
             onToggle={toggleDockOp}
+            onAction={onDockActionOp}
             collapsed={dockCollapsed}
             onToggleCollapse={() => setDockCollapsed(!dockCollapsed)}
           />
@@ -1135,7 +1150,7 @@ function SimulacionView({
     setSeguidoVueloId(null);
   }, []);
 
-  const handleVueloSeleccionadoSim = useCallback((id: string, codigo: string) => {
+  const handleVueloSeleccionadoSim = useCallback((id: string, _codigo: string) => {
     setVueloSeleccionadoSim(id);
   }, []);
 
@@ -1780,7 +1795,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     setSeguidoVueloId(null);
   }, []);
 
-  const handleVueloSeleccionadoCol = useCallback((id: string, codigo: string) => {
+  const handleVueloSeleccionadoCol = useCallback((id: string, _codigo: string) => {
     setVueloSeleccionadoCol(id);
   }, []);
 

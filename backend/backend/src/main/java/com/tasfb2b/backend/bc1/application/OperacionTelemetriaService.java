@@ -99,6 +99,7 @@ public class OperacionTelemetriaService {
             v.put("destino_lon", vuelo.getDestinoLon().doubleValue());
             v.put("origen_iata", vuelo.getOrigen().getCodigoIata());
             v.put("destino_iata", vuelo.getDestino().getCodigoIata());
+            v.put("tag", vuelo.getTag() != null ? vuelo.getTag() : "");
 
             if (vuelo.getEstado() == EstadoVuelo.EN_RUTA) {
                 double t = Math.min(Math.max(calcularProgreso(vuelo, now), 0.0), 1.0);
