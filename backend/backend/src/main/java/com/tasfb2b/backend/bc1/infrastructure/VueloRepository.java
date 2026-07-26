@@ -35,6 +35,7 @@ public interface VueloRepository extends JpaRepository<Vuelo, UUID>, JpaSpecific
     List<Vuelo> findByEstadoInAndEsPlantilla(List<EstadoVuelo> estados, Boolean esPlantilla);
     List<Vuelo> findByEstadoInAndEsPlantillaAndFechaOperacion(List<EstadoVuelo> estados, Boolean esPlantilla, LocalDate fechaOperacion);
     List<Vuelo> findByEstadoInAndEsPlantillaAndTagAndFechaOperacion(List<EstadoVuelo> estados, Boolean esPlantilla, String tag, LocalDate fechaOperacion);
+    List<Vuelo> findByEstadoInAndEsPlantillaAndTag(List<EstadoVuelo> estados, Boolean esPlantilla, String tag);
 
      /**
       * Vuelos relevantes para la telemetría en tiempo real.

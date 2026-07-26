@@ -17,7 +17,6 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
-import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -53,9 +52,13 @@ public class OperacionTelemetriaService {
     public void emitirTelemetria() {
         try {
             List<NodoLogistico> nodos = nodoRepository.findAllByOrderByCodigoIataAsc();
-            LocalDate hoy = LocalDate.now();
-            List<Vuelo> vuelos = vueloRepository.findByEstadoInAndEsPlantillaAndTagAndFechaOperacion(
-                    List.of(EstadoVuelo.PROGRAMADO, EstadoVuelo.EN_RUTA, EstadoVuelo.COMPLETADO, EstadoVuelo.CANCELADO), false, TAG, hoy);
+            // Sin filtrar por la fecha del servidor: los vuelos se fechan en el día local de
+            // su aeropuerto de origen y las sedes están en husos distintos, así que
+            // LocalDate.now() (UTC) dejaba fuera los planes del día del operador. El tag
+            // TAG_DIA_A_DIA ya acota la carga a la operación vigente.
+            List<Vuelo> vuelos = vueloRepository.findByEstadoInAndEsPlantillaAndTag(
+                    List.of(EstadoVuelo.PROGRAMADO, EstadoVuelo.EN_RUTA,
+                            EstadoVuelo.COMPLETADO, EstadoVuelo.CANCELADO), false, TAG);
             String json = buildTelemetryJson(nodos, vuelos);
             telemetriaWebSocket.broadcast(json);
         } catch (Exception e) {

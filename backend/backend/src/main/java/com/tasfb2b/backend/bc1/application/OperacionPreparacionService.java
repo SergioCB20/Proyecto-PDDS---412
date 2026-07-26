@@ -188,7 +188,6 @@ public class OperacionPreparacionService {
         if (archivo == null || archivo.isEmpty()) return 0;
 
         int count = 0;
-        LocalDate hoy = LocalDate.now();
 
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(archivo.getInputStream(), StandardCharsets.UTF_8))) {
@@ -229,11 +228,21 @@ public class OperacionPreparacionService {
 
                 java.time.ZoneId zonaSalida = java.time.ZoneId.of(origen.getZonaHoraria());
                 java.time.ZoneId zonaLlegada = java.time.ZoneId.of(destino.getZonaHoraria());
+                // El día del plan es "hoy" en el aeropuerto de ORIGEN, no en el servidor:
+                // este proceso corre en UTC y las sedes están en husos distintos, así que
+                // LocalDate.now() podía fechar el vuelo un día antes (y salir ya "pasado")
+                // para operadores al este de UTC (p. ej. Copenhague pasada la medianoche).
+                LocalDate hoy = LocalDate.now(zonaSalida);
                 OffsetDateTime horaSalida = hoy.atTime(ho, mo)
                         .atZone(zonaSalida).toOffsetDateTime().withOffsetSameInstant(java.time.ZoneOffset.UTC);
-                OffsetDateTime horaLlegada = hoy.atTime(hd, md)
+                // La llegada se ancla al mismo instante de salida: se toma el día local del
+                // destino en ese momento y, si la hora local de llegada es anterior a la de
+                // salida, cae al día siguiente. Comparar hd<ho directamente no sirve porque
+                // origen y destino pueden estar en husos distintos.
+                LocalDate diaLlegada = horaSalida.atZoneSameInstant(zonaLlegada).toLocalDate();
+                OffsetDateTime horaLlegada = diaLlegada.atTime(hd, md)
                         .atZone(zonaLlegada).toOffsetDateTime().withOffsetSameInstant(java.time.ZoneOffset.UTC);
-                if (hd < ho) horaLlegada = horaLlegada.plusDays(1);
+                if (horaLlegada.isBefore(horaSalida)) horaLlegada = horaLlegada.plusDays(1);
 
                 Vuelo vuelo = new Vuelo();
                 vuelo.setId(UUID.randomUUID());
