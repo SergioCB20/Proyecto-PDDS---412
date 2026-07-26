@@ -109,8 +109,8 @@ public interface EquipajeRepository extends JpaRepository<Equipaje, UUID> {
     @Query("SELECT DISTINCT e FROM Equipaje e LEFT JOIN e.maletas m WHERE e.estado IN :estados " +
            "AND (:origenIata IS NULL OR e.origenIata = :origenIata) " +
            "AND (:destinoIata IS NULL OR e.destinoIata = :destinoIata) " +
-            "AND (:codigoMaleta IS NULL OR m.codigoMaleta LIKE :codigoMaleta " +
-            "     OR (:rawCodigoMaleta IS NOT NULL AND e.idExterno LIKE CONCAT('%', :rawCodigoMaleta, '%'))) " +
+            "AND (:codigoMaleta IS NULL OR m.codigoMaleta LIKE CAST(:codigoMaleta AS string) " +
+            "     OR (:rawCodigoMaleta IS NOT NULL AND e.idExterno LIKE CONCAT('%', CAST(:rawCodigoMaleta AS string), '%'))) " +
             "ORDER BY e.fechaIngreso DESC")
     List<Equipaje> findEnviosPanel(@Param("estados") List<EstadoEquipaje> estados,
                                    @Param("origenIata") String origenIata,
@@ -161,8 +161,8 @@ public interface EquipajeRepository extends JpaRepository<Equipaje, UUID> {
            "AND pv.sesionId = :sesionId " +
            "AND (:origenIata IS NULL OR e.origenIata = :origenIata) " +
            "AND (:destinoIata IS NULL OR e.destinoIata = :destinoIata) " +
-            "AND (:codigoMaleta IS NULL OR m.codigoMaleta LIKE :codigoMaleta " +
-            "     OR (:rawCodigoMaleta IS NOT NULL AND e.idExterno LIKE CONCAT('%', :rawCodigoMaleta, '%'))) " +
+            "AND (:codigoMaleta IS NULL OR m.codigoMaleta LIKE CAST(:codigoMaleta AS string) " +
+            "     OR (:rawCodigoMaleta IS NOT NULL AND e.idExterno LIKE CONCAT('%', CAST(:rawCodigoMaleta AS string), '%'))) " +
             "ORDER BY e.fechaIngreso DESC")
     List<Equipaje> findEnviosPanelBySesion(@Param("sesionId") UUID sesionId,
                                            @Param("estados") List<EstadoEquipaje> estados,
