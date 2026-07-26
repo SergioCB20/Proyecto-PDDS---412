@@ -65,6 +65,7 @@ import {
   formatearFechaHoraSinSeg,
   formatDuracionHHMMSS,
 } from "@/lib/formatearHora";
+import { tzDeIata, tzAbrev } from "@/lib/timezone";
 import type {
   Aeropuerto,
   Vuelo,
@@ -175,6 +176,16 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     return "setup";
   });
   const iataOperacion = stage === "picker" ? "" : (device.getAeropuertoRefId() || "");
+  // El origen de todo registro/carga en operación es la sede seleccionada. Se
+  // resuelve a su nodo (con id) desde la lista de aeropuertos para enviarlo en
+  // el header X-Device-Nodo-Id que el backend exige.
+  const nodoOrigen = useMemo(
+    () => aeropuertos.find((n) => n.codigo_iata === iataOperacion) ?? null,
+    [aeropuertos, iataOperacion],
+  );
+  // Zona horaria de la sede: referencia local del operador para las fechas/horas
+  // generales del escenario día a día (reloj, inicio de jornada, etc.).
+  const tzSede = useMemo(() => tzDeIata(iataOperacion), [iataOperacion]);
 
   const zonasHorarias = useMemo(() => {
     const m: Record<string, string> = {};
@@ -228,6 +239,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [csvPreview, setCsvPreview] = useState<CargaMasivaPreview | null>(null);
   const [csvLoading, setCsvLoading] = useState(false);
   const [csvError, setCsvError] = useState<string | null>(null);
+  const [csvSuccess, setCsvSuccess] = useState<string | null>(null);
   const [csvConfirmLoading, setCsvConfirmLoading] = useState(false);
 
   const { data: telemetria, connected: wsConnected } = useTelemetria(
@@ -437,11 +449,8 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     setFormSuccess(null);
     setFormLoading(true);
     try {
-      const aeropuerto = aeropuertos.find(
-        (n) => n.codigo_iata === formData.origenIata,
-      );
-      if (!aeropuerto) {
-        setFormError("Seleccione un aeropuerto origen");
+      if (!nodoOrigen) {
+        setFormError("Aeropuerto de origen (sede) no disponible. Recargue la página.");
         setFormLoading(false);
         return;
       }
@@ -452,7 +461,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
           cantidad: formData.cantidad,
           cliente_id: formData.clienteId || undefined,
         },
-        { "X-Device-Nodo-Id": aeropuerto.id },
+        { "X-Device-Nodo-Id": nodoOrigen.id },
       );
       setFormSuccess(response);
       setFormData({ origenIata: "", destinoIata: "", cantidad: 1, clienteId: "" });
@@ -469,8 +478,13 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!nodoOrigen) {
+      setCsvError("Aeropuerto de origen (sede) no disponible. Recargue la página.");
+      return;
+    }
     setCsvFile(file);
     setCsvError(null);
+    setCsvSuccess(null);
     setCsvLoading(true);
     try {
       const formData = new FormData();
@@ -478,6 +492,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
       const preview = await api.upload<CargaMasivaPreview>(
         "/equipajes/carga-masiva",
         formData,
+        { "X-Device-Nodo-Id": nodoOrigen.id },
       );
       setCsvPreview(preview);
     } catch (err: unknown) {
@@ -493,18 +508,28 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
 
   const handleConfirmarCargaMasiva = async () => {
     if (!csvPreview) return;
+    if (!nodoOrigen) {
+      setCsvError("Aeropuerto de origen (sede) no disponible. Recargue la página.");
+      return;
+    }
     setCsvConfirmLoading(true);
     setCsvError(null);
+    setCsvSuccess(null);
     try {
-      await api.post<CargaMasivaConfirmResponse>(
+      const res = await api.post<CargaMasivaConfirmResponse>(
         "/equipajes/carga-masiva/confirmar",
         {},
+        { "X-Device-Nodo-Id": nodoOrigen.id },
       );
       setCsvFile(null);
       setCsvPreview(null);
+      setCsvSuccess(
+        `${res.ingresados} envíos ingresados${res.fallidos ? `, ${res.fallidos} fallidos` : ""}`,
+      );
     } catch (err: unknown) {
       const error = err as { mensaje?: string; message?: string };
       setCsvError(error.mensaje || error.message || "Error al confirmar carga");
+    } finally {
       setCsvConfirmLoading(false);
     }
   };
@@ -780,7 +805,10 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                 <div className="flex items-center gap-1.5 mb-1 pb-1 border-b border-slate-200 dark:border-slate-600">
                   <Clock size={11} />
                   <span className="font-semibold text-slate-900 dark:text-slate-100 text-sm">
-                    {formatearFechaHora(hora.toISOString())}
+                    {formatearFechaHora(hora.toISOString(), tzSede)}
+                  </span>
+                  <span className="ml-auto text-[10px] font-mono text-slate-400" title={`Hora local de ${iataOperacion}`}>
+                    {iataOperacion} · {tzAbrev(iataOperacion)}
                   </span>
                 </div>
                 {inicioOperacionMs > 0 && (
@@ -790,6 +818,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                       <span className="font-mono font-medium text-slate-700 dark:text-slate-300">
                         {formatearFechaHoraSinSeg(
                           new Date(inicioOperacionMs).toISOString(),
+                          tzSede,
                         )}
                       </span>
                     </div>
@@ -1050,6 +1079,12 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                   <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
                     <AlertTriangle size={16} />
                     <span className="text-sm text-red-700 dark:text-red-300">{csvError}</span>
+                  </div>
+                )}
+                {csvSuccess && (
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800">
+                    <CheckCircle size={16} className="text-green-600 dark:text-green-400 flex-shrink-0" />
+                    <span className="text-sm text-green-700 dark:text-green-300">{csvSuccess}</span>
                   </div>
                 )}
                 {csvPreview && (

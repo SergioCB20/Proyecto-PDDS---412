@@ -86,22 +86,37 @@ public class CargaMasivaService {
                 line = line.trim();
                 if (line.isEmpty()) continue;
 
-                // Formato curso: id-aaaammdd-hh-mm-dest-###-IdClien
+                // Formatos admitidos (campos separados por '-'):
+                //   id-aaaammdd-hh-mm-dest-###-IdClien   (7 campos, hora y minuto sueltos)
+                //   id-aaaammdd-hh:mm-dest-###-IdClien   (6 campos, hora como 'hh:mm')
                 // Ej: 00000001-20260724-10-30-SCEL-180-0007729
+                //     00000001-20260724-10:30-SCEL-180-0007729
                 String[] parts = line.split("-");
-                if (parts.length < 7) {
+
+                String idExterno, fechaStr, horaStr, minStr, destinoIata, cantidadStr, clienteId;
+                if (parts.length >= 7) {
+                    idExterno = parts[0];
+                    fechaStr = parts[1];    // aaaammdd
+                    horaStr = parts[2];     // hh
+                    minStr = parts[3];      // mm
+                    destinoIata = parts[4];
+                    cantidadStr = parts[5];
+                    clienteId = parts[6];
+                } else if (parts.length == 6 && parts[2].contains(":")) {
+                    String[] hm = parts[2].split(":");
+                    idExterno = parts[0];
+                    fechaStr = parts[1];    // aaaammdd
+                    horaStr = hm[0];        // hh
+                    minStr = hm.length > 1 ? hm[1] : "00"; // mm
+                    destinoIata = parts[3];
+                    cantidadStr = parts[4];
+                    clienteId = parts[5];
+                } else {
                     registros.add(new RegistroPreview(filaNum, "", "", "", 0, "", "REVISION",
-                            "Formato inválido: se esperan 7 campos separados por '-'"));
+                            "Formato inválido: se esperan campos separados por '-' " +
+                            "(id-aaaammdd-hh-mm-dest-###-IdClien), con la hora como 'hh-mm' o 'hh:mm'"));
                     continue;
                 }
-
-                String idExterno = parts[0];
-                String fechaStr = parts[1]; // aaaammdd
-                String horaStr = parts[2]; // hh
-                String minStr = parts[3]; // mm
-                String destinoIata = parts[4];
-                String cantidadStr = parts[5];
-                String clienteId = parts[6];
 
                 List<String> errores = new ArrayList<>();
 
