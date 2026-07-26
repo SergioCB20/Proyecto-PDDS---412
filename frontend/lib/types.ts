@@ -57,6 +57,25 @@ export interface PlantillaResumen {
   estado: string;
 }
 
+export interface SegmentoReplanInfo {
+  orden: number;
+  vueloId: string;
+  vueloCodigo: string;
+  nodoOrigenIata: string;
+  nodoDestinoIata: string;
+  horaSalidaProg: string;
+}
+
+export interface EquipajeCancelacion {
+  id: string;
+  codigo: string;
+  origen_iata: string;
+  destino_iata: string;
+  vuelo_replanificado_id?: string | null;
+  vuelo_replanificado_codigo?: string | null;
+  plan_viaje?: SegmentoReplanInfo[];
+}
+
 export interface ResultadoCancelacion {
   vuelo_solicitado_id: string;
   vuelo_cancelado_id: string;
@@ -69,12 +88,7 @@ export interface ResultadoCancelacion {
   estado_nuevo: string;
   equipajes_afectados: number;
   lote_replanificacion_id: string | null;
-  equipajes: Array<{
-    id: string;
-    codigo: string;
-    origen_iata: string;
-    destino_iata: string;
-  }>;
+  equipajes: EquipajeCancelacion[];
 }
 
 export interface CancelResultResponse {
@@ -82,12 +96,7 @@ export interface CancelResultResponse {
   estado_nuevo: string;
   equipajes_afectados: number;
   lote_replanificacion_id: string | null;
-  equipajes: Array<{
-    id: string;
-    codigo: string;
-    origen_iata: string;
-    destino_iata: string;
-  }>;
+  equipajes: EquipajeCancelacion[];
   fecha_operacion?: string | null;
   hora_salida_cancelada?: string | null;
 }

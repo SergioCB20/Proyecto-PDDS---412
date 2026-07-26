@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import {
-  XCircle, Clock, AlertTriangle, CheckCircle2,
+  XCircle, Clock, AlertTriangle, CheckCircle2, Plane,
   ChevronDown, ChevronUp, Search,
 } from "lucide-react";
 import { api } from "@/lib/api";
@@ -22,6 +22,8 @@ interface SeccionCancelacionProps {
   sesionId: string;
   momentoVirtual: string | null;
   onCancelado?: (r: ResultadoCancelacion) => void;
+  onVerDetalleEnvio?: (vueloId: string, vueloCodigo: string, equipajeId: string) => void;
+  cancelEndpoint?: string;
 }
 
 const ESTADOS = ["PROGRAMADO", "EN_RUTA", "COMPLETADO", "CANCELADO"] as const;
@@ -41,7 +43,19 @@ const COLOR_ESTADO: Record<string, string> = {
   CANCELADO: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
 };
 
-function fmtHora(iso: string): string {
+function fmtHora(iso: string, momentoVirtual?: string | null): string {
+  if (momentoVirtual) {
+    const mv = new Date(momentoVirtual);
+    const hs = new Date(iso);
+    if (!isNaN(mv.getTime()) && !isNaN(hs.getTime())) {
+      const reanchored = new Date(Date.UTC(
+        mv.getUTCFullYear(), mv.getUTCMonth(), mv.getUTCDate(),
+        hs.getUTCHours(), hs.getUTCMinutes(), hs.getUTCSeconds(),
+      ));
+      const f = formatearFechaHoraSeparado(reanchored.toISOString());
+      return `${f.fecha} ${f.hora}`;
+    }
+  }
   const f = formatearFechaHoraSeparado(iso);
   return `${f.fecha} ${f.hora}`;
 }
@@ -58,6 +72,8 @@ export function SeccionCancelacion({
   sesionId,
   momentoVirtual,
   onCancelado,
+  onVerDetalleEnvio,
+  cancelEndpoint = "/simulacion/cancelacion",
 }: SeccionCancelacionProps) {
   const [open, setOpen] = useState(true);
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -94,7 +110,7 @@ export function SeccionCancelacion({
     setError(null);
     setLoadingId(p.id);
     try {
-      const res = await api.post<CancelResultResponse>("/simulacion/cancelacion", {
+      const res = await api.post<CancelResultResponse>(cancelEndpoint, {
         vuelo_id: p.id,
         causa: "Cancelación manual desde panel de plantillas",
         sesion_id: sesionId,
@@ -240,11 +256,11 @@ export function SeccionCancelacion({
                       <td className="px-2 py-1.5">
                         <span className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
                           <Clock size={10} />
-                          {fmtHora(p.hora_salida)}
+                          {fmtHora(p.hora_salida, momentoVirtual)}
                         </span>
                       </td>
                       <td className="px-2 py-1.5 text-slate-600 dark:text-slate-300">
-                        {fmtHora(p.hora_llegada)}
+                        {fmtHora(p.hora_llegada, momentoVirtual)}
                       </td>
                       <td className="px-2 py-1.5">
                         <span className={`inline-block text-xs px-1.5 py-0.5 rounded-full font-medium ${COLOR_ESTADO[p.estado] || "bg-slate-100 text-slate-600"}`}>
@@ -368,8 +384,22 @@ export function SeccionCancelacion({
                 <div className="max-h-40 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700/50">
                   {resultado.equipajes.map((eq) => (
                     <div key={eq.id} className="flex items-center justify-between px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300">
-                      <span className="font-mono font-medium">{eq.codigo}</span>
-                      <span className="text-slate-500">{eq.origen_iata} → {eq.destino_iata}</span>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-mono font-medium shrink-0">{eq.codigo}</span>
+                        <span className="text-slate-500 truncate">{eq.origen_iata} → {eq.destino_iata}</span>
+                      </div>
+                      {eq.vuelo_replanificado_id && eq.vuelo_replanificado_codigo ? (
+                        <button
+                          onClick={() => onVerDetalleEnvio?.(eq.vuelo_replanificado_id!, eq.vuelo_replanificado_codigo!, eq.id)}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 px-1.5 py-0.5 rounded transition-colors shrink-0 ml-2"
+                          title="Ver detalle del vuelo de replanificación"
+                        >
+                          <Plane size={10} />
+                          {eq.vuelo_replanificado_codigo}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-400 shrink-0 ml-2">—</span>
+                      )}
                     </div>
                   ))}
                 </div>

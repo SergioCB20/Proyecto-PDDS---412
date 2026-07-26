@@ -36,6 +36,7 @@ interface ModalEnviosProps {
   sesionId?: string;
   onSeguirEnMapa?: (vueloId: string) => void;
   onMostrarRuta?: (segmentos: SegmentoResponse[]) => void;
+  highlightedEquipajeId?: string | null;
 }
 
 interface EnvioExpandido {
@@ -124,7 +125,7 @@ function fetchReducer(state: FetchState, action: FetchAction): FetchState {
   }
 }
 
-export function ModalEnvios({ open, selectedEnvio, onClose, sesionId, onSeguirEnMapa, onMostrarRuta }: ModalEnviosProps) {
+export function ModalEnvios({ open, selectedEnvio, onClose, sesionId, onSeguirEnMapa, onMostrarRuta, highlightedEquipajeId }: ModalEnviosProps) {
   const [{ data, loading, error }, dispatch] = useReducer(fetchReducer, {
     data: [],
     loading: true,
@@ -384,8 +385,13 @@ export function ModalEnvios({ open, selectedEnvio, onClose, sesionId, onSeguirEn
             {data.map(item => {
               const exp = expandidos[item.id];
               const expandido = !!exp;
+              const resaltado = highlightedEquipajeId != null && item.id === highlightedEquipajeId;
               return (
-                <div key={item.id} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40">
+                <div key={item.id} className={`rounded-lg border bg-slate-50/60 dark:bg-slate-800/40 ${
+                  resaltado
+                    ? 'border-blue-400 dark:border-blue-500 ring-1 ring-blue-300 dark:ring-blue-600'
+                    : 'border-slate-200 dark:border-slate-700'
+                }`}>
                   <button
                     type="button"
                     onClick={() => handleToggleExpand(item.id, item.codigo_equipaje)}
@@ -403,6 +409,11 @@ export function ModalEnvios({ open, selectedEnvio, onClose, sesionId, onSeguirEn
                       </span>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
+                      {resaltado && (
+                        <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/40 px-1.5 py-0.5 rounded-full">
+                          Re-enrutada
+                        </span>
+                      )}
                       <span className="text-sm text-slate-600 whitespace-nowrap">
                         {item.cantidad} maleta{item.cantidad !== 1 ? 's' : ''}
                       </span>
