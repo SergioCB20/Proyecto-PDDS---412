@@ -16,8 +16,6 @@ interface PanelVuelosProps {
   onFilterChange?: (filters: { origen: string; destino: string }) => void;
 }
 
-const MAX_RENDER = 500;
-
 const ICONO_ESTADO_VUELO: Record<string, React.ReactNode> = {
   PROGRAMADO: <Calendar size={11} />,
   EN_RUTA: <Plane size={11} className="rotate-45" />,
@@ -109,10 +107,7 @@ export function PanelVuelos({ vuelos, onVueloClick, origenFilter = '', destinoFi
     return lista;
   }, [vuelosFiltrados, orden]);
 
-  const vuelosVisibles = useMemo(
-    () => vuelosOrdenados.slice(0, MAX_RENDER),
-    [vuelosOrdenados]
-  );
+  const vuelosVisibles = vuelosOrdenados;
 
   const hayFiltrosActivos = filtroCodigo || origenFilter || destinoFilter || filtroColorLocal;
 
@@ -213,9 +208,9 @@ export function PanelVuelos({ vuelos, onVueloClick, origenFilter = '', destinoFi
       </div>
       </>)}
 
-      {vuelosFiltrados.length > MAX_RENDER && (
+      {vuelosFiltrados.length > 0 && (
         <p className="text-sm text-slate-600 mb-2">
-          Mostrando las primeras {MAX_RENDER}; refina los filtros para ver el resto.
+          Mostrando todos los vuelos.
         </p>
       )}
 
