@@ -55,7 +55,7 @@ public class OperacionTelemetriaService {
             List<NodoLogistico> nodos = nodoRepository.findAllByOrderByCodigoIataAsc();
             LocalDate hoy = LocalDate.now();
             List<Vuelo> vuelos = vueloRepository.findByEstadoInAndEsPlantillaAndTagAndFechaOperacion(
-                    List.of(EstadoVuelo.PROGRAMADO, EstadoVuelo.EN_RUTA, EstadoVuelo.COMPLETADO), false, TAG, hoy);
+                    List.of(EstadoVuelo.PROGRAMADO, EstadoVuelo.EN_RUTA, EstadoVuelo.COMPLETADO, EstadoVuelo.CANCELADO), false, TAG, hoy);
             String json = buildTelemetryJson(nodos, vuelos);
             telemetriaWebSocket.broadcast(json);
         } catch (Exception e) {

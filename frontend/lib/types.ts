@@ -74,6 +74,8 @@ export interface EquipajeCancelacion {
   vuelo_replanificado_id?: string | null;
   vuelo_replanificado_codigo?: string | null;
   plan_viaje?: SegmentoReplanInfo[];
+  cantidad?: number;
+  codigos_maleta?: string[];
 }
 
 export interface ResultadoCancelacion {
