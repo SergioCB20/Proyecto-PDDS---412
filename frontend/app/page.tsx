@@ -47,7 +47,7 @@ import { PanelEnviosMaletas } from "@/components/shared/PanelEnviosMaletas";
 import { ModalEnvios, type SelectedEnvioConsolidado } from "@/components/shared/ModalEnvios";
 import { PanelReporte } from "@/components/simulacion/PanelReporte";
 import { SeccionCancelacion } from "@/components/simulacion/SeccionCancelacion";
-import { RegistroCancelaciones } from "@/components/simulacion/RegistroCancelaciones";
+import { PanelDetalleCancelaciones } from "@/components/simulacion/PanelDetalleCancelaciones";
 import { RegistroEquipajePanel } from "@/components/simulacion/RegistroEquipajePanel";
 import { SimulacionLoadingOverlay } from "@/components/simulacion/SimulacionLoadingOverlay";
 import { PanelTabs } from "@/components/shared/PanelTabs";
@@ -1107,6 +1107,8 @@ function SimulacionView({
   } = useSimulacionSesion({ configUmbrales });
 
   const [historialCancelSim, setHistorialCancelSim] = useState<ResultadoCancelacion[]>([]);
+  const [showCancelDetalleSim, setShowCancelDetalleSim] = useState(false);
+  const [selectedCancelDetalleSim, setSelectedCancelDetalleSim] = useState<string | null>(null);
 
   // Estado de UI propio de esta vista (paneles, filtros, selección) — no compartido.
   const [dockAbiertas, setDockAbiertas] = useState<Set<string>>(new Set());
@@ -1207,6 +1209,7 @@ function SimulacionView({
     if (id === 'metricas') { setMetricaVisibleSim((v) => !v); return; }
     if (id === 'reloj') { setRelojVisibleSim((v) => !v); return; }
     if (id === 'zoom') { setZoomVisibleSim((v) => !v); return; }
+    if (id === 'cancel_log') { setShowCancelDetalleSim((v) => !v); return; }
     setDockAbiertas((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -1220,8 +1223,9 @@ function SimulacionView({
     if (metricaVisibleSim) s.add('metricas');
     if (relojVisibleSim) s.add('reloj');
     if (zoomVisibleSim) s.add('zoom');
+    if (showCancelDetalleSim) s.add('cancel_log');
     return s;
-  }, [dockAbiertas, metricaVisibleSim, relojVisibleSim, zoomVisibleSim]);
+  }, [dockAbiertas, metricaVisibleSim, relojVisibleSim, zoomVisibleSim, showCancelDetalleSim]);
 
   return (
     <div className="relative h-full overflow-hidden flex flex-col">
@@ -1427,20 +1431,29 @@ function SimulacionView({
                   plantillas={plantillas}
                   sesionId={sesionId}
                   momentoVirtual={metricas?.dia_hora_virtual ?? null}
-                  onCancelado={(r) => setHistorialCancelSim(prev => [...prev, r])}
+                  onCancelado={(r) => {
+                    setHistorialCancelSim(prev => [...prev, r]);
+                    setShowCancelDetalleSim(true);
+                    setSelectedCancelDetalleSim(null);
+                  }}
                 />
               ) : (
                 <p className="text-xs text-slate-600 p-4">Sin plantillas disponibles</p>
               )}
             </PanelFlotante>
           )}
-          {dockAbiertas.has('cancel_log') && (
+          {showCancelDetalleSim && (
             <PanelFlotante
-              title="Registro de cancelaciones"
-              onClose={() => toggleDock('cancel_log')}
-              className="w-[30rem] shrink-0 pointer-events-auto"
+              title="Cancelaciones registradas"
+              onClose={() => setShowCancelDetalleSim(false)}
+              className="w-[35rem] shrink-0 pointer-events-auto"
             >
-              <RegistroCancelaciones cancelaciones={historialCancelSim} />
+              <PanelDetalleCancelaciones
+                cancelaciones={historialCancelSim}
+                selectedId={selectedCancelDetalleSim}
+                onSelect={setSelectedCancelDetalleSim}
+                onBack={() => setSelectedCancelDetalleSim(null)}
+              />
             </PanelFlotante>
           )}
           {dockAbiertas.has('registro') && (
@@ -1729,6 +1742,8 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   } = useSimulacionSesion({ configUmbrales, tipoSimulacion: "HASTA_COLAPSO" });
 
   const [historialCancelCol, setHistorialCancelCol] = useState<ResultadoCancelacion[]>([]);
+  const [showCancelDetalleCol, setShowCancelDetalleCol] = useState(false);
+  const [selectedCancelDetalleCol, setSelectedCancelDetalleCol] = useState<string | null>(null);
 
   // Estado de UI propio de esta vista (paneles, filtros, selección) — no compartido.
   const [dockAbiertas, setDockAbiertas] = useState<Set<string>>(new Set());
@@ -1829,6 +1844,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     if (id === 'metricas') { setMetricaVisibleCol((v) => !v); return; }
     if (id === 'reloj') { setRelojVisibleCol((v) => !v); return; }
     if (id === 'zoom') { setZoomVisibleCol((v) => !v); return; }
+    if (id === 'cancel_log') { setShowCancelDetalleCol((v) => !v); return; }
     setDockAbiertas((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -1842,8 +1858,9 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     if (metricaVisibleCol) s.add('metricas');
     if (relojVisibleCol) s.add('reloj');
     if (zoomVisibleCol) s.add('zoom');
+    if (showCancelDetalleCol) s.add('cancel_log');
     return s;
-  }, [dockAbiertas, metricaVisibleCol, relojVisibleCol, zoomVisibleCol]);
+  }, [dockAbiertas, metricaVisibleCol, relojVisibleCol, zoomVisibleCol, showCancelDetalleCol]);
 
   return (
     <div className="relative h-full overflow-hidden flex flex-col">
@@ -2203,7 +2220,11 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                   plantillas={plantillas}
                   sesionId={sesionId}
                   momentoVirtual={metricas?.dia_hora_virtual ?? null}
-                  onCancelado={(r) => setHistorialCancelCol(prev => [...prev, r])}
+                  onCancelado={(r) => {
+                    setHistorialCancelCol(prev => [...prev, r]);
+                    setShowCancelDetalleCol(true);
+                    setSelectedCancelDetalleCol(null);
+                  }}
                 />
               ) : (
                 <p className="text-xs text-slate-600 p-4">Sin plantillas disponibles</p>
@@ -2211,13 +2232,18 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
             </PanelFlotante>
           )}
 
-          {dockAbiertas.has('cancel_log') && (
+          {showCancelDetalleCol && (
             <PanelFlotante
-              title="Registro de cancelaciones"
-              onClose={() => toggleDock('cancel_log')}
-              className="w-[30rem] shrink-0 pointer-events-auto"
+              title="Cancelaciones registradas"
+              onClose={() => setShowCancelDetalleCol(false)}
+              className="w-[35rem] shrink-0 pointer-events-auto"
             >
-              <RegistroCancelaciones cancelaciones={historialCancelCol} />
+              <PanelDetalleCancelaciones
+                cancelaciones={historialCancelCol}
+                selectedId={selectedCancelDetalleCol}
+                onSelect={setSelectedCancelDetalleCol}
+                onBack={() => setSelectedCancelDetalleCol(null)}
+              />
             </PanelFlotante>
           )}
 
