@@ -246,7 +246,7 @@ export function SeccionCancelacion({
                 {plantillasFiltradas.map((p) => {
                   const min = minutosHastaSalida(p);
                   const caliente = min !== null && min < 60;
-                  const deshabilitado = loadingId === p.id || !momentoVirtual || cancelledIds.has(p.id);
+                  const deshabilitado = loadingId === p.id || !momentoVirtual || cancelledIds.has(p.id) || p.estado === "EN_RUTA" || p.estado === "COMPLETADO" || p.estado === "CANCELADO";
                   return (
                     <tr
                       key={p.id}
