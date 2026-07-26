@@ -80,6 +80,62 @@ No se requirieron cambios. El backend ya devuelve `vuelo_replanificado_id`, `vue
 **Archivo modificado:**
 - `frontend/components/simulacion/PanelDetalleCancelaciones.tsx`
 
+---
+
+## Problema 4: Vista Operación mostraba 2000 plantillas seed en vez de las del archivo
+
+**Síntoma:** En Operación, el panel "Cancelación (plantillas)" mostraba ~2000 vuelos seed (TAS0001-TAS2000) no relacionados con el archivo cargado en `SetupOperacion`.
+
+**Causa raíz:** `plantillasOp` se cargaba de `GET /api/vuelos?es_plantilla=true` (todas las plantillas de la BD, ~2866 registros) sin filtrar por el archivo subido vía `POST /api/operacion/preparacion/planes`.
+
+**Solución:** Reemplazar la fuente de `plantillasOp` por `fetchPlanesOperacion()`, que devuelve solo las plantillas cargadas desde el archivo (taggeadas con `tag_dia_a_dia`). El efecto se gatilla cuando `stage === "mapa"`.
+
+**Archivo modificado:**
+- `frontend/app/page.tsx` — reemplazado `useEffect` que usaba `GET /vuelos?es_plantilla=true` por `fetchPlanesOperacion()` con dep `[stage]`
+
+---
+
+## Problema 5: Desfase temporal en regla de ±60 min (Simulación + Operación)
+
+**Síntoma:** El frontend mostraba el botón "Cancelar" (>60 min antes de salida), pero al confirmar el backend respondía "demasiado próximo a su salida" y defería al día siguiente. Esto ocurría en Simulación por el factor k=120 (el backend avanza el reloj virtual más rápido de lo que el frontend puede mostrar), y en Operación porque `sesion.getDiaHoraVirtual()` es null para sesiones EN_VIVO.
+
+**Causa raíz:** El backend usaba `sesion.getDiaHoraVirtual()` como fuente única para decidir hot/cold path, mientras el frontend mostraba su propio `momentoVirtual` (de métricas en Simulación o tiempo real en Operación). En Simulación, k=120 hace que el backend avance ~10 min virtuales por cada 5s reales, generando desfasaje si el usuario tarda >30s en confirmar. En Operación, `diaHoraVirtual` nunca se inicializa para sesiones EN_VIVO, lanzando excepción.
+
+**Solución:** El frontend envía `momento_virtual` en el body del POST `/cancelacion`, y el backend lo usa como fuente de verdad con prioridad sobre `sesion.getDiaHoraVirtual()` (que queda como fallback para backward compatibility).
+
+**Archivos modificados:**
+| Archivo | Cambio |
+|---|---|
+| `CancelacionService.java` | Agregado campo `OffsetDateTime momento_virtual` al record `CancelacionRequest`. En `cancelarSegunPlantilla()`, línea 246: usa `request.momento_virtual()` como prioridad antes de `sesion.getDiaHoraVirtual()`. |
+| `OperacionCancelacionController.java` | Pasado `request.momento_virtual()` al reconstruir `CancelacionRequest` (línea 38). |
+| `SeccionCancelacion.tsx` | Agregado `momento_virtual: momentoVirtual` al body del POST (línea 117). |
+
+---
+
+## Problema 6: Paginación truncaba plantillas a 2000
+
+**Síntoma:** El panel "Cancelaciones (plantillas)" mostraba 2000/2000 vuelos, no alcanzando los 3000 vuelos visibles en el panel "Vuelos".
+
+**Causa raíz:** Spring Boot por defecto tiene `spring.data.web.pageable.max-page-size=2000`. El frontend enviaba `size=100000`, pero el backend truncaba a 2000.
+
+**Solución:** Agregar `spring.data.web.pageable.max-page-size=3000` en `application.properties`.
+
+**Archivo modificado:**
+- `backend/backend/src/main/resources/application.properties`
+
+---
+
+## Resumen de cambios
+
+| # | Problema | Archivos |
+|---|---|---|
+| 1 | Fechas seed en panel cancelación | `SeccionCancelacion.tsx` |
+| 2 | Badge replan clickeable | `types.ts`, `SeccionCancelacion.tsx`, `PanelDetalleCancelaciones.tsx`, `ModalEnvios.tsx`, `page.tsx` |
+| 3 | Fechas raw en detalle cancelación | `PanelDetalleCancelaciones.tsx` |
+| 4 | 2000 plantillas seed en Operación | `page.tsx` (fetchPlanesOperacion) |
+| 5 | Desfase temporal hot/cold path | `CancelacionService.java`, `OperacionCancelacionController.java`, `SeccionCancelacion.tsx` |
+| 6 | Paginación truncada a 2000 | `application.properties` |
+
 ### Resumen de vista vs comportamiento de fechas
 
 | Vista | `momentoVirtual` / referencial | Fecha mostrada |
@@ -88,3 +144,11 @@ No se requirieron cambios. El backend ya devuelve `vuelo_replanificado_id`, `vue
 | **Operación** | `realTimeMomentoOp` (cada 5s) | Fecha actual real (ej: 26/07/2026) ✅ |
 | **Colapso** | `metricas?.dia_hora_virtual` | Fecha del reloj virtual (ej: 08/08/2027) ✅ |
 | **Detalle cancelación** | `c.momento_cancelacion` como referencial | Fecha del momento de cancelación ✅ |
+
+### Cancelaciones: fuente de verdad del reloj
+
+| Vista | `momentoVirtual` que envía el frontend | Backend usa |
+|---|---|---|
+| **Simulación / Colapso** | `metricas?.dia_hora_virtual` | `request.momento_virtual()` (prioridad) |
+| **Operación** | `realTimeMomentoOp` (cada 5s) | `request.momento_virtual()` (prioridad) |
+| **Fallback** | — | `sesion.getDiaHoraVirtual()` (solo si request no trae) |

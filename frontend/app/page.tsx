@@ -25,7 +25,7 @@ import {
   Download,
 } from "lucide-react";
 import dynamic from "next/dynamic";
-import { api } from "@/lib/api";
+import { api, fetchPlanesOperacion } from "@/lib/api";
 import { device } from "@/lib/device";
 import { aeropuertoToEnMapa } from "@/lib/mock";
 import { useTelemetria } from "@/lib/useTelemetria";
@@ -302,20 +302,19 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   }, []);
 
   useEffect(() => {
-    api.get<VueloPageResponse>('/vuelos?es_plantilla=true&size=100000')
-      .then(r => setPlantillasOp(
-        r.content.map(v => ({
-          id: v.id,
-          codigo_vuelo: v.codigo_vuelo,
-          origen_iata: v.origen.codigo_iata,
-          destino_iata: v.destino.codigo_iata,
-          hora_salida: v.hora_salida,
-          hora_llegada: v.hora_llegada,
-          estado: v.estado,
-        }))
-      ))
-      .catch(() => {});
-  }, []);
+    if (stage !== "mapa") return;
+    fetchPlanesOperacion().then(ps => setPlantillasOp(
+      ps.map(p => ({
+        id: p.id,
+        codigo_vuelo: p.codigo_vuelo,
+        origen_iata: p.origen_iata,
+        destino_iata: p.destino_iata,
+        hora_salida: p.hora_salida,
+        hora_llegada: p.hora_llegada,
+        estado: p.estado,
+      }))
+    ));
+  }, [stage]);
 
   const handleAeropuertoClickOp = useCallback((codigoIata: string) => {
     setAeroSeleccionado(codigoIata);

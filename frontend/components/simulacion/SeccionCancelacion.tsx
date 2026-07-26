@@ -115,6 +115,7 @@ export function SeccionCancelacion({
         causa: "Cancelación manual desde panel de plantillas",
         sesion_id: sesionId,
         aplicar_regla_plantilla: true,
+        momento_virtual: momentoVirtual,
       });
       const fueDiferido = res.vuelo_id !== p.id;
       const r: ResultadoCancelacion = {

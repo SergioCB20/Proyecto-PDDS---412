@@ -82,7 +82,7 @@ public class CancelacionService {
                                     UUID vuelo_replanificado_id, String vuelo_replanificado_codigo,
                                     List<SegmentoReplanInfo> plan_viaje) {}
 
-    public record CancelacionRequest(UUID vuelo_id, String causa, UUID sesion_id, Boolean aplicar_regla_plantilla) {
+    public record CancelacionRequest(UUID vuelo_id, String causa, UUID sesion_id, Boolean aplicar_regla_plantilla, OffsetDateTime momento_virtual) {
         public CancelacionRequest {
             if (aplicar_regla_plantilla == null) aplicar_regla_plantilla = false;
         }
@@ -243,7 +243,12 @@ public class CancelacionService {
                     "Solo se puede aplicar la regla de horario a vuelos plantilla");
         }
 
-        OffsetDateTime virtual = sesion.getDiaHoraVirtual();
+        // Prioridad: usar momento_virtual del request (enviado por el frontend)
+        // como fuente única de verdad. Fallback a sesion.getDiaHoraVirtual() para
+        // compatibilidad con clientes antiguos.
+        OffsetDateTime virtual = request.momento_virtual() != null
+                ? request.momento_virtual()
+                : sesion.getDiaHoraVirtual();
         if (virtual == null) {
             throw new CancelacionInvalidaException(
                     "La sesion no tiene reloj virtual; inicia la sesion para poder cancelar plantillas");
