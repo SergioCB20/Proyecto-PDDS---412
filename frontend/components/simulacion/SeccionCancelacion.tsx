@@ -106,6 +106,8 @@ export function SeccionCancelacion({
         vuelo_cancelado_id: res.vuelo_id,
         codigo_vuelo: p.codigo_vuelo,
         fue_diferido: fueDiferido,
+        momento_cancelacion: momentoVirtual,
+        hora_salida_programada: p.hora_salida,
         fecha_operacion_cancelada: res.fecha_operacion ?? null,
         hora_salida_cancelada: res.hora_salida_cancelada ?? null,
         estado_nuevo: res.estado_nuevo,

@@ -2374,3 +2374,174 @@ Accesible desde el dock via icono `AlertTriangle`.
 - Telemetria (sigue reflejando vuelos CANCELADO)
 - Flujo de pausa/reanudar
 - API endpoints existentes
+
+---
+
+# Tarea: PANEL DETALLE CANCELACIONES - Panel interactivo índice/detalle con auto-apertura, hora de cancelación, diferencia horaria y nuevo vuelo por maleta
+
+## Descripción
+
+Reemplazar el componente `RegistroCancelaciones` (lista plana accesible solo desde dock) por un nuevo **panel flotante interactivo** que:
+- Se **abra automáticamente** al cancelar un vuelo (desde `onCancelado`)
+- Muestre un **índice de bloques** (uno por vuelo cancelado) con hora de salida y hora de cancelación
+- Permita **clic en un bloque → vista detalle** con la diferencia horaria, las maletas afectadas y su nuevo vuelo asignado
+- Se **actualice solo** en cancelaciones subsecuentes (acumula todo el historial)
+
+## Problema
+
+- El `RegistroCancelaciones` era una lista plana sin capacidad de profundizar en los detalles de cada cancelación.
+- No se mostraba la hora de cancelación ni la diferencia con la hora de salida para verificar el criterio de ±60 min.
+- No se veía a qué nuevo vuelo fue reasignada cada maleta después de la replanificación.
+- El panel no se abría automáticamente; el usuario debía ir al dock a buscarlo.
+
+## Archivos modificados
+
+### 1. `frontend/lib/types.ts`
+
+| Línea | Cambio |
+|-------|--------|
+| 63 | Agregado `momento_cancelacion: string` — instante virtual en que se canceló |
+| 64 | Agregado `hora_salida_programada: string` — hora de salida programada del vuelo (para calcular diferencia) |
+
+### 2. `frontend/components/simulacion/SeccionCancelacion.tsx`
+
+| Línea | Cambio |
+|-------|--------|
+| 108 | `momento_cancelacion: momentoVirtual` capturado al construir `ResultadoCancelacion` |
+| 109 | `hora_salida_programada: p.hora_salida` capturado desde la plantilla |
+
+### 3. `frontend/components/simulacion/PanelDetalleCancelaciones.tsx` (nuevo)
+
+Nuevo componente con dos modos de visualización:
+
+#### Modo índice (lista de bloques)
+
+Cada bloque muestra por vuelo cancelado:
+- Código de vuelo + badge (Cancelado / Diferido)
+- Ruta (origen → destino)
+- **Hora de cancelación** y **hora de salida programada** (formato HH:MM)
+- Número de maletas afectadas
+- Al hacer clic → modo detalle
+
+#### Modo detalle (al hacer clic en un bloque)
+
+Muestra:
+- Código de vuelo + badge con indicación (hoy / mañana)
+- **Cancelado:** fecha y hora completa
+- **Salida programada:** fecha y hora completa
+- **Diferencia:** cálculo en minutos con indicador visual:
+  - ≥60 min: "XXh YY min antes de la salida ✅" (verde)
+  - <60 min y ≥0: "XX min antes → diferido al día siguiente" (ámbar)
+  - <0: "después de la salida" (rojo)
+- Lista de equipajes re-enrutados con:
+  - Código de maleta, ruta original (origen → destino)
+  - **Nuevo vuelo asignado** (vía `GET /equipajes/{id}/plan-viaje`) con spinner de carga
+- Lote de replanificación (primeros 8 caracteres)
+- Para diferidos: banner ámbar "0 equipajes afectados"
+
+### 4. `frontend/app/page.tsx`
+
+#### SimulacionView
+
+| Línea (aprox.) | Cambio |
+|----------------|--------|
+| 50 | Import reemplazado: `RegistroCancelaciones` → `PanelDetalleCancelaciones` |
+| 1110-1111 | Nuevos estados: `showCancelDetalleSim`, `selectedCancelDetalleSim` |
+| 1213 | `toggleDock` agrega caso `cancel_log` → toggle `showCancelDetalleSim` |
+| 1228 | `dockAbiertasSim` incluye `cancel_log` si `showCancelDetalleSim` |
+| 1432-1437 | `onCancelado` ahora también ejecuta `setShowCancelDetalleSim(true)` y `setSelectedCancelDetalleSim(null)` |
+| 1449-1470 | Panel `cancel_log` reemplazado: ahora renderiza `PanelDetalleCancelaciones` con los estados de selección |
+
+#### ColapsoView
+
+| Línea (aprox.) | Cambio |
+|----------------|--------|
+| 1732-1733 | Nuevos estados: `showCancelDetalleCol`, `selectedCancelDetalleCol` |
+| 1845 | `toggleDock` agrega caso `cancel_log` → toggle `showCancelDetalleCol` |
+| 1860 | `dockAbiertasCol` incluye `cancel_log` si `showCancelDetalleCol` |
+| 2208-2213 | `onCancelado` ahora también ejecuta `setShowCancelDetalleCol(true)` y `setSelectedCancelDetalleCol(null)` |
+| 2226-2237 | Panel `cancel_log` reemplazado por `PanelDetalleCancelaciones` |
+
+### 5. `frontend/components/simulacion/RegistroCancelaciones.tsx`
+
+**Eliminado.** Reemplazado por `PanelDetalleCancelaciones`.
+
+## Diseño visual
+
+### Modo índice
+
+```
+┌──────────────────────────────────────────────┐
+│ Cancelaciones registradas              -  X  │
+├──────────────────────────────────────────────┤
+│ ┌─────────────────────────────────────────┐  │
+│ │ X TAS0024                      🔴 Cancel │  │
+│ │   SPIM → SKBO                           │  │
+│ │   🕐 Cancelado: 17:09 · Salida: 18:09  │  │
+│ │                              🧳 3       │  │
+│ └─────────────────────────────────────────┘  │
+│ ┌─────────────────────────────────────────┐  │
+│ │ △ TAS0208                      🟡 Difer  │  │
+│ │   SPIM → SEQM                           │  │
+│ │   🕐 Cancelado: 17:26 · Salida: 17:11  │  │
+│ │                              🧳 0       │  │
+│ └─────────────────────────────────────────┘  │
+└──────────────────────────────────────────────┘
+```
+
+### Modo detalle
+
+```
+┌──────────────────────────────────────────────┐
+│ ← Volver al índice                      -  X │
+├──────────────────────────────────────────────┤
+│ X TAS0024                   🔴 Cancelado (hoy)│
+│                                               │
+│ Cancelado:       2026-01-15 17:09             │
+│ Salida programada: 2026-01-15 18:09           │
+│ Ruta:            SPIM → SKBO                  │
+│ Diferencia:      1h 0 min antes ✅            │
+│                                               │
+│ ── Equipajes re-enrutados (3) ──             │
+│ TAS-EQ-001  SPIM → SKBO          ✈️ TAS0047  │
+│ TAS-EQ-042  SPIM → SKBO          ✈️ TAS0011  │
+│ TAS-EQ-113  SPIM → SKBO          ✈️ TAS0005  │
+│                                               │
+│ Lote: a1b2c3d4                                │
+└──────────────────────────────────────────────┘
+```
+
+## Flujo de datos para nuevo vuelo asignado
+
+Al entrar al modo detalle:
+
+1. Se dispara `useEffect` que itera sobre `c.equipajes`
+2. Por cada maleta, llama a `fetchPlanViaje(eq.id)` (`GET /equipajes/{id}/plan-viaje`)
+3. Del response se extrae `segmentos[0].vuelo_codigo` como el nuevo vuelo
+4. Se muestra con spinner (`Loader2`) mientras carga y con el badge `✈️ TAS0047` al completarse
+5. Los resultados se cachean en un `Map<string, EquipajePlanViaje | null>` interno
+
+## Comportamiento
+
+| Evento | Qué pasa |
+|--------|----------|
+| 1ra cancelación | Panel se crea y abre automáticamente en modo índice (1 bloque) |
+| 2da cancelación | Panel se re-abre (si estaba cerrado) mostrando los 2 bloques |
+| Clic en bloque | Cambia a modo detalle de esa cancelación, con carga de plan-viaje |
+| Clic "← Volver al índice" | Vuelve al índice con todas las cancelaciones |
+| Cerrar panel (X) | Se cierra, pero el historial se conserva en memoria |
+| Abrir desde dock (icono `AlertTriangle`) | Abre el mismo panel con el mismo historial |
+| Diferencia ≥60 min | Label verde con "✅" indicando cumplimiento del criterio |
+| Diferencia <60 min | Label ámbar con "→ diferido al día siguiente" |
+
+## Sin cambios en
+
+- Backend (todo el dato se computa desde el frontend: `momento_cancelacion` = `momentoVirtual` del hook)
+- `useSimulacionSesion.ts`
+- `SeccionCancelacion.tsx` (solo se agregaron 2 campos al result)
+- `CommandBarSimulacion.tsx`
+- `PanelFlotante.tsx`
+- `DockIconos.tsx`
+- API endpoints
+- Base de datos
+- Flujo de pausa/reanudar

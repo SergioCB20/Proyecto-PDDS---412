@@ -62,6 +62,8 @@ export interface ResultadoCancelacion {
   vuelo_cancelado_id: string;
   codigo_vuelo: string;
   fue_diferido: boolean;
+  momento_cancelacion: string;
+  hora_salida_programada: string;
   fecha_operacion_cancelada: string | null;
   hora_salida_cancelada: string | null;
   estado_nuevo: string;
