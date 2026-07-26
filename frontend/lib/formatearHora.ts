@@ -36,14 +36,16 @@ function parseOrNull(iso: string | null | undefined): Date | null {
 }
 
 /**
- * DD/MM/YYYY HH:MM:SS en hora local del navegador. "-" si vacio o invalido.
+ * DD/MM/YYYY HH:MM en la zona `tz` (IANA) indicada; si se omite, hora local del
+ * navegador. "-" si vacio o invalido.
  */
 export function formatearFechaHora(
   iso: string | null | undefined,
+  tz?: string,
 ): string {
   const d = parseOrNull(iso);
   if (!d) return '-';
-  return `${formatDate(d)} ${formatTime(d)}`;
+  return `${formatDate(d, tz)} ${formatTime(d, tz)}`;
 }
 
 /**
@@ -70,16 +72,20 @@ export function formatearHoraLima(
 }
 
 /**
- * Fecha y hora por separado, mismo formato canonico. "-" si vacio o invalido.
+ * Fecha y hora por separado, en la zona `tz` (IANA) indicada. Si se omite, usa
+ * America/Lima (comportamiento por defecto). "-" si vacio o invalido.
+ * Para vuelos, pasar la zona del aeropuerto correspondiente (origen para la
+ * salida, destino para la llegada) para verlos en su hora local.
  */
 export function formatearFechaHoraSeparado(
   iso: string | null | undefined,
+  tz: string = LIMA_TZ,
 ): { fecha: string; hora: string } {
   const d = parseOrNull(iso);
   if (!d) return { fecha: '-', hora: '-' };
   return {
-    fecha: formatDate(d, LIMA_TZ),
-    hora: formatTime(d, LIMA_TZ),
+    fecha: formatDate(d, tz),
+    hora: formatTime(d, tz),
   };
 }
 
@@ -104,11 +110,13 @@ export function formatearHoraSinSeg(iso: string | null | undefined): string {
 }
 
 /**
- * DD/MM/YYYY HH:MM sin segundos. "-" si vacio o invalido.
+ * DD/MM/YYYY HH:MM sin segundos, en la zona `tz` (IANA) indicada; si se omite,
+ * hora local del navegador. "-" si vacio o invalido.
  */
-export function formatearFechaHoraSinSeg(iso: string | null | undefined): string {
+export function formatearFechaHoraSinSeg(iso: string | null | undefined, tz?: string): string {
   const d = parseOrNull(iso);
   if (!d) return '-';
+  if (tz) return `${formatDate(d, tz)} ${formatTime(d, tz)}`;
   return `${formatDate(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 

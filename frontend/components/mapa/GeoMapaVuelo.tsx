@@ -6,6 +6,7 @@ import type { VueloEnMapa } from '@/lib/types';
 import type { UmbralesConfig } from './ConfigUmbrales';
 import { bezierCurvePoints } from '@/lib/bezier';
 import { formatearFechaHoraSeparado } from '@/lib/formatearHora';
+import { tzDeIata } from '@/lib/timezone';
 import { ciudadDe } from '@/lib/aeropuertos';
 import AvionAnimado from './AvionAnimado';
 import OcupacionBarra from './OcupacionBarra';
@@ -77,8 +78,8 @@ export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false
               </div>
               <div className="text-xs text-slate-600 mt-0.5 font-mono">
                 {(() => {
-                  const s = formatearFechaHoraSeparado(vuelo.hora_salida);
-                  const l = formatearFechaHoraSeparado(vuelo.hora_llegada);
+                  const s = formatearFechaHoraSeparado(vuelo.hora_salida, tzDeIata(vuelo.origen.codigo_iata));
+                  const l = formatearFechaHoraSeparado(vuelo.hora_llegada, tzDeIata(vuelo.destino.codigo_iata));
                   return (
                     <>
                       <div>Salida: <span className="font-semibold text-slate-700">{s.hora}</span> · {s.fecha}</div>

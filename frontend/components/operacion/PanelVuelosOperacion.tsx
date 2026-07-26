@@ -7,6 +7,7 @@ import { Select } from '@/components/ui/Select';
 import { colorVueloPorEstado, colorVueloPorOcupacion, determinarColorSemaforo, type ColorSemaforo } from '@/lib/colors';
 import type { VueloTelemetria } from '@/lib/types';
 import { formatearFechaHoraSeparado } from '@/lib/formatearHora';
+import { tzDeIata } from '@/lib/timezone';
 import { ciudadDe, etiquetaFiltroAeropuerto } from '@/lib/aeropuertos';
 
 interface PanelVuelosOperacionProps {
@@ -224,8 +225,8 @@ export function PanelVuelosOperacion({ vuelos, onVueloClick, onVerEnMapa, seguid
           const pct = v.capacidad_carga > 0 ? (ocupada / v.capacidad_carga) * 100 : 0;
           const colorHex = colorVueloPorEstado(v.estado);
           const semaforoColor = colorVueloPorOcupacion(pct, umbralesConfig);
-          const salida = formatearFechaHoraSeparado(v.hora_salida);
-          const llegada = formatearFechaHoraSeparado(v.hora_llegada);
+          const salida = formatearFechaHoraSeparado(v.hora_salida, tzDeIata(v.origen_iata));
+          const llegada = formatearFechaHoraSeparado(v.hora_llegada, tzDeIata(v.destino_iata));
           const seleccionado = seleccionadoId === v.id;
           const estadoLabel = v.estado === 'EN_RUTA' ? 'En ruta' : v.estado === 'PROGRAMADO' ? 'Programado' : v.estado === 'CANCELADO' ? 'Cancelado' : 'Completado';
           const estadoColor = v.estado === 'PROGRAMADO' ? '#94a3b8' : colorHex;

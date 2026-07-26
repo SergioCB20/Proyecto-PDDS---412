@@ -9,6 +9,7 @@ import type { VueloEnMapa } from '@/lib/types';
 import type { UmbralesConfig } from './ConfigUmbrales';
 import { CENTRO, ZOOM } from './mapaConfig';
 import { formatearFechaHoraSeparado } from '@/lib/formatearHora';
+import { tzDeIata } from '@/lib/timezone';
 import { ciudadDe } from '@/lib/aeropuertos';
 import OcupacionBarra from './OcupacionBarra';
 
@@ -469,8 +470,8 @@ function AvionAnimado({
           </div>
           <div className="text-xs text-slate-600 mt-0.5 font-mono leading-tight">
             {(() => {
-              const s = formatearFechaHoraSeparado(vuelo.hora_salida);
-              const l = formatearFechaHoraSeparado(vuelo.hora_llegada);
+              const s = formatearFechaHoraSeparado(vuelo.hora_salida, tzDeIata(vuelo.origen.codigo_iata));
+              const l = formatearFechaHoraSeparado(vuelo.hora_llegada, tzDeIata(vuelo.destino.codigo_iata));
               return (
                 <>
                   <div>Sale <span className="font-semibold text-slate-700">{s.hora}</span> · {s.fecha}</div>
@@ -499,8 +500,8 @@ function AvionAnimado({
           </div>
           <div className="text-sm text-slate-600 mb-2 font-mono leading-tight">
             {(() => {
-              const s = formatearFechaHoraSeparado(vuelo.hora_salida);
-              const l = formatearFechaHoraSeparado(vuelo.hora_llegada);
+              const s = formatearFechaHoraSeparado(vuelo.hora_salida, tzDeIata(vuelo.origen.codigo_iata));
+              const l = formatearFechaHoraSeparado(vuelo.hora_llegada, tzDeIata(vuelo.destino.codigo_iata));
               return (
                 <>
                   <div>Salida: <span className="font-semibold text-slate-700">{s.hora}</span> · {s.fecha}</div>
