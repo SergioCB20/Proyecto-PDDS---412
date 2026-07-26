@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, startTransition } from 'react';
 import { Building2, Clock, LogOut, Upload, CheckCircle, XCircle, FileSpreadsheet, Save, Play, Loader2, Trash2, Filter, Table2 } from 'lucide-react';
 import { setNodoCapacidadOperacion, cargarPlanesOperacion, eliminarCargadoOperacion, fetchEstadoPreparacion, fetchPlanesOperacion } from '@/lib/api';
 import type { VueloOperacionPlano } from '@/lib/api';
@@ -60,15 +60,15 @@ export default function SetupOperacion({
   }, []);
 
   useEffect(() => {
-    refetchCapacidades();
-    const id = setInterval(refetchCapacidades, 15000);
-    const vis = () => { if (document.visibilityState === 'visible') refetchCapacidades(); };
+    startTransition(() => { refetchCapacidades(); });
+    const id = setInterval(() => startTransition(() => { refetchCapacidades(); }), 15000);
+    const vis = () => { if (document.visibilityState === 'visible') startTransition(() => { refetchCapacidades(); }); };
     document.addEventListener('visibilitychange', vis);
     return () => { clearInterval(id); document.removeEventListener('visibilitychange', vis); };
   }, [refetchCapacidades]);
 
   useEffect(() => {
-    refetchPlanes(filtroAeropuerto);
+    startTransition(() => { refetchPlanes(filtroAeropuerto); });
   }, [filtroAeropuerto, refetchPlanes]);
 
   const guardarCapacidad = async () => {

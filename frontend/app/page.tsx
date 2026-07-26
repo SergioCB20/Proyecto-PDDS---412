@@ -25,7 +25,6 @@ import {
   Download,
 } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { device } from "@/lib/device";
 import { aeropuertoToEnMapa } from "@/lib/mock";
@@ -98,17 +97,6 @@ function useReloj() {
 }
 
 
-interface SesionListaItem {
-  id: string;
-  tipo: string;
-  tipo_simulacion: string;
-  estado: string;
-  fecha_inicio_virtual: string;
-  created_at: string;
-  dispositivo_id: string | null;
-}
-
-
 export default function DashboardPage() {
   const { mode } = useMode();
   const [configUmbrales, setConfigUmbrales] = useState<UmbralesConfig>(() => {
@@ -165,7 +153,6 @@ export default function DashboardPage() {
 }
 
 function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
-  const router = useRouter();
   const [sesionId, setSesionId] = useState<string | null>(null);
   const [estadoSesion, setEstadoSesion] = useState<
     "CONFIGURADA" | "EN_CURSO" | "PAUSADA" | "FINALIZADA"
@@ -176,6 +163,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [reporteOp, setReporteOp] = useState<ReporteOperacion | null>(null);
+  const [inicioOperacionMs, setInicioOperacionMs] = useState(0);
 
   const [stage, setStage] = useState<"picker" | "setup" | "mapa">(() => {
     const storedId = device.getAeropuertoRefId();
@@ -213,7 +201,6 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     setStage("picker");
   }, []);
 
-  const [formOpen, setFormOpen] = useState(false);
   const [formData, setFormData] = useState({
     origenIata: "",
     destinoIata: "",
@@ -226,7 +213,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   );
   const [formError, setFormError] = useState<string | null>(null);
 
-  const [cargaMasivaOpen, setCargaMasivaOpen] = useState(false);
+  const [_cargaMasivaOpen, _setCargaMasivaOpen] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvPreview, setCsvPreview] = useState<CargaMasivaPreview | null>(null);
   const [csvLoading, setCsvLoading] = useState(false);
@@ -237,12 +224,6 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     estadoSesion === "EN_CURSO",
   );
   const hora = useReloj();
-
-  // Inicio de la jornada. Operación corre en TIEMPO REAL (OperacionTickService usa
-  // el reloj de pared, no hay reloj virtual), así que el "momento simulado" y el
-  // "momento actual" coinciden: se muestran inicio + actual + transcurrido — la
-  // variante de "2 datos de tiempos" que admite el criterio de evaluación.
-  const [inicioOperacionMs, setInicioOperacionMs] = useState(0);
 
   useEffect(() => {
     api
@@ -675,7 +656,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
 
   const onDockActionOp = useCallback((id: string) => {
     if (id === 'cambiar-sede') handleCambiarSede();
-  }, [router, handleCambiarSede]);
+  }, [handleCambiarSede]);
 
   const dockAbiertasOp = useMemo(() => {
     const s = new Set(dockAbiertas);
