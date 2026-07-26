@@ -8,6 +8,7 @@ import type { AeropuertoTelemetria, SegmentoResponse, VueloTelemetria } from '@/
 import { ciudadDe } from '@/lib/aeropuertos';
 import { determinarColorSemaforo, type ColorSemaforo } from '@/lib/colors';
 import { formatearFechaHoraSeparado } from '@/lib/formatearHora';
+import { tzDeIata } from '@/lib/timezone';
 import { DetalleEnviosAeropuerto } from '@/components/operacion/DetalleEnviosAeropuerto';
 
 interface EstiloEstado {
@@ -283,8 +284,9 @@ export function PanelAeropuertosOperacion({
           const estado = ESTILO_POR_ESTADO[determinarColorSemaforo(n.ocupacion_pct, umbralesConfig) as ColorSemaforo];
           const s = proximos.salida.get(n.codigo_iata);
           const l = proximos.llegada.get(n.codigo_iata);
-          const fs = s ? formatearFechaHoraSeparado(s) : null;
-          const fl = l ? formatearFechaHoraSeparado(l) : null;
+          const tzAero = tzDeIata(n.codigo_iata);
+          const fs = s ? formatearFechaHoraSeparado(s, tzAero) : null;
+          const fl = l ? formatearFechaHoraSeparado(l, tzAero) : null;
           return (
             <div
               key={n.id}

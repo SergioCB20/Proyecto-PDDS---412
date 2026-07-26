@@ -324,7 +324,8 @@ export default function SetupOperacion({
                       <tr className="border-b border-slate-200 dark:border-slate-700">
                         <th className="text-left py-1 pr-2 font-medium text-slate-500">Código</th>
                         <th className="text-left py-1 pr-2 font-medium text-slate-500">Ruta</th>
-                        <th className="text-left py-1 pr-2 font-medium text-slate-500">Sale</th>
+                        <th className="text-left py-1 pr-2 font-medium text-slate-500">Sale (origen)</th>
+                        <th className="text-left py-1 pr-2 font-medium text-slate-500">Llega (destino)</th>
                         <th className="text-right py-1 font-medium text-slate-500">Cap</th>
                       </tr>
                     </thead>
@@ -339,6 +340,9 @@ export default function SetupOperacion({
                           </td>
                           <td className="py-1 pr-2 text-slate-600 tabular-nums whitespace-nowrap">
                             {formatHoraIata(v.hora_salida, v.origen_iata)}
+                          </td>
+                          <td className="py-1 pr-2 text-slate-600 tabular-nums whitespace-nowrap">
+                            {formatHoraIata(v.hora_llegada, v.destino_iata)}
                           </td>
                           <td className="py-1 text-right font-mono tabular-nums text-slate-600">
                             {v.capacidad_carga}
