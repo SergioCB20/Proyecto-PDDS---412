@@ -97,7 +97,7 @@ export function useMapaData({
             longitud: n.lon,
             capacidad_almacen: n.capacidad_almacen,
             ocupacion_actual: n.ocupacion_actual,
-            zona_horaria: '',
+            zona_horaria: n.zona_horaria ?? '',
             color: colorAeropuertoPorOcupacion(n.ocupacion_pct, {
               verdeMax: configUmbrales.verdeMax,
               ambarMax: configUmbrales.ambarMax,

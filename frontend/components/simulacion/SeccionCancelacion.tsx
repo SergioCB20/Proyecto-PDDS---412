@@ -24,6 +24,7 @@ interface SeccionCancelacionProps {
   onCancelado?: (r: ResultadoCancelacion) => void;
   onVerDetalleEnvio?: (vueloId: string, vueloCodigo: string, equipajeId: string) => void;
   cancelEndpoint?: string;
+  timezone?: string;
 }
 
 const ESTADOS = ["PROGRAMADO", "EN_RUTA", "COMPLETADO", "CANCELADO"] as const;
@@ -43,7 +44,7 @@ const COLOR_ESTADO: Record<string, string> = {
   CANCELADO: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
 };
 
-function fmtHora(iso: string, momentoVirtual?: string | null): string {
+function fmtHora(iso: string, momentoVirtual?: string | null, tz?: string): string {
   if (momentoVirtual) {
     const mv = new Date(momentoVirtual);
     const hs = new Date(iso);
@@ -52,11 +53,11 @@ function fmtHora(iso: string, momentoVirtual?: string | null): string {
         mv.getUTCFullYear(), mv.getUTCMonth(), mv.getUTCDate(),
         hs.getUTCHours(), hs.getUTCMinutes(), hs.getUTCSeconds(),
       ));
-      const f = formatearFechaHoraSeparado(reanchored.toISOString());
+      const f = formatearFechaHoraSeparado(reanchored.toISOString(), tz);
       return `${f.fecha} ${f.hora}`;
     }
   }
-  const f = formatearFechaHoraSeparado(iso);
+  const f = formatearFechaHoraSeparado(iso, tz);
   return `${f.fecha} ${f.hora}`;
 }
 
@@ -74,6 +75,7 @@ export function SeccionCancelacion({
   onCancelado,
   onVerDetalleEnvio,
   cancelEndpoint = "/simulacion/cancelacion",
+  timezone,
 }: SeccionCancelacionProps) {
   const [open, setOpen] = useState(true);
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -257,11 +259,11 @@ export function SeccionCancelacion({
                       <td className="px-2 py-1.5">
                         <span className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
                           <Clock size={10} />
-                          {fmtHora(p.hora_salida, momentoVirtual)}
+                          {fmtHora(p.hora_salida, momentoVirtual, timezone)}
                         </span>
                       </td>
                       <td className="px-2 py-1.5 text-slate-600 dark:text-slate-300">
-                        {fmtHora(p.hora_llegada, momentoVirtual)}
+                        {fmtHora(p.hora_llegada, momentoVirtual, timezone)}
                       </td>
                       <td className="px-2 py-1.5">
                         <span className={`inline-block text-xs px-1.5 py-0.5 rounded-full font-medium ${COLOR_ESTADO[p.estado] || "bg-slate-100 text-slate-600"}`}>
@@ -347,7 +349,7 @@ export function SeccionCancelacion({
                       <strong>
                         {fmtFechaCorta(resultado.fecha_operacion_cancelada)} (
                         {resultado.hora_salida_cancelada
-                          ? fmtHora(resultado.hora_salida_cancelada)
+                          ? fmtHora(resultado.hora_salida_cancelada, undefined, timezone)
                           : "—"}
                         )
                       </strong>{" "}

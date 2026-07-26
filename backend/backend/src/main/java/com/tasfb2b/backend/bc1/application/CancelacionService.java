@@ -238,10 +238,6 @@ public class CancelacionService {
 
         Vuelo plantilla = vueloRepository.findById(request.vuelo_id())
                 .orElseThrow(() -> new VueloNoEncontradoException("Vuelo no encontrado: " + request.vuelo_id()));
-        if (!Boolean.TRUE.equals(plantilla.getEsPlantilla())) {
-            throw new CancelacionInvalidaException(
-                    "Solo se puede aplicar la regla de horario a vuelos plantilla");
-        }
 
         // Prioridad: usar momento_virtual del request (enviado por el frontend)
         // como fuente única de verdad. Fallback a sesion.getDiaHoraVirtual() para
@@ -302,8 +298,33 @@ public class CancelacionService {
         LocalDate manana = virtual.toLocalDate().plusDays(1);
         Vuelo instanciaManana = vueloService.obtenerInstanciaDelDia(plantilla.getCodigoVuelo(), manana);
         if (instanciaManana == null) {
-            throw new CancelacionInvalidaException(
-                    "No hay instancia del dia siguiente para " + plantilla.getCodigoVuelo());
+            instanciaManana = new Vuelo();
+            instanciaManana.setId(UUID.randomUUID());
+            instanciaManana.setCodigoVuelo(plantilla.getCodigoVuelo());
+            instanciaManana.setOrigen(plantilla.getOrigen());
+            instanciaManana.setDestino(plantilla.getDestino());
+            instanciaManana.setOrigenLat(plantilla.getOrigenLat());
+            instanciaManana.setOrigenLon(plantilla.getOrigenLon());
+            instanciaManana.setDestinoLat(plantilla.getDestinoLat());
+            instanciaManana.setDestinoLon(plantilla.getDestinoLon());
+            instanciaManana.setCapacidadCarga(plantilla.getCapacidadCarga());
+            instanciaManana.setCargaDisponible(plantilla.getCapacidadCarga());
+            instanciaManana.setPlanVuelos(plantilla.getPlanVuelos());
+            OffsetDateTime salidaManana = OffsetDateTime.of(
+                    manana, plantilla.getHoraSalida().toLocalTime(),
+                    plantilla.getHoraSalida().getOffset());
+            Duration duracion = Duration.between(
+                    plantilla.getHoraSalida(), plantilla.getHoraLlegada());
+            OffsetDateTime llegadaManana = salidaManana.plus(duracion)
+                    .withOffsetSameInstant(plantilla.getHoraLlegada().getOffset());
+            instanciaManana.setHoraSalida(salidaManana);
+            instanciaManana.setHoraLlegada(llegadaManana);
+            instanciaManana.setEstado(EstadoVuelo.PROGRAMADO);
+            instanciaManana.setEsPlantilla(false);
+            instanciaManana.setFechaOperacion(manana);
+            vueloRepository.save(instanciaManana);
+            log.info("Vuelo {} clonado como instancia de mañana {} (id={})",
+                    plantilla.getCodigoVuelo(), manana, instanciaManana.getId());
         }
         if (instanciaManana.getEstado() == EstadoVuelo.CANCELADO) {
             throw new CancelacionInvalidaException(

@@ -25,7 +25,7 @@ import {
   Download,
 } from "lucide-react";
 import dynamic from "next/dynamic";
-import { api, fetchPlanesOperacion } from "@/lib/api";
+import { api } from "@/lib/api";
 import { device } from "@/lib/device";
 import { aeropuertoToEnMapa } from "@/lib/mock";
 import { useTelemetria } from "@/lib/useTelemetria";
@@ -187,6 +187,13 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   // generales del escenario día a día (reloj, inicio de jornada, etc.).
   const tzSede = useMemo(() => tzDeIata(iataOperacion), [iataOperacion]);
 
+  const zonasHorarias = useMemo(() => {
+    const m: Record<string, string> = {};
+    aeropuertos.forEach(a => { if (a.zona_horaria) m[a.codigo_iata] = a.zona_horaria; });
+    return m;
+  }, [aeropuertos]);
+  const tzOperacion = zonasHorarias[iataOperacion] ?? 'America/Lima';
+
   const handlePickSede = useCallback((iata: string) => {
     device.setAeropuertoRefId(iata);
     setStage("setup");
@@ -301,21 +308,6 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     return () => clearInterval(id);
   }, []);
 
-  useEffect(() => {
-    if (stage !== "mapa") return;
-    fetchPlanesOperacion().then(ps => setPlantillasOp(
-      ps.map(p => ({
-        id: p.id,
-        codigo_vuelo: p.codigo_vuelo,
-        origen_iata: p.origen_iata,
-        destino_iata: p.destino_iata,
-        hora_salida: p.hora_salida,
-        hora_llegada: p.hora_llegada,
-        estado: p.estado,
-      }))
-    ));
-  }, [stage]);
-
   const handleAeropuertoClickOp = useCallback((codigoIata: string) => {
     setAeroSeleccionado(codigoIata);
     setSeguidoAeropuertoId(codigoIata);
@@ -397,7 +389,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
         longitud: n.lon,
         capacidad_almacen: n.capacidad_almacen,
         ocupacion_actual: n.ocupacion_actual,
-        zona_horaria: "",
+        zona_horaria: n.zona_horaria ?? "",
         color: colorAeropuertoPorOcupacion(n.ocupacion_pct, {
           verdeMax: configUmbrales.verdeMax,
           ambarMax: configUmbrales.ambarMax,
@@ -435,6 +427,18 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
       }));
       queueMicrotask(() => {
         setAllVuelos(vuelosMapped);
+      });
+      const plantillasMapped: PlantillaResumen[] = telemetria.vuelos.map((v) => ({
+        id: v.id,
+        codigo_vuelo: v.codigo_vuelo,
+        origen_iata: v.origen_iata,
+        destino_iata: v.destino_iata,
+        hora_salida: v.hora_salida || "",
+        hora_llegada: v.hora_llegada || "",
+        estado: matchEstadoVuelo(v.estado),
+      }));
+      queueMicrotask(() => {
+        setPlantillasOp(plantillasMapped);
       });
     }
   }, [telemetria, configUmbrales]);
@@ -1109,6 +1113,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                   plantillas={plantillasOp}
                   sesionId={sesionId}
                   momentoVirtual={realTimeMomentoOp}
+                  timezone={tzOperacion}
                   onCancelado={(r) => {
                     setHistorialCancelOp(prev => [...prev, r]);
                     setShowCancelDetalleOp(true);
@@ -1136,6 +1141,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                 selectedId={selectedCancelDetalleOp}
                 onSelect={setSelectedCancelDetalleOp}
                 onBack={() => setSelectedCancelDetalleOp(null)}
+                timezone={tzOperacion}
                 onVerDetalleEnvio={(vueloId, vueloCodigo, equipajeId) => {
                   setSelectedEnvio({ tipo: 'vuelo', id: vueloId, codigo: vueloCodigo });
                   setHighlightedEquipajeIdOp(equipajeId);
