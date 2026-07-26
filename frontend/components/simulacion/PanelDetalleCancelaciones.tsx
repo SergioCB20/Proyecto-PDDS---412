@@ -15,6 +15,7 @@ interface PanelDetalleCancelacionesProps {
   onSelect: (id: string | null) => void;
   onBack: () => void;
   onVerDetalleEnvio?: (vueloId: string, vueloCodigo: string, equipajeId: string) => void;
+  timezone?: string;
 }
 
 function reAnclarAFecha(iso: string, fechaReferencia: string): Date | null {
@@ -27,19 +28,22 @@ function reAnclarAFecha(iso: string, fechaReferencia: string): Date | null {
   ));
 }
 
-function fmtHoraCorta(iso: string, referencial?: string): string {
+function fmtHoraCorta(iso: string, referencial?: string, tz?: string): string {
   const d = referencial ? reAnclarAFecha(iso, referencial) : null;
   const isoFinal = d ? d.toISOString() : iso;
-  const f = formatearFechaHoraSeparado(isoFinal);
+  const f = formatearFechaHoraSeparado(isoFinal, tz);
   return `${f.fecha} ${f.hora}`;
 }
 
-function fmtHoraMin(iso: string, referencial?: string): string {
+function fmtHoraMin(iso: string, referencial?: string, tz?: string): string {
   const d = referencial ? reAnclarAFecha(iso, referencial) : null;
   const src = d || new Date(iso);
   if (isNaN(src.getTime())) return iso;
-  const h = String(src.getUTCHours()).padStart(2, '0');
-  const m = String(src.getUTCMinutes()).padStart(2, '0');
+  const withTz = tz
+    ? new Date(src.toLocaleString('en-US', { timeZone: tz }))
+    : src;
+  const h = String(withTz.getHours()).padStart(2, '0');
+  const m = String(withTz.getMinutes()).padStart(2, '0');
   return `${h}:${m}`;
 }
 
@@ -65,6 +69,7 @@ export function PanelDetalleCancelaciones({
   onSelect,
   onBack,
   onVerDetalleEnvio,
+  timezone,
 }: PanelDetalleCancelacionesProps) {
   const r = selectedId
     ? cancelaciones.find((c) => c.vuelo_cancelado_id === selectedId) ?? null
@@ -123,11 +128,11 @@ export function PanelDetalleCancelaciones({
                   <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 ml-6 mt-0.5">
                     <span className="flex items-center gap-1">
                       <Clock size={10} />
-                      Cancelado: {fmtHoraMin(c.momento_cancelacion)}
+                      Cancelado: {fmtHoraMin(c.momento_cancelacion, undefined, timezone)}
                     </span>
                     <span className="flex items-center gap-1">
                       <Clock size={10} />
-                      Salida: {fmtHoraMin(c.hora_salida_programada, c.momento_cancelacion)}
+                      Salida: {fmtHoraMin(c.hora_salida_programada, c.momento_cancelacion, timezone)}
                     </span>
                     {c.equipajes_afectados > 0 && (
                       <span className="flex items-center gap-1 ml-auto">
@@ -217,12 +222,12 @@ function DetalleCancelacion({
         <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs">
           <span className="text-slate-500 dark:text-slate-400">Cancelado:</span>
           <span className="font-medium text-slate-700 dark:text-slate-300">
-            {fmtHoraCorta(c.momento_cancelacion)}
+            {fmtHoraCorta(c.momento_cancelacion, undefined, timezone)}
           </span>
 
           <span className="text-slate-500 dark:text-slate-400">Salida programada:</span>
           <span className="font-medium text-slate-700 dark:text-slate-300">
-            {fmtHoraCorta(c.hora_salida_programada, c.momento_cancelacion)}
+            {fmtHoraCorta(c.hora_salida_programada, c.momento_cancelacion, timezone)}
           </span>
 
           <span className="text-slate-500 dark:text-slate-400">Ruta:</span>

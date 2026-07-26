@@ -88,10 +88,10 @@ No se requirieron cambios. El backend ya devuelve `vuelo_replanificado_id`, `vue
 
 **Causa raíz:** `plantillasOp` se cargaba de `GET /api/vuelos?es_plantilla=true` (todas las plantillas de la BD, ~2866 registros) sin filtrar por el archivo subido vía `POST /api/operacion/preparacion/planes`.
 
-**Solución:** Reemplazar la fuente de `plantillasOp` por `fetchPlanesOperacion()`, que devuelve solo las plantillas cargadas desde el archivo (taggeadas con `tag_dia_a_dia`). El efecto se gatilla cuando `stage === "mapa"`.
+**Solución:** Reemplazar la fuente de `plantillasOp`: en vez de REST polling, se mapea desde `telemetria.vuelos` en el mismo efecto `useEffect([telemetria, configUmbrales])` que ya actualiza `allVuelos` y el panel de vuelos. Así ambas listas comparten la misma fuente vía WebSocket y se actualizan al mismo tiempo.
 
 **Archivo modificado:**
-- `frontend/app/page.tsx` — reemplazado `useEffect` que usaba `GET /vuelos?es_plantilla=true` por `fetchPlanesOperacion()` con dep `[stage]`
+- `frontend/app/page.tsx` — reemplazado `useEffect([stage])` con `fetchPlanesOperacion()` por mapeo sincrónico desde `telemetria.vuelos` en el efecto `[telemetria, configUmbrales]`
 
 ---
 
@@ -132,7 +132,7 @@ No se requirieron cambios. El backend ya devuelve `vuelo_replanificado_id`, `vue
 | 1 | Fechas seed en panel cancelación | `SeccionCancelacion.tsx` |
 | 2 | Badge replan clickeable | `types.ts`, `SeccionCancelacion.tsx`, `PanelDetalleCancelaciones.tsx`, `ModalEnvios.tsx`, `page.tsx` |
 | 3 | Fechas raw en detalle cancelación | `PanelDetalleCancelaciones.tsx` |
-| 4 | 2000 plantillas seed en Operación | `page.tsx` (fetchPlanesOperacion) |
+| 4 | 2000 plantillas seed en Operación | `page.tsx` (telemetria.vuelos → plantillasOp) |
 | 5 | Desfase temporal hot/cold path | `CancelacionService.java`, `OperacionCancelacionController.java`, `SeccionCancelacion.tsx` |
 | 6 | Paginación truncada a 2000 | `application.properties` |
 
@@ -152,3 +152,53 @@ No se requirieron cambios. El backend ya devuelve `vuelo_replanificado_id`, `vue
 | **Simulación / Colapso** | `metricas?.dia_hora_virtual` | `request.momento_virtual()` (prioridad) |
 | **Operación** | `realTimeMomentoOp` (cada 5s) | `request.momento_virtual()` (prioridad) |
 | **Fallback** | — | `sesion.getDiaHoraVirtual()` (solo si request no trae) |
+
+---
+
+## Problema 7: Zona horaria del aeropuerto no se respetaba en cancelaciones
+
+**Síntoma:** En Operación, un usuario en Lima (UTC-5) operando Buenos Aires (UTC-3) veía en el panel de vuelos las horas correctas en hora BA (ej: 4pm), pero en los paneles de cancelación (`SeccionCancelacion` y `PanelDetalleCancelaciones`) las horas se mostraban en hora Lima (ej: 2pm).
+
+**Causa raíz:** `formatearFechaHoraSeparado()` en `formatearHora.ts` tenía hardcodeado `LIMA_TZ = 'America/Lima'`. Todas las funciones `fmtHora`, `fmtHoraCorta`, `fmtHoraMin` pasaban por ese formateador sin posibilidad de especificar otra zona horaria. Además, la telemetría descartaba el campo `zona_horaria` que el backend envía para cada nodo (lo seteaba a `""`).
+
+**Solución:**
+
+| Archivo | Cambio |
+|---|---|
+| `lib/formatearHora.ts` | `formatearFechaHoraSeparado(iso, tz?)` — acepta `tz` opcional; si se omite usa `LIMA_TZ` (backward compatible) |
+| `SeccionCancelacion.tsx` | Nueva prop `timezone?: string`. Las llamadas a `fmtHora()` pasan `tz` |
+| `PanelDetalleCancelaciones.tsx` | Nueva prop `timezone?: string`. Las llamadas a `fmtHoraCorta` y `fmtHoraMin` pasan `tz` |
+| `page.tsx` — zona_horaria | `zona_horaria: n.zona_horaria ?? ""` (en vez de `""`) para preservar el valor del backend |
+| `page.tsx` — tzOperacion | `useMemo` construye mapa `IATA → zona_horaria` desde `aeropuertos`. Resuelve `tzOperacion = zonasHorarias[iataOperacion] ?? 'America/Lima'`. Se pasa como `timezone` a ambos componentes |
+| `lib/useMapaData.ts` | `zona_horaria: n.zona_horaria ?? ''` (en vez de `''`) para preservar el valor en el mapa |
+
+**Resultado:** Cualquier aeropuerto con `zona_horaria` en la BD (30+ aeropuertos) mostrará las horas correctas en su huso local en todos los paneles de cancelación, sincronizado con el panel de vuelos. Sin hardcodeos por aeropuerto.
+
+---
+
+## Problema 8: Vuelos cargados desde archivo no podían cancelarse con regla ±60 min
+
+**Síntoma:** En Operación, al intentar cancelar un vuelo cargado desde archivo (`SetupOperacion`), el backend lanzaba excepción "Solo se puede aplicar la regla de horario a vuelos plantilla" y la cancelación fallaba.
+
+**Causa raíz:** `cancelarSegunPlantilla()` exigía `es_plantilla = true` (línea 241-244). Los vuelos cargados desde archivo no tienen ese flag, por lo que la regla de ±60 min nunca se evaluaba.
+
+**Solución (backend — `CancelacionService.java`):**
+
+1. **Eliminado** el chequeo de `es_plantilla` (líneas 241-244). Cualquier vuelo puede pasar por la regla de ±60 min.
+2. **Modificado** el caso caliente (<60 min): cuando no existe instancia de mañana (`obtenerInstanciaDelDia` devuelve null), se clona el vuelo actual con fecha de mañana en vez de lanzar excepción. Copia origen, destino, capacidad, hora_salida, hora_llegada, etc. y lo persiste como `PROGRAMADO`.
+
+**Archivo modificado:**
+- `backend/backend/src/.../CancelacionService.java` — eliminado bloque `es_plantilla` + reemplazado throw por clonación inline
+
+### Resumen completo de cambios
+
+| # | Problema | Archivos |
+|---|---|---|
+| 1 | Fechas seed en panel cancelación | `SeccionCancelacion.tsx` |
+| 2 | Badge replan clickeable | `types.ts`, `SeccionCancelacion.tsx`, `PanelDetalleCancelaciones.tsx`, `ModalEnvios.tsx`, `page.tsx` |
+| 3 | Fechas raw en detalle cancelación | `PanelDetalleCancelaciones.tsx` |
+| 4 | 2000 plantillas seed en Operación | `page.tsx` (telemetria.vuelos → plantillasOp) |
+| 5 | Desfase temporal hot/cold path | `CancelacionService.java`, `OperacionCancelacionController.java`, `SeccionCancelacion.tsx` |
+| 6 | Paginación truncada a 2000 | `application.properties` |
+| 7 | Zona horaria del aeropuerto ignorada | `formatearHora.ts`, `SeccionCancelacion.tsx`, `PanelDetalleCancelaciones.tsx`, `page.tsx`, `useMapaData.ts` |
+| 8 | Vuelos de archivo no pasaban regla ±60 min en Operación | `CancelacionService.java` |

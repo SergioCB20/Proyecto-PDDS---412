@@ -74,12 +74,13 @@ export function formatearHoraLima(
  */
 export function formatearFechaHoraSeparado(
   iso: string | null | undefined,
+  tz?: string,
 ): { fecha: string; hora: string } {
   const d = parseOrNull(iso);
   if (!d) return { fecha: '-', hora: '-' };
   return {
-    fecha: formatDate(d, LIMA_TZ),
-    hora: formatTime(d, LIMA_TZ),
+    fecha: formatDate(d, tz ?? LIMA_TZ),
+    hora: formatTime(d, tz ?? LIMA_TZ),
   };
 }
 
