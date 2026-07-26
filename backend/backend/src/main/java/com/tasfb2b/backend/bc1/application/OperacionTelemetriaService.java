@@ -57,7 +57,8 @@ public class OperacionTelemetriaService {
             // LocalDate.now() (UTC) dejaba fuera los planes del día del operador. El tag
             // TAG_DIA_A_DIA ya acota la carga a la operación vigente.
             List<Vuelo> vuelos = vueloRepository.findByEstadoInAndEsPlantillaAndTag(
-                    List.of(EstadoVuelo.PROGRAMADO, EstadoVuelo.EN_RUTA, EstadoVuelo.COMPLETADO), false, TAG);
+                    List.of(EstadoVuelo.PROGRAMADO, EstadoVuelo.EN_RUTA,
+                            EstadoVuelo.COMPLETADO, EstadoVuelo.CANCELADO), false, TAG);
             String json = buildTelemetryJson(nodos, vuelos);
             telemetriaWebSocket.broadcast(json);
         } catch (Exception e) {

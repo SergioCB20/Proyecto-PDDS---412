@@ -7,7 +7,9 @@ import com.tasfb2b.backend.bc1.infrastructure.EquipajeRepository;
 import com.tasfb2b.backend.bc1.infrastructure.NodoLogisticoRepository;
 import com.tasfb2b.backend.bc1.infrastructure.VueloRepository;
 import com.tasfb2b.backend.bc1.domain.Equipaje;
+import com.tasfb2b.backend.bc1.domain.Maleta;
 import com.tasfb2b.backend.bc1.infrastructure.EquipajeRepository;
+import com.tasfb2b.backend.bc1.infrastructure.MaletaRepository;
 import com.tasfb2b.backend.bc2.application.ReplanificacionResult;
 import com.tasfb2b.backend.bc2.application.ReplanificacionService;
 import com.tasfb2b.backend.bc2.application.SesionLockManager;
@@ -43,6 +45,7 @@ public class CancelacionService {
 
     private final VueloRepository vueloRepository;
     private final EquipajeRepository equipajeRepository;
+    private final MaletaRepository maletaRepository;
     private final NodoLogisticoRepository nodoRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final RedisCacheService redisCacheService;
@@ -55,6 +58,7 @@ public class CancelacionService {
     private final TelemetriaService telemetriaService;
 
     public CancelacionService(VueloRepository vueloRepository, EquipajeRepository equipajeRepository,
+                              MaletaRepository maletaRepository,
                               NodoLogisticoRepository nodoRepository, ApplicationEventPublisher eventPublisher,
                               RedisCacheService redisCacheService,
                               ReplanificacionService replanificacionService,
@@ -66,6 +70,7 @@ public class CancelacionService {
                               TelemetriaService telemetriaService) {
         this.vueloRepository = vueloRepository;
         this.equipajeRepository = equipajeRepository;
+        this.maletaRepository = maletaRepository;
         this.nodoRepository = nodoRepository;
         this.eventPublisher = eventPublisher;
         this.redisCacheService = redisCacheService;
@@ -80,9 +85,10 @@ public class CancelacionService {
 
     public record EquipajeAfectado(UUID id, String codigo, String origen_iata, String destino_iata,
                                     UUID vuelo_replanificado_id, String vuelo_replanificado_codigo,
-                                    List<SegmentoReplanInfo> plan_viaje) {}
+                                    List<SegmentoReplanInfo> plan_viaje,
+                                    Integer cantidad, List<String> codigosMaleta) {}
 
-    public record CancelacionRequest(UUID vuelo_id, String causa, UUID sesion_id, Boolean aplicar_regla_plantilla) {
+    public record CancelacionRequest(UUID vuelo_id, String causa, UUID sesion_id, Boolean aplicar_regla_plantilla, OffsetDateTime momento_virtual) {
         public CancelacionRequest {
             if (aplicar_regla_plantilla == null) aplicar_regla_plantilla = false;
         }
@@ -125,7 +131,8 @@ public class CancelacionService {
         }
 
         // Camino legacy (operacion real, sin sesion).
-        int afectados = (int) equipajeRepository.countByVueloActualId(vuelo.getId());
+        List<Equipaje> eqsLegacy = equipajeRepository.findByVueloActualId(vuelo.getId());
+        int afectados = eqsLegacy.stream().mapToInt(e -> e.getCantidad() != null ? e.getCantidad() : 1).sum();
 
         vuelo.setEstado(EstadoVuelo.CANCELADO);
         vueloRepository.save(vuelo);
@@ -198,27 +205,35 @@ public class CancelacionService {
         telemetriaService.emitirTelemetria(sesion);
 
         List<Equipaje> eqs = equipajeRepository.findAllById(result.equipajeIds());
+        List<Maleta> maletas = maletaRepository.findByEquipajeIdIn(result.equipajeIds());
+        Map<UUID, List<String>> codigosPorEquipaje = maletas.stream()
+                .collect(Collectors.groupingBy(
+                        m -> m.getEquipaje().getId(),
+                        Collectors.mapping(Maleta::getCodigoMaleta, Collectors.toList())));
         Map<UUID, EquipajeReplanInfo> replanMap = result.equipajes().stream()
                 .collect(Collectors.toMap(EquipajeReplanInfo::id, r -> r));
         List<EquipajeAfectado> equipajes = eqs.stream()
                 .map(e -> {
+                    List<String> cods = codigosPorEquipaje.getOrDefault(e.getId(), List.of());
+                    Integer cantidad = e.getCantidad() != null ? e.getCantidad() : 1;
                     EquipajeReplanInfo ri = replanMap.get(e.getId());
                     if (ri != null) {
                         return new EquipajeAfectado(e.getId(),
                                 e.getIdExterno() != null ? e.getIdExterno() : e.getId().toString(),
                                 e.getOrigenIata(), e.getDestinoIata(),
                                 ri.vueloId(), ri.vueloCodigo(),
-                                ri.segmentos());
+                                ri.segmentos(), cantidad, cods);
                     }
                     return new EquipajeAfectado(e.getId(),
                             e.getIdExterno() != null ? e.getIdExterno() : e.getId().toString(),
                             e.getOrigenIata(), e.getDestinoIata(),
-                            null, null, List.of());
+                            null, null, List.of(), cantidad, cods);
                 })
                 .toList();
 
+        int totalMaletas = eqs.stream().mapToInt(e -> e.getCantidad() != null ? e.getCantidad() : 1).sum();
         return new CancelacionResponse(vuelo.getId(), "CANCELADO",
-                result.afectados(), result.loteId(), equipajes, null, null);
+                totalMaletas, result.loteId(), equipajes, null, null);
     }
 
     /**
@@ -238,12 +253,13 @@ public class CancelacionService {
 
         Vuelo plantilla = vueloRepository.findById(request.vuelo_id())
                 .orElseThrow(() -> new VueloNoEncontradoException("Vuelo no encontrado: " + request.vuelo_id()));
-        if (!Boolean.TRUE.equals(plantilla.getEsPlantilla())) {
-            throw new CancelacionInvalidaException(
-                    "Solo se puede aplicar la regla de horario a vuelos plantilla");
-        }
 
-        OffsetDateTime virtual = sesion.getDiaHoraVirtual();
+        // Prioridad: usar momento_virtual del request (enviado por el frontend)
+        // como fuente única de verdad. Fallback a sesion.getDiaHoraVirtual() para
+        // compatibilidad con clientes antiguos.
+        OffsetDateTime virtual = request.momento_virtual() != null
+                ? request.momento_virtual()
+                : sesion.getDiaHoraVirtual();
         if (virtual == null) {
             throw new CancelacionInvalidaException(
                     "La sesion no tiene reloj virtual; inicia la sesion para poder cancelar plantillas");
@@ -297,8 +313,33 @@ public class CancelacionService {
         LocalDate manana = virtual.toLocalDate().plusDays(1);
         Vuelo instanciaManana = vueloService.obtenerInstanciaDelDia(plantilla.getCodigoVuelo(), manana);
         if (instanciaManana == null) {
-            throw new CancelacionInvalidaException(
-                    "No hay instancia del dia siguiente para " + plantilla.getCodigoVuelo());
+            instanciaManana = new Vuelo();
+            instanciaManana.setId(UUID.randomUUID());
+            instanciaManana.setCodigoVuelo(plantilla.getCodigoVuelo());
+            instanciaManana.setOrigen(plantilla.getOrigen());
+            instanciaManana.setDestino(plantilla.getDestino());
+            instanciaManana.setOrigenLat(plantilla.getOrigenLat());
+            instanciaManana.setOrigenLon(plantilla.getOrigenLon());
+            instanciaManana.setDestinoLat(plantilla.getDestinoLat());
+            instanciaManana.setDestinoLon(plantilla.getDestinoLon());
+            instanciaManana.setCapacidadCarga(plantilla.getCapacidadCarga());
+            instanciaManana.setCargaDisponible(plantilla.getCapacidadCarga());
+            instanciaManana.setPlanVuelos(plantilla.getPlanVuelos());
+            OffsetDateTime salidaManana = OffsetDateTime.of(
+                    manana, plantilla.getHoraSalida().toLocalTime(),
+                    plantilla.getHoraSalida().getOffset());
+            Duration duracion = Duration.between(
+                    plantilla.getHoraSalida(), plantilla.getHoraLlegada());
+            OffsetDateTime llegadaManana = salidaManana.plus(duracion)
+                    .withOffsetSameInstant(plantilla.getHoraLlegada().getOffset());
+            instanciaManana.setHoraSalida(salidaManana);
+            instanciaManana.setHoraLlegada(llegadaManana);
+            instanciaManana.setEstado(EstadoVuelo.PROGRAMADO);
+            instanciaManana.setEsPlantilla(false);
+            instanciaManana.setFechaOperacion(manana);
+            vueloRepository.save(instanciaManana);
+            log.info("Vuelo {} clonado como instancia de mañana {} (id={})",
+                    plantilla.getCodigoVuelo(), manana, instanciaManana.getId());
         }
         if (instanciaManana.getEstado() == EstadoVuelo.CANCELADO) {
             throw new CancelacionInvalidaException(

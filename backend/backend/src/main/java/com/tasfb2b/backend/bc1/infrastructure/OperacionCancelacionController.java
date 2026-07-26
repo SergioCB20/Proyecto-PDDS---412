@@ -34,7 +34,8 @@ public class OperacionCancelacionController {
         }
         try {
             var response = cancelacionService.cancelar(new CancelacionService.CancelacionRequest(
-                vueloId, request.causa(), sesionId, request.aplicar_regla_plantilla()
+                vueloId, request.causa(), sesionId, request.aplicar_regla_plantilla(),
+                request.momento_virtual()
             ));
             return ResponseEntity.ok(response);
         } catch (CancelacionService.VueloNoEncontradoException e) {

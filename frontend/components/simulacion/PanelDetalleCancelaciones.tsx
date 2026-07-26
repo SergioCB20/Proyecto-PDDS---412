@@ -15,6 +15,7 @@ interface PanelDetalleCancelacionesProps {
   onSelect: (id: string | null) => void;
   onBack: () => void;
   onVerDetalleEnvio?: (vueloId: string, vueloCodigo: string, equipajeId: string) => void;
+  timezone?: string;
 }
 
 function reAnclarAFecha(iso: string, fechaReferencia: string): Date | null {
@@ -27,19 +28,22 @@ function reAnclarAFecha(iso: string, fechaReferencia: string): Date | null {
   ));
 }
 
-function fmtHoraCorta(iso: string, referencial?: string): string {
+function fmtHoraCorta(iso: string, referencial?: string, tz?: string): string {
   const d = referencial ? reAnclarAFecha(iso, referencial) : null;
   const isoFinal = d ? d.toISOString() : iso;
-  const f = formatearFechaHoraSeparado(isoFinal);
+  const f = formatearFechaHoraSeparado(isoFinal, tz);
   return `${f.fecha} ${f.hora}`;
 }
 
-function fmtHoraMin(iso: string, referencial?: string): string {
+function fmtHoraMin(iso: string, referencial?: string, tz?: string): string {
   const d = referencial ? reAnclarAFecha(iso, referencial) : null;
   const src = d || new Date(iso);
   if (isNaN(src.getTime())) return iso;
-  const h = String(src.getUTCHours()).padStart(2, '0');
-  const m = String(src.getUTCMinutes()).padStart(2, '0');
+  const withTz = tz
+    ? new Date(src.toLocaleString('en-US', { timeZone: tz }))
+    : src;
+  const h = String(withTz.getHours()).padStart(2, '0');
+  const m = String(withTz.getMinutes()).padStart(2, '0');
   return `${h}:${m}`;
 }
 
@@ -65,6 +69,7 @@ export function PanelDetalleCancelaciones({
   onSelect,
   onBack,
   onVerDetalleEnvio,
+  timezone,
 }: PanelDetalleCancelacionesProps) {
   const r = selectedId
     ? cancelaciones.find((c) => c.vuelo_cancelado_id === selectedId) ?? null
@@ -77,6 +82,7 @@ export function PanelDetalleCancelaciones({
           cancelacion={r}
           onBack={() => onSelect(null)}
           onVerDetalleEnvio={onVerDetalleEnvio}
+          timezone={timezone}
         />
       ) : (
         <>
@@ -123,11 +129,11 @@ export function PanelDetalleCancelaciones({
                   <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 ml-6 mt-0.5">
                     <span className="flex items-center gap-1">
                       <Clock size={10} />
-                      Cancelado: {fmtHoraMin(c.momento_cancelacion)}
+                      Cancelado: {fmtHoraMin(c.momento_cancelacion, undefined, timezone)}
                     </span>
                     <span className="flex items-center gap-1">
                       <Clock size={10} />
-                      Salida: {fmtHoraMin(c.hora_salida_programada, c.momento_cancelacion)}
+                      Salida: {fmtHoraMin(c.hora_salida_programada, c.momento_cancelacion, timezone)}
                     </span>
                     {c.equipajes_afectados > 0 && (
                       <span className="flex items-center gap-1 ml-auto">
@@ -146,14 +152,74 @@ export function PanelDetalleCancelaciones({
   );
 }
 
+function EquipajeRow({
+  codigo, origen, destino, cantidad, codigosMaleta,
+  vueloId, vueloCodigo, loading, onVerDetalle,
+}: {
+  codigo: string; origen: string; destino: string;
+  cantidad: number; codigosMaleta?: string[];
+  vueloId?: string | null; vueloCodigo?: string | null;
+  loading: boolean; onVerDetalle: () => void;
+}) {
+  const [expandido, setExpandido] = useState(false);
+  return (
+    <div>
+      <div className="flex items-center justify-between text-xs px-2 py-1.5 rounded bg-slate-50 dark:bg-slate-800/50">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="font-mono font-medium text-slate-700 dark:text-slate-300 shrink-0">
+            {codigo}
+          </span>
+          <span className="text-slate-500 truncate">
+            {origen} → {destino}
+          </span>
+          <button
+            onClick={() => setExpandido(!expandido)}
+            className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 bg-slate-200/50 dark:bg-slate-700/50 px-1.5 py-0.5 rounded"
+            title={expandido ? "Ocultar maletas" : "Ver maletas individuales"}
+          >
+            ({cantidad} maleta{cantidad !== 1 ? "s" : ""})
+          </button>
+        </div>
+        <div className="flex items-center gap-1 shrink-0 ml-2">
+          {loading && !vueloId ? (
+            <Loader2 size={11} className="animate-spin text-slate-400" />
+          ) : vueloId && vueloCodigo ? (
+            <button
+              onClick={onVerDetalle}
+              className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 px-1.5 py-0.5 rounded transition-colors"
+              title="Ver detalle del vuelo de replanificación"
+            >
+              <Plane size={10} />
+              {vueloCodigo}
+            </button>
+          ) : (
+            <span className="text-xs text-slate-400">—</span>
+          )}
+        </div>
+      </div>
+      {expandido && codigosMaleta && codigosMaleta.length > 0 && (
+        <div className="pl-4 pr-2 pb-1 flex flex-wrap gap-1">
+          {codigosMaleta.map((m) => (
+            <span key={m} className="text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 rounded">
+              {m}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DetalleCancelacion({
   cancelacion: c,
   onBack,
   onVerDetalleEnvio,
+  timezone,
 }: {
   cancelacion: ResultadoCancelacion;
   onBack: () => void;
   onVerDetalleEnvio?: (vueloId: string, vueloCodigo: string, equipajeId: string) => void;
+  timezone?: string;
 }) {
   const [planes, setPlanes] = useState<Map<string, EquipajePlanViaje | null>>(new Map());
   const [loadingPlanes, setLoadingPlanes] = useState(false);
@@ -217,12 +283,12 @@ function DetalleCancelacion({
         <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs">
           <span className="text-slate-500 dark:text-slate-400">Cancelado:</span>
           <span className="font-medium text-slate-700 dark:text-slate-300">
-            {fmtHoraCorta(c.momento_cancelacion)}
+            {fmtHoraCorta(c.momento_cancelacion, undefined, timezone)}
           </span>
 
           <span className="text-slate-500 dark:text-slate-400">Salida programada:</span>
           <span className="font-medium text-slate-700 dark:text-slate-300">
-            {fmtHoraCorta(c.hora_salida_programada, c.momento_cancelacion)}
+            {fmtHoraCorta(c.hora_salida_programada, c.momento_cancelacion, timezone)}
           </span>
 
           <span className="text-slate-500 dark:text-slate-400">Ruta:</span>
@@ -252,7 +318,7 @@ function DetalleCancelacion({
             <div className="border-t border-slate-100 dark:border-slate-700/50 pt-3">
               <h4 className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 flex items-center gap-1.5">
                 <Luggage size={12} />
-                Equipajes re-enrutados ({c.equipajes.length})
+                Equipajes re-enrutados — {c.equipajes_afectados} maleta(s) en {c.equipajes.length} lote(s)
               </h4>
               <div className="space-y-1">
                 {c.equipajes.map((eq) => {
@@ -260,36 +326,21 @@ function DetalleCancelacion({
                   const nuevoVuelo = plan?.segmentos?.[0]?.vuelo_codigo;
                   const vueloId = eq.vuelo_replanificado_id;
                   const vueloCodigo = eq.vuelo_replanificado_codigo ?? nuevoVuelo;
+                  const cant = eq.cantidad ?? 1;
+                  const codigos = eq.codigos_maleta;
                   return (
-                    <div
+                    <EquipajeRow
                       key={eq.id}
-                      className="flex items-center justify-between text-xs px-2 py-1.5 rounded bg-slate-50 dark:bg-slate-800/50"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="font-mono font-medium text-slate-700 dark:text-slate-300 shrink-0">
-                          {eq.codigo}
-                        </span>
-                        <span className="text-slate-500 truncate">
-                          {eq.origen_iata} → {eq.destino_iata}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0 ml-2">
-                        {loadingPlanes && !vueloId ? (
-                          <Loader2 size={11} className="animate-spin text-slate-400" />
-                        ) : vueloId && vueloCodigo ? (
-                          <button
-                            onClick={() => onVerDetalleEnvio?.(vueloId, vueloCodigo, eq.id)}
-                            className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 px-1.5 py-0.5 rounded transition-colors"
-                            title="Ver detalle del vuelo de replanificación"
-                          >
-                            <Plane size={10} />
-                            {vueloCodigo}
-                          </button>
-                        ) : (
-                          <span className="text-xs text-slate-400">—</span>
-                        )}
-                      </div>
-                    </div>
+                      codigo={eq.codigo}
+                      origen={eq.origen_iata}
+                      destino={eq.destino_iata}
+                      cantidad={cant}
+                      codigosMaleta={codigos}
+                      vueloId={vueloId}
+                      vueloCodigo={vueloCodigo}
+                      loading={loadingPlanes}
+                      onVerDetalle={() => onVerDetalleEnvio?.(vueloId, vueloCodigo, eq.id)}
+                    />
                   );
                 })}
               </div>

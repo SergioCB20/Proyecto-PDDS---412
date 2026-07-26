@@ -187,6 +187,13 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   // generales del escenario día a día (reloj, inicio de jornada, etc.).
   const tzSede = useMemo(() => tzDeIata(iataOperacion), [iataOperacion]);
 
+  const zonasHorarias = useMemo(() => {
+    const m: Record<string, string> = {};
+    aeropuertos.forEach(a => { if (a.zona_horaria) m[a.codigo_iata] = a.zona_horaria; });
+    return m;
+  }, [aeropuertos]);
+  const tzOperacion = zonasHorarias[iataOperacion] ?? 'America/Lima';
+
   const handlePickSede = useCallback((iata: string) => {
     device.setAeropuertoRefId(iata);
     setStage("setup");
@@ -240,6 +247,11 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   );
   const hora = useReloj();
 
+  const opTelemetria = useMemo(
+    () => (telemetria?.sesion_id ? undefined : telemetria),
+    [telemetria],
+  );
+
   useEffect(() => {
     api
       .get<{ estado: string; sesion_id?: string }>("/operacion/estado")
@@ -262,7 +274,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const animacionActiva =
     estadoSesion !== 'PAUSADA' &&
     wsConnected &&
-    (telemetria?.vuelos?.some((v) => v.estado === "EN_RUTA") ?? false);
+    (opTelemetria?.vuelos?.some((v) => v.estado === "EN_RUTA") ?? false);
 
   const [dockAbiertas, setDockAbiertas] = useState<Set<string>>(new Set());
   const [dockCollapsed, setDockCollapsed] = useState(false);
@@ -299,22 +311,6 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   useEffect(() => {
     const id = setInterval(() => setRealTimeMomentoOp(new Date().toISOString()), 5000);
     return () => clearInterval(id);
-  }, []);
-
-  useEffect(() => {
-    api.get<VueloPageResponse>('/vuelos?es_plantilla=true&size=100000')
-      .then(r => setPlantillasOp(
-        r.content.map(v => ({
-          id: v.id,
-          codigo_vuelo: v.codigo_vuelo,
-          origen_iata: v.origen.codigo_iata,
-          destino_iata: v.destino.codigo_iata,
-          hora_salida: v.hora_salida,
-          hora_llegada: v.hora_llegada,
-          estado: v.estado,
-        }))
-      ))
-      .catch(() => {});
   }, []);
 
   const handleAeropuertoClickOp = useCallback((codigoIata: string) => {
@@ -388,8 +384,10 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   }, []);
 
   useEffect(() => {
-    if (!telemetria?.nodos || telemetria.nodos.length === 0) return;
-    const telemetriaAeropuertos: AeropuertoEnMapa[] = telemetria.nodos.map(
+    if (telemetria?.sesion_id) return;
+    const t = opTelemetria;
+    if (!t?.nodos || t.nodos.length === 0) return;
+    const telemetriaAeropuertos: AeropuertoEnMapa[] = t.nodos.map(
       (n) => ({
         id: n.id,
         codigo_iata: n.codigo_iata,
@@ -398,7 +396,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
         longitud: n.lon,
         capacidad_almacen: n.capacidad_almacen,
         ocupacion_actual: n.ocupacion_actual,
-        zona_horaria: "",
+        zona_horaria: n.zona_horaria ?? "",
         color: colorAeropuertoPorOcupacion(n.ocupacion_pct, {
           verdeMax: configUmbrales.verdeMax,
           ambarMax: configUmbrales.ambarMax,
@@ -410,8 +408,8 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     queueMicrotask(() => {
       setAeropuertos(telemetriaAeropuertos);
     });
-    if (telemetria.vuelos && telemetria.vuelos.length > 0) {
-      const vuelosMapped = telemetria.vuelos.map((v) => ({
+    if (t.vuelos && t.vuelos.length > 0) {
+      const vuelosMapped = t.vuelos.map((v) => ({
         id: v.id,
         codigo_vuelo: v.codigo_vuelo,
         estado: matchEstadoVuelo(v.estado),
@@ -436,6 +434,18 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
       }));
       queueMicrotask(() => {
         setAllVuelos(vuelosMapped);
+      });
+      const plantillasMapped: PlantillaResumen[] = t.vuelos.map((v) => ({
+        id: v.id,
+        codigo_vuelo: v.codigo_vuelo,
+        origen_iata: v.origen_iata,
+        destino_iata: v.destino_iata,
+        hora_salida: v.hora_salida || "",
+        hora_llegada: v.hora_llegada || "",
+        estado: matchEstadoVuelo(v.estado),
+      }));
+      queueMicrotask(() => {
+        setPlantillasOp(plantillasMapped);
       });
     }
   }, [telemetria, configUmbrales]);
@@ -673,7 +683,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     return sumCap > 0 ? (sumOcup / sumCap) * 100 : 0;
   }, [allVuelos]);
 
-  const metricasOpSim = telemetria?.metricas_sesion;
+  const metricasOpSim = opTelemetria?.metricas_sesion;
 
   const vuelosActivosOp = allVuelos.filter(
     (v) => v.estado === "EN_RUTA",
@@ -879,8 +889,8 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               className="w-[30rem] shrink-0 pointer-events-auto"
             >
               <PanelAeropuertosOperacion
-                aeropuertos={telemetria?.nodos ?? []}
-                vuelos={telemetria?.vuelos ?? []}
+                aeropuertos={opTelemetria?.nodos ?? []}
+                vuelos={opTelemetria?.vuelos ?? []}
                 onAeropuertoClick={() => {}}
                 onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
                 onMostrarRuta={handleMostrarRutaOp}
@@ -904,7 +914,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               className="w-[30rem] shrink-0 pointer-events-auto"
             >
               <PanelVuelosOperacion
-                vuelos={telemetria?.vuelos ?? []}
+                vuelos={opTelemetria?.vuelos ?? []}
                 onVueloClick={(id, codigo) =>
                   setSelectedEnvio({ tipo: "vuelo", id, codigo })
                 }
@@ -1110,6 +1120,8 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                   plantillas={plantillasOp}
                   sesionId={sesionId}
                   momentoVirtual={realTimeMomentoOp}
+                  timezone={tzOperacion}
+                  aplicarReglaPlantilla={false}
                   onCancelado={(r) => {
                     setHistorialCancelOp(prev => [...prev, r]);
                     setShowCancelDetalleOp(true);
@@ -1137,6 +1149,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                 selectedId={selectedCancelDetalleOp}
                 onSelect={setSelectedCancelDetalleOp}
                 onBack={() => setSelectedCancelDetalleOp(null)}
+                timezone={tzOperacion}
                 onVerDetalleEnvio={(vueloId, vueloCodigo, equipajeId) => {
                   setSelectedEnvio({ tipo: 'vuelo', id: vueloId, codigo: vueloCodigo });
                   setHighlightedEquipajeIdOp(equipajeId);
@@ -1219,6 +1232,11 @@ function SimulacionView({
     adoptarSesion,
   } = useSimulacionSesion({ configUmbrales });
 
+  const simTelemetria = useMemo(
+    () => (telemetria?.sesion_id === sesionId ? telemetria : undefined),
+    [telemetria, sesionId],
+  );
+
   const [historialCancelSim, setHistorialCancelSim] = useState<ResultadoCancelacion[]>([]);
   const [showCancelDetalleSim, setShowCancelDetalleSim] = useState(false);
   const [selectedCancelDetalleSim, setSelectedCancelDetalleSim] = useState<string | null>(null);
@@ -1298,7 +1316,7 @@ function SimulacionView({
     }
   }, [aeropuertosMapa]);
 
-  const k = useMemo(() => telemetria?.metricas_sesion?.k ?? 120, [telemetria]);
+  const k = useMemo(() => simTelemetria?.metricas_sesion?.k ?? 120, [simTelemetria]);
   const animacionActiva =
     estadoSesion !== 'PAUSADA' && wsConnected && (vuelosMapa.some((v) => v.estado === "EN_RUTA") ?? false);
 
@@ -1464,8 +1482,8 @@ function SimulacionView({
               {sesionId && estadoSesion !== "FINALIZADA" ? (
                 <div className="p-4">
                   <PanelAeropuertosOperacion
-                    aeropuertos={telemetria?.nodos ?? []}
-                    vuelos={telemetria?.vuelos ?? []}
+                    aeropuertos={simTelemetria?.nodos ?? []}
+                    vuelos={simTelemetria?.vuelos ?? []}
                     onVerEnvios={(iata) => setSelectedEnvio({ tipo: 'nodo', id: iata, codigo: iata })}
                     onAeropuertoClick={() => {}}
                     onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
@@ -1496,7 +1514,7 @@ function SimulacionView({
             >
               <div className="p-4">
                 <PanelVuelosOperacion
-                  vuelos={telemetria?.vuelos ?? []}
+                  vuelos={simTelemetria?.vuelos ?? []}
                   onVueloClick={(id, codigo) =>
                     setSelectedEnvio({ tipo: "vuelo", id, codigo })
                   }
@@ -1867,6 +1885,11 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     adoptarSesion,
   } = useSimulacionSesion({ configUmbrales, tipoSimulacion: "HASTA_COLAPSO" });
 
+  const simTelemetria = useMemo(
+    () => (telemetria?.sesion_id === sesionId ? telemetria : undefined),
+    [telemetria, sesionId],
+  );
+
   const [historialCancelCol, setHistorialCancelCol] = useState<ResultadoCancelacion[]>([]);
   const [showCancelDetalleCol, setShowCancelDetalleCol] = useState(false);
   const [selectedCancelDetalleCol, setSelectedCancelDetalleCol] = useState<string | null>(null);
@@ -1963,7 +1986,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     }
   }, [aeropuertosMapa]);
 
-  const k = useMemo(() => telemetria?.metricas_sesion?.k ?? 120, [telemetria]);
+  const k = useMemo(() => simTelemetria?.metricas_sesion?.k ?? 120, [simTelemetria]);
   const animacionActiva =
     estadoSesion !== 'PAUSADA' && wsConnected && (vuelosMapa.some((v) => v.estado === "EN_RUTA") ?? false);
 
@@ -2274,10 +2297,10 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
             >
               {sesionId && estadoSesion !== "FINALIZADA" && estadoSesion !== "COLAPSADA" ? (
                 <PanelTabs
-                  aeropuertos={telemetria?.nodos ?? []}
-                  vuelosAeropuerto={telemetria?.vuelos ?? []}
+                  aeropuertos={simTelemetria?.nodos ?? []}
+                  vuelosAeropuerto={simTelemetria?.vuelos ?? []}
                   onAeropuertoClick={() => {}}
-                  vuelos={telemetria?.vuelos ?? []}
+                  vuelos={simTelemetria?.vuelos ?? []}
                   onVueloClick={(id, codigo) =>
                     setSelectedEnvio({ tipo: "vuelo", id, codigo })
                   }
