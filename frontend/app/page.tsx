@@ -347,7 +347,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
       const [aeropuertosData, vuelosData] = await Promise.all([
         api.get<Aeropuerto[]>("/nodos"),
         api.get<VueloPageResponse>(
-          `/vuelos?size=300&fecha_desde=${encodeURIComponent(wStart)}&fecha_hasta=${encodeURIComponent(wEnd)}`,
+          `/vuelos?size=100000&fecha_desde=${encodeURIComponent(wStart)}&fecha_hasta=${encodeURIComponent(wEnd)}`,
         ),
       ]);
       setAeropuertos(aeropuertosData.map(aeropuertoToEnMapa));
