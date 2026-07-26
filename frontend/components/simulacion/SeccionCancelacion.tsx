@@ -25,6 +25,7 @@ interface SeccionCancelacionProps {
   onVerDetalleEnvio?: (vueloId: string, vueloCodigo: string, equipajeId: string) => void;
   cancelEndpoint?: string;
   timezone?: string;
+  aplicarReglaPlantilla?: boolean;
 }
 
 const ESTADOS = ["PROGRAMADO", "EN_RUTA", "COMPLETADO", "CANCELADO"] as const;
@@ -76,6 +77,7 @@ export function SeccionCancelacion({
   onVerDetalleEnvio,
   cancelEndpoint = "/simulacion/cancelacion",
   timezone,
+  aplicarReglaPlantilla = true,
 }: SeccionCancelacionProps) {
   const [open, setOpen] = useState(true);
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -116,7 +118,7 @@ export function SeccionCancelacion({
         vuelo_id: p.id,
         causa: "Cancelación manual desde panel de plantillas",
         sesion_id: sesionId,
-        aplicar_regla_plantilla: true,
+        aplicar_regla_plantilla: aplicarReglaPlantilla,
         momento_virtual: momentoVirtual,
       });
       const fueDiferido = res.vuelo_id !== p.id;

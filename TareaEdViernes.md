@@ -190,7 +190,69 @@ No se requirieron cambios. El backend ya devuelve `vuelo_replanificado_id`, `vue
 **Archivo modificado:**
 - `backend/backend/src/.../CancelacionService.java` — eliminado bloque `es_plantilla` + reemplazado throw por clonación inline
 
-### Resumen completo de cambios
+---
+
+## Problema 9: Cancelación en Operación ejecutaba flujo DB-heavy de plantillas (sesión virtual)
+
+**Síntoma:** Cancelar un vuelo en la vista Operación ejecutaba `cancelarSegunPlantilla()`, que hacía `vueloRepository.findById()`, calculaba hot/cold con tiempo virtual, clonaba instancias a mañana, y buscaba instancias del día — todo el flujo diseñado para Simulación con base de datos.
+
+**Causa raíz:** `SeccionCancelacion.tsx` siempre enviaba `aplicar_regla_plantilla: true` en el body del POST, independientemente de si era vista Simulación u Operación. En el backend, `CancelacionService.cancelar()` bifurca a `cancelarSegunPlantilla()` cuando `aplicar_regla_plantilla == true && sesion_id != null`. La vista Operación no debería ejecutar esa lógica DB-heavy, solo necesita cancelar el vuelo y replanificar.
+
+**Solución:**
+
+| Archivo | Cambio |
+|---|---|
+| `SeccionCancelacion.tsx` | Nueva prop `aplicarReglaPlantilla?: boolean` (default `true`). Se usa en vez del hardcoded `true` en el body del POST. |
+| `page.tsx` | En la instancia de Operación (cancelEndpoint=`/operacion/cancelacion`), se pasa `aplicarReglaPlantilla={false}`. Las instancias de Simulación y Colapso mantienen el default `true`. |
+
+**Resultado:** En Operación, el backend recibe `aplicar_regla_plantilla: false`, cae al path legacy de `CancelacionService.cancelar()` que solo hace `vueloRepository.findById()`, marca CANCELADO, y publica el evento. Sin clonar, sin hot/cold, sin instancias del día siguiente.
+
+---
+
+## Problema 10: Contaminación de telemetría entre sesiones Operación y Simulación
+
+**Síntoma:** En la vista Operación, por momentos se renderizaban vuelos, nodos y métricas de la simulación (con tiempo virtual, k=120, posiciones avanzadas). En la vista Simulación, el factor k se contaminaba a k=1 (Operación), ralentizando la animación del mapa.
+
+**Causa raíz:** Hay un solo `TelemetriaWebSocket` que emite a todos los clientes conectados. Si una sesión SIMULADA y una EN_VIVO están activas simultáneamente, el `TelemetriaService` de bc2 emite telemetría con `sesion_id` (TelemetriaService.java:93), mientras que `OperacionTelemetriaService` nunca incluye `sesion_id`. La vista Operación procesaba **cualquier** telemetría entrante sin filtrar, renderizando datos de simulación. La vista Simulación leía `k` directamente de `telemetria?.metricas_sesion?.k` sin verificar `sesion_id`.
+
+**Puntos de contaminación identificados:**
+
+| Vista | # | Acceso | Riesgo |
+|---|---|---|---|
+| Operación | 1 | `animacionActiva` con `telemetria?.vuelos` | Se activaba con vuelos de simulación |
+| Operación | 2 | `useEffect([telemetria])` mapeando nodos/vuelos | **Crítico:** estado contaminado con datos de simulación |
+| Operación | 3 | `metricasOpSim = telemetria?.metricas_sesion` | Mostraba SLA/cancelados de simulación |
+| Operación | 4 | Props a `PanelAeropuertosOperacion` | Paneles con datos de simulación |
+| Operación | 5 | Props a `PanelVuelosOperacion` | Panel de vuelos con datos de simulación |
+| Simulación | 6 | `k = telemetria?.metricas_sesion?.k` | k=1 de Operación → animación lenta |
+| Simulación | 7 | Props a `PanelAeropuertosOperacion` | Paneles con datos de Operación |
+| Simulación | 8 | Props a `PanelVuelosOperacion` | Panel de vuelos con datos de Operación |
+| Colapso | 9-12 | Mismos que Simulación (k + 3 props) | Idem Simulación |
+
+**Solución:**
+
+| Archivo | Cambio |
+|---|---|
+| `page.tsx:250-252` | En `OperacionView`: `opTelemetria = useMemo(...)` que filtra telemetría con `sesion_id`. Cuando llega telemetría de simulación, `opTelemetria` es `undefined`; los paneles reciben `undefined?.nodos ?? []` (vacíos) por <1s hasta la próxima telemetría de Operación. El efecto principal usa su propio guardia `if (telemetria?.sesion_id) return;` y procesa desde la variable derivada. |
+| `page.tsx:385` | Guardia `if (telemetria?.sesion_id) return;` en el `useEffect` principal — evita procesar datos de simulación. |
+| `page.tsx:388+` | El efecto usa `const t = opTelemetria` en vez de `telemetria` directamente. |
+| `page.tsx` - Operación | Los 5 accesos (`animacionActiva`, efecto, `metricasOpSim`, props de paneles) usan `opTelemetria`. |
+| `page.tsx:1234-1236` | En `SimulacionView`: `simTelemetria = useMemo(...)` que solo devuelve telemetría si `sesion_id === sesionId`. |
+| `page.tsx:1317,1483-1484,1515` | Los 4 accesos en `SimulacionView` usan `simTelemetria`. |
+| `page.tsx:1887-1889` | En `ColapsoView`: mismo `simTelemetria` que SimulaciónView. |
+| `page.tsx:1987,2298-2301` | Los 4 accesos en `ColapsoView` usan `simTelemetria`. |
+
+**Resultado final:**
+
+| Vista | Telemetría de simulación | Telemetría de Operación |
+|---|---|---|
+| **Operación** | Ignorada (ref no actualiza) ✅ | Procesada normal ✅ |
+| **Simulación** | Solo si `sesion_id` coincide ✅ | Ignorada (`simTelemetria` es undefined) ✅ |
+| **Colapso** | Solo si `sesion_id` coincide ✅ | Ignorada ✅ |
+
+Sin contaminación cruzada, sin renders extra por datos erroneos, sin ralentización.
+
+### Resumen completo de cambios (todos los problemas)
 
 | # | Problema | Archivos |
 |---|---|---|
@@ -202,3 +264,5 @@ No se requirieron cambios. El backend ya devuelve `vuelo_replanificado_id`, `vue
 | 6 | Paginación truncada a 2000 | `application.properties` |
 | 7 | Zona horaria del aeropuerto ignorada | `formatearHora.ts`, `SeccionCancelacion.tsx`, `PanelDetalleCancelaciones.tsx`, `page.tsx`, `useMapaData.ts` |
 | 8 | Vuelos de archivo no pasaban regla ±60 min en Operación | `CancelacionService.java` |
+| 9 | Cancelación en Operación ejecutaba flujo DB-heavy de plantillas | `SeccionCancelacion.tsx`, `page.tsx` |
+| 10 | Contaminación de telemetría entre sesiones | `page.tsx` (useRef, useMemo, 13 renombres) |
