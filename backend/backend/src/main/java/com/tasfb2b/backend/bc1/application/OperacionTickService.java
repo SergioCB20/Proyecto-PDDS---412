@@ -1,6 +1,12 @@
 package com.tasfb2b.backend.bc1.application;
 
-import com.tasfb2b.backend.bc1.domain.*;
+import com.tasfb2b.backend.bc1.domain.Equipaje;
+import com.tasfb2b.backend.bc1.domain.EstadoEquipaje;
+import com.tasfb2b.backend.bc1.domain.EstadoSegmento;
+import com.tasfb2b.backend.bc1.domain.EstadoVuelo;
+import com.tasfb2b.backend.bc1.domain.SegmentoPlan;
+import com.tasfb2b.backend.bc1.domain.TagsOperacion;
+import com.tasfb2b.backend.bc1.domain.Vuelo;
 import com.tasfb2b.backend.bc1.infrastructure.*;
 import com.tasfb2b.backend.bc2.domain.EstadoSesion;
 import com.tasfb2b.backend.bc2.domain.TipoSesion;
@@ -73,8 +79,8 @@ public class OperacionTickService {
     }
 
     private void procesarSalidas(OffsetDateTime now) {
-        List<Vuelo> saliendo = vueloRepository.findByEstadoAndEsPlantillaAndHoraSalidaLessThanEqual(
-                EstadoVuelo.PROGRAMADO, false, now);
+        List<Vuelo> saliendo = vueloRepository.findByEstadoAndEsPlantillaAndTagAndHoraSalidaLessThanEqual(
+                EstadoVuelo.PROGRAMADO, false, TagsOperacion.TAG_DIA_A_DIA, now);
 
         if (saliendo.isEmpty()) return;
 
@@ -120,8 +126,8 @@ public class OperacionTickService {
     }
 
     private void procesarLlegadas(OffsetDateTime now) {
-        List<Vuelo> llegando = vueloRepository.findByEstadoAndEsPlantillaAndHoraLlegadaLessThanEqual(
-                EstadoVuelo.EN_RUTA, false, now);
+        List<Vuelo> llegando = vueloRepository.findByEstadoAndEsPlantillaAndTagAndHoraLlegadaLessThanEqual(
+                EstadoVuelo.EN_RUTA, false, TagsOperacion.TAG_DIA_A_DIA, now);
 
         if (llegando.isEmpty()) return;
 

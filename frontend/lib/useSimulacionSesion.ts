@@ -293,18 +293,6 @@ export function useSimulacionSesion({
     setLoading(true);
     setError('');
     try {
-      const otrasActivas = await api
-        .get<SesionListaItem[]>('/sesiones?estado=EN_CURSO')
-        .catch(() => [] as SesionListaItem[]);
-      for (const s of otrasActivas) {
-        if (s.id !== sesionId) {
-          try {
-            await api.post(`/sesiones/${s.id}/detener`, {});
-          } catch {
-            /* ignore */
-          }
-        }
-      }
       await api.post(`/sesiones/${sesionId}/iniciar`, {});
       setInicioRealMs(hora.getTime());
       setEstadoSesion('EN_CURSO');

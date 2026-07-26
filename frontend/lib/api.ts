@@ -204,3 +204,55 @@ export async function fetchEnviosNodoConClasificacion(iata: string, sesionId?: s
   const params = sesionId ? `?sesionId=${encodeURIComponent(sesionId)}` : '';
   return api.get<NodoEnviosResponse>(`/nodos/${encodeURIComponent(iata)}/envios${params}`);
 }
+
+export async function setNodoCapacidadOperacion(iata: string, capacidad: number): Promise<{ capacidad_almacen: number }> {
+  return api.post<{ capacidad_almacen: number }>(`/operacion/nodo/${encodeURIComponent(iata)}/capacidad`, { capacidad });
+}
+
+export async function cargarPlanesOperacion(file: File): Promise<{ planes_cargados: number }> {
+  const fd = new FormData();
+  fd.append('archivo', file);
+  return api.upload<{ planes_cargados: number }>('/operacion/preparacion/planes', fd);
+}
+
+export async function eliminarCargadoOperacion(): Promise<{
+  vuelos_eliminados: number;
+  equipajes_eliminados: number;
+  planes_viaje_eliminados: number;
+  capacidades: string;
+  tag: string;
+}> {
+  return api.post('/operacion/preparacion/eliminar', {});
+}
+
+export interface EstadoPreparacion {
+  capacidades: Record<string, number>;
+  planes_tag_count: number;
+  equipajes_tag_count: number;
+  tag: string;
+}
+
+export interface VueloOperacionPlano {
+  id: string;
+  codigo_vuelo: string;
+  origen_iata: string;
+  destino_iata: string;
+  origen_latitud: number;
+  origen_longitud: number;
+  destino_latitud: number;
+  destino_longitud: number;
+  hora_salida: string;
+  hora_llegada: string;
+  capacidad_carga: number;
+  carga_disponible: number;
+  estado: string;
+}
+
+export async function fetchEstadoPreparacion(): Promise<EstadoPreparacion> {
+  return api.get<EstadoPreparacion>('/operacion/preparacion/estado');
+}
+
+export async function fetchPlanesOperacion(involucra?: string): Promise<VueloOperacionPlano[]> {
+  const q = involucra ? `?involucra=${encodeURIComponent(involucra)}` : '';
+  return api.get<VueloOperacionPlano[]>(`/operacion/preparacion/planes${q}`);
+}

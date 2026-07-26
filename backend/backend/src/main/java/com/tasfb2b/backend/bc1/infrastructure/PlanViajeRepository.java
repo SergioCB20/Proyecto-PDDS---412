@@ -32,6 +32,10 @@ public interface PlanViajeRepository extends JpaRepository<PlanViaje, UUID> {
             + "AND e.estado = com.tasfb2b.backend.bc1.domain.EstadoEquipaje.ENTREGADO")
     long sumCantidadEntregadosBySesionId(@Param("sesionId") UUID sesionId);
 
+    @Modifying
+    @Query("DELETE FROM PlanViaje pv WHERE pv.equipaje.tag = :tag")
+    int deleteByEquipajeTag(@Param("tag") String tag);
+
     @Query("SELECT e FROM Equipaje e " +
            "JOIN PlanViaje pv ON pv.equipaje = e " +
            "JOIN SegmentoPlan sp ON sp.planViaje = pv " +

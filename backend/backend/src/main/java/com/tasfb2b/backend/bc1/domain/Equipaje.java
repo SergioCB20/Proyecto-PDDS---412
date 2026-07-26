@@ -48,6 +48,9 @@ public class Equipaje {
     @Column(length = 64)
     private String tag;
 
+    @Column(name = "cliente_id", length = 64)
+    private String clienteId;
+
     @Column(name = "sla_comprometido", nullable = false)
     private OffsetDateTime slaComprometido;
 
@@ -94,6 +97,9 @@ public class Equipaje {
 
     public String getTag() { return tag; }
     public void setTag(String tag) { this.tag = tag; }
+
+    public String getClienteId() { return clienteId; }
+    public void setClienteId(String clienteId) { this.clienteId = clienteId; }
 
     public List<Maleta> getMaletas() { return maletas; }
     public void setMaletas(List<Maleta> maletas) { this.maletas = maletas; }

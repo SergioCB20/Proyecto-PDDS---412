@@ -233,10 +233,10 @@ public class SesionService {
         }
 
         long enCursoCount = sesionRepository.findByEstadoWithLock(EstadoSesion.EN_CURSO).stream()
-            .filter(s -> !s.getId().equals(id))
+            .filter(s -> !s.getId().equals(id) && s.getTipo() == sesion.getTipo())
             .count();
         if (enCursoCount > 0) {
-            throw new IllegalStateException("Ya existe una sesion EN_CURSO. Detenela antes de iniciar otra.");
+            throw new IllegalStateException("Ya existe una sesion " + sesion.getTipo() + " EN_CURSO. Detenela antes de iniciar otra.");
         }
 
         if (sesion.getTipo() == TipoSesion.SIMULADA && sesion.getFechaAlineadaA() == null) {

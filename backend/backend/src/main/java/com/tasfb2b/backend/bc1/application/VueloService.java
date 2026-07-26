@@ -150,8 +150,8 @@ public class VueloService {
         ZoneId zonaOrigen = ZoneId.of(origen.getZonaHoraria());
         ZoneId zonaDestino = ZoneId.of(destino.getZonaHoraria());
 
-        vuelo.setHoraSalida(request.hora_salida().atZone(zonaOrigen).toOffsetDateTime());
-        vuelo.setHoraLlegada(request.hora_llegada().atZone(zonaDestino).toOffsetDateTime());
+        vuelo.setHoraSalida(request.hora_salida().atZone(zonaOrigen).toOffsetDateTime().withOffsetSameInstant(java.time.ZoneOffset.UTC));
+        vuelo.setHoraLlegada(request.hora_llegada().atZone(zonaDestino).toOffsetDateTime().withOffsetSameInstant(java.time.ZoneOffset.UTC));
         vuelo.setCapacidadCarga(request.capacidad_carga());
         vuelo.setCargaDisponible(request.capacidad_carga());
         vuelo.setEstado(EstadoVuelo.PROGRAMADO);
@@ -186,8 +186,8 @@ public class VueloService {
         vuelo.setOrigenLon(origen.getLongitud());
         vuelo.setDestinoLat(destino.getLatitud());
         vuelo.setDestinoLon(destino.getLongitud());
-        vuelo.setHoraSalida(request.hora_salida().atZone(zonaOrigen).toOffsetDateTime());
-        vuelo.setHoraLlegada(request.hora_llegada().atZone(zonaDestino).toOffsetDateTime());
+        vuelo.setHoraSalida(request.hora_salida().atZone(zonaOrigen).toOffsetDateTime().withOffsetSameInstant(java.time.ZoneOffset.UTC));
+        vuelo.setHoraLlegada(request.hora_llegada().atZone(zonaDestino).toOffsetDateTime().withOffsetSameInstant(java.time.ZoneOffset.UTC));
         vuelo.setCapacidadCarga(request.capacidad_carga());
         vuelo.setCargaDisponible(request.capacidad_carga());
         vueloRepository.save(vuelo);

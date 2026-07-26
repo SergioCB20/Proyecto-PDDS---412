@@ -119,6 +119,12 @@ public class CargaMasivaService {
                     errores.add("Cantidad no es un número: " + cantidadStr);
                 }
 
+                // Validar clienteId
+                String clienteIdRegex = "^[A-Z]?\\d{6,12}$";
+                if (clienteId == null || !clienteId.matches(clienteIdRegex)) {
+                    errores.add("clienteId inválido: " + (clienteId != null ? clienteId : "vacio") + ". Formato esperado: [A-Z]?\\d{6,12}");
+                }
+
                 // Validar fecha
                 String fechaIngresoLocal = "";
                 try {
@@ -204,7 +210,8 @@ public class CargaMasivaService {
                 equipaje.setFechaIngresoLocal(preview.fechaIngresoLocal());
                 equipaje.setEstado(EstadoEquipaje.REGISTRADO);
                 equipaje.setVueloActual(null);
-                equipaje.setTag("tag_dia_a_dia");
+                equipaje.setTag(com.tasfb2b.backend.bc1.domain.TagsOperacion.TAG_DIA_A_DIA);
+                equipaje.setClienteId(preview.clienteId());
                 equipajeRepository.save(equipaje);
 
                 equipajeService.generarMaletasPara(equipaje);

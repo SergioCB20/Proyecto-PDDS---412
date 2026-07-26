@@ -92,7 +92,7 @@ public class OperacionController {
                             "mensaje", "No hay sesion EN_VIVO pausada"));
         }
         sesionService.iniciarSesion(pausadas.get(0).getId(), dispositivoId);
-        return ResponseEntity.ok(Map.of("estado", "ACTIVO"));
+        return ResponseEntity.ok(Map.of("estado", "ACTIVO", "sesion_id", pausadas.get(0).getId().toString()));
     }
 
     @PostMapping("/detener")

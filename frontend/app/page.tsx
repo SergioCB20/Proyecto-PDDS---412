@@ -2,10 +2,8 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import {
-  Package,
+  Package, LogOut,
   RefreshCw,
-  ChevronDown,
-  ChevronUp,
   CheckCircle,
   XCircle,
   Plane,
@@ -29,6 +27,7 @@ import {
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { device } from "@/lib/device";
 import { aeropuertoToEnMapa } from "@/lib/mock";
 import { useTelemetria } from "@/lib/useTelemetria";
 import { useMapaData, matchEstadoVuelo } from "@/lib/useMapaData";
@@ -43,6 +42,8 @@ import { Select } from "@/components/ui/Select";
 import { Modal } from "@/components/ui/Modal";
 import { PanelAeropuertosOperacion } from "@/components/operacion/PanelAeropuertosOperacion";
 import { PanelVuelosOperacion } from "@/components/operacion/PanelVuelosOperacion";
+import SedePicker from "@/components/operacion/SedePicker";
+import SetupOperacion from "@/components/operacion/SetupOperacion";
 import { PanelEnviosMaletas } from "@/components/shared/PanelEnviosMaletas";
 import { ModalEnvios, type SelectedEnvioConsolidado } from "@/components/shared/ModalEnvios";
 import { PanelReporte } from "@/components/simulacion/PanelReporte";
@@ -176,11 +177,48 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [apiError, setApiError] = useState<string | null>(null);
   const [reporteOp, setReporteOp] = useState<ReporteOperacion | null>(null);
 
+  const [stage, setStage] = useState<"picker" | "setup" | "mapa">(() => {
+    const storedId = device.getAeropuertoRefId();
+    if (!storedId) return "picker";
+    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem("operacion_setup_done_v1") === "1") return "mapa";
+    return "setup";
+  });
+  const iataOperacion = stage === "picker" ? "" : (device.getAeropuertoRefId() || "");
+
+  const handlePickSede = useCallback((iata: string) => {
+    device.setAeropuertoRefId(iata);
+    setStage("setup");
+  }, []);
+
+  const handleSetupListo = useCallback(async () => {
+    try {
+      await api.post<{ estado: string; sesion_id?: string }>("/operacion/iniciar", {});
+      const ahoraMs = Date.now();
+      setInicioOperacionMs(ahoraMs);
+      localStorage.setItem("sesion_operacion_inicio", new Date(ahoraMs).toISOString());
+    } catch {
+      // If session already exists, GET /operacion/estado will sync state on mount
+    }
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem("operacion_setup_done_v1", "1");
+    }
+    setStage("mapa");
+  }, []);
+
+  const handleCambiarSede = useCallback(() => {
+    device.setAeropuertoRefId("");
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.removeItem("operacion_setup_done_v1");
+    }
+    setStage("picker");
+  }, []);
+
   const [formOpen, setFormOpen] = useState(false);
   const [formData, setFormData] = useState({
     origenIata: "",
     destinoIata: "",
     cantidad: 1,
+    clienteId: "",
   });
   const [formLoading, setFormLoading] = useState(false);
   const [formSuccess, setFormSuccess] = useState<CrearEquipajeResponse | null>(
@@ -396,11 +434,12 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
         {
           destino_iata: formData.destinoIata,
           cantidad: formData.cantidad,
+          cliente_id: formData.clienteId || undefined,
         },
         { "X-Device-Nodo-Id": aeropuerto.id },
       );
       setFormSuccess(response);
-      setFormData({ origenIata: "", destinoIata: "", cantidad: 1 });
+      setFormData({ origenIata: "", destinoIata: "", cantidad: 1, clienteId: "" });
     } catch (err: unknown) {
       const error = err as { mensaje?: string; message?: string };
       setFormError(
@@ -445,7 +484,6 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
         "/equipajes/carga-masiva/confirmar",
         {},
       );
-      setCargaMasivaOpen(false);
       setCsvFile(null);
       setCsvPreview(null);
     } catch (err: unknown) {
@@ -636,9 +674,8 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   }, []);
 
   const onDockActionOp = useCallback((id: string) => {
-    if (id === 'ir-recepcion') router.push('/recepcion');
-    else if (id === 'ir-admin') router.push('/admin/prep');
-  }, [router]);
+    if (id === 'cambiar-sede') handleCambiarSede();
+  }, [router, handleCambiarSede]);
 
   const dockAbiertasOp = useMemo(() => {
     const s = new Set(dockAbiertas);
@@ -647,6 +684,19 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     if (zoomVisibleOp) s.add('zoom');
     return s;
   }, [dockAbiertas, metricaVisibleOp, relojVisibleOp, zoomVisibleOp]);
+
+  if (stage === "picker") {
+    return <SedePicker onPick={handlePickSede} />;
+  }
+  if (stage === "setup") {
+    return (
+      <SetupOperacion
+        iata={iataOperacion}
+        onListo={handleSetupListo}
+        onCambiarSede={handleCambiarSede}
+      />
+    );
+  }
 
   return (
     <div className="relative h-full overflow-hidden">
@@ -762,12 +812,13 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               { id: 'aeropuertos', icon: Warehouse, label: 'Aeropuertos' },
               { id: 'vuelos', icon: Plane, label: 'Vuelos' },
               { id: 'envios', icon: Luggage, label: 'Envíos' },
+              { id: 'manual-envio', icon: Package, label: 'Reg. manual' },
+              { id: 'carga-txt', icon: FileSpreadsheet, label: 'Carga TXT' },
               { id: 'control', icon: Activity, label: 'Control' },
               { id: 'metricas', icon: BarChart3, label: 'Métricas' },
               { id: 'reloj', icon: Clock, label: 'Reloj' },
               { id: 'zoom', icon: ZoomIn, label: 'Zoom' },
-              { id: 'ir-recepcion', icon: Package, label: 'Ir a Recepción', variant: 'action' },
-              { id: 'ir-admin', icon: Settings, label: 'Admin día-a-día', variant: 'action' },
+              { id: 'cambiar-sede', icon: LogOut, label: 'Cambiar sede', variant: 'action' },
             ]}
             abiertas={dockAbiertasOp}
             onToggle={toggleDockOp}
@@ -920,52 +971,80 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               </div>
             </PanelFlotante>
           )}
-          {dockAbiertas.has('registro') && (
+          {dockAbiertas.has('manual-envio') && (
             <PanelFlotante
-              title="Registro de Equipaje"
-              onClose={() => toggleDockOp('registro')}
+              title="Registro manual de envío"
+              onClose={() => toggleDockOp('manual-envio')}
               className="w-[30rem] shrink-0 pointer-events-auto"
             >
               <div className="p-4">
-                <div className="flex gap-2 mb-3">
-                  <button onClick={() => setFormOpen(!formOpen)} className="flex-1 flex items-center justify-between p-3 rounded-lg bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">
-                    <div className="flex items-center gap-2">
-                      <Package size={16} className="text-blue-600 dark:text-blue-400" />
-                      <span className="font-medium text-sm text-blue-900 dark:text-blue-100">Individual</span>
-                    </div>
-                    {formOpen ? <ChevronUp size={16} className="text-blue-600 dark:text-blue-400" /> : <ChevronDown size={16} className="text-blue-600 dark:text-blue-400" />}
-                  </button>
-                  <button onClick={() => setCargaMasivaOpen(true)} className="flex-1 flex items-center justify-center gap-2 p-3 rounded-lg bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors">
-                    <FileSpreadsheet size={16} className="text-green-600 dark:text-green-400" />
-                    <span className="font-medium text-sm text-green-900 dark:text-green-100">Carga Masiva</span>
-                  </button>
-                </div>
-                {formOpen && (
-                  <form onSubmit={handleSubmit} className="space-y-3 mb-4 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-                    <Select label="Aeropuerto Origen" placeholder={aeropuertos.length === 0 ? "No hay aeropuertos" : "Seleccionar aeropuerto origen"}
-                      options={destinoOptions} value={formData.origenIata}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, origenIata: e.target.value }))}
-                      disabled={aeropuertos.length === 0}
-                    />
-                    <Select label="Destino IATA" placeholder={aeropuertos.length === 0 ? "No hay destinos" : "Seleccionar destino"}
-                      options={destinoOptions} value={formData.destinoIata}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, destinoIata: e.target.value }))}
-                      disabled={aeropuertos.length === 0}
-                    />
-                    <Input label="Número de Maletas" type="number" min="1" value={formData.cantidad}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, cantidad: Math.max(1, parseInt(e.target.value) || 1) }))}
-                    />
-                    {formError && (<div className="flex items-center gap-2 p-2 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800"><XCircle size={14} className="text-red-600 dark:text-red-400" /><span className="text-xs text-red-700 dark:text-red-300">{formError}</span></div>)}
-                    <Button type="submit" disabled={formLoading} className="w-full">{formLoading ? "Registrando..." : "Registrar"}</Button>
-                  </form>
-                )}
+                <form onSubmit={handleSubmit} className="space-y-3 mb-4 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                  <p className="text-xs text-slate-500 mb-2">Origen: {iataOperacion} (sede actual)</p>
+                  <Select label="Destino IATA" placeholder={aeropuertos.length === 0 ? "No hay destinos" : "Seleccionar destino"}
+                    options={destinoOptions} value={formData.destinoIata}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, destinoIata: e.target.value }))}
+                    disabled={aeropuertos.length === 0}
+                  />
+                  <Input label="Número de Maletas" type="number" min="1" value={formData.cantidad}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, cantidad: Math.max(1, parseInt(e.target.value) || 1) }))}
+                  />
+                  <Input label="Cliente ID" type="text" placeholder="0007729"
+                    onChange={(e) => setFormData((prev) => ({ ...prev, clienteId: e.target.value }))}
+                  />
+                  {formError && (<div className="flex items-center gap-2 p-2 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800"><XCircle size={14} className="text-red-600 dark:text-red-400" /><span className="text-xs text-red-700 dark:text-red-300">{formError}</span></div>)}
+                  <Button type="submit" disabled={formLoading} className="w-full">{formLoading ? "Registrando..." : "Registrar"}</Button>
+                </form>
                 {formSuccess && (
-                  <div className="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800">
+                  <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800">
                     <div className="flex items-center gap-2 mb-2"><CheckCircle size={16} className="text-green-600 dark:text-green-400" /><span className="font-medium text-sm text-green-900 dark:text-green-100">Equipaje registrado</span></div>
                     <div className="space-y-1 text-xs">
                       <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-300">Código:</span><span className="font-medium text-slate-900 dark:text-slate-100">{formSuccess.id_externo || formSuccess.id.slice(0, 8)}</span></div>
                       <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-300">Estado:</span><Badge variant="green"><FileText size={11} className="mr-1" />{formSuccess.estado}</Badge></div>
                     </div>
+                  </div>
+                )}
+              </div>
+            </PanelFlotante>
+          )}
+          {dockAbiertas.has('carga-txt') && (
+            <PanelFlotante
+              title="Carga TXT de envíos"
+              onClose={() => toggleDockOp('carga-txt')}
+              className="w-[30rem] shrink-0 pointer-events-auto"
+            >
+              <div className="p-4 space-y-4">
+                <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-6 text-center">
+                  <input type="file" accept=".csv,.txt" onChange={handleFileChange} className="hidden" id="csv-upload-op" />
+                  <label htmlFor="csv-upload-op" className="cursor-pointer">
+                    <Upload size={32} className="mx-auto text-slate-600 mb-2" />
+                    <p className="text-sm text-slate-600 dark:text-slate-300">{csvFile ? csvFile.name : "Subir archivo TXT"}</p>
+                  </label>
+                </div>
+                <div className="text-center">
+                  <a href="/ejemplo-carga-masiva.csv" download
+                    className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline inline-flex items-center gap-1"
+                  >
+                    <Download size={12} />
+                    Descargar ejemplo
+                  </a>
+                </div>
+                {csvLoading && <div className="text-center text-sm text-slate-600">Procesando...</div>}
+                {csvError && (
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
+                    <AlertTriangle size={16} />
+                    <span className="text-sm text-red-700 dark:text-red-300">{csvError}</span>
+                  </div>
+                )}
+                {csvPreview && (
+                  <div className="space-y-3">
+                    <div className="flex gap-4 text-sm">
+                      <span className="text-slate-600 dark:text-slate-300">Total: {csvPreview.total}</span>
+                      <span className="text-green-700 dark:text-green-400">Válidos: {csvPreview.validos}</span>
+                      <span className="text-yellow-700 dark:text-yellow-400">Revisión: {csvPreview.con_revision}</span>
+                    </div>
+                    <Button onClick={handleConfirmarCargaMasiva} disabled={csvPreview.validos === 0 || csvConfirmLoading} className="w-full">
+                      {csvConfirmLoading ? "Confirmando..." : `Confirmar (${csvPreview.validos})`}
+                    </Button>
                   </div>
                 )}
               </div>
@@ -983,53 +1062,6 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
             onMostrarRuta={handleMostrarRutaOp}
           />
         )}
-
-        <Modal open={cargaMasivaOpen}
-          onClose={() => { setCargaMasivaOpen(false); setCsvFile(null); setCsvPreview(null); setCsvError(null); }}
-          title="Carga Masiva de Equipaje"
-          footer={
-            <div className="flex gap-2">
-              <Button variant="secondary" onClick={() => { setCargaMasivaOpen(false); setCsvFile(null); setCsvPreview(null); setCsvError(null); }}>Cancelar</Button>
-              <Button onClick={handleConfirmarCargaMasiva} disabled={!csvPreview || csvPreview.validos === 0 || csvConfirmLoading}>
-                {csvConfirmLoading ? "Confirmando..." : `Confirmar (${csvPreview?.validos || 0})`}
-              </Button>
-            </div>
-          }
-        >
-          <div className="space-y-4">
-            <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-6 text-center">
-              <input type="file" accept=".csv" onChange={handleFileChange} className="hidden" id="csv-upload" />
-              <label htmlFor="csv-upload" className="cursor-pointer">
-                <Upload size={32} className="mx-auto text-slate-600 mb-2" />
-                <p className="text-sm text-slate-600 dark:text-slate-300">{csvFile ? csvFile.name : "Subir archivo CSV"}</p>
-              </label>
-            </div>
-            <div className="text-center">
-              <a href="/ejemplo-carga-masiva.csv" download
-                className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline inline-flex items-center gap-1"
-              >
-                <Download size={12} />
-                Descargar ejemplo CSV
-              </a>
-            </div>
-            {csvLoading && <div className="text-center text-sm text-slate-600">Procesando...</div>}
-            {csvError && (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
-                <AlertTriangle size={16} />
-                <span className="text-sm text-red-700 dark:text-red-300">{csvError}</span>
-              </div>
-            )}
-            {csvPreview && (
-              <div className="space-y-3">
-                <div className="flex gap-4 text-sm">
-                  <span className="text-slate-600 dark:text-slate-300">Total: {csvPreview.total}</span>
-                  <span className="text-green-700 dark:text-green-400">Válidos: {csvPreview.validos}</span>
-                  <span className="text-yellow-700 dark:text-yellow-400">Revisión: {csvPreview.con_revision}</span>
-                </div>
-              </div>
-            )}
-          </div>
-        </Modal>
 
         {reporteOp && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/20">
@@ -1507,12 +1539,6 @@ function SimulacionView({
                           setLoading(true);
                           setError("");
                           try {
-                            const otrasActivas = await api.get<SesionListaItem[]>("/sesiones?estado=EN_CURSO").catch(() => [] as SesionListaItem[]);
-                            for (const s of otrasActivas) {
-                              if (s.id !== sesionPausada.id) {
-                                try { await api.post(`/sesiones/${s.id}/detener`, {}); } catch { /* ignore */ }
-                              }
-                            }
                             await api.post(`/sesiones/${sesionPausada.id}/iniciar`, {});
                             setInicioRealMs(hora.getTime());
                             setEstadoSesion("EN_CURSO");
@@ -1984,12 +2010,6 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                           setLoading(true);
                           setError("");
                           try {
-                            const otrasActivas = await api.get<SesionListaItem[]>("/sesiones?estado=EN_CURSO").catch(() => [] as SesionListaItem[]);
-                            for (const s of otrasActivas) {
-                              if (s.id !== sesionPausada.id) {
-                                try { await api.post(`/sesiones/${s.id}/detener`, {}); } catch { /* ignore */ }
-                              }
-                            }
                             await api.post(`/sesiones/${sesionPausada.id}/iniciar`, {});
                             setInicioRealMs(hora.getTime());
                             setEstadoSesion("EN_CURSO");

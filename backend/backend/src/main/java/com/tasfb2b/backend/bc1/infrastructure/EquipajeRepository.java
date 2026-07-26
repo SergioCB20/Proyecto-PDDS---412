@@ -19,6 +19,7 @@ public interface EquipajeRepository extends JpaRepository<Equipaje, UUID> {
     Optional<Equipaje> findByIdExterno(String idExterno);
     Page<Equipaje> findByEstado(EstadoEquipaje estado, Pageable pageable);
     List<Equipaje> findByVueloActualId(UUID vueloActualId);
+    List<Equipaje> findByVueloActualIdAndTag(UUID vueloActualId, String tag);
     List<Equipaje> findByVueloActualIdIn(List<UUID> vueloActualIds);
     long countByVueloActualId(UUID vueloId);
 
@@ -32,6 +33,7 @@ public interface EquipajeRepository extends JpaRepository<Equipaje, UUID> {
             @Param("vueloId") UUID vueloId);
 
     long countByEstado(EstadoEquipaje estado);
+    Page<Equipaje> findByEstadoAndTag(EstadoEquipaje estado, String tag, Pageable pageable);
 
     @Query("SELECT COALESCE(SUM(e.cantidad), 0) FROM Equipaje e WHERE e.estado = :estado")
     long sumCantidadByEstado(@Param("estado") EstadoEquipaje estado);
@@ -62,6 +64,12 @@ public interface EquipajeRepository extends JpaRepository<Equipaje, UUID> {
 
     @Query("SELECT e FROM Equipaje e WHERE e.estado = :estado AND e.destinoIata = :nodoIata")
     List<Equipaje> findByEstadoAndDestinoIata(@Param("estado") EstadoEquipaje estado, @Param("nodoIata") String nodoIata);
+
+    @Query("SELECT e FROM Equipaje e WHERE e.estado = :estado AND e.origenIata = :nodoIata AND e.tag = :tag")
+    List<Equipaje> findByEstadoAndOrigenIataAndTag(@Param("estado") EstadoEquipaje estado, @Param("nodoIata") String nodoIata, @Param("tag") String tag);
+
+    @Query("SELECT e FROM Equipaje e WHERE e.estado = :estado AND e.destinoIata = :nodoIata AND e.tag = :tag")
+    List<Equipaje> findByEstadoAndDestinoIataAndTag(@Param("estado") EstadoEquipaje estado, @Param("nodoIata") String nodoIata, @Param("tag") String tag);
 
     /**
      * Bolsas EN_ALMACEN en un nodo: busca por origen (primer nodo) o por destino del
@@ -198,8 +206,13 @@ public interface EquipajeRepository extends JpaRepository<Equipaje, UUID> {
                                                Pageable pageable);
 
     @Modifying
+    @Query("UPDATE Equipaje e SET e.vueloActual = null WHERE e.tag = :tag")
+    int nullVueloActualByTag(@Param("tag") String tag);
+
+    @Modifying
     @Query("DELETE FROM Equipaje e WHERE e.tag = :tag")
     int deleteByTag(@Param("tag") String tag);
 
     List<Equipaje> findByTag(String tag);
+    Page<Equipaje> findByTag(String tag, Pageable pageable);
 }

@@ -116,4 +116,4 @@ if (!fs.existsSync(outDir)) {
 console.log('\nPróximo paso:');
 console.log(' 1. Ir a /admin/prep');
 console.log(' 2. Subir planes-vuelo .txt generado (separar del gen actual)');
-console.log(' 3. Por cada sede, abrir /recepcion y subir el CSV correspondiente');
+console.log(' 3. Por cada sede, ir a Operación / elegir sede / Setup / Cargar envíos y subir el CSV correspondiente');
