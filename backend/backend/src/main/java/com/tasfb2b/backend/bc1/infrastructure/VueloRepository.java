@@ -29,9 +29,12 @@ public interface VueloRepository extends JpaRepository<Vuelo, UUID>, JpaSpecific
     long countByEstado(EstadoVuelo estado);
 
     List<Vuelo> findByEstadoAndEsPlantillaAndHoraSalidaLessThanEqual(EstadoVuelo estado, Boolean esPlantilla, OffsetDateTime hora);
+    List<Vuelo> findByEstadoAndEsPlantillaAndTagAndHoraSalidaLessThanEqual(EstadoVuelo estado, Boolean esPlantilla, String tag, OffsetDateTime hora);
     List<Vuelo> findByEstadoAndEsPlantillaAndHoraLlegadaLessThanEqual(EstadoVuelo estado, Boolean esPlantilla, OffsetDateTime hora);
+    List<Vuelo> findByEstadoAndEsPlantillaAndTagAndHoraLlegadaLessThanEqual(EstadoVuelo estado, Boolean esPlantilla, String tag, OffsetDateTime hora);
     List<Vuelo> findByEstadoInAndEsPlantilla(List<EstadoVuelo> estados, Boolean esPlantilla);
     List<Vuelo> findByEstadoInAndEsPlantillaAndFechaOperacion(List<EstadoVuelo> estados, Boolean esPlantilla, LocalDate fechaOperacion);
+    List<Vuelo> findByEstadoInAndEsPlantillaAndTagAndFechaOperacion(List<EstadoVuelo> estados, Boolean esPlantilla, String tag, LocalDate fechaOperacion);
 
      /**
       * Vuelos relevantes para la telemetría en tiempo real.
@@ -60,6 +63,8 @@ public interface VueloRepository extends JpaRepository<Vuelo, UUID>, JpaSpecific
                                      @Param("hasta") OffsetDateTime hasta);
     List<Vuelo> findByEstadoAndEsPlantillaAndHoraSalidaBetween(EstadoVuelo estado, Boolean esPlantilla, OffsetDateTime desde, OffsetDateTime hasta);
     Page<Vuelo> findByEstadoAndEsPlantilla(EstadoVuelo estado, Boolean esPlantilla, Pageable pageable);
+    @Query("SELECT v FROM Vuelo v WHERE v.estado = :estado AND v.esPlantilla = :esPlantilla AND (v.tag IS NULL OR v.tag <> :excludeTag)")
+    Page<Vuelo> findByEstadoAndEsPlantillaAndTagExcluding(@Param("estado") EstadoVuelo estado, @Param("esPlantilla") Boolean esPlantilla, @Param("excludeTag") String excludeTag, Pageable pageable);
     List<Vuelo> findByEsPlantilla(Boolean esPlantilla);
     List<Vuelo> findByEsPlantillaAndFechaOperacionBetween(Boolean esPlantilla, LocalDate desde, LocalDate hasta);
 

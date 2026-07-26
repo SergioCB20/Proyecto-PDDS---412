@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.UUID;
 
@@ -37,4 +38,9 @@ public interface SegmentoPlanRepository extends JpaRepository<SegmentoPlan, UUID
     /** Segmentos de un equipaje ordenados por orden ascendente. */
     @Query("SELECT sp FROM SegmentoPlan sp WHERE sp.planViaje.equipaje.id = :equipajeId ORDER BY sp.orden ASC")
     List<SegmentoPlan> findByEquipajeId(@Param("equipajeId") UUID equipajeId);
+
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM SegmentoPlan sp WHERE sp.planViaje.id IN (SELECT pv.id FROM PlanViaje pv WHERE pv.equipaje.tag = :tag)")
+    int deleteByPlanViajeTag(@Param("tag") String tag);
 }

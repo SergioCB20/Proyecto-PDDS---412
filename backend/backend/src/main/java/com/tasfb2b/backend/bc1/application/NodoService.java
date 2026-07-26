@@ -4,12 +4,23 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tasfb2b.backend.bc1.domain.NodoLogistico;
 import com.tasfb2b.backend.bc1.infrastructure.NodoLogisticoRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
 public class NodoService {
+
+    public static final Map<String, Integer> CAPACIDADES_ORIGINALES = Map.of(
+        "SPIM", 440,
+        "SABE", 460,
+        "EKCH", 480,
+        "VIDP", 480
+    );
+
+    public record CapacidadRequest(int capacidad) {}
 
     private final NodoLogisticoRepository nodoRepository;
 
@@ -54,6 +65,31 @@ public class NodoService {
                 0,
                 nodo.getZonaHoraria()
         );
+    }
+
+    @Transactional
+    public NodoResponse actualizarCapacidad(String iata, int capacidad) {
+        if (capacidad < 1 || capacidad > 9999) {
+            throw new IllegalArgumentException("Capacidad debe estar entre 1 y 9999");
+        }
+        NodoLogistico nodo = nodoRepository.findByCodigoIata(iata)
+            .orElseThrow(() -> new NodoNoEncontradoException("Nodo no encontrado: " + iata));
+        nodo.setCapacidadAlmacen(capacidad);
+        nodoRepository.save(nodo);
+        return toResponse(nodo);
+    }
+
+    @Transactional
+    public NodoResponse restaurarCapacidad(String iata) {
+        NodoLogistico nodo = nodoRepository.findByCodigoIata(iata)
+            .orElseThrow(() -> new NodoNoEncontradoException("Nodo no encontrado: " + iata));
+        Integer original = CAPACIDADES_ORIGINALES.get(iata);
+        if (original == null) {
+            throw new IllegalArgumentException("No hay capacidad original definida para: " + iata);
+        }
+        nodo.setCapacidadAlmacen(original);
+        nodoRepository.save(nodo);
+        return toResponse(nodo);
     }
 
     public static class NodoNoEncontradoException extends RuntimeException {

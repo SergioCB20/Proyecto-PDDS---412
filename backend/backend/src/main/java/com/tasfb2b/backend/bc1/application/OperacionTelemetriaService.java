@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.tasfb2b.backend.bc1.domain.EstadoVuelo;
 import com.tasfb2b.backend.bc1.domain.NodoLogistico;
+import com.tasfb2b.backend.bc1.domain.TagsOperacion;
 import com.tasfb2b.backend.bc1.domain.Vuelo;
 import com.tasfb2b.backend.bc1.infrastructure.NodoLogisticoRepository;
 import com.tasfb2b.backend.bc1.infrastructure.VueloRepository;
@@ -25,7 +26,7 @@ import java.util.List;
 public class OperacionTelemetriaService {
 
     private static final Logger log = LoggerFactory.getLogger(OperacionTelemetriaService.class);
-    private static final LocalDate FECHA_OPERACION = LocalDate.of(2026, 1, 15);
+    private static final String TAG = TagsOperacion.TAG_DIA_A_DIA;
 
     private static final double NODO_VERDE_MAX = 70.0;
     private static final double NODO_AMBAR_MAX = 90.0;
@@ -52,9 +53,9 @@ public class OperacionTelemetriaService {
     public void emitirTelemetria() {
         try {
             List<NodoLogistico> nodos = nodoRepository.findAllByOrderByCodigoIataAsc();
-            LocalDate hoy = FECHA_OPERACION;
-            List<Vuelo> vuelos = vueloRepository.findByEstadoInAndEsPlantillaAndFechaOperacion(
-                    List.of(EstadoVuelo.PROGRAMADO, EstadoVuelo.EN_RUTA, EstadoVuelo.COMPLETADO), false, hoy);
+            LocalDate hoy = LocalDate.now();
+            List<Vuelo> vuelos = vueloRepository.findByEstadoInAndEsPlantillaAndTagAndFechaOperacion(
+                    List.of(EstadoVuelo.PROGRAMADO, EstadoVuelo.EN_RUTA, EstadoVuelo.COMPLETADO), false, TAG, hoy);
             String json = buildTelemetryJson(nodos, vuelos);
             telemetriaWebSocket.broadcast(json);
         } catch (Exception e) {

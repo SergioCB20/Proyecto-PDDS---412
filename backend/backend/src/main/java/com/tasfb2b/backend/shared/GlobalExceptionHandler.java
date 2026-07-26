@@ -57,6 +57,11 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error(HttpStatus.NOT_FOUND, "EQUIPAJE_NO_ENCONTRADO", ex.getMessage()));
     }
 
+    @ExceptionHandler(com.tasfb2b.backend.bc1.application.NodoService.NodoNoEncontradoException.class)
+    public ResponseEntity<?> handleNodoNoEncontrado(com.tasfb2b.backend.bc1.application.NodoService.NodoNoEncontradoException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error(HttpStatus.NOT_FOUND, "NODO_NO_ENCONTRADO", ex.getMessage()));
+    }
+
     @ExceptionHandler(com.tasfb2b.backend.bc1.application.CargaMasivaService.CargaException.class)
     public ResponseEntity<?> handleCarga(com.tasfb2b.backend.bc1.application.CargaMasivaService.CargaException ex) {
         return ResponseEntity.badRequest().body(error(HttpStatus.BAD_REQUEST, "CARGA_INVALIDA", ex.getMessage()));

@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -55,7 +56,8 @@ public class EquipajeService {
             String id_equipaje,
             String destino_iata,
             Integer cantidad,
-            OffsetDateTime sla_comprometido
+            OffsetDateTime sla_comprometido,
+            String cliente_id
     ) {}
 
     public record EquipajeResponse(
@@ -143,7 +145,8 @@ public class EquipajeService {
         }
         equipaje.setEstado(EstadoEquipaje.REGISTRADO);
         equipaje.setVueloActual(null);
-        equipaje.setTag("tag_dia_a_dia");
+        equipaje.setTag(TagsOperacion.TAG_DIA_A_DIA);
+        equipaje.setClienteId(request.cliente_id());
         equipajeRepository.save(equipaje);
 
         // Crear N maletas individuales (una por unidad de `cantidad`).
@@ -542,7 +545,7 @@ public class EquipajeService {
     public List<EquipajeListItemResponse> listarEquipajes(String vueloId, String estado, int page, int size) {
         if (vueloId != null && !vueloId.isBlank()) {
             UUID vid = UUID.fromString(vueloId);
-            List<Equipaje> equipajes = equipajeRepository.findByVueloActualId(vid);
+            List<Equipaje> equipajes = equipajeRepository.findByVueloActualIdAndTag(vid, TagsOperacion.TAG_DIA_A_DIA);
             return equipajes.stream()
                     .map(e -> new EquipajeListItemResponse(
                             e.getId(), e.getIdExterno(), e.getEstado().name(),
@@ -552,15 +555,15 @@ public class EquipajeService {
         }
         if (estado != null && !estado.isBlank()) {
             EstadoEquipaje est = EstadoEquipaje.valueOf(estado);
-            var result = equipajeRepository.findByEstado(est, PageRequest.of(page, size));
-            return result.getContent().stream()
+            Page<Equipaje> equipajesPage = equipajeRepository.findByEstadoAndTag(est, TagsOperacion.TAG_DIA_A_DIA, PageRequest.of(page, size));
+            return equipajesPage.getContent().stream()
                     .map(e -> new EquipajeListItemResponse(
                             e.getId(), e.getIdExterno(), e.getEstado().name(),
                             e.getOrigenIata(), e.getDestinoIata(),
                             e.getFechaIngreso(), e.getCantidad()))
                     .toList();
         }
-        var result = equipajeRepository.findAll(PageRequest.of(page, size));
+        var result = equipajeRepository.findByTag(TagsOperacion.TAG_DIA_A_DIA, PageRequest.of(page, size));
         return result.getContent().stream()
                 .map(e -> new EquipajeListItemResponse(
                         e.getId(), e.getIdExterno(), e.getEstado().name(),
@@ -570,7 +573,7 @@ public class EquipajeService {
     }
 
     public List<EnvioItemOperacionResponse> obtenerEnviosVuelo(UUID vueloId) {
-        List<Equipaje> equipajes = equipajeRepository.findByVueloActualId(vueloId);
+        List<Equipaje> equipajes = equipajeRepository.findByVueloActualIdAndTag(vueloId, TagsOperacion.TAG_DIA_A_DIA);
         return equipajes.stream()
                 .map(e -> new EnvioItemOperacionResponse(
                         e.getId(),
@@ -583,8 +586,8 @@ public class EquipajeService {
     }
 
     public List<EnvioItemOperacionResponse> obtenerEnviosNodo(String nodoIata) {
-        List<Equipaje> enAlmacen = equipajeRepository.findByEstadoAndDestinoIata(EstadoEquipaje.EN_ALMACEN, nodoIata);
-        List<Equipaje> origen = equipajeRepository.findByEstadoAndOrigenIata(EstadoEquipaje.REGISTRADO, nodoIata);
+        List<Equipaje> enAlmacen = equipajeRepository.findByEstadoAndDestinoIataAndTag(EstadoEquipaje.EN_ALMACEN, nodoIata, TagsOperacion.TAG_DIA_A_DIA);
+        List<Equipaje> origen = equipajeRepository.findByEstadoAndOrigenIataAndTag(EstadoEquipaje.REGISTRADO, nodoIata, TagsOperacion.TAG_DIA_A_DIA);
 
         java.util.Set<UUID> ids = new java.util.HashSet<>();
         java.util.List<Equipaje> result = new java.util.ArrayList<>();
@@ -769,7 +772,7 @@ public class EquipajeService {
                 saliendoSet.add(e);
             }
         } else {
-            for (Equipaje e : equipajeRepository.findByEstadoAndOrigenIata(EstadoEquipaje.REGISTRADO, nodoIata)) {
+            for (Equipaje e : equipajeRepository.findByEstadoAndOrigenIataAndTag(EstadoEquipaje.REGISTRADO, nodoIata, TagsOperacion.TAG_DIA_A_DIA)) {
                 saliendoSet.add(e);
             }
             for (Equipaje e : equipajeRepository.findEnRutadoSaliendo(nodoIata, limit)) {

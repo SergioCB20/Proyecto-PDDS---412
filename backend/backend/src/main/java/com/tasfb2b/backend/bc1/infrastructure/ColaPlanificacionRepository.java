@@ -3,6 +3,7 @@ package com.tasfb2b.backend.bc1.infrastructure;
 import com.tasfb2b.backend.bc1.domain.ColaPlanificacion;
 import com.tasfb2b.backend.bc1.domain.EstadoCola;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -24,4 +25,8 @@ public interface ColaPlanificacionRepository extends JpaRepository<ColaPlanifica
     List<ColaPlanificacion> findBatchByEstadoWithLock(@Param("estado") String estado, @Param("limit") int limit);
 
     List<ColaPlanificacion> findByEstadoAndFechaCreacionBefore(EstadoCola estado, OffsetDateTime before);
+
+    @Modifying
+    @Query("DELETE FROM ColaPlanificacion c WHERE c.equipajeId IN (SELECT e.id FROM Equipaje e WHERE e.tag = :tag)")
+    int deleteByEquipajeTag(@Param("tag") String tag);
 }

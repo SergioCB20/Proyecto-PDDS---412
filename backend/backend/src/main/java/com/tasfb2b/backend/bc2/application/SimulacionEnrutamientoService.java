@@ -81,7 +81,7 @@ public class SimulacionEnrutamientoService {
         String sqlBase =
                 "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad, fecha_ingreso, fecha_operacion " +
                         "FROM equipajes " +
-                        "WHERE estado = 'REGISTRADO' " +
+                        "WHERE estado = 'REGISTRADO' AND (tag IS NULL OR tag <> '" + TagsOperacion.TAG_DIA_A_DIA + "') " +
                         (filtrar ? "AND fecha_operacion BETWEEN ? AND ? " : "") +
                         "ORDER BY sla_comprometido ASC, fecha_operacion ASC LIMIT ?";
         Object[] argsBase = filtrar
@@ -121,9 +121,9 @@ public class SimulacionEnrutamientoService {
                     e.getOrigenIata(), e.getDestinoIata(), e.getCantidad());
         }
 
-        // Cargar vuelos programados UNA SOLA VEZ para todos los sub-lotes
-        List<Vuelo> programados = vueloRepository.findByEstadoAndEsPlantilla(
-                EstadoVuelo.PROGRAMADO, false, Pageable.unpaged()).getContent();
+        // Cargar vuelos programados UNA SOLA VEZ para todos los sub-lotes (excluir tag_dia_a_dia)
+        List<Vuelo> programados = vueloRepository.findByEstadoAndEsPlantillaAndTagExcluding(
+                EstadoVuelo.PROGRAMADO, false, TagsOperacion.TAG_DIA_A_DIA, Pageable.unpaged()).getContent();
         Map<UUID, Vuelo> vuelosMap = programados.stream()
                 .collect(Collectors.toMap(Vuelo::getId, v -> v));
 

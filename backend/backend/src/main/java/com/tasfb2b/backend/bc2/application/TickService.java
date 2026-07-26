@@ -146,6 +146,7 @@ public class TickService {
     private void ejecutarTick(SesionEjecucion sesion) {
         long inicioNanos = System.nanoTime();
         OffsetDateTime now = OffsetDateTime.now();
+        if (sesion.getTipo() != TipoSesion.SIMULADA) return;
 
         OffsetDateTime virtualAntes = sesion.getDiaHoraVirtual();
         avanzarRelojVirtual(sesion);
