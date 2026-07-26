@@ -65,10 +65,26 @@
 
 No se requirieron cambios. El backend ya devuelve `vuelo_replanificado_id`, `vuelo_replanificado_codigo` y `plan_viaje` en el response `CancelacionResponse.equipajes` (Java `EquipajeAfectado`). El endpoint `/api/operacion/cancelacion` acepta la misma estructura de request y devuelve el mismo response que `/simulacion/cancelacion`.
 
+### Problema 3: Fechas incorrectas en detalle de cancelación
+
+**Síntoma:** En el panel `PanelDetalleCancelaciones` (vista detalle de una cancelación), la "Salida programada" mostraba `15/01/2026` (fecha raw de la plantilla) en vez de la fecha virtual `08/08/2027`. Además, la "Diferencia" calculaba ~500K minutos por restar `2026-01-15` vs `2027-08-08`.
+
+**Causa raíz:** `fmtHoraCorta`, `fmtHoraMin` y `calcularDiferencia` usaban `hora_salida_programada` como timestamp absoluto, sin re-anclar la fecha al momento virtual de cancelación.
+
+**Solución:** Se agregó la función helper `reAnclarAFecha(iso, fechaReferencia)` que toma el *time-of-day* de `iso` y la *fecha* de `fechaReferencia`. Se aplicó en:
+
+- `fmtHoraCorta(iso, referencial?)` — si recibe `referencial`, re-ancla antes de formatear
+- `fmtHoraMin(iso, referencial?)` — igual, solo hora/minutos
+- `calcularDiferencia(salidaISO, cancelISO)` — re-ancla `salidaISO` a la fecha de `cancelISO` antes de calcular
+
+**Archivo modificado:**
+- `frontend/components/simulacion/PanelDetalleCancelaciones.tsx`
+
 ### Resumen de vista vs comportamiento de fechas
 
-| Vista | `momentoVirtual` | Fecha mostrada |
+| Vista | `momentoVirtual` / referencial | Fecha mostrada |
 |---|---|---|
 | **Simulación** | `metricas?.dia_hora_virtual` | Fecha del reloj virtual (ej: 08/08/2027) ✅ |
 | **Operación** | `realTimeMomentoOp` (cada 5s) | Fecha actual real (ej: 26/07/2026) ✅ |
 | **Colapso** | `metricas?.dia_hora_virtual` | Fecha del reloj virtual (ej: 08/08/2027) ✅ |
+| **Detalle cancelación** | `c.momento_cancelacion` como referencial | Fecha del momento de cancelación ✅ |
