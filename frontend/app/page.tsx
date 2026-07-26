@@ -246,27 +246,6 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
       .catch(() => {});
   }, []);
 
-  useEffect(() => {
-    const id = setInterval(() => setRealTimeMomentoOp(new Date().toISOString()), 5000);
-    return () => clearInterval(id);
-  }, []);
-
-  useEffect(() => {
-    api.get<VueloPageResponse>('/vuelos?es_plantilla=true&size=100000')
-      .then(r => setPlantillasOp(
-        r.content.map(v => ({
-          id: v.id,
-          codigo_vuelo: v.codigo_vuelo,
-          origen_iata: v.origen.codigo_iata,
-          destino_iata: v.destino.codigo_iata,
-          hora_salida: v.hora_salida,
-          hora_llegada: v.hora_llegada,
-          estado: v.estado,
-        }))
-      ))
-      .catch(() => {});
-  }, []);
-
   const k = 1;
   const animacionActiva =
     estadoSesion !== 'PAUSADA' &&
@@ -304,6 +283,27 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [highlightedEquipajeIdOp, setHighlightedEquipajeIdOp] = useState<string | null>(null);
   const [plantillasOp, setPlantillasOp] = useState<PlantillaResumen[]>([]);
   const [realTimeMomentoOp, setRealTimeMomentoOp] = useState<string>(new Date().toISOString());
+
+  useEffect(() => {
+    const id = setInterval(() => setRealTimeMomentoOp(new Date().toISOString()), 5000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    api.get<VueloPageResponse>('/vuelos?es_plantilla=true&size=100000')
+      .then(r => setPlantillasOp(
+        r.content.map(v => ({
+          id: v.id,
+          codigo_vuelo: v.codigo_vuelo,
+          origen_iata: v.origen.codigo_iata,
+          destino_iata: v.destino.codigo_iata,
+          hora_salida: v.hora_salida,
+          hora_llegada: v.hora_llegada,
+          estado: v.estado,
+        }))
+      ))
+      .catch(() => {});
+  }, []);
 
   const handleAeropuertoClickOp = useCallback((codigoIata: string) => {
     setAeroSeleccionado(codigoIata);
