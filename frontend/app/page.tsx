@@ -1109,6 +1109,7 @@ function SimulacionView({
   const [historialCancelSim, setHistorialCancelSim] = useState<ResultadoCancelacion[]>([]);
   const [showCancelDetalleSim, setShowCancelDetalleSim] = useState(false);
   const [selectedCancelDetalleSim, setSelectedCancelDetalleSim] = useState<string | null>(null);
+  const [highlightedEquipajeIdSim, setHighlightedEquipajeIdSim] = useState<string | null>(null);
 
   // Estado de UI propio de esta vista (paneles, filtros, selección) — no compartido.
   const [dockAbiertas, setDockAbiertas] = useState<Set<string>>(new Set());
@@ -1436,6 +1437,10 @@ function SimulacionView({
                     setShowCancelDetalleSim(true);
                     setSelectedCancelDetalleSim(null);
                   }}
+                  onVerDetalleEnvio={(vueloId, vueloCodigo, equipajeId) => {
+                    setSelectedEnvio({ tipo: 'vuelo', id: vueloId, codigo: vueloCodigo });
+                    setHighlightedEquipajeIdSim(equipajeId);
+                  }}
                 />
               ) : (
                 <p className="text-xs text-slate-600 p-4">Sin plantillas disponibles</p>
@@ -1453,6 +1458,10 @@ function SimulacionView({
                 selectedId={selectedCancelDetalleSim}
                 onSelect={setSelectedCancelDetalleSim}
                 onBack={() => setSelectedCancelDetalleSim(null)}
+                onVerDetalleEnvio={(vueloId, vueloCodigo, equipajeId) => {
+                  setSelectedEnvio({ tipo: 'vuelo', id: vueloId, codigo: vueloCodigo });
+                  setHighlightedEquipajeIdSim(equipajeId);
+                }}
               />
             </PanelFlotante>
           )}
@@ -1647,10 +1656,14 @@ function SimulacionView({
           <ModalEnvios
             open={!!selectedEnvio}
             selectedEnvio={selectedEnvio}
-            onClose={() => setSelectedEnvio(null)}
+            onClose={() => {
+              setSelectedEnvio(null);
+              setHighlightedEquipajeIdSim(null);
+            }}
             sesionId={sesionId}
             onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
             onMostrarRuta={handleMostrarRutaSim}
+            highlightedEquipajeId={highlightedEquipajeIdSim}
           />
         )}
 
@@ -1744,6 +1757,7 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [historialCancelCol, setHistorialCancelCol] = useState<ResultadoCancelacion[]>([]);
   const [showCancelDetalleCol, setShowCancelDetalleCol] = useState(false);
   const [selectedCancelDetalleCol, setSelectedCancelDetalleCol] = useState<string | null>(null);
+  const [highlightedEquipajeIdCol, setHighlightedEquipajeIdCol] = useState<string | null>(null);
 
   // Estado de UI propio de esta vista (paneles, filtros, selección) — no compartido.
   const [dockAbiertas, setDockAbiertas] = useState<Set<string>>(new Set());
@@ -2225,6 +2239,10 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                     setShowCancelDetalleCol(true);
                     setSelectedCancelDetalleCol(null);
                   }}
+                  onVerDetalleEnvio={(vueloId, vueloCodigo, equipajeId) => {
+                    setSelectedEnvio({ tipo: 'vuelo', id: vueloId, codigo: vueloCodigo });
+                    setHighlightedEquipajeIdCol(equipajeId);
+                  }}
                 />
               ) : (
                 <p className="text-xs text-slate-600 p-4">Sin plantillas disponibles</p>
@@ -2243,6 +2261,10 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
                 selectedId={selectedCancelDetalleCol}
                 onSelect={setSelectedCancelDetalleCol}
                 onBack={() => setSelectedCancelDetalleCol(null)}
+                onVerDetalleEnvio={(vueloId, vueloCodigo, equipajeId) => {
+                  setSelectedEnvio({ tipo: 'vuelo', id: vueloId, codigo: vueloCodigo });
+                  setHighlightedEquipajeIdCol(equipajeId);
+                }}
               />
             </PanelFlotante>
           )}
@@ -2272,10 +2294,14 @@ function ColapsoView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
           <ModalEnvios
             open={!!selectedEnvio}
             selectedEnvio={selectedEnvio}
-            onClose={() => setSelectedEnvio(null)}
+            onClose={() => {
+              setSelectedEnvio(null);
+              setHighlightedEquipajeIdCol(null);
+            }}
             sesionId={sesionId}
             onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
             onMostrarRuta={handleMostrarRutaCol}
+            highlightedEquipajeId={highlightedEquipajeIdCol}
           />
         )}
 

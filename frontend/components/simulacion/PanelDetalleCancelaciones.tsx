@@ -14,6 +14,7 @@ interface PanelDetalleCancelacionesProps {
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onBack: () => void;
+  onVerDetalleEnvio?: (vueloId: string, vueloCodigo: string, equipajeId: string) => void;
 }
 
 function fmtHoraCorta(iso: string): string {
@@ -49,6 +50,7 @@ export function PanelDetalleCancelaciones({
   selectedId,
   onSelect,
   onBack,
+  onVerDetalleEnvio,
 }: PanelDetalleCancelacionesProps) {
   const r = selectedId
     ? cancelaciones.find((c) => c.vuelo_cancelado_id === selectedId) ?? null
@@ -60,6 +62,7 @@ export function PanelDetalleCancelaciones({
         <DetalleCancelacion
           cancelacion={r}
           onBack={() => onSelect(null)}
+          onVerDetalleEnvio={onVerDetalleEnvio}
         />
       ) : (
         <>
@@ -132,9 +135,11 @@ export function PanelDetalleCancelaciones({
 function DetalleCancelacion({
   cancelacion: c,
   onBack,
+  onVerDetalleEnvio,
 }: {
   cancelacion: ResultadoCancelacion;
   onBack: () => void;
+  onVerDetalleEnvio?: (vueloId: string, vueloCodigo: string, equipajeId: string) => void;
 }) {
   const [planes, setPlanes] = useState<Map<string, EquipajePlanViaje | null>>(new Map());
   const [loadingPlanes, setLoadingPlanes] = useState(false);
@@ -239,6 +244,8 @@ function DetalleCancelacion({
                 {c.equipajes.map((eq) => {
                   const plan = planes.get(eq.id);
                   const nuevoVuelo = plan?.segmentos?.[0]?.vuelo_codigo;
+                  const vueloId = eq.vuelo_replanificado_id;
+                  const vueloCodigo = eq.vuelo_replanificado_codigo ?? nuevoVuelo;
                   return (
                     <div
                       key={eq.id}
@@ -253,16 +260,20 @@ function DetalleCancelacion({
                         </span>
                       </div>
                       <div className="flex items-center gap-1 shrink-0 ml-2">
-                        {loadingPlanes ? (
+                        {loadingPlanes && !vueloId ? (
                           <Loader2 size={11} className="animate-spin text-slate-400" />
-                        ) : nuevoVuelo ? (
-                          <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded">
+                        ) : vueloId && vueloCodigo ? (
+                          <button
+                            onClick={() => onVerDetalleEnvio?.(vueloId, vueloCodigo, eq.id)}
+                            className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 px-1.5 py-0.5 rounded transition-colors"
+                            title="Ver detalle del vuelo de replanificación"
+                          >
                             <Plane size={10} />
-                            {nuevoVuelo}
-                          </span>
-                        ) : plan === null ? (
+                            {vueloCodigo}
+                          </button>
+                        ) : (
                           <span className="text-xs text-slate-400">—</span>
-                        ) : null}
+                        )}
                       </div>
                     </div>
                   );
