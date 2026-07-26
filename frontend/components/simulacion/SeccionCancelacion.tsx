@@ -23,6 +23,7 @@ interface SeccionCancelacionProps {
   momentoVirtual: string | null;
   onCancelado?: (r: ResultadoCancelacion) => void;
   onVerDetalleEnvio?: (vueloId: string, vueloCodigo: string, equipajeId: string) => void;
+  cancelEndpoint?: string;
 }
 
 const ESTADOS = ["PROGRAMADO", "EN_RUTA", "COMPLETADO", "CANCELADO"] as const;
@@ -72,6 +73,7 @@ export function SeccionCancelacion({
   momentoVirtual,
   onCancelado,
   onVerDetalleEnvio,
+  cancelEndpoint = "/simulacion/cancelacion",
 }: SeccionCancelacionProps) {
   const [open, setOpen] = useState(true);
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -108,7 +110,7 @@ export function SeccionCancelacion({
     setError(null);
     setLoadingId(p.id);
     try {
-      const res = await api.post<CancelResultResponse>("/simulacion/cancelacion", {
+      const res = await api.post<CancelResultResponse>(cancelEndpoint, {
         vuelo_id: p.id,
         causa: "Cancelación manual desde panel de plantillas",
         sesion_id: sesionId,

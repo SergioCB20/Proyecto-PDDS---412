@@ -78,6 +78,7 @@ import type {
   RutaDestacada,
   ResultadoCancelacion,
   SegmentoResponse,
+  PlantillaResumen,
 } from "@/lib/types";
 
 const GeoMapa = dynamic(() => import("@/components/mapa/GeoMapa"), {
@@ -244,6 +245,28 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const id = setInterval(() => setRealTimeMomentoOp(new Date().toISOString()), 5000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    api.get<VueloPageResponse>('/vuelos?es_plantilla=true&size=100000')
+      .then(r => setPlantillasOp(
+        r.content.map(v => ({
+          id: v.id,
+          codigo_vuelo: v.codigo_vuelo,
+          origen_iata: v.origen.codigo_iata,
+          destino_iata: v.destino.codigo_iata,
+          hora_salida: v.hora_salida,
+          hora_llegada: v.hora_llegada,
+          estado: v.estado,
+        }))
+      ))
+      .catch(() => {});
+  }, []);
+
   const k = 1;
   const animacionActiva =
     estadoSesion !== 'PAUSADA' &&
@@ -275,6 +298,12 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [filtroColorVueloOp, setFiltroColorVueloOp] = useState<'' | ColorSemaforo>('');
   const [aeroSeleccionado, setAeroSeleccionado] = useState<string | null>(null);
   const [vueloSeleccionadoOp, setVueloSeleccionadoOp] = useState<string | null>(null);
+  const [historialCancelOp, setHistorialCancelOp] = useState<ResultadoCancelacion[]>([]);
+  const [showCancelDetalleOp, setShowCancelDetalleOp] = useState(false);
+  const [selectedCancelDetalleOp, setSelectedCancelDetalleOp] = useState<string | null>(null);
+  const [highlightedEquipajeIdOp, setHighlightedEquipajeIdOp] = useState<string | null>(null);
+  const [plantillasOp, setPlantillasOp] = useState<PlantillaResumen[]>([]);
+  const [realTimeMomentoOp, setRealTimeMomentoOp] = useState<string>(new Date().toISOString());
 
   const handleAeropuertoClickOp = useCallback((codigoIata: string) => {
     setAeroSeleccionado(codigoIata);
@@ -798,6 +827,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               { id: 'envios', icon: Luggage, label: 'Envíos' },
               { id: 'manual-envio', icon: Package, label: 'Reg. manual' },
               { id: 'carga-txt', icon: FileSpreadsheet, label: 'Carga TXT' },
+              { id: 'cancelacion', icon: XCircle, label: 'Cancelación' },
               { id: 'control', icon: Activity, label: 'Control' },
               { id: 'metricas', icon: BarChart3, label: 'Métricas' },
               { id: 'reloj', icon: Clock, label: 'Reloj' },
@@ -1034,16 +1064,64 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               </div>
             </PanelFlotante>
           )}
-
+          {dockAbiertas.has('cancelacion') && (
+            <PanelFlotante
+              title="Cancelación (plantillas)"
+              onClose={() => toggleDockOp('cancelacion')}
+              className="w-[40rem] shrink-0 pointer-events-auto"
+            >
+              {sesionId && plantillasOp.length > 0 ? (
+                <SeccionCancelacion
+                  plantillas={plantillasOp}
+                  sesionId={sesionId}
+                  momentoVirtual={realTimeMomentoOp}
+                  onCancelado={(r) => {
+                    setHistorialCancelOp(prev => [...prev, r]);
+                    setShowCancelDetalleOp(true);
+                    setSelectedCancelDetalleOp(null);
+                  }}
+                  onVerDetalleEnvio={(vueloId, vueloCodigo, equipajeId) => {
+                    setSelectedEnvio({ tipo: 'vuelo', id: vueloId, codigo: vueloCodigo });
+                    setHighlightedEquipajeIdOp(equipajeId);
+                  }}
+                  cancelEndpoint="/operacion/cancelacion"
+                />
+              ) : (
+                <p className="text-xs text-slate-600 p-4">Sin plantillas disponibles</p>
+              )}
+            </PanelFlotante>
+          )}
+          {showCancelDetalleOp && (
+            <PanelFlotante
+              title="Cancelaciones registradas"
+              onClose={() => setShowCancelDetalleOp(false)}
+              className="w-[35rem] shrink-0 pointer-events-auto"
+            >
+              <PanelDetalleCancelaciones
+                cancelaciones={historialCancelOp}
+                selectedId={selectedCancelDetalleOp}
+                onSelect={setSelectedCancelDetalleOp}
+                onBack={() => setSelectedCancelDetalleOp(null)}
+                onVerDetalleEnvio={(vueloId, vueloCodigo, equipajeId) => {
+                  setSelectedEnvio({ tipo: 'vuelo', id: vueloId, codigo: vueloCodigo });
+                  setHighlightedEquipajeIdOp(equipajeId);
+                }}
+              />
+            </PanelFlotante>
+          )}
         </div>
 
         {selectedEnvio && (
           <ModalEnvios
             open={!!selectedEnvio}
             selectedEnvio={selectedEnvio}
-            onClose={() => setSelectedEnvio(null)}
+            onClose={() => {
+              setSelectedEnvio(null);
+              setHighlightedEquipajeIdOp(null);
+            }}
             onSeguirEnMapa={(vueloId) => setSeguidoVueloId(vueloId)}
             onMostrarRuta={handleMostrarRutaOp}
+            highlightedEquipajeId={highlightedEquipajeIdOp}
           />
         )}
 
