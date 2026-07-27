@@ -680,6 +680,18 @@ public class TickService {
      * sin haber sido entregada — sin importar la causa (vuelos saturados que retrasan llegadas,
      * almacenes saturados, cancelaciones, falta de ruta dentro del SLA, etc.).
      */
+    /** Instante en que arranca la simulación, con el mismo criterio que debeFinalizarPorTiempo. */
+    static OffsetDateTime inicioVirtual(SesionEjecucion sesion) {
+        ZoneOffset offsetLima = ZoneId.of("America/Lima").getRules()
+                .getOffset(java.time.LocalDateTime.of(
+                        sesion.getFechaInicioVirtual(),
+                        sesion.getHoraInicioVirtual()));
+        return OffsetDateTime.of(
+                sesion.getFechaInicioVirtual(),
+                sesion.getHoraInicioVirtual(),
+                offsetLima);
+    }
+
     private boolean detectarIncumplimientoSla(SesionEjecucion sesion, OffsetDateTime now) {
         if (sesion.getTipoSimulacion() != TipoSimulacion.HASTA_COLAPSO) return false;
         OffsetDateTime virtual = sesion.getDiaHoraVirtual();
@@ -687,7 +699,15 @@ public class TickService {
 
         OffsetDateTime limite = virtual;
 
-        if (!equipajeRepository.existsIncumplimientoSla(limite)) return false;
+        // Solo cuentan las maletas de las que esta simulación fue responsable. Las que ya
+        // estaban en el sistema al arrancar traen su SLA corriendo desde antes y vencen
+        // inevitablemente en las primeras horas: `fecha_operacion` está en UTC, así que los
+        // aeropuertos con offset positivo (Kolkata +5:30, Dubái +4...) aportan envíos fechados
+        // hasta ~10h antes del inicio virtual. Sin este filtro TODA corrida colapsaba el día 1
+        // en cualquier fecha —incluso con 18 envíos/día por aeropuerto— y la búsqueda de la
+        // fecha de colapso no discriminaba nada.
+        OffsetDateTime inicio = inicioVirtual(sesion);
+        if (!equipajeRepository.existsIncumplimientoSla(limite, inicio)) return false;
 
         log.warn("COLAPSO por SLA en sesion {}: primer equipaje superó su deadline en virtual {}",
                 sesion.getId(), virtual);
