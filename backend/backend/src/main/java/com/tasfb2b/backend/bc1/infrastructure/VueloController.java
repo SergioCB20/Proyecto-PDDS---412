@@ -42,6 +42,22 @@ public class VueloController {
         return ResponseEntity.ok(vueloService.listarHistoricos());
     }
 
+    @PostMapping("/historicos/generar")
+    public ResponseEntity<Map<String, Object>> generarHistoricos() {
+        int generados = vueloService.generarHistoricos();
+        return ResponseEntity.ok(Map.of(
+                "generados", generados,
+                "mensaje", generados > 0 ? "Historicos generados exitosamente"
+                        : generados == 0 ? "Ya existian datos historicos"
+                        : "Error generando historicos"
+        ));
+    }
+
+    @GetMapping("/historicos/diagnostico")
+    public ResponseEntity<VueloService.DiagnosticoHistoricos> diagnosticarHistoricos() {
+        return ResponseEntity.ok(vueloService.diagnosticarHistoricos());
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<?> obtener(@PathVariable UUID id) {
         try {

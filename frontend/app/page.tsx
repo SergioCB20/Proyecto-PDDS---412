@@ -245,14 +245,11 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
 
   useEffect(() => {
     if (stage !== "mapa" || historialCargado) return;
-    const timer = setInterval(async () => {
+    const timer = setTimeout(async () => {
       const ok = await fetchHistoricos();
-      if (ok) {
-        setHistorialCargado(true);
-        clearInterval(timer);
-      }
-    }, 30_000);
-    return () => clearInterval(timer);
+      if (ok) setHistorialCargado(true);
+    }, 300_000);
+    return () => clearTimeout(timer);
   }, [stage, historialCargado, fetchHistoricos]);
 
   const [formData, setFormData] = useState({
@@ -754,9 +751,13 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     });
   }, []);
 
-  const onDockActionOp = useCallback((id: string) => {
+  const onDockActionOp = useCallback(async (id: string) => {
     if (id === 'cambiar-sede') handleCambiarSede();
-  }, [handleCambiarSede]);
+    if (id === 'historicos' && !historialCargado) {
+      const ok = await fetchHistoricos();
+      if (ok) setHistorialCargado(true);
+    }
+  }, [handleCambiarSede, fetchHistoricos, historialCargado]);
 
   const dockAbiertasOp = useMemo(() => {
     const s = new Set(dockAbiertas);
@@ -904,6 +905,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
               { id: 'metricas', icon: BarChart3, label: 'Métricas' },
               { id: 'reloj', icon: Clock, label: 'Reloj' },
               { id: 'zoom', icon: ZoomIn, label: 'Zoom' },
+              { id: 'historicos', icon: RefreshCw, label: 'Cargar históricos', variant: 'action' },
               { id: 'cambiar-sede', icon: LogOut, label: 'Cambiar sede', variant: 'action' },
             ]}
             abiertas={dockAbiertasOp}

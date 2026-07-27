@@ -444,70 +444,97 @@ public class VueloService {
         return vuelos.stream().map(this::toResponse).toList();
     }
 
+    public record DiagnosticoHistoricos(
+            long countHistoricos,
+            int countPlantillas,
+            int countFiltradas
+    ) {}
+
+    public DiagnosticoHistoricos diagnosticarHistoricos() {
+        long existentes = vueloRepository.countHistoricos(EstadoVuelo.COMPLETADO, LocalDate.now());
+        List<Vuelo> plantillas = vueloRepository.findDistinctPlantillas();
+        int countPlantillas = plantillas.size();
+        int countFiltradas = 0;
+        if (!plantillas.isEmpty()) {
+            countFiltradas = (int) plantillas.stream()
+                    .filter(p -> p.getOrigen() != null && p.getDestino() != null)
+                    .filter(p -> !IATAS_EXCLUIDAS.contains(p.getOrigen().getCodigoIata()))
+                    .filter(p -> !IATAS_EXCLUIDAS.contains(p.getDestino().getCodigoIata()))
+                    .count();
+        }
+        return new DiagnosticoHistoricos(existentes, countPlantillas, countFiltradas);
+    }
+
     @Transactional
     public int generarHistoricos() {
-        long existentes = vueloRepository.countHistoricos(EstadoVuelo.COMPLETADO, LocalDate.now());
-        if (existentes > 0) {
-            log.info("Ya existen {} vuelos historicos COMPLETADO, omitiendo generacion", existentes);
-            return 0;
-        }
-
-        List<Vuelo> plantillas = vueloRepository.findDistinctPlantillas();
-        if (plantillas.isEmpty()) {
-            log.warn("No hay plantillas de vuelo para generar historicos");
-            return 0;
-        }
-
-        List<Vuelo> filtradas = plantillas.stream()
-                .filter(p -> !IATAS_EXCLUIDAS.contains(p.getOrigen().getCodigoIata()))
-                .filter(p -> !IATAS_EXCLUIDAS.contains(p.getDestino().getCodigoIata()))
-                .toList();
-
-        int maxPlantillas = Math.min(filtradas.size(), 60);
-        List<Vuelo> seleccionadas = filtradas.subList(0, maxPlantillas);
-
-        LocalDate hoy = LocalDate.now();
-        List<LocalDate> fechas = List.of(hoy.minusDays(2), hoy.minusDays(1));
-        List<Vuelo> instancias = new ArrayList<>();
-
-        for (LocalDate fecha : fechas) {
-            for (Vuelo plantilla : seleccionadas) {
-                Vuelo instancia = new Vuelo();
-                instancia.setId(UUID.randomUUID());
-                instancia.setPlanVuelos(plantilla.getPlanVuelos());
-                instancia.setCodigoVuelo(plantilla.getCodigoVuelo());
-                instancia.setOrigen(plantilla.getOrigen());
-                instancia.setDestino(plantilla.getDestino());
-                instancia.setOrigenLat(plantilla.getOrigenLat());
-                instancia.setOrigenLon(plantilla.getOrigenLon());
-                instancia.setDestinoLat(plantilla.getDestinoLat());
-                instancia.setDestinoLon(plantilla.getDestinoLon());
-                instancia.setCapacidadCarga(plantilla.getCapacidadCarga());
-                instancia.setCargaDisponible(0);
-
-                OffsetDateTime nuevaSalida = OffsetDateTime.of(
-                        fecha,
-                        plantilla.getHoraSalida().toLocalTime(),
-                        plantilla.getHoraSalida().getOffset());
-                java.time.Duration duracion = java.time.Duration.between(
-                        plantilla.getHoraSalida(), plantilla.getHoraLlegada());
-                OffsetDateTime nuevaLlegada = nuevaSalida.plus(duracion)
-                        .withOffsetSameInstant(plantilla.getHoraLlegada().getOffset());
-
-                instancia.setHoraSalida(nuevaSalida);
-                instancia.setHoraLlegada(nuevaLlegada);
-                instancia.setEstado(EstadoVuelo.COMPLETADO);
-                instancia.setEsPlantilla(false);
-                instancia.setFechaOperacion(fecha);
-                instancia.setTag(TagsOperacion.TAG_HISTORICO);
-                instancias.add(instancia);
+        try {
+            long existentes = vueloRepository.countHistoricos(EstadoVuelo.COMPLETADO, LocalDate.now());
+            if (existentes > 0) {
+                log.info("Ya existen {} vuelos historicos COMPLETADO, omitiendo generacion", existentes);
+                return 0;
             }
-        }
 
-        vueloRepository.saveAll(instancias);
-        log.info("Generados {} vuelos historicos COMPLETADO ({} plantillas x 2 fechas)",
-                instancias.size(), seleccionadas.size());
-        return instancias.size();
+            List<Vuelo> plantillas = vueloRepository.findDistinctPlantillas();
+            if (plantillas.isEmpty()) {
+                log.warn("No hay plantillas de vuelo para generar historicos");
+                return 0;
+            }
+
+            List<Vuelo> filtradas = plantillas.stream()
+                    .filter(p -> p.getOrigen() != null && p.getDestino() != null)
+                    .filter(p -> !IATAS_EXCLUIDAS.contains(p.getOrigen().getCodigoIata()))
+                    .filter(p -> !IATAS_EXCLUIDAS.contains(p.getDestino().getCodigoIata()))
+                    .toList();
+
+            int maxPlantillas = Math.min(filtradas.size(), 60);
+            List<Vuelo> seleccionadas = filtradas.subList(0, maxPlantillas);
+
+            LocalDate hoy = LocalDate.now();
+            List<LocalDate> fechas = List.of(hoy.minusDays(2), hoy.minusDays(1));
+            List<Vuelo> instancias = new ArrayList<>();
+
+            for (LocalDate fecha : fechas) {
+                for (Vuelo plantilla : seleccionadas) {
+                    Vuelo instancia = new Vuelo();
+                    instancia.setId(UUID.randomUUID());
+                    instancia.setPlanVuelos(plantilla.getPlanVuelos());
+                    instancia.setCodigoVuelo(plantilla.getCodigoVuelo());
+                    instancia.setOrigen(plantilla.getOrigen());
+                    instancia.setDestino(plantilla.getDestino());
+                    instancia.setOrigenLat(plantilla.getOrigenLat());
+                    instancia.setOrigenLon(plantilla.getOrigenLon());
+                    instancia.setDestinoLat(plantilla.getDestinoLat());
+                    instancia.setDestinoLon(plantilla.getDestinoLon());
+                    instancia.setCapacidadCarga(plantilla.getCapacidadCarga());
+                    instancia.setCargaDisponible(0);
+
+                    OffsetDateTime nuevaSalida = OffsetDateTime.of(
+                            fecha,
+                            plantilla.getHoraSalida().toLocalTime(),
+                            plantilla.getHoraSalida().getOffset());
+                    java.time.Duration duracion = java.time.Duration.between(
+                            plantilla.getHoraSalida(), plantilla.getHoraLlegada());
+                    OffsetDateTime nuevaLlegada = nuevaSalida.plus(duracion)
+                            .withOffsetSameInstant(plantilla.getHoraLlegada().getOffset());
+
+                    instancia.setHoraSalida(nuevaSalida);
+                    instancia.setHoraLlegada(nuevaLlegada);
+                    instancia.setEstado(EstadoVuelo.COMPLETADO);
+                    instancia.setEsPlantilla(false);
+                    instancia.setFechaOperacion(fecha);
+                    instancia.setTag(TagsOperacion.TAG_HISTORICO);
+                    instancias.add(instancia);
+                }
+            }
+
+            vueloRepository.saveAll(instancias);
+            log.info("Generados {} vuelos historicos COMPLETADO ({} plantillas x 2 fechas)",
+                    instancias.size(), seleccionadas.size());
+            return instancias.size();
+        } catch (Exception e) {
+            log.error("Error generando vuelos historicos: {}", e.getMessage(), e);
+            return -1;
+        }
     }
 
     public static class VueloNoEncontradoException extends RuntimeException {

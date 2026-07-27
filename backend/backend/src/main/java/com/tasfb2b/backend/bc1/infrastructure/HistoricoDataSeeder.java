@@ -24,8 +24,10 @@ public class HistoricoDataSeeder {
         int generados = vueloService.generarHistoricos();
         if (generados > 0) {
             log.info("=== HistoricoDataSeeder: {} vuelos historicos generados ===", generados);
-        } else {
+        } else if (generados == 0) {
             log.info("=== HistoricoDataSeeder: datos historicos ya existen, omitiendo ===");
+        } else {
+            log.warn("=== HistoricoDataSeeder: error generando historicos (revisar logs previos) ===");
         }
     }
 }
