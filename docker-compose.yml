@@ -46,9 +46,11 @@ services:
       SIMULACION_SA: "120"
       SIMULACION_VENTANA_HORAS: "4"
       RUTA_ENVIOS: /data/envios/
+      RUTA_ENVIOS_COLAPSO: /data/envios-colapso/
       APP_REPORTES_RUTA_ARCHIVOS: /data/reportes
     volumes:
       - ./backend/backend/src/main/resources/data:/data/envios
+      - ./backend/backend/src/main/resources/data-colapso:/data/envios-colapso
       - ./backend/backend/src/main/resources/reportes:/data/reportes
     depends_on:
       db:
