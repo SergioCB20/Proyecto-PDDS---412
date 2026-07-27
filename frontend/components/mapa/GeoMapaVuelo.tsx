@@ -66,7 +66,7 @@ export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false
           pathOptions={{
             color: vuelo.esHistorico ? '#64748b' : '#94a3b8',
             weight: destacado ? 2 : 1,
-            opacity: destacado ? 0.4 : (vuelo.esHistorico ? 0.1 : 0.15),
+            opacity: destacado ? 0.6 : (vuelo.esHistorico ? 0.5 : 0.15),
             dashArray: vuelo.esHistorico ? '6, 8' : '4, 4',
           }}
         >
