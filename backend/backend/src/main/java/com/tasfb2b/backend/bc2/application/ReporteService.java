@@ -121,8 +121,13 @@ public class ReporteService {
         OffsetDateTime corte = sesionRepository.findById(sesionId)
                 .map(SesionEjecucion::getDiaHoraVirtual)
                 .orElse(null);
-        long incumplidos = corte != null
-                ? equipajeRepository.countIncumplimientoSla(corte)
+        // Mismo criterio que el detector: solo las maletas que entraron durante la simulación.
+        OffsetDateTime inicioSim = sesionRepository.findById(sesionId)
+                .filter(s -> s.getFechaInicioVirtual() != null && s.getHoraInicioVirtual() != null)
+                .map(TickService::inicioVirtual)
+                .orElse(null);
+        long incumplidos = (corte != null && inicioSim != null)
+                ? equipajeRepository.countIncumplimientoSla(corte, inicioSim)
                 : Math.max(0, totalEquipajes - entregados);
 
         // Replanificadas = contador acumulado en la sesion (lo incrementa ReplanificacionService).

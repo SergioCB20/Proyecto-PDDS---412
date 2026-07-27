@@ -102,9 +102,11 @@ public interface EquipajeRepository extends JpaRepository<Equipaje, UUID> {
      * a día (fechadas más adelante) que comparten físicamente la tabla equipajes.
      */
     @Query(value = "SELECT EXISTS(SELECT 1 FROM equipajes " +
-            "WHERE estado <> 'ENTREGADO' AND sla_comprometido < :limite AND fecha_operacion < :limite)",
+            "WHERE estado <> 'ENTREGADO' AND sla_comprometido < :limite " +
+            "AND fecha_operacion < :limite AND fecha_operacion >= :inicio)",
             nativeQuery = true)
-    boolean existsIncumplimientoSla(@Param("limite") java.time.OffsetDateTime limite);
+    boolean existsIncumplimientoSla(@Param("limite") java.time.OffsetDateTime limite,
+                                    @Param("inicio") java.time.OffsetDateTime inicio);
 
     /**
      * Cuántas maletas incumplieron realmente su SLA: entraron al sistema y su deadline pasó
@@ -113,9 +115,11 @@ public interface EquipajeRepository extends JpaRepository<Equipaje, UUID> {
      * donde ninguna maleta había superado aún su deadline.
      */
     @Query(value = "SELECT COUNT(*) FROM equipajes " +
-            "WHERE estado <> 'ENTREGADO' AND sla_comprometido < :limite AND fecha_operacion < :limite",
+            "WHERE estado <> 'ENTREGADO' AND sla_comprometido < :limite " +
+            "AND fecha_operacion < :limite AND fecha_operacion >= :inicio",
             nativeQuery = true)
-    long countIncumplimientoSla(@Param("limite") java.time.OffsetDateTime limite);
+    long countIncumplimientoSla(@Param("limite") java.time.OffsetDateTime limite,
+                               @Param("inicio") java.time.OffsetDateTime inicio);
 
     @Query("SELECT DISTINCT e FROM Equipaje e LEFT JOIN e.maletas m WHERE e.estado IN :estados " +
            "AND (:origenIata IS NULL OR e.origenIata = :origenIata) " +

@@ -93,6 +93,14 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: [backend-ci, frontend-ci]
     runs-on: ubuntu-latest
+    # Un solo deploy a la vez: todos comparten el mismo servidor y el mismo directorio de
+    # build. Con dos merges seguidos (p.ej. #231 y #230 con 16s de diferencia) un job
+    # ejecutaba `rm -rf target/` mientras el otro compilaba, y maven moría con
+    # FileSystemException al copiar recursos. cancel-in-progress debe ser false: cancelar
+    # a mitad dejaría Tomcat detenido, porque el stop ocurre al principio del script.
+    concurrency:
+      group: deploy-server-pucp
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
 
