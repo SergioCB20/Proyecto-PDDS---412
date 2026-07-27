@@ -166,6 +166,31 @@ public class CargaSimulacionService {
         return new ResultadoArchivo(insertados, lineasProcesadas, lineasError);
     }
 
+    /**
+     * Borra los equipajes de un aeropuerto origen respetando las claves foráneas.
+     *
+     * <p>El orden importa: {@code planes_viaje.equipaje_id} y
+     * {@code segmentos_plan.plan_viaje_id} referencian la cadena, así que borrar
+     * {@code equipajes} de frente falla con violación de FK cuando hay corridas previas
+     * que ya dejaron plan de viaje. {@code maletas} no se toca: tiene ON DELETE CASCADE.
+     */
+    private void purgarOrigen(String origenCodigo) {
+        jdbcTemplate.update(
+                "DELETE FROM cola_planificacion USING equipajes " +
+                "WHERE cola_planificacion.equipaje_id = equipajes.id AND equipajes.origen_iata = ?",
+                origenCodigo);
+        jdbcTemplate.update(
+                "DELETE FROM segmentos_plan USING planes_viaje, equipajes " +
+                "WHERE segmentos_plan.plan_viaje_id = planes_viaje.id " +
+                "  AND planes_viaje.equipaje_id = equipajes.id AND equipajes.origen_iata = ?",
+                origenCodigo);
+        jdbcTemplate.update(
+                "DELETE FROM planes_viaje USING equipajes " +
+                "WHERE planes_viaje.equipaje_id = equipajes.id AND equipajes.origen_iata = ?",
+                origenCodigo);
+        jdbcTemplate.update("DELETE FROM equipajes WHERE origen_iata = ?", origenCodigo);
+    }
+
     private void insertarBatch(List<Object[]> equipajes) {
         jdbcTemplate.batchUpdate(
                 "INSERT INTO equipajes (id, origen_iata, destino_iata, estado, id_externo, cantidad, fecha_ingreso, sla_comprometido, fecha_operacion) " +
@@ -384,11 +409,7 @@ public class CargaSimulacionService {
             // rango pedido, para no acumular duplicados entre corridas con ventanas distintas.
             boolean conVentana = desde != null || hasta != null;
             if (force && conVentana) {
-                jdbcTemplate.update(
-                        "DELETE FROM cola_planificacion USING equipajes " +
-                        "WHERE cola_planificacion.equipaje_id = equipajes.id AND equipajes.origen_iata = ?",
-                        origenCodigo);
-                jdbcTemplate.update("DELETE FROM equipajes WHERE origen_iata = ?", origenCodigo);
+                purgarOrigen(origenCodigo);
             }
             if (force && !conVentana) {
                 long fileLines = countLines(archivo);
@@ -403,11 +424,7 @@ public class CargaSimulacionService {
                 if (existing != null && existing > 0) {
                     log.warn("{} incompleto: {} en BD vs {} en archivo. Recargando...",
                             archivo.getName(), existing, fileLines);
-                    jdbcTemplate.update(
-                            "DELETE FROM cola_planificacion USING equipajes " +
-                            "WHERE cola_planificacion.equipaje_id = equipajes.id AND equipajes.origen_iata = ?",
-                            origenCodigo);
-                    jdbcTemplate.update("DELETE FROM equipajes WHERE origen_iata = ?", origenCodigo);
+                    purgarOrigen(origenCodigo);
                 }
             }
 
