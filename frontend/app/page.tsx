@@ -223,9 +223,10 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     setStage("picker");
   }, []);
 
-  const fetchHistoricos = useCallback(async () => {
+  const fetchHistoricos = useCallback(async (): Promise<boolean> => {
     try {
       const data = await api.get<Vuelo[]>("/vuelos/historicos");
+      if (!data || data.length === 0) return false;
       const historicos: VueloEnMapa[] = data.map((v: Vuelo) => ({
         ...v,
         esHistorico: true,
@@ -236,17 +237,22 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
         if (nuevos.length === 0) return prev;
         return [...prev, ...nuevos];
       });
-      setHistorialCargado(true);
+      return true;
     } catch {
-      // Silently fail - históricos son no críticos
+      return false;
     }
   }, []);
 
   useEffect(() => {
-    if (stage === "mapa" && !historialCargado) {
-      const timer = setTimeout(() => fetchHistoricos(), 5 * 60 * 1000);
-      return () => clearTimeout(timer);
-    }
+    if (stage !== "mapa" || historialCargado) return;
+    const timer = setInterval(async () => {
+      const ok = await fetchHistoricos();
+      if (ok) {
+        setHistorialCargado(true);
+        clearInterval(timer);
+      }
+    }, 30_000);
+    return () => clearInterval(timer);
   }, [stage, historialCargado, fetchHistoricos]);
 
   const [formData, setFormData] = useState({
