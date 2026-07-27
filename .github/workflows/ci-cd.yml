@@ -199,14 +199,25 @@ jobs:
             #      Tomcat corre sin WorkingDirectory, así que no resuelve. Se fija absoluta.
             #      El chown permite dejar la ventana extraída sin sudo; el 755 deja leer a 'tomcat'.
             echo "=== Preparando dataset de colapso ==="
-            sudo mkdir -p /opt/tomcat11/data-colapso
-            sudo chown -R "$(id -un):$(id -gn)" /opt/tomcat11/data-colapso
-            sudo chmod 755 /opt/tomcat11/data-colapso
-            sudo mkdir -p /etc/systemd/system/tomcat11.service.d
+            # IMPORTANTE: en este servidor sudo solo es NOPASSWD para cp, rm, systemctl,
+            # cat, tail, journalctl y nginx. mkdir/chown/chmod/tee piden contraseña y
+            # rompen el deploy (no hay TTY), así que todo se hace con `cp`.
             printf '[Service]\nEnvironment="RUTA_ENVIOS_COLAPSO=/opt/tomcat11/data-colapso/"\n' \
-              | sudo tee /etc/systemd/system/tomcat11.service.d/colapso.conf > /dev/null
+              > /tmp/colapso.conf
+            sudo /bin/cp /tmp/colapso.conf /etc/systemd/system/tomcat11.service.d/colapso.conf
+
+            # `cp -r` crea el directorio destino si no existe (mkdir no es NOPASSWD).
+            # Si ya existe se deja intacto: contiene la ventana de datos cargada.
+            if [ ! -d /opt/tomcat11/data-colapso ]; then
+              mkdir -p /tmp/data-colapso-init
+              sudo /bin/cp -r /tmp/data-colapso-init /opt/tomcat11/data-colapso
+              echo "📁 /opt/tomcat11/data-colapso creado (vacío)"
+            else
+              echo "📁 /opt/tomcat11/data-colapso ya existe, se conserva"
+            fi
+
             # daemon-reload ANTES del start, si no el proceso arranca sin la variable.
-            sudo systemctl daemon-reload
+            sudo /usr/bin/systemctl daemon-reload
             echo "✅ RUTA_ENVIOS_COLAPSO=/opt/tomcat11/data-colapso/"
 
             # 12. Iniciar Tomcat
