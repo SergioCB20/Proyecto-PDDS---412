@@ -107,6 +107,10 @@ public class SesionEjecucion {
     @Column(name = "fecha_alineada_a")
     private LocalDate fechaAlineadaA;
 
+    /** Causa concreta del colapso (qué condición se disparó y en qué nodo). */
+    @Column(name = "causa_colapso")
+    private String causaColapso;
+
     @Column(name = "fecha_filtro_desde")
     private OffsetDateTime fechaFiltroDesde;
 
@@ -229,6 +233,9 @@ public class SesionEjecucion {
 
     public LocalDate getFechaAlineadaA() { return fechaAlineadaA; }
     public void setFechaAlineadaA(LocalDate fechaAlineadaA) { this.fechaAlineadaA = fechaAlineadaA; }
+
+    public String getCausaColapso() { return causaColapso; }
+    public void setCausaColapso(String causaColapso) { this.causaColapso = causaColapso; }
 
     public OffsetDateTime getFechaFiltroDesde() { return fechaFiltroDesde; }
     public void setFechaFiltroDesde(OffsetDateTime fechaFiltroDesde) { this.fechaFiltroDesde = fechaFiltroDesde; }

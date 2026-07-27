@@ -106,6 +106,17 @@ public interface EquipajeRepository extends JpaRepository<Equipaje, UUID> {
             nativeQuery = true)
     boolean existsIncumplimientoSla(@Param("limite") java.time.OffsetDateTime limite);
 
+    /**
+     * Cuántas maletas incumplieron realmente su SLA: entraron al sistema y su deadline pasó
+     * sin entrega. Distinto de "no entregadas", que incluye las que aún están en plazo — esa
+     * confusión hacía que el reporte marcara 100% de SLA incumplido en un colapso temprano
+     * donde ninguna maleta había superado aún su deadline.
+     */
+    @Query(value = "SELECT COUNT(*) FROM equipajes " +
+            "WHERE estado <> 'ENTREGADO' AND sla_comprometido < :limite AND fecha_operacion < :limite",
+            nativeQuery = true)
+    long countIncumplimientoSla(@Param("limite") java.time.OffsetDateTime limite);
+
     @Query("SELECT DISTINCT e FROM Equipaje e LEFT JOIN e.maletas m WHERE e.estado IN :estados " +
            "AND (:origenIata IS NULL OR e.origenIata = :origenIata) " +
            "AND (:destinoIata IS NULL OR e.destinoIata = :destinoIata) " +

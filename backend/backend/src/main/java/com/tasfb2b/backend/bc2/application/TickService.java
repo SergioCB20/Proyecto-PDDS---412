@@ -197,9 +197,9 @@ public class TickService {
         OffsetDateTime ventanaTelemetria = virtualActual.plusHours(TelemetriaService.VENTANA_TELEMETRIA_HORAS);
         List<Vuelo> vuelos = vueloRepository.findTelemetriaVuelos(desdeFecha, hastaFecha, virtualActual, ventanaTelemetria);
 
-        // Colapso por saturación de almacén (umbral rojo de nodo, cualquier tipo de sesión) o
-        // por incumplimiento del primer SLA (solo HASTA_COLAPSO). Ambas son causas que impiden
-        // cumplir el SLA; cualquiera detiene la sesión. OR con corto-circuito evita doble disparo.
+        // Dos criterios excluyentes por tipo de sesión: saturación de almacén detiene las
+        // sesiones normales; HASTA_COLAPSO se detiene solo con el primer incumplimiento de SLA,
+        // que es la definición del enunciado. OR con corto-circuito evita doble disparo.
         boolean colapso = detectarColapso(sesion, now, nodos) || detectarIncumplimientoSla(sesion, now);
         escribirMetricas(sesion, now);
         telemetriaService.emitirTelemetria(sesion, nodos, vuelos);
@@ -630,6 +630,14 @@ public class TickService {
      * cumplir el SLA. Aplica a cualquier tipo de simulación.
      */
     private boolean detectarColapso(SesionEjecucion sesion, OffsetDateTime now, List<NodoLogistico> nodos) {
+        // En HASTA_COLAPSO el criterio es el del enunciado: el sistema colapsa cuando deja de
+        // entregar al menos una maleta dentro de su plazo, no cuando un almacén se llena.
+        // Con el juego de datos de colapso (~5.000 envíos/día por aeropuerto frente a una
+        // capacidad de 800) la saturación es inevitable en horas para CUALQUIER fecha, así que
+        // cortar por ella hacía que toda corrida colapsara el día 1 y la búsqueda de la fecha
+        // de colapso no discriminara nada. La saturación sigue deteniendo las demás sesiones.
+        if (sesion.getTipoSimulacion() == TipoSimulacion.HASTA_COLAPSO) return false;
+
         BigDecimal rojoMax = sesion.getAlmacenRojoMax();
         if (rojoMax == null) return false;
 
@@ -642,6 +650,10 @@ public class TickService {
 
                 sesion.setEstado(EstadoSesion.COLAPSADA);
                 sesion.setFechaFinReal(now);
+                // Causa concreta: sin esto el reporte solo podía decir "SLA o saturación".
+                sesion.setCausaColapso(String.format(
+                        "Saturación de almacén: nodo %s al %.1f%% de ocupación (umbral rojo %.1f%%)",
+                        nodo.getCodigoIata(), pct, rojoMax.doubleValue()));
                 sesionRepository.save(sesion);
 
                 readinessManager.eliminar(sesion.getId());
@@ -682,6 +694,10 @@ public class TickService {
 
         sesion.setEstado(EstadoSesion.COLAPSADA);
         sesion.setFechaFinReal(now);
+        // Causa concreta: es la definición del enunciado (no se entregó al menos una maleta).
+        sesion.setCausaColapso(
+                "Incumplimiento de SLA: al menos una maleta superó su deadline (24h mismo "
+                + "continente / 48h intercontinental) sin ser entregada, en virtual " + virtual);
         sesionRepository.save(sesion);
 
         readinessManager.eliminar(sesion.getId());
