@@ -2,6 +2,7 @@ package com.tasfb2b.backend.bc1.infrastructure;
 
 import com.tasfb2b.backend.bc1.application.CargaSimulacionService;
 import com.tasfb2b.backend.bc1.application.CargaSimulacionService.CargaProgreso;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -41,6 +43,40 @@ public class AdminController {
                     "total_equipajes", resultado.totalEquipajes(),
                     "total_lineas", resultado.totalLineas(),
                     "errores", resultado.lineasError()
+            ));
+        } catch (CargaSimulacionService.CargaException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Carga acotada a la ventana de días que se va a simular, sobre el juego de datos del
+     * escenario indicado (`colapso=true` usa el dataset exclusivo del colapso).
+     *
+     * <p>Pensado para la estrategia de aproximación sucesiva a la fecha de colapso: cargar el
+     * dataset completo son decenas de millones de filas, mientras que una corrida de 5 días
+     * usa una fracción mínima. Ej:
+     * {@code POST /api/admin/carga-ventana?desde=2028-12-01&hasta=2028-12-05&colapso=true}
+     */
+    @PostMapping("/carga-ventana")
+    public ResponseEntity<?> ejecutarCargaVentana(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
+            @RequestParam(defaultValue = "false") boolean colapso,
+            @RequestParam(defaultValue = "true") boolean force) {
+        if (hasta.isBefore(desde)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "hasta debe ser >= desde"));
+        }
+        try {
+            CargaSimulacionService.ResultadoCarga r =
+                    cargaSimulacionService.cargarVentana(force, desde, hasta, colapso);
+            return ResponseEntity.ok(Map.of(
+                    "total_equipajes", r.totalEquipajes(),
+                    "total_lineas", r.totalLineas(),
+                    "errores", r.lineasError(),
+                    "desde", desde.toString(),
+                    "hasta", hasta.toString(),
+                    "dataset", cargaSimulacionService.rutaDe(colapso)
             ));
         } catch (CargaSimulacionService.CargaException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));

@@ -71,8 +71,10 @@ public class SesionService {
     private final VueloRepository vueloRepository;
     private final OcupacionNodoService ocupacionNodoService;
 
-    // Fecha del primer día de datos en los archivos _envios_*.txt
-    private static final LocalDate FECHA_BASE_ARCHIVO = LocalDate.of(2026, 1, 2);
+    // Fecha del primer día de datos en los archivos _envios_*.txt. Configurable porque el
+    // juego de datos del colapso (histórico + proyectado) tiene otro rango que el de
+    // simulación; ver app.simulacion.fecha-base-archivo.
+    private final LocalDate FECHA_BASE_ARCHIVO;
 
     public SesionService(SesionRepository sesionRepository,
                          VueloService vueloService,
@@ -93,7 +95,10 @@ public class SesionService {
                          EventoCancelacionRepository eventoCancelacionRepository,
                          ItemLoteRepository itemLoteRepository,
                          VueloRepository vueloRepository,
-                         OcupacionNodoService ocupacionNodoService) {
+                         OcupacionNodoService ocupacionNodoService,
+                         @org.springframework.beans.factory.annotation.Value(
+                                 "${app.simulacion.fecha-base-archivo:2026-01-02}") String fechaBaseArchivo) {
+        this.FECHA_BASE_ARCHIVO = LocalDate.parse(fechaBaseArchivo);
         this.sesionRepository = sesionRepository;
         this.vueloService = vueloService;
         this.redisCacheService = redisCacheService;

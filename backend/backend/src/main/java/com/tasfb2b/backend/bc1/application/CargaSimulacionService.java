@@ -45,13 +45,25 @@ public class CargaSimulacionService {
     private final JdbcTemplate jdbcTemplate;
     private final NodoLogisticoRepository nodoRepository;
     private final String rutaArchivos;
+    private final String rutaArchivosColapso;
 
     public CargaSimulacionService(JdbcTemplate jdbcTemplate,
                                   NodoLogisticoRepository nodoRepository,
-                                  @Value("${app.simulacion.ruta-archivos}") String rutaArchivos) {
+                                  @Value("${app.simulacion.ruta-archivos}") String rutaArchivos,
+                                  @Value("${app.colapso.ruta-archivos:${app.simulacion.ruta-archivos}}") String rutaArchivosColapso) {
         this.jdbcTemplate = jdbcTemplate;
         this.nodoRepository = nodoRepository;
         this.rutaArchivos = rutaArchivos;
+        this.rutaArchivosColapso = rutaArchivosColapso;
+    }
+
+    /**
+     * Directorio de datos según el escenario. El colapso usa su propio juego de datos
+     * (histórico + proyectado, mayor tasa de llegada); si no se configura uno aparte,
+     * cae al de simulación para no romper entornos existentes.
+     */
+    public String rutaDe(boolean colapso) {
+        return colapso ? rutaArchivosColapso : rutaArchivos;
     }
 
     public ResultadoCarga cargarTodos() {
@@ -62,8 +74,18 @@ public class CargaSimulacionService {
         return cargarTodos(force, null);
     }
 
+    /**
+     * Carga acotada a la ventana de días que la corrida va a simular, sobre el juego de datos
+     * del escenario indicado. Es la vía recomendada: evita ingestar el dataset completo
+     * (millones de filas) cuando la corrida solo consulta unos pocos días.
+     */
+    public ResultadoCarga cargarVentana(boolean force, LocalDate desde, LocalDate hasta, boolean colapso) {
+        return cargarTodos(force, null, desde, hasta, rutaDe(colapso));
+    }
+
     private ResultadoArchivo procesarArchivo(File archivo, NodoLogistico nodoOrigen,
-                                              Map<String, NodoLogistico> nodosPorCodigo) {
+                                              Map<String, NodoLogistico> nodosPorCodigo,
+                                              LocalDate desde, LocalDate hasta) {
         int insertados = 0;
         int lineasProcesadas = 0;
         int lineasError = 0;
@@ -81,6 +103,13 @@ public class CargaSimulacionService {
                 lineasProcesadas++;
                 try {
                     DatosLinea datos = parsearLinea(linea, nodoOrigen.getCodigoIata());
+
+                    // Ventana de fechas: una corrida solo consulta los equipajes de los días que
+                    // simula (fecha_operacion BETWEEN), así que cargar el dataset completo (años)
+                    // es desperdicio. Los archivos vienen en orden cronológico, por lo que al
+                    // pasarnos de `hasta` se corta la lectura en vez de recorrer el resto.
+                    if (hasta != null && datos.fecha.isAfter(hasta)) break;
+                    if (desde != null && datos.fecha.isBefore(desde)) continue;
 
                     NodoLogistico nodoDestino = nodosPorCodigo.get(datos.destinoCodigo);
                     if (nodoDestino == null) {
@@ -293,6 +322,16 @@ public class CargaSimulacionService {
     }
 
     private ResultadoCarga cargarTodos(boolean force, CargaProgreso p) {
+        return cargarTodos(force, p, null, null, rutaArchivos);
+    }
+
+    /**
+     * Carga los envíos, opcionalmente acotada a la ventana [desde, hasta] (inclusive) por
+     * fecha del archivo. Con la ventana acotada la carga baja de decenas de millones de filas
+     * (dataset completo) a las del rango simulado; `null` en ambos extremos carga todo.
+     */
+    private ResultadoCarga cargarTodos(boolean force, CargaProgreso p,
+                                       LocalDate desde, LocalDate hasta, String ruta) {
         if (!force) {
             Integer existentes = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM equipajes", Integer.class);
             if (existentes != null && existentes > 0) {
@@ -301,14 +340,14 @@ public class CargaSimulacionService {
             }
         }
 
-        File dir = new File(rutaArchivos);
+        File dir = new File(ruta);
         if (!dir.exists() || !dir.isDirectory()) {
-            throw new CargaException("Directorio no encontrado: " + rutaArchivos);
+            throw new CargaException("Directorio no encontrado: " + ruta);
         }
 
         File[] archivos = dir.listFiles((d, name) -> name.startsWith("_envios_") && name.endsWith(".txt"));
         if (archivos == null || archivos.length == 0) {
-            throw new CargaException("No se encontraron archivos _envios_*.txt en " + rutaArchivos);
+            throw new CargaException("No se encontraron archivos _envios_*.txt en " + ruta);
         }
 
         Map<String, NodoLogistico> nodosPorCodigo = new ConcurrentHashMap<>();
@@ -340,7 +379,18 @@ public class CargaSimulacionService {
                 continue;
             }
 
-            if (force) {
+            // Con ventana acotada no aplica la comparación contra el total de líneas del
+            // archivo (en BD solo estarán las del rango): se purga el origen y se recarga el
+            // rango pedido, para no acumular duplicados entre corridas con ventanas distintas.
+            boolean conVentana = desde != null || hasta != null;
+            if (force && conVentana) {
+                jdbcTemplate.update(
+                        "DELETE FROM cola_planificacion USING equipajes " +
+                        "WHERE cola_planificacion.equipaje_id = equipajes.id AND equipajes.origen_iata = ?",
+                        origenCodigo);
+                jdbcTemplate.update("DELETE FROM equipajes WHERE origen_iata = ?", origenCodigo);
+            }
+            if (force && !conVentana) {
                 long fileLines = countLines(archivo);
                 Integer existing = jdbcTemplate.queryForObject(
                         "SELECT COUNT(1) FROM equipajes WHERE origen_iata = ?", Integer.class, origenCodigo);
@@ -361,9 +411,10 @@ public class CargaSimulacionService {
                 }
             }
 
-            log.info("Procesando {} (origen={})", archivo.getName(), origenCodigo);
+            log.info("Procesando {} (origen={}{})", archivo.getName(), origenCodigo,
+                    desde != null || hasta != null ? ", ventana " + desde + ".." + hasta : "");
             if (p != null && force) { p.archivosCargadosAhora.add(archivo.getName()); }
-            ResultadoArchivo result = procesarArchivo(archivo, nodoOrigen, nodosPorCodigo);
+            ResultadoArchivo result = procesarArchivo(archivo, nodoOrigen, nodosPorCodigo, desde, hasta);
             totalEquipajes += result.equipajesInsertados;
             totalLineas += result.lineasProcesadas;
             errores += result.lineasError;
