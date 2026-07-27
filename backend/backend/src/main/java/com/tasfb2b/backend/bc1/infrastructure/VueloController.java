@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -34,6 +35,11 @@ public class VueloController {
             @RequestParam(required = false) Boolean es_plantilla,
             @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(vueloService.listar(estado, destino_iata, fecha_desde, fecha_hasta, es_plantilla, pageable));
+    }
+
+    @GetMapping("/historicos")
+    public ResponseEntity<List<VueloService.VueloResponse>> listarHistoricos() {
+        return ResponseEntity.ok(vueloService.listarHistoricos());
     }
 
     @GetMapping("/{id}")

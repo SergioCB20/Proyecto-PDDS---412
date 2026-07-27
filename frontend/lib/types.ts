@@ -165,6 +165,7 @@ export interface AeropuertoEnMapa extends Aeropuerto {
 export interface VueloEnMapa extends Vuelo {
   posicionActual?: Ubicacion;
   progreso?: number;
+  esHistorico?: boolean;
 }
 
 export interface MetricasSimulacion {
