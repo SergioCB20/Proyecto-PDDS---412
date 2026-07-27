@@ -167,6 +167,31 @@ public class CargaSimulacionService {
     }
 
     /**
+     * Vacía de golpe todo lo relacionado con envíos. Pensado para preparar una corrida de
+     * colapso desde cero: el dataset de colapso no debe convivir con el de simulación en la
+     * misma tabla {@code equipajes}.
+     *
+     * <p>Motivo de existir: purgar aeropuerto por aeropuerto con DELETE arrastra el CASCADE
+     * sobre decenas de millones de filas de {@code maletas} y tarda ~20 min POR aeropuerto
+     * (~10 h en total). TRUNCATE hace lo mismo en segundos.
+     *
+     * <p>Se resetea también {@code ocupacion_nodo}: son contadores derivados de los equipajes,
+     * y dejarlos vivos mostraría ocupación fantasma en nodos que ya no tienen carga.
+     *
+     * @return número de equipajes que había antes de vaciar
+     */
+    public long purgarTodosLosEnvios() {
+        Long antes = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM equipajes", Long.class);
+        // Se listan todas las tablas de la cadena explícitamente; CASCADE queda como red de
+        // seguridad por si alguna FK nueva apunta aquí.
+        jdbcTemplate.execute(
+                "TRUNCATE TABLE segmentos_plan, planes_viaje, cola_planificacion, maletas, equipajes CASCADE");
+        jdbcTemplate.execute("TRUNCATE TABLE ocupacion_nodo");
+        log.warn("Purga total de envíos: {} equipajes eliminados (TRUNCATE)", antes);
+        return antes != null ? antes : 0L;
+    }
+
+    /**
      * Borra los equipajes de un aeropuerto origen respetando las claves foráneas.
      *
      * <p>El orden importa: {@code planes_viaje.equipaje_id} y

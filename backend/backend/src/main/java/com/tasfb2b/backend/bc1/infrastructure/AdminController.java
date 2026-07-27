@@ -83,6 +83,26 @@ public class AdminController {
         }
     }
 
+    /**
+     * Vacía TODOS los envíos (equipajes, maletas, planes, segmentos, cola y ocupación).
+     * Necesario antes de una corrida de colapso: purgar por aeropuerto con DELETE tarda
+     * horas por el CASCADE sobre maletas, mientras que TRUNCATE tarda segundos.
+     *
+     * <p>Es destructivo e irreversible, así que exige confirmar explícitamente:
+     * {@code POST /api/admin/purgar-envios?confirmar=SI}
+     */
+    @PostMapping("/purgar-envios")
+    public ResponseEntity<?> purgarEnvios(@RequestParam(defaultValue = "") String confirmar) {
+        if (!"SI".equals(confirmar)) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Operacion destructiva: repetir con ?confirmar=SI"));
+        }
+        long eliminados = cargaSimulacionService.purgarTodosLosEnvios();
+        return ResponseEntity.ok(Map.of(
+                "equipajes_eliminados", eliminados,
+                "mensaje", "Envios purgados. Listo para cargar una ventana."));
+    }
+
     @GetMapping("/carga-simulacion/status/{taskId}")
     public ResponseEntity<?> statusCarga(@PathVariable String taskId) {
         CargaProgreso p = cargaSimulacionService.getProgreso(taskId);
