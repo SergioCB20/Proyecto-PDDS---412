@@ -168,6 +168,7 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
   const [apiError, setApiError] = useState<string | null>(null);
   const [reporteOp, setReporteOp] = useState<ReporteOperacion | null>(null);
   const [inicioOperacionMs, setInicioOperacionMs] = useState(0);
+  const [historialCargado, setHistorialCargado] = useState(false);
 
   const [stage, setStage] = useState<"picker" | "setup" | "mapa">(() => {
     const storedId = device.getAeropuertoRefId();
@@ -221,6 +222,32 @@ function OperacionView({ configUmbrales }: { configUmbrales: UmbralesConfig }) {
     }
     setStage("picker");
   }, []);
+
+  const fetchHistoricos = useCallback(async () => {
+    try {
+      const data = await api.get<Vuelo[]>("/vuelos/historicos");
+      const historicos: VueloEnMapa[] = data.map((v: Vuelo) => ({
+        ...v,
+        esHistorico: true,
+      }));
+      setAllVuelos((prev) => {
+        const idsExistentes = new Set(prev.map((v) => v.id));
+        const nuevos = historicos.filter((h) => !idsExistentes.has(h.id));
+        if (nuevos.length === 0) return prev;
+        return [...prev, ...nuevos];
+      });
+      setHistorialCargado(true);
+    } catch {
+      // Silently fail - históricos son no críticos
+    }
+  }, []);
+
+  useEffect(() => {
+    if (stage === "mapa" && !historialCargado) {
+      const timer = setTimeout(() => fetchHistoricos(), 5 * 60 * 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [stage, historialCargado, fetchHistoricos]);
 
   const [formData, setFormData] = useState({
     origenIata: "",

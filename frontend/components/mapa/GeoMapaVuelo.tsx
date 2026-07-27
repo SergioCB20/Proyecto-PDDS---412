@@ -64,14 +64,17 @@ export default React.memo(function GeoMapaVuelo({ vuelo, animacionActiva = false
         <Polyline
           positions={puntosCurva}
           pathOptions={{
-            color: '#94a3b8',
+            color: vuelo.esHistorico ? '#64748b' : '#94a3b8',
             weight: destacado ? 2 : 1,
-            opacity: destacado ? 0.4 : 0.15,
-            dashArray: '4, 4',
+            opacity: destacado ? 0.4 : (vuelo.esHistorico ? 0.1 : 0.15),
+            dashArray: vuelo.esHistorico ? '6, 8' : '4, 4',
           }}
         >
           <Tooltip direction="center" className="vuelo-tooltip">
             <div className="text-center min-w-[150px]">
+              {vuelo.esHistorico && (
+                <div className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Histórico</div>
+              )}
               <div className="font-bold text-sm">{vuelo.codigo_vuelo}</div>
               <div className="text-xs text-slate-600" title={`${vuelo.origen.codigo_iata} → ${vuelo.destino.codigo_iata}`}>
                 {ciudadDe(vuelo.origen.codigo_iata)} → {ciudadDe(vuelo.destino.codigo_iata)}

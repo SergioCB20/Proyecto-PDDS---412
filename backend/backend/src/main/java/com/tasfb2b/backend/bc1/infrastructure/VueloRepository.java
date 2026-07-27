@@ -101,4 +101,10 @@ public interface VueloRepository extends JpaRepository<Vuelo, UUID>, JpaSpecific
     int deleteByTag(@Param("tag") String tag);
 
     List<Vuelo> findByTag(String tag);
+
+    @Query("SELECT v FROM Vuelo v WHERE v.esPlantilla = false AND v.estado = :estado AND v.fechaOperacion < :hoy")
+    List<Vuelo> findHistoricos(@Param("estado") EstadoVuelo estado, @Param("hoy") LocalDate hoy);
+
+    @Query("SELECT COUNT(v) FROM Vuelo v WHERE v.esPlantilla = false AND v.estado = :estado AND v.fechaOperacion < :hoy")
+    long countHistoricos(@Param("estado") EstadoVuelo estado, @Param("hoy") LocalDate hoy);
 }
