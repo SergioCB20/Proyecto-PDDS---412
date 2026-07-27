@@ -642,6 +642,10 @@ public class TickService {
 
                 sesion.setEstado(EstadoSesion.COLAPSADA);
                 sesion.setFechaFinReal(now);
+                // Causa concreta: sin esto el reporte solo podía decir "SLA o saturación".
+                sesion.setCausaColapso(String.format(
+                        "Saturación de almacén: nodo %s al %.1f%% de ocupación (umbral rojo %.1f%%)",
+                        nodo.getCodigoIata(), pct, rojoMax.doubleValue()));
                 sesionRepository.save(sesion);
 
                 readinessManager.eliminar(sesion.getId());
@@ -682,6 +686,10 @@ public class TickService {
 
         sesion.setEstado(EstadoSesion.COLAPSADA);
         sesion.setFechaFinReal(now);
+        // Causa concreta: es la definición del enunciado (no se entregó al menos una maleta).
+        sesion.setCausaColapso(
+                "Incumplimiento de SLA: al menos una maleta superó su deadline (24h mismo "
+                + "continente / 48h intercontinental) sin ser entregada, en virtual " + virtual);
         sesionRepository.save(sesion);
 
         readinessManager.eliminar(sesion.getId());

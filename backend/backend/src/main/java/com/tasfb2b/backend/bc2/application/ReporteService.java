@@ -113,10 +113,17 @@ public class ReporteService {
 
         ReporteSesion reporte = existente.orElseGet(() -> new ReporteSesion(UUID.randomUUID(), sesionId));
 
-        // SLA incumplido = maletas NO entregadas al cerrar la simulacion, sobre el total
-        // con equipaje. Mismo origen de datos que TickService.actualizarSla (entregados/total).
+        // SLA incumplido = maletas cuyo DEADLINE ya pasó sin entrega, no simplemente las no
+        // entregadas: en un colapso temprano casi nada se ha entregado todavía pero casi nada
+        // ha superado su plazo, y contar "no entregadas" daba 100% mientras las métricas de la
+        // sesión reportaban 0% — dos cifras contradictorias en el mismo reporte.
         long entregados = planViajeRepository.sumCantidadEntregadosBySesionId(sesionId);
-        long incumplidos = Math.max(0, totalEquipajes - entregados);
+        OffsetDateTime corte = sesionRepository.findById(sesionId)
+                .map(SesionEjecucion::getDiaHoraVirtual)
+                .orElse(null);
+        long incumplidos = corte != null
+                ? equipajeRepository.countIncumplimientoSla(corte)
+                : Math.max(0, totalEquipajes - entregados);
 
         // Replanificadas = contador acumulado en la sesion (lo incrementa ReplanificacionService).
         long replanificados = sesionRepository.findById(sesionId)
@@ -137,8 +144,14 @@ public class ReporteService {
                     .map(SesionEjecucion::getDiaHoraVirtual)
                     .orElse(null);
             reporte.setPuntoColapsoVirtual(puntoColapso != null ? puntoColapso : OffsetDateTime.now());
-            reporte.setCausaColapso(
-                    "Colapso: incumplimiento de SLA (deadline 24h/48h superado) o saturación de almacén");
+            // La causa concreta la registra TickService al detectar el colapso. El texto
+            // genérico queda solo como respaldo para sesiones anteriores a este cambio.
+            String causa = sesionRepository.findById(sesionId)
+                    .map(SesionEjecucion::getCausaColapso)
+                    .filter(c -> c != null && !c.isBlank())
+                    .orElse("Colapso: incumplimiento de SLA (deadline 24h/48h superado) "
+                            + "o saturación de almacén");
+            reporte.setCausaColapso(causa);
         }
 
         reporteRepository.save(reporte);
