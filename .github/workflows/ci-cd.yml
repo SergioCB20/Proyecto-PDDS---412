@@ -194,6 +194,21 @@ jobs:
                 fi
             done
 
+            # 11.5 Escenario de colapso: directorio del juego de datos + variable de entorno.
+            #      La ruta por defecto (src/main/resources/data-colapso/) es relativa y aquí
+            #      Tomcat corre sin WorkingDirectory, así que no resuelve. Se fija absoluta.
+            #      El chown permite dejar la ventana extraída sin sudo; el 755 deja leer a 'tomcat'.
+            echo "=== Preparando dataset de colapso ==="
+            sudo mkdir -p /opt/tomcat11/data-colapso
+            sudo chown -R "$(id -un):$(id -gn)" /opt/tomcat11/data-colapso
+            sudo chmod 755 /opt/tomcat11/data-colapso
+            sudo mkdir -p /etc/systemd/system/tomcat11.service.d
+            printf '[Service]\nEnvironment="RUTA_ENVIOS_COLAPSO=/opt/tomcat11/data-colapso/"\n' \
+              | sudo tee /etc/systemd/system/tomcat11.service.d/colapso.conf > /dev/null
+            # daemon-reload ANTES del start, si no el proceso arranca sin la variable.
+            sudo systemctl daemon-reload
+            echo "✅ RUTA_ENVIOS_COLAPSO=/opt/tomcat11/data-colapso/"
+
             # 12. Iniciar Tomcat
             echo "=== Arrancando Tomcat ==="
             sudo systemctl reset-failed tomcat11 2>/dev/null || true
