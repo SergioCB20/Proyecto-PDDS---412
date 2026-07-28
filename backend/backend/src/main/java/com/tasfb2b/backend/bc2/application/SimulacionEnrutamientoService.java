@@ -83,20 +83,23 @@ public class SimulacionEnrutamientoService {
         OffsetDateTime filtroHasta = sesion != null ? sesion.getFechaFiltroHasta() : null;
         boolean filtrar = filtroDesde != null && filtroHasta != null;
 
-        // FIX #9: la ventana virtual (inicioVentana..finVentana) cubre solo 2h del reloj, pero
-        // fecha_operacion se distribuye en los 5 dias del filtro. Por eso solo consultamos
-        // los REGISTRADO dentro del filtro de la sesion (sin recorte por ventana de reloj),
-        // ordenados por SLA ASC. Asi los 50 equipajes mas urgentes se procesan cada batch
-        // independientemente de en que dia del filtro caigan.
+        // Solo se enrutan los envios que YA entraron al sistema en tiempo virtual
+        // (fecha_operacion <= fin de la ventana que se esta planificando). Sin este recorte
+        // se planificaban maletas de dias posteriores: en la ventana de 2027-06, estando la
+        // simulacion en el dia 1, habia enrutadas maletas fechadas el dia 4. Como al enrutar
+        // se reserva almacen en el nodo origen, esas maletas "del futuro" ponian los nodos en
+        // rojo desde el primer dia mientras los aviones que despegaban iban casi vacios.
+        // Se mantiene el orden por SLA para atender primero lo mas urgente.
         String sqlBase =
                 "SELECT id, origen_iata, destino_iata, sla_comprometido, cantidad, fecha_ingreso, fecha_operacion " +
                         "FROM equipajes " +
                         "WHERE estado = 'REGISTRADO' AND (tag IS NULL OR tag <> '" + TagsOperacion.TAG_DIA_A_DIA + "') " +
+                        "AND fecha_operacion <= ? " +
                         (filtrar ? "AND fecha_operacion BETWEEN ? AND ? " : "") +
                         "ORDER BY sla_comprometido ASC, fecha_operacion ASC LIMIT ?";
         Object[] argsBase = filtrar
-                ? new Object[]{filtroDesde, filtroHasta, maxEquipajesPorCiclo}
-                : new Object[]{maxEquipajesPorCiclo};
+                ? new Object[]{finVentana, filtroDesde, filtroHasta, maxEquipajesPorCiclo}
+                : new Object[]{finVentana, maxEquipajesPorCiclo};
         List<Equipaje> backlog = jdbcTemplate.query(sqlBase, this::mapEquipaje, argsBase);
         List<Equipaje> window = Collections.emptyList();
 
