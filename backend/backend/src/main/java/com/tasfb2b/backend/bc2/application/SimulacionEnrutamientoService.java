@@ -8,6 +8,7 @@ import com.tasfb2b.backend.bc2.infrastructure.SesionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Pageable;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -29,12 +30,21 @@ public class SimulacionEnrutamientoService {
     private static final Logger log = LoggerFactory.getLogger(SimulacionEnrutamientoService.class);
     private static final int SUB_BATCH_SIZE = 200;
 
-    /** Máximo equipajes a procesar en un solo ciclo del planificador.
-     *  FIX #14: Greedy ~1ms/eq → 500 eq/batch ≈ 500ms.
-     *  FIX #16: throttling backward because fast planning floods warehouses faster than
-     *  tick departs (cada 7s, MAX_EVENTOS despegues desaguan). 200 eq/batch @ 30s = 400/min,
-     *  equiparable al ritmo de salidas. Evita colapso de almacenes como UMMS en 10 min. */
-    private static final int MAX_EQUIPAJES_PER_CYCLE = 200;
+    /**
+     * Máximo de equipajes a procesar en un ciclo del planificador.
+     *
+     * <p>Estaba fijo en 200, calibrado cuando el throttling servía para no inundar los
+     * almacenes. Con el juego de datos de colapso ese techo se queda muy corto: llegan
+     * ~1.860 envíos por hora virtual (con k=120, una hora virtual son los 30s del ciclo)
+     * y solo se enrutaban 200, así que el 98% de las maletas se quedaba en REGISTRADO
+     * para siempre, los aviones volaban vacíos y la simulación colapsaba por un cuello
+     * del planificador, no por incapacidad de la red.
+     *
+     * <p>Configurable por SIMULACION_MAX_EQ_CICLO para ajustarlo a la densidad de la
+     * ventana y al coste de la colonia (ver app.simulacion.aco.*).
+     */
+    @Value("${app.simulacion.max-equipajes-ciclo:2000}")
+    private int maxEquipajesPorCiclo;
 
     /** Último diagnóstico de ventana por sesión, para telemetría WebSocket. */
     private final ConcurrentHashMap<UUID, VentanaDiagnostico> ultimoDiagnostico = new ConcurrentHashMap<>();
@@ -85,8 +95,8 @@ public class SimulacionEnrutamientoService {
                         (filtrar ? "AND fecha_operacion BETWEEN ? AND ? " : "") +
                         "ORDER BY sla_comprometido ASC, fecha_operacion ASC LIMIT ?";
         Object[] argsBase = filtrar
-                ? new Object[]{filtroDesde, filtroHasta, MAX_EQUIPAJES_PER_CYCLE}
-                : new Object[]{MAX_EQUIPAJES_PER_CYCLE};
+                ? new Object[]{filtroDesde, filtroHasta, maxEquipajesPorCiclo}
+                : new Object[]{maxEquipajesPorCiclo};
         List<Equipaje> backlog = jdbcTemplate.query(sqlBase, this::mapEquipaje, argsBase);
         List<Equipaje> window = Collections.emptyList();
 
