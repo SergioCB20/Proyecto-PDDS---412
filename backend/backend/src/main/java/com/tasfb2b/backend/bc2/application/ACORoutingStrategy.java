@@ -40,6 +40,15 @@ public class ACORoutingStrategy implements RoutingStrategy {
 
     @Value("${app.simulacion.aco.hormigas:8}")
     private int numHormigas;
+
+    /**
+     * Horas por delante de la hora virtual en las que ACO puede elegir vuelos. Acota la
+     * ambigüedad del grafo, que razona por hora del día y no distingue el vuelo de hoy del
+     * de pasado mañana. 0 desactiva el recorte.
+     */
+    @Value("${app.simulacion.aco.horizonte-horas:18}")
+    private int horizonteHoras;
+
     private static final int MAX_ESCALAS_BUSQUEDA = 5;
     // Ventana maxima de espera flexible: permite conexiones que cruzan medianoche.
     // Antes 24h descartaba vuelos a +24h, bloqueando conexiones intercontinentales.
@@ -72,14 +81,31 @@ public class ACORoutingStrategy implements RoutingStrategy {
     public List<RutaResult> optimizarLote(List<ParametroRuta> parametros,
                                           List<Vuelo> vuelosProgramados,
                                           OffsetDateTime horaVirtual) {
-        construirGrafo(vuelosProgramados);
+        // El grafo modela el tiempo como hora del dia (0-23), asi que un vuelo "a las 13:18"
+        // es indistinguible del de mañana o del de pasado. Sin acotar, la colonia asignaba
+        // vuelos de hasta 32h despues creyendolos cercanos, y las maletas ocupaban almacen
+        // todo ese rato mientras salian vuelos vacios al mismo destino. Se restringe a los
+        // que salen dentro de la ventana para que esa ambigüedad no pueda cruzar dias.
+        List<Vuelo> candidatos = vuelosProgramados;
+        if (horaVirtual != null && horizonteHoras > 0) {
+            OffsetDateTime limite = horaVirtual.plusHours(horizonteHoras);
+            List<Vuelo> acotados = vuelosProgramados.stream()
+                    .filter(v -> v.getHoraSalida() != null
+                            && !v.getHoraSalida().isBefore(horaVirtual)
+                            && !v.getHoraSalida().isAfter(limite))
+                    .toList();
+            // Si la ventana deja el grafo sin vuelos utiles, se cae al conjunto completo:
+            // mejor una ruta lejana que ninguna.
+            if (!acotados.isEmpty()) candidatos = acotados;
+        }
+        construirGrafo(candidatos);
         inicializarFeromonas();
 
         // Traza solo el primer equipaje del primer lote para diagnosticar fallos
         trazaActiva.set(true);
 
-        log.info("ACO: {} parametros, {} vuelos programados, horaVirtual={}, aeropuertos={}",
-                parametros.size(), vuelosProgramados.size(),
+        log.info("ACO: {} parametros, {} vuelos ({} tras acotar a {}h), horaVirtual={}, aeropuertos={}",
+                parametros.size(), vuelosProgramados.size(), candidatos.size(), horizonteHoras,
                 horaVirtual != null ? horaVirtual : "null",
                 grafo.size());
 
