@@ -56,7 +56,7 @@ try:
 
     # 2. Contar plantillas antes
     section("2. Plantillas disponibles en BD")
-    print(pq("SELECT COUNT(*) FROM vuelos WHERE es_plantilla = true AND origen_id NOT IN (SELECT id FROM nodos_logisticos WHERE codigo_iata IN ('SPIM','SABE','EKCH','VIDP')) AND destino_id NOT IN (SELECT id FROM nodos_logisticos WHERE codigo_iata IN ('SPIM','SABE','EKCH','VIDP'))"))
+    print(pq("SELECT COUNT(*) FROM vuelos WHERE es_plantilla = true"))
 
     # 3. Contar vuelos existentes para hoy
     section("3. Vuelos existentes para 2026-07-27 antes de insertar")

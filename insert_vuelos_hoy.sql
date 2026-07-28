@@ -1,9 +1,12 @@
 -- =====================================================
 -- Insertar vuelos historicos EN_RUTA para hoy (2026-07-27)
 -- Basado en plantillas, con carga aleatoria y tag_historico
--- Excluye SPIM, SABE, EKCH, VIDP
 -- =====================================================
 
+-- 1. Limpiar historicos previos de hoy
+DELETE FROM vuelos WHERE fecha_operacion = '2026-07-27' AND tag = 'tag_historico';
+
+-- 2. Insertar todos los vuelos historicos desde plantillas
 INSERT INTO vuelos (id, plan_vuelos_id, codigo_vuelo, estado,
     origen_id, destino_id, origen_lat, origen_lon, destino_lat, destino_lon,
     capacidad_carga, carga_disponible,
@@ -28,12 +31,4 @@ SELECT
     '2026-07-27',
     'tag_historico'
 FROM vuelos
-WHERE es_plantilla = true
-  AND origen_id NOT IN (
-      SELECT id FROM nodos_logisticos
-      WHERE codigo_iata IN ('SPIM','SABE','EKCH','VIDP')
-  )
-  AND destino_id NOT IN (
-      SELECT id FROM nodos_logisticos
-      WHERE codigo_iata IN ('SPIM','SABE','EKCH','VIDP')
-  );
+WHERE es_plantilla = true;
