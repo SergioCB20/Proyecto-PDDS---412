@@ -183,27 +183,20 @@ public class ReporteService {
            .append("segmento_orden,vuelo_codigo,nodo_origen_iata,nodo_destino_iata,")
            .append("hora_salida,hora_llegada,fecha_replanificacion_virtual\n");
 
-        if (fechaReplanPorEquipaje.isEmpty()) {
-            return csv.toString();
-        }
-
-        List<PlanViaje> todosPlanes = planViajeRepository.findBySesionIdWithEquipaje(sesionId);
-
-        List<PlanViaje> planes = todosPlanes.stream()
-                .filter(p -> p.getEquipaje() != null
-                        && fechaReplanPorEquipaje.containsKey(p.getEquipaje().getId()))
+        // El reporte de salida es la ÚLTIMA PLANIFICACIÓN ESTABLE del sistema: todos los
+        // planes de viaje de la sesión, no solo los replanificados. Antes se filtraba a los
+        // que aparecían en algún lote de replanificación, así que una corrida sin
+        // cancelaciones (total_replanificadas = 0) exportaba un CSV con solo las cabeceras.
+        // La columna fecha_replanificacion_virtual queda vacía en los que nunca se replanificaron.
+        List<PlanViaje> planes = planViajeRepository.findBySesionIdWithEquipaje(sesionId).stream()
+                .filter(p -> p.getEquipaje() != null)
                 .toList();
         if (planes.isEmpty()) {
-            log.warn("CSV replan: {} equipajes en lotes, {} planes totales en sesion, 0 con match. sesion={}",
-                    fechaReplanPorEquipaje.size(), todosPlanes.size(), sesionId);
-            if (log.isDebugEnabled()) {
-                log.debug("Equipaje IDs en lotes: {}", fechaReplanPorEquipaje.keySet());
-                log.debug("Equipaje IDs en planes: {}", todosPlanes.stream()
-                        .map(p -> p.getEquipaje() != null ? p.getEquipaje().getId() : null)
-                        .collect(Collectors.toList()));
-            }
+            log.warn("CSV rutas: la sesion {} no tiene planes de viaje", sesionId);
             return csv.toString();
         }
+        log.info("CSV rutas sesion {}: {} planes ({} replanificados)",
+                sesionId, planes.size(), fechaReplanPorEquipaje.size());
 
         List<UUID> planIds = planes.stream().map(PlanViaje::getId).toList();
         List<SegmentoPlan> todosSegmentos = segmentoPlanRepository.findByPlanViajeIdInOrderByOrdenAsc(planIds);

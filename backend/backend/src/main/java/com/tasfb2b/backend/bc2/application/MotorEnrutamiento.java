@@ -36,7 +36,7 @@ public class MotorEnrutamiento {
                              NodoLogisticoRepository nodoRepository,
                              @Qualifier("greedyRoutingStrategy") RoutingStrategy defaultStrategy,
                              @Qualifier("acoRoutingStrategy") RoutingStrategy batchStrategy,
-                             @Value("${app.simulacion.prefer-greedy:true}") boolean preferGreedy) {
+                             @Value("${app.simulacion.prefer-greedy:false}") boolean preferGreedy) {
         this.vueloRepository = vueloRepository;
         this.nodoRepository = nodoRepository;
         this.defaultStrategy = defaultStrategy;
@@ -120,8 +120,13 @@ public class MotorEnrutamiento {
                 // Cast seguro: preferGreedy=true implica defaultStrategy = GreedyRoutingStrategy
                 // (configurado en el Qualifier de arriba).
                 if (defaultStrategy instanceof GreedyRoutingStrategy g) {
+                    // horaVirtual se recibía pero solo llegaba a ACO: el greedy elegía la
+                    // salida más temprana sin saber la hora, y podía asignar maletas a vuelos
+                    // ya despegados. También se pasa la cantidad para no elegir vuelos sin
+                    // sitio suficiente para todo el envío.
                     RutaResult r = g.calcularRutaIndexado(
-                            p.origen(), p.destino(), p.slaComprometido(), idx);
+                            p.origen(), p.destino(), p.slaComprometido(), idx,
+                            horaVirtual, p.cantidad());
                     if (r.exitoso()) greedyOk++;
                     resultados.add(r);
                 } else {

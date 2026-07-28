@@ -3,6 +3,7 @@ package com.tasfb2b.backend.bc2.application;
 import com.tasfb2b.backend.bc1.domain.NodoLogistico;
 import com.tasfb2b.backend.bc1.domain.Vuelo;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import org.slf4j.Logger;
@@ -30,10 +31,15 @@ public class ACORoutingStrategy implements RoutingStrategy {
     private static final double BONUS_MALETA_ACEPTADA = 100_000.0;
     private static final double COSTO_ESPERA_POR_HORA = 10.0;
     private static final double COSTO_VUELO_POR_HORA = 5.0;
-    // FIX #14: ACO solo fallback cuando Greedy falla >50% (caso raro en mallos
-    // bien conectados). Con 1 iter + 1 hormiga, ACO es ~5ms/eq en vez de ~50ms.
-    private static final int MAX_ITERACIONES = 1;
-    private static final int NUM_HORMIGAS = 1;
+    // Con 1 iteración y 1 hormiga no había optimización: una sola hormiga hace un único
+    // recorrido estocástico y no hay nada que comparar, así que la colonia nunca explotaba
+    // los aviones y aeropuertos con capacidad libre. Se parametrizan para poder ajustar el
+    // compromiso calidad/tiempo sin recompilar.
+    @Value("${app.simulacion.aco.iteraciones:3}")
+    private int maxIteraciones;
+
+    @Value("${app.simulacion.aco.hormigas:8}")
+    private int numHormigas;
     private static final int MAX_ESCALAS_BUSQUEDA = 5;
     // Ventana maxima de espera flexible: permite conexiones que cruzan medianoche.
     // Antes 24h descartaba vuelos a +24h, bloqueando conexiones intercontinentales.
@@ -102,12 +108,12 @@ public class ACORoutingStrategy implements RoutingStrategy {
         int iteracionesSinMejora = 0;
         double mejorCostoAnterior = Double.MAX_VALUE;
 
-        for (int iter = 0; iter < MAX_ITERACIONES; iter++) {
+        for (int iter = 0; iter < maxIteraciones; iter++) {
             cacheAlcanzable.clear();
             List<ResultadoInterno> mejorSolucionIter = null;
             double mejorCostoIter = Double.MAX_VALUE;
 
-            for (int h = 0; h < NUM_HORMIGAS; h++) {
+            for (int h = 0; h < numHormigas; h++) {
                 Map<String, Integer> capVueloLocal = new HashMap<>();
                 Map<String, int[]> capAeroTemporal = new HashMap<>();
                 List<ResultadoInterno> solucion = new ArrayList<>();
@@ -339,7 +345,10 @@ public class ACORoutingStrategy implements RoutingStrategy {
             int espera = v.horaSalida - horaActual;
             if (espera < 0) espera += 24;
             double ocupacion = (double) (capVuelo.getOrDefault(v.id, 0) + cantidad) / v.capacidad;
-            double factorCapacidad = Math.max(0.1, 1.0 - ocupacion);
+            // Al cuadrado: preferir con fuerza los aviones desocupados. Lineal, la diferencia
+            // entre un vuelo al 20% y otro al 80% apenas pesaba frente al tiempo de espera, y
+            // la colonia amontonaba carga en los mismos vuelos dejando el resto vacío.
+            double factorCapacidad = Math.pow(Math.max(0.1, 1.0 - ocupacion), 2);
             double eta = factorCapacidad / (1.0 + espera + v.duracionHoras);
 
             if (!v.destinoId.equals(destinoFinal)) {
@@ -350,7 +359,9 @@ public class ACORoutingStrategy implements RoutingStrategy {
                     double maxAero = capacidadAlmacen.getOrDefault(v.destinoId, 100);
                     if (maxAero > 0) {
                         double ocupacionNodo = timeline[horaDest % 48] / maxAero;
-                        double factorNodo = Math.max(0.1, 1.0 - ocupacionNodo);
+                        // También al cuadrado: repartir escalas hacia los aeropuertos con
+                        // almacén libre en vez de saturar siempre los mismos hubs.
+                        double factorNodo = Math.pow(Math.max(0.1, 1.0 - ocupacionNodo), 2);
                         eta *= factorNodo;
                     }
                 }
