@@ -19,6 +19,8 @@ import java.util.UUID;
 public class GreedyRoutingStrategy implements RoutingStrategy {
 
     private static final long MIN_CONEXION_MINUTOS = 60;
+    /** Margen mínimo entre la hora actual y la salida para que dé tiempo a embarcar el envío. */
+    private static final long MIN_EMBARQUE_MINUTOS = 15;
 
     /**
      * Indice espacial sobre la lista de vuelos PROGRAMADO: agrupa por origen y por destino
@@ -65,16 +67,27 @@ public class GreedyRoutingStrategy implements RoutingStrategy {
 
     public RutaResult calcularRutaIndexado(NodoLogistico origen, NodoLogistico destino,
                                            OffsetDateTime slaComprometido, VuelosIndex idx) {
+        return calcularRutaIndexado(origen, destino, slaComprometido, idx, null, 1);
+    }
+
+    /**
+     * @param ahora    hora virtual actual; los vuelos que ya salieron quedan descartados.
+     *                 Si es null no se filtra por tiempo (comportamiento histórico).
+     * @param cantidad unidades del envío; solo se consideran vuelos que puedan llevarlas todas.
+     */
+    public RutaResult calcularRutaIndexado(NodoLogistico origen, NodoLogistico destino,
+                                           OffsetDateTime slaComprometido, VuelosIndex idx,
+                                           OffsetDateTime ahora, int cantidad) {
         if (idx.empty()) {
             return RutaResult.sinRuta("No hay vuelos disponibles");
         }
         SegmentoInfo directo = buscarDirectoIdx(origen.getId(), destino.getId(),
-                slaComprometido, idx);
+                slaComprometido, idx, ahora, cantidad);
         if (directo != null) {
             return new RutaResult(List.of(directo), true, null);
         }
         List<SegmentoInfo> conexion = buscarConexionIdx(origen.getId(), destino.getId(),
-                slaComprometido, idx);
+                slaComprometido, idx, ahora, cantidad);
         if (!conexion.isEmpty()) {
             return new RutaResult(conexion, true, null);
         }
@@ -82,15 +95,27 @@ public class GreedyRoutingStrategy implements RoutingStrategy {
                 + " a " + destino.getCodigoIata());
     }
 
+    /**
+     * ¿Sirve este vuelo? Debe salir en el futuro (con margen de embarque), tener sitio para
+     * todo el envío y llegar dentro del SLA. El filtro temporal es clave: sin él el greedy
+     * elegía "la salida más temprana" aunque ya hubiera despegado, y esas maletas se quedaban
+     * en tierra hasta vencer su plazo mientras aviones y almacenes seguían en verde.
+     */
+    private boolean utilizable(Vuelo v, OffsetDateTime ahora, int cantidad, OffsetDateTime sla) {
+        if (ahora != null && !v.getHoraSalida().isAfter(ahora.plusMinutes(MIN_EMBARQUE_MINUTOS))) return false;
+        if (v.getCargaDisponible() == null || v.getCargaDisponible() < cantidad) return false;
+        return !v.getHoraLlegada().isAfter(sla);
+    }
+
     private SegmentoInfo buscarDirectoIdx(UUID origenId, UUID destinoId, OffsetDateTime sla,
-                                          VuelosIndex idx) {
+                                          VuelosIndex idx, OffsetDateTime ahora, int cantidad) {
         List<Vuelo> candidatos = idx.porOrigen().get(origenId);
         if (candidatos == null) return null;
         SegmentoInfo mejor = null;
         OffsetDateTime mejorSalida = null;
         for (Vuelo v : candidatos) {
             if (!v.getDestino().getId().equals(destinoId)) continue;
-            if (v.getHoraLlegada().isAfter(sla)) continue;
+            if (!utilizable(v, ahora, cantidad, sla)) continue;
             if (mejorSalida == null || v.getHoraSalida().isBefore(mejorSalida)) {
                 mejor = new SegmentoInfo(1, v.getId(), v.getCodigoVuelo(),
                         v.getOrigen().getId(), v.getOrigen().getCodigoIata(),
@@ -103,11 +128,13 @@ public class GreedyRoutingStrategy implements RoutingStrategy {
     }
 
     private List<SegmentoInfo> buscarConexionIdx(UUID origenId, UUID destinoId, OffsetDateTime sla,
-                                                 VuelosIndex idx) {
+                                                 VuelosIndex idx, OffsetDateTime ahora, int cantidad) {
         List<Vuelo> primeros = idx.porOrigen().get(origenId);
         if (primeros == null || primeros.isEmpty()) return List.of();
 
         for (Vuelo primero : primeros) {
+            // El primer tramo también tiene que estar por salir y tener sitio.
+            if (!utilizable(primero, ahora, cantidad, sla)) continue;
             UUID escalaId = primero.getDestino().getId();
             List<Vuelo> candidatosEscala = idx.porOrigen().get(escalaId);
             if (candidatosEscala == null) continue;
@@ -118,7 +145,7 @@ public class GreedyRoutingStrategy implements RoutingStrategy {
                 if (!v.getHoraSalida().isAfter(primero.getHoraLlegada())) continue;
                 long minutos = Duration.between(primero.getHoraLlegada(), v.getHoraSalida()).toMinutes();
                 if (minutos < MIN_CONEXION_MINUTOS) continue;
-                if (v.getHoraLlegada().isAfter(sla)) continue;
+                if (!utilizable(v, ahora, cantidad, sla)) continue;
                 if (mejorConexion == null || v.getHoraSalida().isBefore(mejorConexion.getHoraSalida())) {
                     mejorConexion = v;
                 }
