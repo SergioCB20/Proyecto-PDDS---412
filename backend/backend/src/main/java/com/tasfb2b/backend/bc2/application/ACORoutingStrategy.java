@@ -345,10 +345,11 @@ public class ACORoutingStrategy implements RoutingStrategy {
             int espera = v.horaSalida - horaActual;
             if (espera < 0) espera += 24;
             double ocupacion = (double) (capVuelo.getOrDefault(v.id, 0) + cantidad) / v.capacidad;
-            // Al cuadrado: preferir con fuerza los aviones desocupados. Lineal, la diferencia
-            // entre un vuelo al 20% y otro al 80% apenas pesaba frente al tiempo de espera, y
-            // la colonia amontonaba carga en los mismos vuelos dejando el resto vacío.
-            double factorCapacidad = Math.pow(Math.max(0.1, 1.0 - ocupacion), 2);
+            // Lineal a propósito. Elevarlo al cuadrado repartía tan agresivamente que los
+            // aviones salían con 8-9 maletas mientras los almacenes se ponían en rojo: las
+            // maletas quedaban ENRUTADO esperando cada una su vuelo y nadie desaguaba el
+            // nodo. Preferir lo desocupado sí, pero sin renunciar a llenar los aviones.
+            double factorCapacidad = Math.max(0.1, 1.0 - ocupacion);
             double eta = factorCapacidad / (1.0 + espera + v.duracionHoras);
 
             if (!v.destinoId.equals(destinoFinal)) {
@@ -359,9 +360,8 @@ public class ACORoutingStrategy implements RoutingStrategy {
                     double maxAero = capacidadAlmacen.getOrDefault(v.destinoId, 100);
                     if (maxAero > 0) {
                         double ocupacionNodo = timeline[horaDest % 48] / maxAero;
-                        // También al cuadrado: repartir escalas hacia los aeropuertos con
-                        // almacén libre en vez de saturar siempre los mismos hubs.
-                        double factorNodo = Math.pow(Math.max(0.1, 1.0 - ocupacionNodo), 2);
+                        // Lineal, por el mismo motivo que el factor de capacidad del vuelo.
+                        double factorNodo = Math.max(0.1, 1.0 - ocupacionNodo);
                         eta *= factorNodo;
                     }
                 }
