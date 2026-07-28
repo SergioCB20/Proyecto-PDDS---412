@@ -54,6 +54,11 @@ public class TickService {
     private final ReporteSesionRepository reporteSesionRepository;
     private final PuntoSLARepository puntoSLARepository;
     private final PlanViajeRepository planViajeRepository;
+
+    /** @Lazy para no crear un ciclo de beans: ReporteService también vive en este paquete. */
+    @org.springframework.beans.factory.annotation.Autowired
+    @org.springframework.context.annotation.Lazy
+    private ReporteService reporteService;
     private final SesionReadinessManager readinessManager;
     private final SesionLockManager lockManager;
     private final OcupacionNodoService ocupacionNodoService;
@@ -737,6 +742,15 @@ public class TickService {
 
     private void detenerSesionPorColapso(SesionEjecucion sesion, OffsetDateTime now) {
         log.info("Sesion {} colapsada - ticks detenidos", sesion.getId());
+        // El reporte se generaba solo al detener la sesión a mano, así que en un colapso
+        // quedaba el que se hubiera creado durante la corrida: con punto_colapso_virtual y
+        // causa_colapso en null. Se regenera aquí para que refleje el colapso real.
+        try {
+            reporteService.generarReporte(sesion.getId(), "COLAPSADA");
+        } catch (Exception e) {
+            log.warn("No se pudo generar el reporte de la sesion colapsada {}: {}",
+                    sesion.getId(), e.getMessage());
+        }
     }
 
     private void escribirMetricas(SesionEjecucion sesion, OffsetDateTime now) {
